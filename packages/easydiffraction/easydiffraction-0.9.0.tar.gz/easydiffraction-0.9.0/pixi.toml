@@ -1,0 +1,213 @@
+#######################
+# ENVIRONMENT VARIABLES
+#######################
+
+# Platform-independent
+
+[activation.env]
+PYTHONIOENCODING = "utf-8"
+
+# Platform-specific
+
+# Ensures the main package is used from the source code during
+# development, even if main package is installed in editable mode
+# via uv. This is important because `pixi update` might replace
+# the installed version with the latest released version.
+
+# Unix/macOS
+[target.unix.activation.env]
+PYTHONPATH = "${PIXI_PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
+
+# Windows
+[target.win.activation.env]
+PYTHONPATH = "${PIXI_PROJECT_ROOT}/src;%PYTHONPATH%"
+
+###########
+# WORKSPACE
+###########
+
+[workspace]
+# Supported platforms for the lock file (pixi.lock)
+platforms = ['win-64', 'linux-64', 'osx-64', 'osx-arm64']
+
+# Channels for fetching packages
+channels = ['conda-forge']
+
+##########
+# FEATURES
+##########
+
+# Default feature configuration
+
+[dependencies]
+gsl = '*' # GNU Scientific Library; required for pdffit2.
+
+#[target.win-64.dependencies]
+#libcblas = '*' # CBLAS library for linear algebra; required for pdffit2.
+
+[pypi-dependencies] # == [feature.default.pypi-dependencies]
+pip = '*'                                             # Native package installer
+uv = '*'                                              # Package manager
+jupyterlab = '*'                                      # Jupyter notebooks
+pixi-kernel = '*'                                     # Pixi Jupyter kernel
+easydiffraction = { version = '*', extras = ['all'] } # Main package
+
+[target.osx.pypi-dependencies]
+h5py = "==3.14.0" # macOS only: avoid broken 3.15.0 wheel
+
+# Features for specific Python versions
+
+# Each feature sets a specific Python version for the environment.
+
+[feature.py311.dependencies]
+python = '3.11.*'
+
+[feature.py313.dependencies]
+python = '3.13.*'
+
+# This feature installs Node.js for formatting non-Python files with Prettier.
+
+[feature.nodejs.dependencies]
+nodejs = '*'
+
+##############
+# ENVIRONMENTS
+##############
+
+[environments]
+
+# The `default` feature is always included in all environments.
+# Additional features can be specified per environment.
+
+# The `default` environment is always created and includes the `default` feature.
+# It does not need to be specified explicitly unless non-default features are included.
+
+default = { features = ['py313', 'nodejs'] }
+py311-dev = { features = ['py311', 'nodejs'] }
+py313-dev = { features = ['py313', 'nodejs'] }
+
+#######
+# TASKS
+#######
+
+[tasks]
+
+## 🧪 Testing Tasks
+unit-tests = 'python -m pytest tests/unit/ --color=yes -v'
+integration-tests = 'python -m pytest tests/integration/ --color=yes -n auto -v'
+notebook-tests = 'python -m pytest --nbmake tutorials/ --nbmake-timeout=600 --color=yes -n auto -v'
+script-tests = 'python -m pytest tools/test_scripts.py --color=yes -n auto -v'
+extra = 'python -m pytest tests/unit/extra.py -q --tb=no --disable-warnings --color=yes'
+
+test = { depends-on = ['unit-tests'] }
+
+# 🧹 Code Quality
+
+### ✔️ Checks
+pyproject-check = 'python -m validate_pyproject pyproject.toml'
+py-lint-check-pre = "python -m ruff check"
+py-lint-check = 'pixi run py-lint-check-pre .'
+py-format-check-pre = "python -m ruff format --check"
+py-format-check = "pixi run py-format-check-pre ."
+nonpy-format-check-pre = "npx prettier --list-different --config=prettierrc.toml"
+nonpy-format-check-modified = "pixi run nonpy-format-check-pre $(git diff --diff-filter=d --name-only HEAD | grep -E '\\.(json|ya?ml|toml|md|css|html)$' || echo .)"
+nonpy-format-check = "pixi run nonpy-format-check-pre ."
+notebook-format-check = 'nbqa ruff tutorials/'
+docs-format-check = 'docformatter src/ tutorials/ --check'
+# Run like a real commit: staged files only (almost)
+pre-commit-check = 'pre-commit run --hook-stage pre-commit'
+# CI check: lint/format everything
+pre-commit-check-all = 'pre-commit run --all-files --hook-stage pre-commit'
+# Pre-push check: lint/format everything
+pre-push-check = 'pre-commit run --all-files --hook-stage pre-push'
+
+check = { depends-on = [
+  'docs-format-check',
+  'py-format-check',
+  'py-lint-check',
+  'nonpy-format-check-modified',
+] }
+
+### 🛠️ Fixes
+py-lint-fix = 'pixi run py-lint-check --fix'
+#py-format-fix = "python -m ruff format $(git diff --cached --name-only -- '*.py')"
+py-format-fix = "python -m ruff format"
+nonpy-format-fix = 'pixi run nonpy-format-check --write'
+nonpy-format-fix-modified = "pixi run nonpy-format-check-modified --write"
+notebook-format-fix = 'pixi run notebook-format-check --fix'
+docs-format-fix = 'docformatter src/ tutorials/ --in-place'
+
+fix = { depends-on = [
+  'py-format-fix',
+  'docs-format-fix',
+  'py-lint-fix',
+  'nonpy-format-fix',
+] }
+
+## 🧮 Code Complexity
+complexity-check = 'radon cc -s src/'
+complexity-check-json = 'radon cc -s -j src/'
+maintainability-check = 'radon mi src/'
+maintainability-check-json = 'radon mi -j src/'
+raw-metrics = 'radon raw -s src/'
+raw-metrics-json = 'radon raw -s -j src/'
+
+## 📊 Coverage
+unit-tests-coverage = 'pixi run unit-tests --cov=src/easydiffraction --cov-report=term-missing'
+integration-tests-coverage = 'pixi run integration-tests --cov=src/easydiffraction --cov-report=term-missing'
+docstring-coverage = 'interrogate -c pyproject.toml src/'
+
+cov = { depends-on = ['docstring-coverage', 'integration-tests-coverage'] }
+
+## 📓 Notebook Management
+notebook-convert = 'jupytext tutorials/*.py --from py:percent --to ipynb'
+notebook-strip = 'nbstripout tutorials/*.ipynb'
+notebook-tweak = 'python tools/tweak_notebooks.py tutorials/'
+notebook-clean = 'rm -f tutorials/*.ipynb'
+notebook-exec = 'python -m pytest --nbmake tutorials/ --nbmake-timeout=600 --overwrite --color=yes -n auto -v'
+
+notebook-prepare = { depends-on = [
+  'notebook-convert',
+  'notebook-strip',
+  'notebook-tweak',
+] }
+
+## 📚 Documentation Tasks
+docs-assets = 'tools/add_assets_to_docs.sh'
+docs-notebooks = 'mv tutorials/*.* docs/tutorials/' # *.py, *.ipynb, index.json
+docs-config = 'python tools/create_mkdocs_yml.py'
+docs-deploy = 'mike deploy --push --branch gh-pages --update-aliases --alias-type redirect'
+docs-set-default = 'mike set-default --push --branch gh-pages'
+docs-serve = "JUPYTER_PLATFORM_DIRS=1 PYTHONWARNINGS='ignore::RuntimeWarning' python -m mkdocs serve --dirty"
+docs-build = "JUPYTER_PLATFORM_DIRS=1 PYTHONWARNINGS='ignore::RuntimeWarning' python -m mkdocs build"
+docs-local = "pixi run docs-build --no-directory-urls"
+docs-clean = 'tools/cleanup_docs.sh'
+docs-setup = { depends-on = [
+  'docs-config',
+  'docs-assets',
+  'notebook-prepare',
+  'docs-notebooks',
+] }
+
+## 🚀 Development & Build Tasks
+dist-build = 'python -m build --wheel --outdir dist'
+spdx-update = 'python tools/update_spdx.py'
+#dev-install = 'uv pip install --requirements pyproject.toml --extra all'
+dev-install = "python -m uv pip install --editable '.[all]'"
+npm-config = 'npm config set registry https://registry.npmjs.org/'
+prettier-install = 'npm install --no-save --no-audit --no-fund prettier prettier-plugin-toml'
+pre-commit-setup = 'pre-commit clean && pre-commit uninstall && pre-commit install --hook-type pre-commit --hook-type pre-push --overwrite'
+pre-commit-update = 'pre-commit autoupdate'
+clean-pycache = "find . -type d -name '__pycache__' -prune -exec rm -rf '{}' +"
+
+dev = { depends-on = [
+  'dev-install',
+  'npm-config',
+  'prettier-install',
+  'pre-commit-setup',
+] }
+
+wheel = { depends-on = ['npm-config', 'prettier-install'] }
+
+## 🔗 Main Package Shortcut
+easydiffraction = 'python -m easydiffraction'

@@ -1,0 +1,97 @@
+# This workflow creates a backmerge PR into `develop` whenever a new version tag is pushed (v*).
+#
+# Key points:
+# - The PR head is a temporary branch that points at the *tag commit* (refs/tags/vX.Y.Z).
+#   After merging, `develop` can `git describe` as vX.Y.Z-... because the tag commit becomes an ancestor.
+# - The PR is auto-merged using a MERGE COMMIT (not squash) via a GitHub App token.
+#   The GitHub App must be added to the develop ruleset bypass list.
+#
+# Required repo config:
+# https://github.com/organizations/easyscience/settings/secrets/actions
+# https://github.com/organizations/easyscience/settings/variables/actions
+# - Actions secret:   ES_BACKMERGE_PRIVATE_KEY  (GitHub App private key PEM)
+# - Actions variable: ES_BACKMERGE_APP_ID       (GitHub App ID)
+
+name: Backmerge PR (tag -> develop)
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-backmerge-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.BACKMERGE_APP_ID }}
+          private-key: ${{ secrets.BACKMERGE_PRIVATE_KEY }}
+
+      - name: Checkout tag commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }} # refs/tags/vX.Y.Z
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Create and push backmerge branch at tag
+        id: vars
+        run: |
+          set -euo pipefail
+
+          TAG='${{ github.ref_name }}'
+          BRANCH="backmerge/${TAG}"
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create/move branch to point exactly at the tag commit
+          git checkout -B "$BRANCH"
+
+          # Push (force makes re-runs idempotent for the same tag)
+          git push --force --set-upstream origin "$BRANCH"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name:
+          Create PR from tag backmerge branch to develop (or reuse if exists)
+        run: |
+          set -euo pipefail
+
+          TITLE="Backmerge: ${{ steps.vars.outputs.tag }} into develop"
+
+          BODY="⚠️ This PR is created automatically for backmerge of a new release tag commit \`${{ steps.vars.outputs.tag }}\` into \`develop\`.
+
+          It is labeled `[maintainer] auto-pull-request` and is excluded from release notes and version bump logic."
+
+          if gh pr view --repo "${{ github.repository }}" --head "${{ steps.vars.outputs.branch }}" >/dev/null 2>&1; then
+            echo "PR already exists for head=${{ steps.vars.outputs.branch }}"
+          else
+            gh pr create \
+              --repo "${{ github.repository }}" \
+              --base develop \
+              --head "${{ steps.vars.outputs.branch }}" \
+              --title "$TITLE" \
+              --label "[maintainer] auto-pull-request" \
+              --body "$BODY"
+          fi
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Enable auto-merge using MERGE COMMIT
+        run: |
+          set -euo pipefail
+          # Merge the PR identified by its head branch.
+          gh pr merge --repo "${{ github.repository }}" --merge --auto "${{ steps.vars.outputs.branch }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}

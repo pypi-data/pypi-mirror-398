@@ -1,0 +1,282 @@
+###############################
+# Configuration for the project
+###############################
+
+[project]
+name = 'easydiffraction'
+dynamic = ['version'] # Use versioningit to manage the version
+description = 'Diffraction data analysis'
+authors = [{ name = 'EasyDiffraction contributors' }]
+readme = 'README.md'
+license = { file = 'LICENSE' }
+classifiers = [
+  'Intended Audience :: Science/Research',
+  'Topic :: Scientific/Engineering',
+  'License :: OSI Approved :: BSD License',
+  'Operating System :: OS Independent',
+  'Programming Language :: Python :: 3 :: Only',
+  'Programming Language :: Python :: 3',
+  'Programming Language :: Python :: 3.11',
+  'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.13',
+]
+requires-python = '>=3.11,<3.14'
+dependencies = [
+  'numpy<2.4',      # Numerical computing library; <2.4 required for cryspy 0.9.x compatibility
+  'colorama',       # Color terminal output
+  'tabulate',       # Pretty-print tabular data for terminal output
+  'asciichartpy',   # ASCII charts for terminal output
+  'pooch',          # Data downloader
+  'typer',          # Command-line interface creation
+  'rich',           # Rich text and beautiful formatting in the terminal
+  'varname',        # Variable name introspection
+  'asteval',        # An expression evaluator for Python
+  'scipy',          # Scientific computing library
+  'sympy',          # Symbolic mathematics library
+  'lmfit',          # Non-linear optimization and curve fitting
+  'bumps',          # Non-linear optimization and curve fitting
+  'dfo-ls',         # Non-linear optimization and curve fitting
+  'gemmi',          # Crystallography library
+  'cryspy',         # Calculations of diffraction patterns
+  'diffpy.pdffit2', # Calculations of Pair Distribution Function (PDF), Python >=3.11,<3.14
+  'diffpy.utils',   # Utilities for PDF calculations
+  'uncertainties',  # Propagation of uncertainties
+  'typeguard',      # Runtime type checking
+]
+
+[project.optional-dependencies]
+dev = [
+  'build',                   # Building the package
+  'pre-commit',              # Pre-commit hooks
+  'jinja2',                  # Templating
+  'nbmake',                  # Building notebooks
+  'nbstripout',              # Strip output from notebooks
+  'nbqa',                    # Linting and formatting notebooks
+  'pytest',                  # Testing
+  'pytest-cov',              # Test coverage
+  'pytest-xdist',            # Enable parallel testing
+  'ruff',                    # Linting and formatting code
+  'radon',                   # Code complexity and maintainability
+  'validate-pyproject[all]', # Validate pyproject.toml
+  'versioningit',            # Automatic versioning from git tags
+  'jupytext',                # Jupyter notebook text format support
+  'jupyterquiz',             # Quizzes in Jupyter notebooks
+  'docformatter',            # Code formatter for docstrings
+  'interrogate',             # Check for missing docstrings
+]
+docs = [
+  'mike',                            # MkDocs: Versioned documentation support
+  'mkdocs',                          # Static site generator
+  'mkdocs-material',                 # Documentation framework on top of MkDocs
+  'mkdocs-autorefs<1.3.0',           # MkDocs: Auto-references support. 1.3.0 => DeprecationWarning: Setting a fallback anchor function is deprecated and ...
+  'mkdocs-jupyter',                  # MkDocs: Jupyter notebook support.
+  'mkdocs-plugin-inline-svg',        # MkDocs: Inline SVG support
+  'mkdocs-markdownextradata-plugin', # MkDocs: Markdown extra data support, such as global variables
+  'mkdocstrings-python',             # MkDocs: Python docstring support
+  'pyyaml',                          # YAML parser
+]
+visualization = [
+  'darkdetect',          # Detecting dark mode
+  'jupyter_dark_detect', # Jupyter notebook dark mode support
+  'pandas',              # Displaying tables in juptyer notebooks
+  'plotly',              # Interactive plots
+  'py3Dmol',             # Visualisation of crystal structures
+]
+all = [
+  'easydiffraction[dev]',
+  'easydiffraction[docs]',
+  'easydiffraction[visualization]',
+]
+
+[project.urls]
+homepage = 'https://easydiffraction.org'
+documentation = 'https://docs.easydiffraction.org/lib'
+source = 'https://github.com/easyscience/diffraction-lib'
+tracker = 'https://github.com/easyscience/diffraction-lib/issues'
+
+############################
+# Build system configuration
+############################
+
+# Build system 'hatch' -- Python project manager
+# https://hatch.pypa.io/
+
+# Versioning system 'versioningit' -- Versioning from git tags
+# https://versioningit.readthedocs.io/
+
+[build-system]
+build-backend = 'hatchling.build'
+requires = ['hatchling', 'versioningit']
+
+#############################
+# Configuration for hatchling
+#############################
+
+[tool.hatch.build.targets.wheel]
+packages = ['src/easydiffraction']
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+source = 'versioningit' # Use versioningit to manage the version
+
+################################
+# Configuration for versioningit
+################################
+
+# Versioningit generates versions from git tags, so we don't need to
+# either specify them statically in pyproject.toml or save them in the
+# source code. Do not use {distance} in the version format, as it
+# forces a version bump for every commit, which triggers unnecessary
+# pixi.lock update without any changes to the source code.
+
+[tool.versioningit.format]
+distance = '{base_version}+dev{distance}'            # example: 1.2.3.post4+dev3
+dirty = '{base_version}+dirty{distance}'             # example: 0.5.8+dirty3
+distance-dirty = '{base_version}+devdirty{distance}' # example: 0.5.8+devdirty3
+
+# Configure how versioningit detects versions from Git
+# - 'match' ensures it only considers tags starting with 'v'
+# - 'default-tag' is used as a fallback when no matching tag is found
+[tool.versioningit.vcs]
+method = 'git'
+match = ['v*']
+default-tag = 'v999.0.0'
+
+################################
+# Configuration for docformatter
+################################
+
+# 'docformatter' -- Code formatter for docstrings
+# https://docformatter.readthedocs.io/en/latest/
+
+[tool.docformatter]
+recursive = true
+wrap-summaries = 72
+wrap-descriptions = 72
+close-quotes-on-newline = true
+
+################################
+# Configuration for interrogate
+################################
+
+# 'interrogate' -- Check for missing docstrings
+# https://interrogate.readthedocs.io/en/latest/
+
+[tool.interrogate]
+fail-under = 35                  # Temporarily reduce to allow gradual improvement
+verbose = 1
+exclude = ["src/**/__init__.py"]
+
+#######################################
+# Configuration for coverage/pytest-cov
+#######################################
+
+[tool.coverage.run]
+branch = true                    # Measure branch coverage as well
+source = ['src/easydiffraction'] # Limit coverage to the source code directory
+
+[tool.coverage.report]
+show_missing = true # Show missing lines
+skip_covered = true # Skip files with 100% coverage in the report
+fail_under = 65     # Temporarily reduce to allow gradual improvement
+
+########################
+# Configuration for ruff
+########################
+
+# 'ruff' -- Python linter and code formatter
+# https://docs.astral.sh/ruff/rules/
+
+[tool.ruff]
+# Temporarily exclude some directories until we have improved the code quality there
+exclude = ['tests', 'tmp']
+indent-width = 4
+line-length = 99
+# Enable new rules that are not yet stable, like DOC
+preview = true
+
+# https://docs.astral.sh/ruff/rules/
+[tool.ruff.lint]
+select = [
+  'ARG',    # Argument-related issues (e.g., unused arguments)
+  'B',      # Bugbear-specific checks (e.g., likely bugs, bad patterns)
+  'C',      # Complexity-related issues (e.g., high McCabe complexity)
+  'D',      # Docstring formatting issues (old rules)
+  'DOC',    # Docstring formatting issues (new rules)
+  'DTZ',    # Datetime timezone issues (e.g., inconsistent timezone formats)
+  'E',      # General PEP 8 style errors
+  'F',      # Pyflakes-specific checks (e.g., unused variables, imports)
+  'FLY',    # Flynt-specific checks (e.g., enforcing f-strings)
+  'G',      # Type annotation issues (e.g., missing or incorrect type hints)
+  'I',      # Import sorting issues (e.g., unsorted imports)
+  'ICN',    # Import conventions (e.g., enforce aliasing like import numpy as np)
+  'N',      # Naming convention issues (e.g., variable names, function names)
+  'NPY',    # NumPy-specific checks (e.g., array operations, broadcasting)
+  'PGH',    # Misc text patterns checks
+  'PTH',    # Encourages using pathlib over os.path
+  'S',      # Security-related issues (e.g., use of insecure functions or libraries)
+  'SIM',    # Simplification issues (e.g., redundant code, unnecessary constructs)
+  'TCH',    # Type checking issues (e.g., incompatible types, missing type annotations)
+  'TID252', # Enforces absolute imports over relative imports
+  'W',      # General PEP 8 warnings (e.g., lines too long, trailing whitespace)
+  #'ANN',   # Missing or incorrect type annotations
+  #'COM',   # Comment formatting issues
+  #'PERF',  # Performance-related issues (e.g., inefficient code patterns)
+  #'PIE',   # Potentially problematic idioms and errors
+  #'PL',    # PyLint-specific checks (e.g., code smells, potential errors)
+  #'PT',    # Pytest-related issues
+  #'RET',   # Return statement issues (e.g., inconsistent returns)
+  #'RUF',   # Ruff-specific checks (e.g., enforcing best practices)
+  #'SLF',   # Self argument-related issues (e.g., missing or misused self)
+  #'T20',   # Flake8-print-specific checks (e.g., print statements left in code) 
+  #'TD',    # Type definition issues (e.g., incorrect or missing type definitions)
+  #'TRY',   # Tryceratops Try/Except-related issues (e.g., broad exceptions, empty except blocks)
+  #'UP',    # Pyupgrade-specific checks
+]
+# Temporarily disable some docstring checks until we have improved the docstring coverage
+ignore = [
+  'C408',   # Ignore: Unnecessary `dict()` call
+  'C416',   # Ignore: Unnecessary list comprehension
+  'D100',   # Ignore: Missing docstring in public module
+  'D101',   # Ignore: Missing docstring in class
+  'D102',   # Ignore: Missing docstring in public method
+  'D103',   # Ignore: Missing docstring in public function
+  'D104',   # Ignore: Missing docstring in public package
+  'D105',   # Ignore: Missing docstring in magic method
+  'D107',   # Ignore: Missing docstring in __init__
+  'D205',   # Ignore: 1 blank line required between summary and description
+  'DOC201', # Ignore: `return` is not documented in docstring
+  'DOC501', # Ignore: Raised exception `ValueError` missing from docstring
+  'DOC502', # Ignore: Raised exception is not explicitly raised: `TypeError`
+  'DTZ005', # Ignore: `datetime.datetime.now()` called without a `tz` argument
+]
+
+# Temporarily increase McCabe complexity limit to 19 to allow
+# refactoring in smaller steps.
+[tool.ruff.lint.mccabe]
+max-complexity = 19 # default is 10
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = 'all'
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.per-file-ignores]
+'*test_*.py' = ['S101'] # allow asserts in test files
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 100 #99# https://peps.python.org/pep-0008/#maximum-line-length
+max-doc-length = 72   # https://peps.python.org/pep-0008/#maximum-line-length
+
+[tool.ruff.lint.pydocstyle]
+convention = 'google'
+
+[tool.ruff.format]
+docstring-code-format = true    # Whether to format code snippets in docstrings
+docstring-code-line-length = 72 # Line length for code snippets in docstrings
+indent-style = 'space'          # PEP 8 recommends using spaces over tabs
+line-ending = 'lf'              # Line endings will be converted to \n
+quote-style = 'single'          # But double quotes in docstrings (PEP 8, PEP 257)
