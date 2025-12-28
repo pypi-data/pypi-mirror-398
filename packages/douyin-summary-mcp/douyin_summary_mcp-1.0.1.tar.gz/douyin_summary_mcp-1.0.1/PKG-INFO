@@ -1,0 +1,355 @@
+Metadata-Version: 2.4
+Name: douyin-summary-mcp
+Version: 1.0.1
+Summary: MCP服务：从抖音分享链接提取音频、进行语音识别并整理对话内容
+Home-page: https://github.com/yourusername/douyin-summary-mcp
+Author: Your Name
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/douyin-summary-mcp
+Project-URL: Documentation, https://github.com/yourusername/douyin-summary-mcp#readme
+Project-URL: Repository, https://github.com/yourusername/douyin-summary-mcp
+Project-URL: Issues, https://github.com/yourusername/douyin-summary-mcp/issues
+Keywords: mcp,douyin,speech-recognition,asr,ai
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Multimedia :: Sound/Audio :: Speech
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Requires-Dist: dashscope>=1.17.0
+Requires-Dist: python-dotenv>=1.0.0
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# 抖音语音识别MCP服务
+
+这是一个MCP（Model Context Protocol）服务，用于从抖音分享链接中提取音频、进行语音识别，并使用AI大模型整理对话内容。
+
+## 功能特性
+
+- 解析抖音分享文本，自动提取短链接
+- 通过RapidAPI获取抖音视频的MP3音频地址
+- 使用阿里云通义千问语音识别模型进行音频转文字
+- 使用阿里千问大模型整理对话内容，识别说话人角色
+- 支持异步任务处理和自动轮询
+- 返回结构化的对话JSON数组
+
+## 项目结构
+
+```
+douyin-summary-mcp/
+├── src/
+│   ├── __init__.py
+│   ├── douyin_parser.py          # 解析抖音分享文本，提取短链接
+│   ├── rapidapi_client.py        # RapidAPI客户端，获取MP3地址
+│   ├── aliyun_asr.py             # 阿里云语音识别客户端
+│   ├── qwen_client.py            # 阿里千问大模型客户端，整理对话内容
+│   ├── mcp_server.py             # 命令行入口（旧版）
+│   └── mcp_protocol_server.py    # MCP协议服务器实现
+├── mcp_server.py                 # MCP服务器启动脚本（主入口）
+├── requirements.txt              # Python依赖
+├── config.py                     # 配置文件（API Keys）
+├── claude_desktop_config.example.json  # Claude Desktop配置示例
+├── MCP_SETUP.md                  # MCP服务配置指南
+└── README.md                     # 项目说明文档
+```
+
+## 安装
+
+### 方式1：通过 pip 安装（推荐）
+
+```bash
+pip install douyin-summary-mcp
+```
+
+安装后，MCP服务器命令 `douyin-summary-mcp` 将可用。
+
+### 方式2：从源码安装
+
+#### 1. 克隆项目
+
+```bash
+git clone <repository-url>
+cd douyin-summary-mcp
+```
+
+#### 2. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+或者直接安装为开发模式：
+
+```bash
+pip install -e .
+```
+
+### 3. 配置环境变量
+
+创建 `.env` 文件（参考 `.env.example`）：
+
+```bash
+# RapidAPI配置
+RAPIDAPI_KEY=your_rapidapi_key_here
+
+# 阿里云配置
+DASHSCOPE_API_KEY=your_dashscope_api_key_here
+```
+
+**获取API Keys：**
+
+- **RapidAPI Key**: 访问 [RapidAPI Douyin API New](https://rapidapi.com/nguyenmanhict-MuTUtGWD7K/api/douyin-api-new)，订阅服务并获取API Key
+- **阿里云DashScope API Key**: 访问 [阿里云DashScope](https://help.aliyun.com/zh/model-studio/get-api-key)，获取API Key
+
+## 使用方法
+
+### 命令行使用
+
+```bash
+python3 -m src.mcp_server "7.46 z@G.vs YZZ:/ 08/31 随机进家做菜：叔叔吃了我烧的肉，觉得之前老伴做的不香了！# 抖音美食推荐官 # 随机进家做菜 # 美食 # 红烧肉 # 排骨汤 https://v.douyin.com/ybL9NO9RjKA/ 复制此链接，打开Dou音搜索，直接观看视频！"
+```
+
+### Python代码使用
+
+```python
+from src.mcp_server import process_douyin_share
+
+share_text = "7.46 z@G.vs YZZ:/ 08/31 随机进家做菜... https://v.douyin.com/ybL9NO9RjKA/ 复制此链接..."
+
+result = process_douyin_share(share_text)
+
+if result["success"]:
+    print(f"识别文本: {result['data']['recognized_text']}")
+    if result['data'].get('formatted_dialogue'):
+        import json
+        print(f"格式化对话: {json.dumps(result['data']['formatted_dialogue'], ensure_ascii=False, indent=2)}")
+else:
+    print(f"处理失败: {result['message']}")
+```
+
+## API说明
+
+### `process_douyin_share(share_text: str) -> Dict[str, Any]`
+
+处理抖音分享链接的主函数。
+
+**参数：**
+- `share_text` (str): 抖音分享文本
+
+**返回：**
+```python
+{
+    "success": bool,           # 是否成功
+    "message": str,            # 状态消息
+    "data": {
+        "douyin_url": str,      # 提取的抖音短链接
+        "mp3_url": str,         # 获取的MP3地址
+        "recognized_text": str, # 识别出的原始文本
+        "formatted_dialogue": [ # 格式化后的对话数组（可选）
+            {
+                "speaker": "说话人1",  # 说话人角色
+                "text": "说话内容"     # 说话内容
+            },
+            ...
+        ]
+    } or None
+}
+```
+
+## 工作流程
+
+1. **解析分享文本**: 使用正则表达式从分享文本中提取抖音短链接（如 `https://v.douyin.com/ybL9NO9RjKA`）
+
+2. **获取MP3地址**: 调用RapidAPI的Douyin API接口，从短链接提取视频ID，获取视频的MP3音频地址
+
+3. **语音识别**: 
+   - 提交异步任务到阿里云语音识别服务（使用 `qwen3-asr-flash-filetrans` 模型）
+   - 轮询任务状态直到完成
+   - 从 `transcription_url` 下载识别结果JSON文件
+   - 提取识别出的文本内容（从 `transcripts[0].text`）
+
+4. **对话整理**: 
+   - 调用阿里千问大模型（`qwen-plus`）分析对话内容
+   - 识别不同的说话人角色
+   - 将对话分段并格式化为JSON数组
+   - 每个元素包含 `speaker`（说话人角色）和 `text`（说话内容）
+
+## 技术细节
+
+### 阿里云语音识别
+
+- **模型**: `qwen3-asr-flash-filetrans`
+- **地域**: 中国大陆（北京）
+- **接口类型**: 异步接口
+- **支持时长**: 最长12小时音频
+- **API文档**: [阿里云录音文件识别](https://help.aliyun.com/zh/model-studio/qwen-speech-recognition)
+
+### RapidAPI
+
+- **接口**: `https://douyin-api-app-web.p.rapidapi.com/web/aweme/detail`
+- **方法**: POST
+- **文档**: [RapidAPI Douyin API (APP - WEB)](https://rapidapi.com/manhgdev/api/douyin-api-app-web)
+- **说明**: 需要先从抖音短链接提取视频ID，然后调用接口获取视频详情
+
+### 阿里千问大模型
+
+- **模型**: `qwen-plus`
+- **用途**: 整理对话内容，识别说话人角色
+- **输出格式**: JSON数组，包含 `speaker` 和 `text` 字段
+
+## 错误处理
+
+服务包含完整的错误处理机制：
+
+- 配置验证：启动时检查必要的环境变量
+- 网络异常：处理API调用失败和超时
+- 任务超时：设置最大轮询次数，避免无限等待
+- 日志记录：详细记录处理过程，便于调试
+
+## MCP使用方式
+
+本项目已实现完整的MCP（Model Context Protocol）协议支持，可以直接作为MCP服务器使用。
+
+### 快速开始
+
+1. **安装包**
+   ```bash
+   pip install douyin-summary-mcp
+   ```
+
+2. **配置Claude Desktop**
+
+   编辑Claude Desktop配置文件（位置见下方），添加：
+
+   ```json
+   {
+     "mcpServers": {
+       "douyin-summary": {
+         "command": "douyin-summary-mcp",
+         "env": {
+           "RAPIDAPI_KEY": "your_rapidapi_key_here",
+           "DASHSCOPE_API_KEY": "your_dashscope_api_key_here"
+         }
+       }
+     }
+   }
+   ```
+
+   **注意：** 如果通过pip安装，直接使用 `douyin-summary-mcp` 命令即可，无需指定完整路径。
+   
+   如果从源码安装，需要使用：
+   ```json
+   {
+     "mcpServers": {
+       "douyin-summary": {
+         "command": "python3",
+         "args": ["/绝对路径/douyin-summary-mcp/mcp_server.py"],
+         "env": {
+           "RAPIDAPI_KEY": "your_rapidapi_key_here",
+           "DASHSCOPE_API_KEY": "your_dashscope_api_key_here"
+         }
+       }
+     }
+   }
+   ```
+
+   **配置文件位置：**
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+
+3. **重启Claude Desktop**
+
+   配置完成后重启Claude Desktop，即可使用 `@douyin-summary` 工具。
+
+### 详细配置指南
+
+详细的配置步骤和故障排除，请参考 [MCP_SETUP.md](MCP_SETUP.md)
+
+### 其他使用方式
+
+#### 方式1：命令行调用
+
+```bash
+python3 -m src.mcp_server "抖音分享文本..."
+```
+
+#### 方式2：Python模块调用
+
+```python
+from src.mcp_server import process_douyin_share
+
+share_text = "抖音分享文本..."
+result = process_douyin_share(share_text)
+```
+
+#### 作为Python模块调用
+
+```python
+from src.mcp_server import process_douyin_share
+
+# 处理抖音分享链接
+share_text = "抖音分享文本..."
+result = process_douyin_share(share_text)
+
+if result["success"]:
+    # 获取原始识别文本
+    recognized_text = result['data']['recognized_text']
+    
+    # 获取格式化后的对话
+    formatted_dialogue = result['data'].get('formatted_dialogue')
+    if formatted_dialogue:
+        for item in formatted_dialogue:
+            print(f"{item['speaker']}: {item['text']}")
+```
+
+#### 返回数据示例
+
+```json
+{
+  "success": true,
+  "message": "处理成功",
+  "data": {
+    "douyin_url": "https://v.douyin.com/ybL9NO9RjKA",
+    "mp3_url": "https://example.com/audio.mp3",
+    "recognized_text": "完整的识别文本...",
+    "formatted_dialogue": [
+      {
+        "speaker": "主持人",
+        "text": "这是一期东北大丰收的保姆级教程..."
+      },
+      {
+        "speaker": "主持人",
+        "text": "这道菜需要用到一口大铁锅..."
+      }
+    ]
+  }
+}
+```
+
+## 注意事项
+
+1. 确保音频文件URL是公网可访问的
+2. 阿里云语音识别是异步接口，可能需要等待较长时间（取决于音频长度）
+3. RapidAPI接口可能需要订阅才能使用
+4. 千问大模型调用需要消耗API额度，请合理使用
+5. 请妥善保管API Keys，不要提交到版本控制系统
+6. 如果步骤4（对话整理）失败，仍会返回步骤3的识别文本，保证流程不中断
+
+## 许可证
+
+[根据项目需要添加许可证信息]
+
