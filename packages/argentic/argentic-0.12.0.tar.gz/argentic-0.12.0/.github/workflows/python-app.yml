@@ -1,0 +1,54 @@
+---
+name: Python application
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev,kafka,redis,rabbitmq]"
+
+      # - name: Lint with flake8 (only critical errors)
+      #   run: |
+      #     # Only check for critical syntax errors and undefined names
+      #     uv run flake8 . --count --select=E9,F63,F7,F82 --show-source \
+      #       --statistics --exclude=.venv,tests
+
+      - name: Run unit tests
+        run: |
+          # Set PYTHONPATH and run tests directly with uv
+          export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)/src"
+          uv run python -m pytest tests/core/messager/unit -m "not e2e" -v
+
+      # - name: Run integration tests
+      #   run: |
+      #     export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)/src"
+      #     uv run python -m pytest tests/core/messager/test_messager_integration.py -v
