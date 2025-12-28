@@ -1,0 +1,101 @@
+Metadata-Version: 2.4
+Name: rossetta-fastapi
+Version: 0.1.5
+Summary: End-to-end encryption middleware for FastAPI
+Author: Rossetta API
+License: MIT
+Keywords: fastapi,encryption,e2e,middleware,security
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: cryptography>=41.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: httpx>=0.24.0; extra == "dev"
+Dynamic: license-file
+
+# rossetta-fastapi
+
+End-to-end encryption middleware for FastAPI applications.
+
+## Installation
+
+```bash
+pip install rossetta-fastapi
+```
+
+## Usage
+
+Add the middleware to your FastAPI application with a single line:
+
+```python
+from fastapi import FastAPI
+from rossetta_fastapi import RossettaMiddleware
+
+app = FastAPI()
+
+# Add the middleware - that's it!
+app.add_middleware(RossettaMiddleware)
+
+# All your existing routes now have e2e encryption
+@app.get("/api/data")
+async def get_data():
+    return {"message": "This response is automatically encrypted!"}
+
+@app.post("/api/submit")
+async def submit_data(data: dict):
+    # Request is automatically decrypted
+    return {"received": data}
+```
+
+## Features
+
+- **Zero Code Changes**: Add middleware and all routes are automatically protected
+- **Transparent Encryption**: Works with existing FastAPI code
+- **Automatic Key Exchange**: ECDH key exchange handled automatically
+- **Replay Attack Prevention**: Built-in timestamp and nonce validation
+- **Session Management**: Automatic session lifecycle management
+
+## Configuration
+
+```python
+app.add_middleware(
+    RossettaMiddleware,
+    session_duration=3600,        # Session duration in seconds (default: 1 hour)
+    max_timestamp_drift=300,      # Max timestamp drift in seconds (default: 5 minutes)
+)
+```
+
+## How It Works
+
+1. Client initiates ECDH key exchange via `/__rossetta_handshake__` endpoint
+2. Middleware derives shared secret from key exchange
+3. All subsequent requests are encrypted with the shared session key
+4. Middleware decrypts requests, validates nonce/timestamp
+5. Processes request through normal FastAPI handlers
+6. Encrypts response before sending back to client
+
+## Requirements
+
+- Python 3.8+
+- FastAPI 0.100.0+
+- cryptography 41.0.0+
+
+## Client Compatibility
+
+Works with `rossetta-client` npm package for JavaScript/TypeScript clients.
+
+## License
+
+MIT
