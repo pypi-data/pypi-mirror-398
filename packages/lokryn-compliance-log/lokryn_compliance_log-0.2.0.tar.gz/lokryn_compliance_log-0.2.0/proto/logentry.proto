@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+package lokryn.compliance.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// ============================================================================
+// Lokryn Compliance Log Schema
+// 
+// A compliance-grade audit logging schema with first-class support for 
+// AI/agent systems and MCP (Model Context Protocol).
+//
+// Design principles:
+// - Lokryn fields are canonical
+// - Enum values align with OCSF/OTel where possible (no export transformation)
+// - Pre-translated fields stored at write time for zero-cost export
+// - Prefix convention (e.g., FAILURE_*) enables lossless mapping to less granular standards
+//
+// Export compatibility:
+// - OCSF: Field rename only, use ocsf_class_uid/ocsf_activity_id
+// - OTel GenAI: Field rename only, use otel_operation_name
+// ============================================================================
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+// Severity levels aligned with RFC 5424 / OCSF severity_id (values 1-8 match exactly)
+enum Severity {
+  SEVERITY_UNKNOWN = 0;
+  SEVERITY_DEBUG = 1;
+  SEVERITY_INFO = 2;
+  SEVERITY_NOTICE = 3;
+  SEVERITY_WARNING = 4;
+  SEVERITY_ERROR = 5;
+  SEVERITY_CRITICAL = 6;
+  SEVERITY_ALERT = 7;
+  SEVERITY_EMERGENCY = 8;
+}
+
+// Outcome aligned with OCSF status_id
+// Export rule: FAILURE_* prefix maps to OCSF status_id 2
+enum Outcome {
+  OUTCOME_UNKNOWN = 0;              // OCSF: 0 (Unknown)
+  OUTCOME_SUCCESS = 1;              // OCSF: 1 (Success)
+  OUTCOME_FAILURE_UNAUTHORIZED = 2; // OCSF: 2 (Failure)
+  OUTCOME_FAILURE_DENIED = 3;       // OCSF: 2 (Failure)
+  OUTCOME_FAILURE_ERROR = 4;        // OCSF: 2 (Failure)
+  OUTCOME_OTHER = 99;               // OCSF: 99 (Other)
+}
+
+// Sensitivity aligned with OCSF confidentiality_id (values 0-4 match exactly)
+// Export rule: PUBLIC_* prefix maps to OCSF confidentiality_id 1
+enum Sensitivity {
+  SENSITIVITY_UNKNOWN = 0;          // OCSF: 0 (Unknown)
+  SENSITIVITY_PUBLIC = 1;           // OCSF: 1 (Not Confidential)
+  SENSITIVITY_CONFIDENTIAL = 2;     // OCSF: 2 (Confidential)
+  SENSITIVITY_SECRET = 3;           // OCSF: 3 (Secret)
+  SENSITIVITY_TOP_SECRET = 4;       // OCSF: 4 (Top Secret)
+  SENSITIVITY_PUBLIC_INTERNAL = 10; // OCSF: 1 (via PUBLIC_* prefix) - Lokryn extension
+}
+
+// Event types - Lokryn canonical classification
+// OCSF/OTel mappings stored in ocsf_class_uid, ocsf_activity_id, otel_operation_name
+enum EventType {
+  EVENT_UNSPECIFIED = 0;
+
+  // Traditional audit events (1-19)
+  EVENT_LOGIN = 1;
+  EVENT_LOGOUT = 2;
+  EVENT_FILE_ACCESS = 3;
+  EVENT_POLICY_CHANGE = 4;
+  EVENT_PRIVILEGE_USE = 5;
+  EVENT_CONFIG_CHANGE = 6;
+  EVENT_DATA_EXPORT = 7;
+  EVENT_NETWORK_CONNECTION = 8;
+  EVENT_PROCESS_START = 9;
+  EVENT_PROCESS_STOP = 10;
+  EVENT_USER_MANAGEMENT = 11;
+  EVENT_RESOURCE_ACCESS = 12;
+
+  // AI/Agent events (20-29)
+  EVENT_TOOL_INVOCATION = 20;
+  EVENT_MODEL_INFERENCE = 21;
+  EVENT_AGENT_DECISION = 22;
+  EVENT_DELEGATION = 23;
+  EVENT_CONTEXT_ACCESS = 24;
+  EVENT_PROMPT_EXECUTION = 25;
+  EVENT_GUARDRAIL_CHECK = 26;
+
+  // MCP events (30-49)
+  EVENT_MCP_INITIALIZE = 30;
+  EVENT_MCP_INITIALIZED = 31;
+  EVENT_MCP_PING = 32;
+  EVENT_MCP_SHUTDOWN = 33;
+  EVENT_TOOL_LIST = 34;
+  EVENT_RESOURCE_LIST = 35;
+  EVENT_PROMPT_LIST = 36;
+  EVENT_RESOURCE_READ = 37;
+  EVENT_SAMPLING_REQUEST = 38;
+  EVENT_SAMPLING_RESPONSE = 39;
+  EVENT_TRANSPORT_CONNECT = 40;
+  EVENT_TRANSPORT_DISCONNECT = 41;
+  EVENT_TRANSPORT_ERROR = 42;
+}
+
+// ============================================================================
+// CORE MESSAGE
+// ============================================================================
+
+message LogRequest {
+  // === Lokryn Classification ===
+  EventType event_type = 1;
+  Outcome outcome = 2;
+  Severity severity = 3;
+  Sensitivity sensitivity = 4;
+
+  // === OCSF Classification (pre-translated at write time) ===
+  int32 ocsf_class_uid = 5;
+  int32 ocsf_activity_id = 6;
+
+  // === OTel GenAI Classification (pre-translated at write time) ===
+  string otel_operation_name = 7;
+
+  // === Occurrence ===
+  google.protobuf.Timestamp time = 8;
+  int64 duration_ms = 9;
+
+  // === Identity ===
+  string actor_id = 10;
+  string actor_type = 11;
+
+  // === Context ===
+  string component = 12;
+  string environment = 13;
+  string resource = 14;
+  string message = 15;
+
+  // === Correlation ===
+  string trace_id = 16;
+  string span_id = 17;
+  string parent_span_id = 18;
+  string session_id = 19;
+
+  // === Compliance ===
+  repeated string policy_tags = 20;
+
+  // === Metadata ===
+  Metadata metadata = 21;
+
+  // === Payload ===
+  oneof payload {
+    GenAIPayload genai = 22;
+    MCPPayload mcp = 23;
+    google.protobuf.Struct data = 24;
+  }
+
+  // === Audit Trail ===
+  string client_id = 25;
+  string client_version = 26;
+  string server_id = 27;
+  string server_version = 28;
+  int64 request_size_bytes = 29;
+  int64 response_size_bytes = 30;
+  string geo_region = 31;
+}
+
+// ============================================================================
+// METADATA
+// ============================================================================
+
+message Metadata {
+  string schema_version = 1;
+  string product_name = 2;
+  string product_version = 3;
+  string vendor_name = 4;
+}
+
+// ============================================================================
+// GENAI PAYLOAD
+// ============================================================================
+
+message GenAIPayload {
+  // Model identification
+  string model = 1;
+  string provider = 2;
+
+  // Token usage
+  int32 input_tokens = 3;
+  int32 output_tokens = 4;
+  int32 total_tokens = 5;
+
+  // Request parameters
+  double temperature = 6;
+  int32 max_tokens = 7;
+  double top_p = 8;
+
+  // Response info
+  string finish_reason = 9;
+  int64 time_to_first_token_ms = 10;
+  string response_id = 11;
+
+  // Content (opt-in, may contain sensitive data)
+  repeated Message input_messages = 12;
+  repeated Message output_messages = 13;
+  repeated ToolCall tool_calls = 14;
+}
+
+message Message {
+  string role = 1;
+  string content = 2;
+  string name = 3;
+}
+
+message ToolCall {
+  string id = 1;
+  string name = 2;
+  string arguments = 3;
+  string result = 4;
+}
+
+// ============================================================================
+// MCP PAYLOAD
+// ============================================================================
+
+message MCPPayload {
+  // Protocol info
+  string protocol_version = 1;
+  string request_id = 2;
+
+  // Tool operations
+  string tool_name = 3;
+  google.protobuf.Struct tool_arguments = 4;
+  google.protobuf.Struct tool_result = 5;
+
+  // Resource operations
+  string resource_uri = 6;
+  string resource_mime_type = 7;
+
+  // Sampling (when MCP server requests LLM completion)
+  GenAIPayload sampling = 8;
+
+  // Capabilities (from initialize handshake)
+  repeated string client_capabilities = 9;
+  repeated string server_capabilities = 10;
+}
