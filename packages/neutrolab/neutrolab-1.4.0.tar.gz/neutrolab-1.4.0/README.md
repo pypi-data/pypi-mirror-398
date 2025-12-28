@@ -1,0 +1,430 @@
+# NeutroLab
+
+[![PyPI version](https://badge.fury.io/py/neutrolab.svg)](https://badge.fury.io/py/neutrolab)
+[![Python Version](https://img.shields.io/pypi/pyversions/neutrolab.svg)](https://pypi.org/project/neutrolab/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**A unified library for neutrosophic learning, configuration analysis, and logical machines.**
+
+NeutroLab is a comprehensive Python library for transforming crisp data into neutrosophic values using various data-driven and model-based methods. It implements the methods described in the paper:
+
+> *"A Comparative Analysis of Data-Driven and Model-Based Neutrosophication Methods: Advancing True Neutrosophic Logic in Medical Data Transformation"*
+
+## Overview
+
+**Neutrosophication** is the process of converting crisp (deterministic) values into neutrosophic triplets (T, I, F), where:
+
+- **T (Truth)**: Degree of truth/membership
+- **I (Indeterminacy)**: Degree of indeterminacy/uncertainty  
+- **F (Falsity)**: Degree of falsity/non-membership
+
+Unlike fuzzy logic where T + F = 1, **true neutrosophic logic** allows T, I, and F to be **independent**, enabling more nuanced modeling of uncertainty.
+
+## Features
+
+### Current Implementation (v1.3.1)
+- **5 Neutrosophication Methods**: K-Means (proposed), Parabolic, Threshold, KDE, Fuzzy
+- **N-fsQCA v2.0**: Neutrosophic Fuzzy-Set Qualitative Comparative Analysis
+- **NML**: Neutrosophic Meta-Learning for Tsetlin Machines
+- **IFAO**: Indeterminacy-First Aggregation Operator for MCDM
+- **True Neutrosophic Independence**: K-Means method achieves independent T, I, F components
+- **Data-driven Adaptability**: Methods automatically adapt to data distribution
+- **Consistent API**: All methods follow the same interface (fit/transform)
+- **Comprehensive Statistics**: Metrics from the paper (T+F consistency, entropy, etc.)
+
+### Planned Extensions
+- 🔮 Interval-Valued Neutrosophic Sets (IVNS)
+- 🔮 Neutrosophic Cognitive Maps
+- 🔮 GPU acceleration for large-scale applications
+
+## Installation
+
+```bash
+pip install neutrolab
+```
+
+For development:
+```bash
+pip install neutrolab[dev]
+```
+
+For visualization:
+```bash
+pip install neutrolab[viz]
+```
+
+## Quick Start
+
+```python
+import numpy as np
+from neutrolab import KMeansNeutrosophic, ParabolicNeutrosophic, normalize_data
+
+# Sample data (e.g., clinical measurements)
+raw_data = np.array([29, 45, 54, 62, 77])  # Age values
+
+# Normalize to [0, 1] using Min-Max scaling (Eq. 1 from paper)
+data = normalize_data(raw_data)
+
+# Method 1: K-Means Clustering (PROPOSED - True Neutrosophic)
+kmeans = KMeansNeutrosophic(random_state=42)
+T, I, F = kmeans.fit_transform(data)
+
+# K-Means achieves TRUE INDEPENDENCE: T+I+F ≠ 1
+print(f"K-Means T+I+F sum: {np.mean(T + I + F):.3f}")  # ≈ 0.639
+
+# Method 2: Parabolic (Classical - Fuzzy-like)
+parabolic = ParabolicNeutrosophic(alpha=0.5)
+T, I, F = parabolic.fit_transform(data)
+
+# Parabolic enforces T+F=1 (fuzzy complementarity)
+print(f"Parabolic T+I+F sum: {np.mean(T + I + F):.3f}")  # ≈ 1.331
+```
+
+## Available Methods
+
+### 1. K-Means Clustering (Proposed) ⭐
+
+**Data-driven approach achieving TRUE neutrosophic independence.**
+
+```python
+from neutrolab import KMeansNeutrosophic
+
+method = KMeansNeutrosophic(random_state=42)
+T, I, F = method.fit_transform(data)
+```
+
+**Mathematical Formulation:**
+- T(x) = 1 / (1 + exp(-10·(x - c_high)/(σ_high + ε)))
+- I(x) = 1 / (1 + |x - c_mid|/(σ_mid + ε))
+- F(x) = 1 / (1 + exp(10·(x - c_low)/(σ_low + ε)))
+
+**Key Properties:**
+- ✅ TRUE independence of T, I, F (T+I+F ≈ 0.639)
+- ✅ Data-driven: learns from data distribution
+- ✅ High indeterminacy range (0.894)
+- ✅ Moderate entropy (2.149)
+
+### 2. Parabolic Method (Classical)
+
+**Parameter-free model-based approach.**
+
+```python
+from neutrolab import ParabolicNeutrosophic
+
+method = ParabolicNeutrosophic(alpha=0.5)
+T, I, F = method.fit_transform(data)
+```
+
+**Mathematical Formulation:**
+- T(x) = x
+- I(x) = 4·x·(1-x)·α
+- F(x) = 1 - x
+
+**Best for:** Speed-critical or real-time scenarios
+
+### 3. Threshold Distance (Semi-novel)
+
+**Threshold-based approach with Gaussian indeterminacy.**
+
+```python
+from neutrolab import ThresholdNeutrosophic
+
+method = ThresholdNeutrosophic(theta=0.5, lambda_=5.0)
+T, I, F = method.fit_transform(data)
+```
+
+**Mathematical Formulation:**
+- T(x) = 1 / (1 + exp(-10·(x - θ)))
+- I(x) = exp(-λ·(x - θ)²)
+- F(x) = 1 - T(x)
+
+**Best for:** Threshold-based decision making
+
+### 4. Kernel Density Estimation (KDE)
+
+**Density-based approach for anomaly detection.**
+
+```python
+from neutrolab import KDENeutrosophic
+
+method = KDENeutrosophic(kernel='gaussian')
+T, I, F = method.fit_transform(data)
+```
+
+**Key Property:** High indeterminacy in sparse regions (low density)
+
+**Best for:** Anomaly detection and sparse region identification
+
+### 5. Fuzzy Membership (Classical)
+
+**Triangular membership functions for interpretability.**
+
+```python
+from neutrolab import FuzzyNeutrosophic
+
+method = FuzzyNeutrosophic()
+T, I, F = method.fit_transform(data)
+```
+
+**Predefined Fuzzy Sets:**
+- Low: (-0.5, 0.0, 0.5)
+- Medium: (0.25, 0.5, 0.75)
+- High: (0.5, 1.0, 1.5)
+
+**Best for:** Interpretability-focused expert systems
+
+## Method Comparison
+
+| Method | T+I+F Sum | T+F Consistency | Independence | Best Use Case |
+|--------|-----------|-----------------|--------------|---------------|
+| **K-Means** | 0.639 | 0.291 | ✅ TRUE | Complex data, true neutrosophic |
+| Parabolic | 1.331 | 1.000 | ❌ Forced | Real-time processing |
+| Threshold | 1.711 | 1.000 | ❌ Forced | Threshold decisions |
+| KDE | 1.260 | 1.000 | ❌ Forced | Anomaly detection |
+| Fuzzy | 1.349 | 1.000 | ❌ Forced | Expert systems |
+
+## Comparing Methods
+
+```python
+from neutrolab import (
+    KMeansNeutrosophic, ParabolicNeutrosophic, 
+    ThresholdNeutrosophic, KDENeutrosophic, FuzzyNeutrosophic,
+    compare_methods, normalize_data
+)
+import numpy as np
+
+# Prepare data
+raw_data = np.random.random(100)
+data = normalize_data(raw_data)
+
+# Fit all methods
+methods = {
+    'K-Means': KMeansNeutrosophic(random_state=42),
+    'Parabolic': ParabolicNeutrosophic(),
+    'Threshold': ThresholdNeutrosophic(),
+    'KDE': KDENeutrosophic(),
+    'Fuzzy': FuzzyNeutrosophic()
+}
+
+results = {}
+for name, method in methods.items():
+    results[name] = method.fit_transform(data)
+
+# Generate comparison table
+comparison = compare_methods(results)
+print(comparison[['Method', 'mean_sum', 'tf_consistency', 'entropy_I']])
+```
+
+## N-fsQCA v2.0: Neutrosophic Qualitative Comparative Analysis
+
+**Enhanced validity in Qualitative Comparative Analysis through variance-based indeterminacy.**
+
+```python
+from neutrolab import NfsqcaEngine, compare_with_traditional
+import pandas as pd
+
+# Prepare fuzzy membership data [0,1]
+X = pd.DataFrame({
+    'Condition1': [0.8, 0.9, 0.2, 0.7],
+    'Condition2': [0.7, 0.8, 0.3, 0.6]
+})
+y = pd.Series([0.9, 0.85, 0.1, 0.75])  # Outcome
+
+# Run N-fsQCA v2.0
+engine = NfsqcaEngine(threshold_t=0.80, threshold_i=0.30)
+results = engine.analyze(X, y, use_bootstrap=True)
+
+# Get sufficient configurations
+sufficient = engine.get_sufficient_configurations()
+for config in sufficient:
+    print(f"{config.name}: T={config.tif.T:.3f}, I={config.tif.I:.3f}")
+```
+
+**Key Innovation: Variance-Based Indeterminacy**
+```
+I = Var(Y|X) / 0.25
+```
+
+**11 Causal Archetypes:**
+- STRONG_SUFFICIENT, WEAK_SUFFICIENT, SUFFICIENT_CAUSE
+- STRONG_INHIBITOR, WEAK_INHIBITOR, MEASUREMENT_ERROR
+- CAUSAL_PARADOX, PARTIAL_CAUSE, IRRELEVANCE, COMPLEX_RELATION, INDETERMINATE
+
+**Validation Results:**
+- Jaccard similarity: **0.98** (vs 0.52 for traditional fsQCA)
+- False positives: **0.03** (vs 1.85 for traditional fsQCA)
+
+## NML: Neutrosophic Tsetlin Machine
+
+**Post-hoc neutrosophic analysis for interpretable machine learning.**
+
+```python
+from neutrolab import NeutroTsetlinMachine, RuleCategory
+
+# Prepare binary data
+X_binary = NeutroTsetlinMachine.binarize(X_continuous)
+
+# Train and analyze
+ntm = NeutroTsetlinMachine(n_clauses=60, T=15, s=3.5)
+ntm.fit(X_train, y_train, epochs=100)
+ntm.analyze_neutrosophic(X_train, y_train)
+
+# Get summary
+summary = ntm.get_summary()
+print(f"Active clauses: {summary['n_active']}")
+print(f"T: {summary['T_mean']:.4f} ± {summary['T_std']:.4f}")
+print(f"Certain rules: {summary['n_certain']}")
+
+# Get specific rule categories
+certain_rules = ntm.get_rules(RuleCategory.CERTAIN)
+```
+
+**Rule Categories:**
+- **CERTAIN**: High certainty (I < 0.35)
+- **UNCERTAIN**: High indeterminacy (I > 0.45)
+- **CONTRADICTORY**: T ≈ F (|T - F| < 0.15)
+
+**Benefits:**
+- ~4% computational overhead
+- Explicit uncertainty quantification
+- Rule reliability classification
+
+**Note:** Requires pyTsetlinMachine: `pip install pyTsetlinMachine`
+
+## Neutrosophic Aggregation: IFAO - Indeterminacy-First Aggregation Operator
+
+**A new paradigm for MCDM where Indeterminacy is the ontological foundation.**
+
+### Formal Definition
+
+The **Indeterminacy-First Aggregation Operator (IFAO)** is defined as:
+
+```
+Ω_IFAO: [0,1]ⁿ × Δⁿ → N₁
+
+Ω_IFAO(v,w) = (P·(1-C), C, (1-P)·(1-C))
+```
+
+Where:
+- `v = (v₁, ..., vₙ) ∈ [0,1]ⁿ` — criteria values
+- `w = (w₁, ..., wₙ) ∈ Δⁿ` — weights (Σwᵢ = 1)
+- `N₁ = {(T,I,F) ∈ [0,1]³ : T+I+F = 1}` — neutrosophic simplex
+
+### Mathematical Components
+
+```
+P = Σᵢ wᵢ·vᵢ                                    (Potential - WAM)
+C = (2/n(n-1))·Σᵢ Σⱼ>ᵢ ((wᵢ+wⱼ)/2)·|vᵢ-vⱼ|    (Contradiction - Weighted GMD)
+I = C                                           (Indeterminacy = Conflict)
+T = P·(1-I)                                     (Truth - derived from I)
+F = (1-P)·(1-I)                                 (Falsity - derived from I)
+
+Fundamental Property: T + I + F = 1
+```
+
+### Ontological Hierarchy
+
+```
+IFAO:       Conflict → Indeterminacy → (Truth, Falsity)  [I is PRIMARY]
+Atanassov:  Truth, Falsity → Indeterminacy = 1-T-F       [I is RESIDUAL]
+```
+
+### Cross-Domain Analogies
+
+The IFAO follows a deep epistemological pattern found in:
+
+| Domain | Primary | Derived | Constraint |
+|--------|---------|---------|------------|
+| Quantum Mechanics | Uncertainty (ℏ) | Position, Momentum | Δx·Δp ≥ ℏ/2 |
+| Thermodynamics | Entropy (S) | Useful Work | η = 1-Tc/Th |
+| Finance (Markowitz) | Risk (σ) | Adjusted Return | Efficient Frontier |
+| **IFAO** | **Indeterminacy (C)** | **Truth, Falsity** | **T+I+F=1** |
+
+### Usage Example
+
+```python
+from neutrolab import IndeterminacyFirstAggregator, MCDMEvaluator
+
+# Define criteria and weights
+criteria = ['Technical', 'Financial', 'Social', 'Environmental']
+weights = [0.3, 0.3, 0.2, 0.2]
+agg = IndeterminacyFirstAggregator(criteria, weights)
+
+# Harmonious project - low conflict
+result = agg.aggregate([0.8, 0.8, 0.7, 0.75])
+print(f"⟨T={result.T:.3f}, I={result.I:.3f}, F={result.F:.3f}⟩")
+# Output: ⟨T=0.754, I=0.014, F=0.232⟩ → STRONG_APPROVE
+
+# Conflicting project - high conflict
+result = agg.aggregate([0.9, 0.2, 0.8, 0.1])
+print(f"⟨T={result.T:.3f}, I={result.I:.3f}, F={result.F:.3f}⟩")
+# Output: ⟨T=0.481, I=0.125, F=0.394⟩ → REVIEW (conflicted, not mediocre!)
+
+# Batch evaluation
+evaluator = MCDMEvaluator(criteria, weights)
+alternatives = {
+    'Project A': [0.8, 0.8, 0.7, 0.75],
+    'Project B': [0.9, 0.2, 0.8, 0.1],
+    'Project C': [0.4, 0.3, 0.5, 0.35]
+}
+results = evaluator.evaluate_all(alternatives)
+ranking = evaluator.rank_alternatives(results, method='truth_adjusted')
+```
+
+**Decision Categories:**
+- **STRONG_APPROVE**: High T, Low I
+- **APPROVE**: Moderate T, Low I
+- **REVIEW_POSITIVE**: High T, Moderate I
+- **REVIEW_NEGATIVE**: Low T, Moderate I
+- **REJECT**: Low T, Low I
+- **INDETERMINATE**: Very High I
+
+## Requirements
+
+- Python >= 3.8
+- NumPy >= 1.20.0
+- Pandas >= 1.3.0
+- SciPy >= 1.7.0
+
+## Citation
+
+If you use NeutroLab in your research, please cite:
+
+```bibtex
+@article{leyvavazquez2024neutrosophication,
+  title={A Comparative Analysis of Data-Driven and Model-Based Neutrosophication 
+         Methods: Advancing True Neutrosophic Logic in Medical Data Transformation},
+  author={Leyva-V{\'a}zquez, Maikel Yelandi and Smarandache, Florentin},
+  journal={},
+  year={2024}
+}
+```
+
+## Authors
+
+- **Maikel Yelandi Leyva-Vázquez** - Universidad de Guayaquil, Ecuador
+  - Email: mleyvaz@gmail.com
+  - ORCID: [0000-0001-7911-5879](https://orcid.org/0000-0001-7911-5879)
+- **Florentin Smarandache** - University of New Mexico, USA
+  - ORCID: [0000-0002-5560-5926](https://orcid.org/0000-0002-5560-5926)
+
+## References
+
+1. Smarandache, F. (1998). *Neutrosophy/neutrosophic probability, set, and logic*.
+2. Smarandache, F. (2014). *Introduction to Neutrosophic Statistics*.
+3. Wang, H., et al. (2010). Single valued neutrosophic sets.
+4. Zadeh, L. A. (1965). Fuzzy sets. *Information and Control*, 8(3), 338-353.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
