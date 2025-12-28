@@ -1,0 +1,2 @@
+class MaxHopsExceededError(Exception):
+    pass
