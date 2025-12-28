@@ -1,0 +1,194 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShootScriptAudioFileItem:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'sequence_no': 'int',
+        'audio_file_upload_url': 'str',
+        'audio_file_download_url': 'str',
+        'audio_id': 'int'
+    }
+
+    attribute_map = {
+        'sequence_no': 'sequence_no',
+        'audio_file_upload_url': 'audio_file_upload_url',
+        'audio_file_download_url': 'audio_file_download_url',
+        'audio_id': 'audio_id'
+    }
+
+    def __init__(self, sequence_no=None, audio_file_upload_url=None, audio_file_download_url=None, audio_id=None):
+        r"""ShootScriptAudioFileItem
+
+        The model defined in huaweicloud sdk
+
+        :param sequence_no: 剧本序号。
+        :type sequence_no: int
+        :param audio_file_upload_url: 语音驱动音频文件上传URL。创建和更新脚本时返回。单个文件最大100M。支持上传MP3/WAV/M4A文件。
+        :type audio_file_upload_url: str
+        :param audio_file_download_url: 语音驱动音频文件下载URL。查询脚本详情时返回。
+        :type audio_file_download_url: str
+        :param audio_id: audio id
+        :type audio_id: int
+        """
+        
+        
+
+        self._sequence_no = None
+        self._audio_file_upload_url = None
+        self._audio_file_download_url = None
+        self._audio_id = None
+        self.discriminator = None
+
+        self.sequence_no = sequence_no
+        if audio_file_upload_url is not None:
+            self.audio_file_upload_url = audio_file_upload_url
+        if audio_file_download_url is not None:
+            self.audio_file_download_url = audio_file_download_url
+        if audio_id is not None:
+            self.audio_id = audio_id
+
+    @property
+    def sequence_no(self):
+        r"""Gets the sequence_no of this ShootScriptAudioFileItem.
+
+        剧本序号。
+
+        :return: The sequence_no of this ShootScriptAudioFileItem.
+        :rtype: int
+        """
+        return self._sequence_no
+
+    @sequence_no.setter
+    def sequence_no(self, sequence_no):
+        r"""Sets the sequence_no of this ShootScriptAudioFileItem.
+
+        剧本序号。
+
+        :param sequence_no: The sequence_no of this ShootScriptAudioFileItem.
+        :type sequence_no: int
+        """
+        self._sequence_no = sequence_no
+
+    @property
+    def audio_file_upload_url(self):
+        r"""Gets the audio_file_upload_url of this ShootScriptAudioFileItem.
+
+        语音驱动音频文件上传URL。创建和更新脚本时返回。单个文件最大100M。支持上传MP3/WAV/M4A文件。
+
+        :return: The audio_file_upload_url of this ShootScriptAudioFileItem.
+        :rtype: str
+        """
+        return self._audio_file_upload_url
+
+    @audio_file_upload_url.setter
+    def audio_file_upload_url(self, audio_file_upload_url):
+        r"""Sets the audio_file_upload_url of this ShootScriptAudioFileItem.
+
+        语音驱动音频文件上传URL。创建和更新脚本时返回。单个文件最大100M。支持上传MP3/WAV/M4A文件。
+
+        :param audio_file_upload_url: The audio_file_upload_url of this ShootScriptAudioFileItem.
+        :type audio_file_upload_url: str
+        """
+        self._audio_file_upload_url = audio_file_upload_url
+
+    @property
+    def audio_file_download_url(self):
+        r"""Gets the audio_file_download_url of this ShootScriptAudioFileItem.
+
+        语音驱动音频文件下载URL。查询脚本详情时返回。
+
+        :return: The audio_file_download_url of this ShootScriptAudioFileItem.
+        :rtype: str
+        """
+        return self._audio_file_download_url
+
+    @audio_file_download_url.setter
+    def audio_file_download_url(self, audio_file_download_url):
+        r"""Sets the audio_file_download_url of this ShootScriptAudioFileItem.
+
+        语音驱动音频文件下载URL。查询脚本详情时返回。
+
+        :param audio_file_download_url: The audio_file_download_url of this ShootScriptAudioFileItem.
+        :type audio_file_download_url: str
+        """
+        self._audio_file_download_url = audio_file_download_url
+
+    @property
+    def audio_id(self):
+        r"""Gets the audio_id of this ShootScriptAudioFileItem.
+
+        audio id
+
+        :return: The audio_id of this ShootScriptAudioFileItem.
+        :rtype: int
+        """
+        return self._audio_id
+
+    @audio_id.setter
+    def audio_id(self, audio_id):
+        r"""Sets the audio_id of this ShootScriptAudioFileItem.
+
+        audio id
+
+        :param audio_id: The audio_id of this ShootScriptAudioFileItem.
+        :type audio_id: int
+        """
+        self._audio_id = audio_id
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShootScriptAudioFileItem):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
