@@ -1,0 +1,802 @@
+# Vllama: Vision Models Made Easy 🚀
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/DayInfinity/Vllama)
+
+Vllama is a comprehensive toolkit that simplifies working with vision models, machine learning workflows, and local LLMs. Whether you're preprocessing datasets, training models with AutoML, generating images with state-of-the-art diffusion models, or chatting with local language models directly in VS Code, Vllama makes it easy - locally or on cloud GPUs.
+
+---
+
+## ✨ Key Features
+
+### 🤖 CLI Tool
+- **🔧 Autonomous Data Preprocessing**: Intelligent data cleaning, encoding, scaling, and feature selection
+- **🏆 AutoML Training**: Train and compare multiple ML models automatically with hyperparameter tuning
+- **🎨 Image Generation**: Generate images using pre-trained diffusion models (Stable Diffusion, SD-Turbo)
+- **🎬 Video Generation**: Create videos from text prompts using text-to-video models
+- **🤖 Local LLM Server**: Run language models locally as REST API servers
+- **💬 CLI Chat**: Interactive chat with local LLMs directly from terminal
+- **🔊 Text-to-Speech**: Convert text to speech using local TTS engine
+- **🎤 Speech-to-Text**: Convert speech to text using local STT engine
+- **☁️ Cloud GPU Integration**: Seamlessly offload computation to Kaggle GPUs
+- **📊 Rich Visualizations**: Automatic generation of insights, correlations, and performance metrics
+- **💾 Smart Output Management**: Organized folder structure with logs, models, and visualizations
+
+### 🆚 VS Code Extension
+- **💬 Chat with Local LLMs**: Direct integration with VS Code's native "Chat with AI" interface
+- **🔌 Local-First**: Connect to LLMs running on your machine (e.g., `localhost:2513`)
+- **⚡ Zero Configuration**: Works seamlessly with locally hosted language models
+- **🎯 Native Experience**: Fully integrated into VS Code's chat panel
+- **🔮 Future Ready**: Built to support agentic tools and advanced features
+
+---
+
+## 📦 Installation
+
+### CLI Tool Installation
+
+#### 1. Clone the Repository
+```bash
+git clone https://github.com/DayInfinity/Vllama.git
+cd Vllama
+```
+
+#### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+#### 3. Install Vllama CLI
+```bash
+pip install -e .
+```
+
+Now you can use `vllama` from anywhere in your terminal!
+
+### VS Code Extension Installation
+
+The Vllama VS Code extension allows you to chat with local LLMs directly from VS Code's Chat interface.
+
+#### Prerequisites
+- VS Code (latest version recommended)
+- A locally running LLM server (e.g., on `localhost:2513`)
+
+#### Installation Steps
+1. Download the Vllama extension from the VS Code Marketplace (or install from `.vsix` file)
+2. Open VS Code
+3. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
+4. Search for "Vllama" or install the downloaded `.vsix` file
+5. Reload VS Code
+
+#### Usage
+1. Ensure your local LLM server is running on the configured port (default: `localhost:2513`)
+2. Open VS Code's Chat panel (View → Chat with AI)
+3. Select your local LLM model from the model dropdown
+4. Start chatting with your local language model!
+
+**Note**: The extension integrates seamlessly with VS Code's native chat interface, providing a familiar experience while maintaining complete privacy with your local LLM.
+
+---
+
+## 🚀 Quick Start Guide
+
+### Data Preprocessing & Model Training Workflow
+
+#### Step 1: Preprocess Your Dataset
+Clean and prepare your data for machine learning:
+
+```bash
+vllama data --path dataset.csv --target price --test_size 0.2 --output_dir ./outputs
+```
+
+**What it does:**
+- Automatically detects column types (numerical/categorical)
+- Handles missing values intelligently (KNN imputation, median/mode filling)
+- Removes duplicates and handles outliers
+- Encodes categorical variables (label encoding, one-hot encoding, frequency encoding)
+- Scales features using RobustScaler
+- Performs feature selection (removes zero-variance and highly correlated features)
+- Generates visualizations (missing values heatmap, correlation matrix, etc.)
+- Splits data into train/test sets
+- Saves processed data as `train_data.csv` and `test_data.csv`
+
+**Parameters:**
+- `--path`: Path to your dataset (supports CSV, Excel, JSON, Parquet)
+- `--target`: Target column name (auto-detected if not specified)
+- `--test_size` or `-t`: Test set proportion (default: 0.2)
+- `--output_dir` or `-o`: Output directory (default: current directory)
+
+**Output Structure:**
+```
+output_folder_YYYYMMDD_HHMMSS/
+├── train_data.csv
+├── test_data.csv
+├── processed_full_data.csv
+├── preprocessing_log.json
+├── preprocessing_log.txt
+├── summary_report.json
+├── transformation_metadata.json
+└── visualizations/
+    ├── 01_missing_initial.png
+    ├── 02_dtypes.png
+    ├── 03_corr_processed.png
+    ├── 04_target_processed.png
+    └── 05_mi.png
+```
+
+#### Step 2: Train Models with AutoML
+Automatically train and compare multiple ML models:
+
+```bash
+vllama train --path ./outputs/output_folder_YYYYMMDD_HHMMSS --target price
+```
+
+**What it does:**
+- Auto-detects task type (classification or regression)
+- Trains multiple models with hyperparameter tuning:
+  - **Classification**: Logistic Regression, Random Forest, XGBoost, LightGBM, CatBoost, SVM, KNN, MLP, Naive Bayes
+  - **Regression**: Random Forest, XGBoost, LightGBM, CatBoost, SVR, KNN, MLP
+- Uses RandomizedSearchCV for efficient hyperparameter optimization
+- Evaluates models on test set with comprehensive metrics
+- Generates visualizations (confusion matrices, ROC curves, prediction plots)
+- Saves all models and creates a leaderboard
+- Identifies and saves the best performing model
+
+**Parameters:**
+- `--path` or `-p`: Path to folder containing `train_data.csv` and `test_data.csv`
+- `--target` or `-t`: Target column name
+
+**Output Structure:**
+```
+results/
+├── model_summary.csv          # Leaderboard of all models
+├── best_model.pkl             # Best performing model
+├── best_model.txt             # Best model details
+├── report.html                # HTML report with all results
+└── per_model/
+    ├── RandomForest/
+    │   ├── RandomForest_best_model.pkl
+    │   ├── RandomForest_tuning_results.csv
+    │   ├── RandomForest_confusion_matrix.png
+    │   └── RandomForest_roc_curve.png
+    ├── XGBoost/
+    └── ...
+```
+
+---
+
+### Vision Model Inference Workflow
+
+#### Step 1: Show Available Models
+```bash
+vllama show models
+```
+
+Lists all supported vision models with descriptions.
+
+#### Step 2: Install a Model (Optional)
+Pre-download model weights to cache:
+
+```bash
+vllama install stabilityai/sd-turbo
+```
+
+#### Step 3: Generate Images Locally
+
+**Single Prompt Mode:**
+```bash
+vllama run stabilityai/sd-turbo --prompt "A serene mountain landscape at sunset" --output_dir ./images
+```
+
+**Interactive Mode:**
+```bash
+vllama run stabilityai/sd-turbo
+```
+Then enter prompts interactively. Type `exit` or `quit` to stop.
+
+**Parameters:**
+- `model`: Model name (e.g., `stabilityai/sd-turbo`)
+- `--prompt` or `-p`: Text prompt for image generation
+- `--output_dir` or `-o`: Directory to save generated images (default: current directory)
+- `--service` or `-s`: Offload to cloud service (e.g., `kaggle`)
+
+**Features:**
+- Automatic GPU/CPU detection
+- Low VRAM optimization (for GPUs with ≤3GB VRAM)
+- Memory-efficient attention (xformers)
+- Attention slicing and VAE tiling for better performance
+
+#### Step 4: Generate Images on Kaggle GPU
+
+```bash
+vllama run stabilityai/sd-turbo --service kaggle --prompt "A cyberpunk city at night"
+```
+
+**What it does:**
+- Creates a Kaggle kernel with GPU enabled
+- Installs dependencies automatically
+- Runs the model on Kaggle's GPU
+- Downloads the generated image to your local machine
+
+---
+
+## 📚 Complete Command Reference
+
+### Data & ML Commands
+
+#### `vllama data`
+Autonomous data preprocessing and cleaning.
+
+```bash
+vllama data --path <dataset> --target <column> [--test_size <float>] [--output_dir <dir>]
+```
+
+**Examples:**
+```bash
+# Basic usage with auto-detected target
+vllama data --path sales_data.csv
+
+# Specify target column and test size
+vllama data --path housing.csv --target price --test_size 0.25
+
+# Custom output directory
+vllama data --path data.csv --target label -t 0.3 -o ./processed_data
+```
+
+#### `vllama train`
+AutoML model training with hyperparameter tuning.
+
+```bash
+vllama train --path <data_folder> --target <column>
+```
+
+**Examples:**
+```bash
+# Train on preprocessed data
+vllama train --path ./output_folder_20231124_143022 --target SalePrice
+
+# Short form
+vllama train -p ./data -t label
+```
+
+---
+
+### Vision Model Commands
+
+#### `vllama show models`
+List all supported vision models.
+
+```bash
+vllama show models
+```
+
+#### `vllama install`
+Download and cache a model.
+
+```bash
+vllama install <model_name>
+```
+
+**Example:**
+```bash
+vllama install stabilityai/sd-turbo
+```
+
+#### `vllama run`
+Run a vision model for image generation.
+
+```bash
+vllama run <model_name> [--prompt <text>] [--service <service>] [--output_dir <dir>]
+```
+
+**Examples:**
+```bash
+# Single prompt
+vllama run stabilityai/sd-turbo --prompt "A beautiful sunset"
+
+# Interactive mode
+vllama run stabilityai/sd-turbo
+
+# Run on Kaggle GPU
+vllama run stabilityai/sd-turbo --service kaggle --prompt "A dragon flying"
+
+# Custom output directory
+vllama run stabilityai/sd-turbo -p "A forest" -o ./my_images
+```
+
+#### `vllama run_video`
+Generate videos from text prompts.
+
+```bash
+vllama run_video <model_name> [--prompt <text>] [--service <service>] [--output_dir <dir>]
+```
+
+**Examples:**
+```bash
+# Generate video locally
+vllama run_video damo-vilab/text-to-video-ms-1.7b --prompt "A cat playing piano"
+
+# Generate video on Kaggle GPU
+vllama run_video damo-vilab/text-to-video-ms-1.7b --service kaggle --prompt "A sunset over ocean"
+
+# Interactive mode
+vllama run_video damo-vilab/text-to-video-ms-1.7b
+```
+
+#### `vllama list`
+List all installed/downloaded models.
+
+```bash
+vllama list models
+```
+
+#### `vllama uninstall`
+Remove a downloaded model from cache.
+
+```bash
+vllama uninstall <model_name>
+```
+
+**Example:**
+```bash
+vllama uninstall stabilityai/sd-turbo
+```
+
+#### `vllama post`
+Send a prompt to an already running model session.
+
+```bash
+vllama post <prompt> [--output_dir <dir>]
+```
+
+**Example:**
+```bash
+vllama post "A magical castle" --output_dir ./outputs
+```
+
+#### `vllama stop`
+Stop the currently running model session.
+
+```bash
+vllama stop
+```
+
+---
+
+### Local LLM Commands
+
+#### `vllama run_llm`
+Run a local LLM as a REST API server.
+
+```bash
+vllama run_llm <model_name>
+```
+
+**What it does:**
+- Downloads and loads the specified HuggingFace LLM
+- Starts a Flask server on `localhost:2513`
+- Provides a `/chat` endpoint for conversation
+- Maintains conversation history
+- Compatible with VS Code extension
+
+**Examples:**
+```bash
+# Run Qwen model (default)
+vllama run_llm Qwen/Qwen2.5-Coder-0.5B-Instruct
+
+# Run Llama model
+vllama run_llm meta-llama/Llama-2-7b-chat-hf
+
+# Run any HuggingFace chat model
+vllama run_llm microsoft/DialoGPT-medium
+```
+
+**API Usage:**
+```bash
+# Send message via curl
+curl -X POST http://localhost:2513/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello, how are you?"}'
+```
+
+**Note:** This is the server that the VS Code extension connects to by default.
+
+#### `vllama chat_llm`
+Interactive chat with a local LLM via CLI.
+
+```bash
+vllama chat_llm
+```
+
+**What it does:**
+- Connects to a running LLM server (started with `run_llm`)
+- Provides interactive chat interface in terminal
+- Maintains conversation context
+- Type `exit` or `quit` to stop
+
+**Example:**
+```bash
+# Terminal 1: Start LLM server
+vllama run_llm Qwen/Qwen2.5-Coder-0.5B-Instruct
+
+# Terminal 2: Start chat
+vllama chat_llm
+# You> Write a Python function to reverse a string
+# Assistant> Here's a function to reverse a string...
+```
+
+---
+
+### Speech Commands
+
+#### `vllama tts`
+Convert text to speech using local TTS engine.
+
+```bash
+vllama tts --text <text>
+```
+
+**Examples:**
+```bash
+# Speak text
+vllama tts --text "Hello, this is a test of text to speech"
+
+# Interactive mode (no --text flag)
+vllama tts
+# Enter text: Hello world
+```
+
+#### `vllama stt`
+Convert speech to text using microphone input.
+
+```bash
+vllama stt
+```
+
+**What it does:**
+- Listens to microphone input
+- Converts speech to text using Google Speech Recognition
+- Prints transcribed text
+
+**Example:**
+```bash
+vllama stt
+# Listening... Speak now!
+# [You speak: "Hello world"]
+# Transcribed: Hello world
+```
+
+---
+
+### Cloud Integration Commands
+
+#### `vllama login`
+Authenticate with a cloud GPU service.
+
+```bash
+vllama login --service <service> [--username <user>] [--key <api_key>]
+```
+
+**Examples:**
+```bash
+# Login to Kaggle with credentials
+vllama login --service kaggle --username myusername --key abc123xyz
+
+# Use existing Kaggle credentials from ~/.kaggle/kaggle.json
+vllama login --service kaggle
+```
+
+#### `vllama init gpu`
+Initialize a GPU session on a cloud service.
+
+```bash
+vllama init gpu --service <service>
+```
+
+**Example:**
+```bash
+vllama init gpu --service kaggle
+```
+
+#### `vllama logout`
+Remove cloud service credentials.
+
+```bash
+vllama logout
+```
+
+---
+
+## 🎯 Common Workflows
+
+### Workflow 1: Complete ML Pipeline
+```bash
+# 1. Preprocess data
+vllama data --path raw_data.csv --target price
+
+# 2. Train models (use the output folder from step 1)
+vllama train --path ./output_folder_20231124_143022 --target price
+
+# 3. Review results in the results/ folder
+```
+
+### Workflow 2: Local Image Generation
+```bash
+# 1. Install model (optional, first-time only)
+vllama install stabilityai/sd-turbo
+
+# 2. Generate images interactively
+vllama run stabilityai/sd-turbo
+
+# Enter prompts:
+# Prompt> A serene lake with mountains
+# Prompt> A futuristic city
+# Prompt> exit
+```
+
+### Workflow 3: Cloud GPU Image Generation
+```bash
+# 1. Login to Kaggle
+vllama login --service kaggle --username myuser --key myapikey
+
+# 2. Generate image on Kaggle GPU
+vllama run stabilityai/sd-turbo --service kaggle --prompt "A magical forest"
+
+# Image will be downloaded automatically
+```
+
+### Workflow 4: Local LLM Server & CLI Chat
+```bash
+# 1. Start local LLM server
+vllama run_llm Qwen/Qwen2.5-Coder-0.5B-Instruct
+
+# 2. In another terminal, start CLI chat
+vllama chat_llm
+
+# 3. Chat interactively
+# You> Write a function to calculate fibonacci
+# Assistant> Here's a function...
+```
+
+### Workflow 5: Chat with Local LLM in VS Code
+```bash
+# 1. Start Vllama LLM server
+vllama run_llm Qwen/Qwen2.5-Coder-0.5B-Instruct
+
+# 2. Open VS Code with Vllama extension installed
+
+# 3. Open Chat with AI panel (View → Chat with AI)
+
+# 4. Select your local model and start chatting!
+```
+
+### Workflow 6: Video Generation
+```bash
+# 1. Generate video locally
+vllama run_video damo-vilab/text-to-video-ms-1.7b --prompt "A cat playing piano"
+
+# 2. Or use Kaggle GPU for faster processing
+vllama run_video damo-vilab/text-to-video-ms-1.7b --service kaggle --prompt "A sunset"
+
+```
+
+---
+
+## 📊 Understanding Outputs
+
+### Data Preprocessing Outputs
+
+**Logs:**
+- `preprocessing_log.json`: Detailed JSON log of all preprocessing steps
+- `preprocessing_log.txt`: Human-readable text log
+- `summary_report.json`: Summary statistics and metadata
+
+**Data Files:**
+- `train_data.csv`: Training dataset (80% by default)
+- `test_data.csv`: Testing dataset (20% by default)
+- `processed_full_data.csv`: Complete processed dataset
+- `transformation_metadata.json`: Encoders and scalers metadata for future use
+
+**Visualizations:**
+- Missing values heatmap
+- Data types distribution
+- Correlation matrix (top 20 features)
+- Target distribution
+- Mutual information scores
+
+### Model Training Outputs
+
+**Model Files:**
+- `best_model.pkl`: Best performing model (can be loaded with joblib)
+- `model_summary.csv`: Comparison of all trained models
+- `report.html`: Interactive HTML report
+
+**Per-Model Outputs:**
+- `{model}_best_model.pkl`: Saved model
+- `{model}_tuning_results.csv`: Hyperparameter search results
+- `{model}_confusion_matrix.png`: Confusion matrix (classification)
+- `{model}_roc_curve.png`: ROC curve (binary classification)
+- `{model}_pred_vs_true.png`: Scatter plot (regression)
+
+### Vision Model Outputs
+
+Generated images are saved as:
+```
+vllama_output_{timestamp}.png          # Local generation
+vllama_kaggle_{timestamp}.png          # Kaggle generation
+```
+
+---
+
+## 🔧 Advanced Configuration
+
+### Environment Variables
+
+Create a `.env` file for configuration:
+
+```env
+# Kaggle API Credentials
+KAGGLE_USERNAME=your_username
+KAGGLE_KEY=your_api_key
+
+# Model Cache Directory (optional)
+HF_HOME=/path/to/cache
+
+# Hugging Face Access Token (for gated models)
+HF_TOKEN=your_huggingface_token
+```
+
+### GPU Optimization
+
+Vllama automatically optimizes for your GPU:
+- **High VRAM (>3GB)**: Uses float16, full resolution (512x512), more inference steps
+- **Low VRAM (≤3GB)**: Uses float32, reduced steps, memory-efficient attention
+- **CPU**: Falls back to CPU inference (slower but works)
+
+---
+
+## 🔄 Recent Updates
+
+### Version 1.0.0 (Latest)
+- 🆚 **VS Code Extension**: Added support for chatting with local LLMs directly from VS Code
+- 📄 **License Change**: Migrated from GPL-3.0 to Apache-2.0 for greater flexibility
+- 📚 **Documentation**: Comprehensive README updates with all features and workflows
+- 🤝 **Open Source**: Prepared project for public open source release
+- 🔒 **Security**: Enhanced security documentation and best practices
+
+### Version 0.8.1
+- 🎨 Added support for Stable Diffusion Turbo
+- ☁️ Improved Kaggle GPU integration
+- 🔧 Bug fixes and performance improvements
+
+### Version 0.7.0
+- 🤖 AutoML training with hyperparameter tuning
+- 📊 Enhanced visualization outputs
+- 🔄 Better data preprocessing pipeline
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Quick Start for Contributors
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
+
+---
+
+## 📄 License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+```
+Copyright 2025 Gopu Manvith
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+---
+
+## 🆘 Troubleshooting
+
+### Common Issues
+
+**Issue: "Kaggle API credentials not found"**
+```bash
+# Solution: Set up Kaggle credentials
+vllama login --service kaggle --username YOUR_USERNAME --key YOUR_API_KEY
+```
+
+**Issue: "CUDA out of memory"**
+```bash
+# Solution: The tool automatically handles low VRAM, but you can also:
+# 1. Close other GPU applications
+# 2. Use CPU mode (automatic fallback)
+# 3. Use Kaggle GPU instead
+vllama run model --service kaggle --prompt "your prompt"
+```
+
+**Issue: "Target column not found"**
+```bash
+# Solution: Specify the target column explicitly
+vllama data --path data.csv --target your_column_name
+```
+
+**Issue: "VS Code extension can't connect to local LLM"**
+```bash
+# Solution: Ensure your LLM server is running
+# 1. Check that the server is running on the correct port (default: localhost:2513)
+# 2. Verify firewall settings allow local connections
+# 3. Check VS Code extension settings for the correct endpoint
+```
+
+---
+
+## 📞 Support
+
+- **Documentation**: [GitHub Repository](https://github.com/DayInfinity/Vllama)
+- **Issues**: [GitHub Issues](https://github.com/DayInfinity/Vllama/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/DayInfinity/Vllama/discussions)
+- **Email**: manvithgopu1394@gmail.com
+
+---
+
+## 🌟 Acknowledgments
+
+Built with:
+- [PyTorch](https://pytorch.org/) - Deep learning framework
+- [Hugging Face Diffusers](https://huggingface.co/docs/diffusers) - State-of-the-art diffusion models
+- [Scikit-learn](https://scikit-learn.org/) - Machine learning library
+- [XGBoost](https://xgboost.readthedocs.io/), [LightGBM](https://lightgbm.readthedocs.io/), [CatBoost](https://catboost.ai/) - Gradient boosting frameworks
+- [Kaggle API](https://github.com/Kaggle/kaggle-api) - Cloud GPU integration
+- [Flask](https://flask.palletsprojects.com/) - Web framework for API endpoints
+- [VS Code Extension API](https://code.visualstudio.com/api) - VS Code extension development
+
+---
+
+## 🗺️ Roadmap
+
+### Upcoming Features
+- [ ] Support for more vision models (DALL-E, Midjourney-style models)
+- [ ] Advanced agentic tools for VS Code extension
+- [ ] Web UI for model training and inference
+- [ ] Multi-GPU support for distributed training
+- [ ] Integration with more cloud GPU providers
+- [ ] Real-time model fine-tuning capabilities
+- [ ] Support for video generation models
+- [ ] Enhanced chat capabilities with RAG (Retrieval-Augmented Generation)
+
+### Long-term Vision
+- Build a comprehensive AI toolkit that works seamlessly across local and cloud environments
+- Enable developers to easily integrate state-of-the-art AI models into their workflows
+- Create a vibrant community of contributors and users
+- Support the latest research in generative AI and machine learning
+
+---
+
+## ⭐ Star History
+
+If you find Vllama useful, please consider giving it a star on GitHub! It helps others discover the project.
+
+---
+
+**Made with ❤️ by Gopu Manvith**
+
+[⬆ Back to top](#vllama-vision-models-made-easy-)
