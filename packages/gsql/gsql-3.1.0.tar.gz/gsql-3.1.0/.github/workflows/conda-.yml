@@ -1,0 +1,38 @@
+
+name: 📦 Publication Anaconda
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish-conda:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}  # Active Conda pour TOUTES les étapes
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-activate-base: true
+          miniconda-version: "latest"
+          # 'activate-environment' est laissé vide pour utiliser 'base'
+          activate-environment: ""
+
+      - name: 📦 Installer outils
+        run: |
+          conda install -y conda-build anaconda-client
+
+      - name: 🏗️ Construire le package
+        run: |
+          conda build conda.recipe/ --output-folder ./output
+
+      - name: 🚀 Publier sur Anaconda
+        run: |
+          PKG=$(find ./output -name "*.conda" -o -name "*.tar.bz2" | head -1)
+          anaconda -t ${{ secrets.ANACONDA_TOKEN }} upload --user gopu-inc "$PKG"
