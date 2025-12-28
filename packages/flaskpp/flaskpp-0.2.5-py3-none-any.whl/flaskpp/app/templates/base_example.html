@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="{{ LANG }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="icon" href="{{ url_for('fpp_default.static', filename='img/favicon.png') }}" type="image/png">
+
+    {{ fpp_tailwind }}
+
+    <title>{% block title %}Flask++ App{% endblock %}</title>
+
+    {% if enabled("EXT_SOCKET") %}
+        <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+                integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
+                crossorigin="anonymous">
+        </script>
+        <script id="fppSocketScript"
+                src="{{ url_for('fpp_default.static', filename='js/socket.js') }}" type="module"
+                data-socket-domain="{{ request.scheme.replace('http', 'ws') }}://{{ request.host }}">
+        </script>
+
+        <script src="{{ url_for('fpp_default.static', filename='js/base.js') }}" type="module"></script>
+    {% endif %}
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="nav-inner-div">
+                <a class="nav-brand" href="/">{{ _('My Flask++ App') }}</a>
+
+                <button class="nav-collapse-btn" type="button" data-collapse-toggle="navbarCollapse"
+                        aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="mb-1 nav-collapse-btn-stripe"></span>
+                    <span class="mb-1 nav-collapse-btn-stripe"></span>
+                    <span class="nav-collapse-btn-stripe"></span>
+                </button>
+
+                <div id="navbarCollapse" class="nav-collapse max-md:hidden">
+                    {% for label, href in NAV.items() %}
+                        {% include "nav_link.html" with context %}
+                    {% endfor %}
+                </div>
+            </div>
+        </nav>
+
+        {% include "flashing.html" %}
+    </header>
+
+    <main id="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="footer-inner-div">
+            &copy; {{ current_year|default(2025) }} – Flask++
+        </div>
+    </footer>
+
+    {% if enabled("EXT_SOCKET") %}
+        {% include "modals/confirm_modal.html" %}
+        {% include "modals/info_modal.html" %}
+    {% endif %}
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const toggle = document.querySelector('[data-collapse-toggle="navbarCollapse"]');
+            const menu = document.getElementById("navbarCollapse");
+
+            if (!toggle || !menu) return;
+
+            const isMobile = () => window.innerWidth < 768;
+
+            const openMenu = () => {
+                menu.classList.remove("max-md:hidden");
+                toggle.setAttribute("aria-expanded", "true");
+            };
+
+            const closeMenu = () => {
+                menu.classList.add("max-md:hidden");
+                toggle.setAttribute("aria-expanded", "false");
+            };
+
+            toggle.addEventListener("click", () => {
+                const expanded = toggle.getAttribute("aria-expanded") === "true";
+                expanded ? closeMenu() : openMenu();
+            });
+
+            window.addEventListener("resize", () => {
+                if (!isMobile()) {
+                    menu.classList.remove("max-md:hidden");
+                    toggle.setAttribute("aria-expanded", "false");
+                } else {
+                    closeMenu();
+                }
+            });
+
+            if (isMobile()) {
+                closeMenu();
+            }
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
