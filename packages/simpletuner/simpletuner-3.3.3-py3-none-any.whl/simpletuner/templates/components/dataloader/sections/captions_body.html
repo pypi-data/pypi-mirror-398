@@ -1,0 +1,141 @@
+<!-- Captions & Metadata Body (for modal) -->
+<div class="modal-section-body" x-init="editingDataset.parquet = editingDataset.parquet || {}">
+    <!-- Caption Strategy -->
+    <div class="section-group" x-show="matchesParamFilter('caption', 'strategy', 'metadata', 'backend', 'text', 'csv', 'parquet', 'jsonl', 'instance')">
+        <h6 class="modal-section-title">Caption Strategy</h6>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label small">Strategy <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#caption_strategy" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <select class="form-select form-select-sm"
+                        x-model="editingDataset.caption_strategy"
+                        @change="markAsUnsaved()"
+                        :class="{'border-danger': !editingDataset.caption_strategy}">
+                    <option value="">Select caption source...</option>
+                    <option value="textfile">Text files (.txt)</option>
+                    <option value="csv">CSV</option>
+                    <option value="parquet">Parquet</option>
+                    <option value="jsonl">JSON Lines</option>
+                    <option value="instanceprompt">Instance prompt only</option>
+                </select>
+                <div class="form-text small" x-show="!editingDataset.caption_strategy" x-cloak>
+                    <span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Please select a caption source</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Metadata Backend</label>
+                <select class="form-select form-select-sm"
+                        x-model="editingDataset.metadata_backend"
+                        @change="markAsUnsaved()">
+                    <option value="">Auto discover</option>
+                    <option value="discovery">Discovery scan</option>
+                    <option value="json">JSON manifest</option>
+                    <option value="parquet">Parquet index</option>
+                    <option value="csv">CSV index</option>
+                    <option value="huggingface">Hugging Face dataset</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trigger Words -->
+    <div class="section-group" x-show="editingDataset.dataset_type !== 'text_embeds' && editingDataset.dataset_type !== 'image_embeds' && matchesParamFilter('trigger', 'word', 'instance', 'prompt', 'prepend')">
+        <h6 class="modal-section-title">Trigger Words</h6>
+        <div class="row g-2">
+            <div class="col-md-8">
+                <label class="form-label small">Instance Prompt <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#prepend_instance_prompt" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <textarea class="form-control form-control-sm"
+                          rows="2"
+                          x-model="editingDataset.instance_prompt"
+                          @input="markAsUnsaved()"
+                          :placeholder="editingDataset.caption_strategy === 'instanceprompt' ? 'Prompt content applied to every sample' : 'Optional trigger word'"
+                          :disabled="editingDataset.caption_strategy !== 'instanceprompt' && !editingDataset.prepend_instance_prompt"></textarea>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check mt-4">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           :id="'prepend-prompt-' + editingDataset.id"
+                           x-model="editingDataset.prepend_instance_prompt"
+                           @change="markAsUnsaved()"
+                           :disabled="editingDataset.caption_strategy === 'instanceprompt'">
+                    <label class="form-check-label small" :for="'prepend-prompt-' + editingDataset.id">
+                        Prepend to captions <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#prepend_instance_prompt" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a>
+                    </label>
+                </div>
+                <div class="form-text small text-muted ps-4">
+                    Add trigger before each caption
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parquet Details -->
+    <div class="section-group" x-show="(editingDataset.caption_strategy === 'parquet' || editingDataset.metadata_backend === 'parquet') && matchesParamFilter('parquet', 'column', 'filename', 'caption', 'width', 'height', 'fallback', 'identifier', 'extension')" x-cloak>
+        <h6 class="modal-section-title">Parquet Configuration</h6>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label small">Parquet Path <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       x-model="editingDataset.parquet.path"
+                       @input="markAsUnsaved()"
+                       placeholder="/path/to/file.parquet">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Filename Column <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       x-model="editingDataset.parquet.filename_column"
+                       @input="markAsUnsaved()"
+                       placeholder="id">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Caption Column <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       x-model="editingDataset.parquet.caption_column"
+                       @input="markAsUnsaved()"
+                       placeholder="caption">
+            </div>
+        </div>
+        <div class="row g-2 mt-1">
+            <div class="col-md-4">
+                <label class="form-label small">Fallback Caption <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       x-model="editingDataset.parquet.fallback_caption_column"
+                       @input="markAsUnsaved()"
+                       placeholder="tags">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Width Column <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       x-model="editingDataset.parquet.width_column"
+                       @input="markAsUnsaved()"
+                       placeholder="width">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Height Column <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       x-model="editingDataset.parquet.height_column"
+                       @input="markAsUnsaved()"
+                       placeholder="height">
+            </div>
+        </div>
+        <div class="form-check mt-2">
+            <input class="form-check-input"
+                   type="checkbox"
+                   :id="'parquet-ext-' + editingDataset.id"
+                   x-model="editingDataset.parquet.identifier_includes_extension"
+                   @change="markAsUnsaved()">
+            <label class="form-check-label small" :for="'parquet-ext-' + editingDataset.id">
+                Identifier includes extension <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#parquet-caption-strategy--json-lines-datasets" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a>
+            </label>
+        </div>
+        <div class="form-text small text-muted ps-4">
+            Filename column has extension (e.g., image.jpg vs image)
+        </div>
+    </div>
+</div>
