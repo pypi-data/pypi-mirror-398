@@ -1,0 +1,38 @@
+modules = [
+    ".nodes_advanced_refluxcontrol",
+    ".nodes_cogview4",
+    ".nodes_comfyui_detail_daemon",
+    ".nodes_comfyui_instantid",
+    ".nodes_comfyui_layerstyle_advance",
+    ".nodes_comfyui_pulid_flux",
+    ".nodes_controlnet",
+    ".nodes_custom_sampler",
+    ".nodes_dataset",
+    ".nodes_differential_diffusion",
+    ".nodes_flux",
+    ".nodes_hunyuan3d",
+    ".nodes_image_utils",
+    ".nodes_ip2p",
+    ".nodes_ipadapter_plus.nodes_ipadapter_plus",
+    ".nodes_janus_pro",
+    ".nodes_kolors_mz",
+    ".nodes_model_advanced",
+    ".nodes_nunchaku",
+    ".nodes_reactor",
+    ".nodes_sam2",
+    ".nodes_sd3",
+    ".nodes_segment_anything",
+    ".nodes_testing_utils",
+    ".nodes_trellis",
+    ".nodes_ultimatesdupscale",
+    ".nodes_upscale_model",
+    ".nodes_utils",
+    ".nodes_wan_i2v",
+    ".nodes_wan_video",
+    ".route_bizyair_tools",
+    ".third_party_api",
+]
+from bizyengine.core.common.utils import safe_star_import
+
+for mod in modules:
+    safe_star_import(mod, package=__package__)
