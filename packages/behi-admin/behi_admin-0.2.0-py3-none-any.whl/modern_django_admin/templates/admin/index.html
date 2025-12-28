@@ -1,0 +1,129 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static modern_admin %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1>{% trans 'Dashboard' %}</h1>
+        <p style="color: var(--md-admin-text-secondary); margin-top: 0.5rem;">{% trans 'Welcome back! Here\'s what\'s happening with your data today.' %}</p>
+    </div>
+    
+    <div class="dashboard-widgets" id="dashboard-widgets">
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--md-admin-spacing-md); margin-bottom: var(--md-admin-spacing-xl);">
+        <div class="dashboard-recent-actions">
+            <h2>{% trans 'Recent Activity' %}</h2>
+            <div id="recent-actions-list"></div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">{% trans 'Quick Actions' %}</h3>
+            </div>
+            <div class="card-body">
+                <div style="display: flex; flex-direction: column; gap: var(--md-admin-spacing-sm);">
+                    {% if app_list %}
+                        {% for app in app_list|slice:":3" %}
+                            {% for model in app.models|slice:":1" %}
+                                {% if model.add_url %}
+                                    <a href="{{ model.add_url }}" class="btn btn-primary btn-sm" style="width: 100%; justify-content: center;">
+                                        <span>➕</span>
+                                        <span>{% trans 'Add' %} {{ model.name }}</span>
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+        <div class="dashboard-app-list">
+        {% if has_module_permission %}
+            {% if app_list %}
+                {% for app in app_list %}
+                <div class="app-card">
+                    <h3>
+                        <a href="{{ app.app_url }}" title="{% blocktrans with name=app.name %}Models in the {{ name }} application{% endblocktrans %}">{{ app.name }}</a>
+                    </h3>
+                    <div class="app-models">
+                        {% for model in app.models %}
+                            <div class="model-card">
+                                <div class="model-header">
+                                    {% if model.admin_url %}
+                                        <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                                    {% else %}
+                                        {{ model.name }}
+                                    {% endif %}
+                                </div>
+                                <div class="model-actions">
+                                    {% if model.add_url %}
+                                        <a href="{{ model.add_url }}" class="addlink">{% trans 'Add' %}</a>
+                                    {% endif %}
+                                    {% if model.admin_url %}
+                                        <a href="{{ model.admin_url }}" class="changelink">{% trans 'Change' %}</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>{% trans "You don't have permission to view or edit anything." %}</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/admin/dashboard-data/')
+        .then(response => response.json())
+        .then(data => {
+            const widgetsContainer = document.getElementById('dashboard-widgets');
+            if (data.widgets && data.widgets.length > 0) {
+                const icons = ['📊', '👥', '📦', '💰', '📈', '🔔', '📝', '⭐'];
+                data.widgets.forEach((widget, index) => {
+                    const widgetEl = document.createElement('div');
+                    widgetEl.className = 'widget-card';
+                    const icon = icons[index % icons.length];
+                    widgetEl.innerHTML = `
+                        <div class="widget-content">
+                            <div class="widget-header">
+                                <span class="widget-title">${widget.title}</span>
+                                <div class="widget-icon">${icon}</div>
+                            </div>
+                            <div class="widget-value">${widget.count !== undefined ? widget.count.toLocaleString() : '-'}</div>
+                            ${widget.url ? `
+                                <div class="widget-footer">
+                                    <a href="${widget.url}" class="widget-link">
+                                        View All →
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                    widgetsContainer.appendChild(widgetEl);
+                });
+            }
+            
+            const actionsList = document.getElementById('recent-actions-list');
+            if (data.recent_actions && data.recent_actions.length > 0) {
+                const actionsHTML = data.recent_actions.map(action => `
+                    <div class="action-item">
+                        <span class="action-time">${new Date(action.action_time).toLocaleString()}</span>
+                        <span class="action-user">${action.user}</span>
+                        <span class="action-type">${action.action_flag}</span>
+                        <span class="action-object">${action.object_repr}</span>
+                    </div>
+                `).join('');
+                actionsList.innerHTML = actionsHTML;
+            }
+        })
+        .catch(error => console.error('Error loading dashboard data:', error));
+});
+</script>
+{% endblock %}
+

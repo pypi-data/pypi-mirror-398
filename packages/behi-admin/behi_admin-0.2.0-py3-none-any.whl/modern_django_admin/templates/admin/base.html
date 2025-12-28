@@ -1,0 +1,88 @@
+{% load i18n static modern_admin %}
+{% get_current_language as LANGUAGE_CODE %}
+{% get_rtl_direction as DIRECTION %}
+{% get_theme_mode as THEME_MODE %}
+{% get_primary_color as PRIMARY_COLOR %}
+{% get_accent_color as ACCENT_COLOR %}
+{% is_dark_mode_enabled as DARK_MODE_ENABLED %}
+{% get_brand_logo as brand_logo %}
+{% get_favicon as favicon %}
+{% get_extra_css as extra_css %}
+{% get_extra_js as extra_js %}
+
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:"en" }}" dir="{{ DIRECTION }}">
+<head>
+    <title>{% block title %}{% endblock %}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    
+    {% if favicon %}
+        <link rel="icon" type="image/x-icon" href="{{ favicon }}">
+    {% endif %}
+    
+    <link rel="stylesheet" href="{% static 'modern_admin/css/tokens.css' %}">
+    <link rel="stylesheet" href="{% static 'modern_admin/css/components.css' %}">
+    <link rel="stylesheet" href="{% static 'modern_admin/css/base.css' %}">
+    {% if DIRECTION == "rtl" %}
+        <link rel="stylesheet" href="{% static 'modern_admin/css/rtl.css' %}">
+    {% endif %}
+    {% if DARK_MODE_ENABLED %}
+        <link rel="stylesheet" href="{% static 'modern_admin/css/dark.css' %}" id="dark-mode-stylesheet" media="none">
+    {% endif %}
+    
+    {% for css_file in extra_css %}
+        <link rel="stylesheet" href="{{ css_file }}">
+    {% endfor %}
+    
+    {% block extrastyle %}{% endblock %}
+    
+    {% get_density as DENSITY %}
+    <style>
+        :root {
+            --md-admin-primary: {{ PRIMARY_COLOR }};
+            --md-admin-accent: {{ ACCENT_COLOR }};
+        }
+    </style>
+</head>
+<body class="{% if THEME_MODE == 'dark' %}dark-mode{% endif %} {% if DIRECTION == 'rtl' %}rtl{% else %}ltr{% endif %}" data-theme="{{ THEME_MODE }}" data-density="{{ DENSITY }}">
+    <div id="modern-admin-container">
+        {% include "admin/includes/sidebar.html" %}
+        
+        <div class="main-content">
+            {% include "admin/includes/header.html" %}
+            
+            <main class="content-area">
+                {% if messages %}
+                    <ul class="messagelist">
+                        {% for message in messages %}
+                            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                
+                {% block breadcrumbs %}
+                    <div class="breadcrumbs">
+                        <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+                        {% if title %} &rsaquo; {{ title }}{% endif %}
+                    </div>
+                {% endblock %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <script src="{% static 'modern_admin/js/base.js' %}"></script>
+    {% if DARK_MODE_ENABLED %}
+        <script src="{% static 'modern_admin/js/dark-mode.js' %}"></script>
+    {% endif %}
+    {% for js_file in extra_js %}
+        <script src="{{ js_file }}"></script>
+    {% endfor %}
+    
+    {% block extrajs %}{% endblock %}
+</body>
+</html>
+
