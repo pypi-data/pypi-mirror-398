@@ -1,0 +1,135 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class EpsAddPermissionRequest:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'permission': 'str',
+        'description': 'str'
+    }
+
+    attribute_map = {
+        'permission': 'permission',
+        'description': 'description'
+    }
+
+    def __init__(self, permission=None, description=None):
+        r"""EpsAddPermissionRequest
+
+        The model defined in huaweicloud sdk
+
+        :param permission: 权限格式为：iam:domain::domain_id或者organizations:orgPath::org_path其中，  - “iam:domain::”和“organizations:orgPath::”为固定格式。  - “domain_id”为可连接用户的账号ID，org_path可连接用户的组织路径 domain_id类型支持输入包括“a~z”、“A~Z”、“0~9”或者“*，最大长度可以传64； org_path类型支持“a~z”、“A~Z”、“0~9”、“/-*?”或者“*”，最大长度可以传1024； 例如：iam:domain::6e9dfd51d1124e8d8498dce894923a0dd或者organizations:orgPath::o-3j59d1231uprgk9yuvlidra7zbzfi578/r-rldbu1vmxdw5ahdkknxnvd5rgag77m2z/ou-7tuddd8nh99rebxltawsm6qct5z7rklv/*
+        :type permission: str
+        :param description: 终端节点服务白名单描述
+        :type description: str
+        """
+        
+        
+
+        self._permission = None
+        self._description = None
+        self.discriminator = None
+
+        self.permission = permission
+        self.description = description
+
+    @property
+    def permission(self):
+        r"""Gets the permission of this EpsAddPermissionRequest.
+
+        权限格式为：iam:domain::domain_id或者organizations:orgPath::org_path其中，  - “iam:domain::”和“organizations:orgPath::”为固定格式。  - “domain_id”为可连接用户的账号ID，org_path可连接用户的组织路径 domain_id类型支持输入包括“a~z”、“A~Z”、“0~9”或者“*，最大长度可以传64； org_path类型支持“a~z”、“A~Z”、“0~9”、“/-*?”或者“*”，最大长度可以传1024； 例如：iam:domain::6e9dfd51d1124e8d8498dce894923a0dd或者organizations:orgPath::o-3j59d1231uprgk9yuvlidra7zbzfi578/r-rldbu1vmxdw5ahdkknxnvd5rgag77m2z/ou-7tuddd8nh99rebxltawsm6qct5z7rklv/*
+
+        :return: The permission of this EpsAddPermissionRequest.
+        :rtype: str
+        """
+        return self._permission
+
+    @permission.setter
+    def permission(self, permission):
+        r"""Sets the permission of this EpsAddPermissionRequest.
+
+        权限格式为：iam:domain::domain_id或者organizations:orgPath::org_path其中，  - “iam:domain::”和“organizations:orgPath::”为固定格式。  - “domain_id”为可连接用户的账号ID，org_path可连接用户的组织路径 domain_id类型支持输入包括“a~z”、“A~Z”、“0~9”或者“*，最大长度可以传64； org_path类型支持“a~z”、“A~Z”、“0~9”、“/-*?”或者“*”，最大长度可以传1024； 例如：iam:domain::6e9dfd51d1124e8d8498dce894923a0dd或者organizations:orgPath::o-3j59d1231uprgk9yuvlidra7zbzfi578/r-rldbu1vmxdw5ahdkknxnvd5rgag77m2z/ou-7tuddd8nh99rebxltawsm6qct5z7rklv/*
+
+        :param permission: The permission of this EpsAddPermissionRequest.
+        :type permission: str
+        """
+        self._permission = permission
+
+    @property
+    def description(self):
+        r"""Gets the description of this EpsAddPermissionRequest.
+
+        终端节点服务白名单描述
+
+        :return: The description of this EpsAddPermissionRequest.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this EpsAddPermissionRequest.
+
+        终端节点服务白名单描述
+
+        :param description: The description of this EpsAddPermissionRequest.
+        :type description: str
+        """
+        self._description = description
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, EpsAddPermissionRequest):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
