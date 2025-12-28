@@ -1,0 +1,331 @@
+Metadata-Version: 2.4
+Name: yaaaf
+Version: 0.1.2
+Summary: YAAAF (Yet Another Autonomous Agents Framework) - A modular framework for building intelligent agentic applications with Python backend and Next.js frontend
+Author: fractalego
+Maintainer: fractalego
+License: MIT
+Project-URL: Homepage, https://github.com/fractalego/yaaaf
+Project-URL: Documentation, https://yaaaf.readthedocs.io
+Project-URL: Repository, https://github.com/fractalego/yaaaf.git
+Project-URL: Issues, https://github.com/fractalego/yaaaf/issues
+Keywords: ai,agents,framework,orchestrator,chatbot,sql,visualization,web-search
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: bs4>=0.0.2
+Requires-Dist: build>=1.2.2.post1
+Requires-Dist: duckduckgo-search>=8.0.2
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: mdpd>=0.2.1
+Requires-Dist: nltk>=3.9.1
+Requires-Dist: openpyxl>=3.1.5
+Requires-Dist: pandas>=1.3.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydantic-ai>=0.2.18
+Requires-Dist: pydantic-settings>=2.8.1
+Requires-Dist: pypdf2>=3.0.1
+Requires-Dist: rank-bm25>=0.2.2
+Requires-Dist: requests>=2.25.0
+Requires-Dist: scikit-learn>=1.0.0
+Requires-Dist: singleton-decorator>=1.0.0
+Requires-Dist: tabulate>=0.8.0
+Requires-Dist: uvicorn>=0.15.0
+Provides-Extra: dev
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: pytest>=6.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.18.0; extra == "dev"
+Provides-Extra: mcp
+Requires-Dist: pydantic-ai>=0.2.0; extra == "mcp"
+Requires-Dist: pydantic-ai-slim[mcp]>=0.0.50; extra == "mcp"
+Provides-Extra: nlp
+Requires-Dist: nltk>=3.6.0; extra == "nlp"
+Requires-Dist: rank-bm25>=0.2.0; extra == "nlp"
+Provides-Extra: all
+Requires-Dist: yaaaf[dev,mcp,nlp]; extra == "all"
+
+# YAAAF - Yet Another Autonomous Agents Framework
+
+YAAAF is an **artifact-first** framework for building intelligent agentic applications.
+
+## The Core Philosophy
+
+YAAAF is not about agents. It is about **artifacts**.
+
+In YAAAF, you do not route queries to agents. Instead, the system builds a **railway** - a planned pipeline that moves artifacts from sources to their final destination. Agents are merely the stations along this railway, transforming artifacts as they pass through.
+
+```
+[Source] -----> [Station A] -----> [Station B] -----> [Destination]
+   |                |                   |                   |
+Database        SqlAgent          VisualizationAgent      Image
+   |                |                   |                   |
+   +--- artifact -->+--- artifact ----->+--- artifact -----+
+        (query)          (table)             (chart)
+```
+
+This is artifact-first design: **the artifact is the primary citizen, not the agent**.
+
+## How It Works
+
+Unlike traditional agent systems that route queries to individual agents, YAAAF takes a fundamentally different approach:
+
+1. **Goal Analysis**: The system extracts the user's goal and determines the required output type
+2. **Workflow Planning**: A planner creates a DAG (directed acyclic graph) defining how artifacts should flow
+3. **Artifact Flow**: Data moves through the planned pipeline - extracted, transformed, and finally output
+4. **Validation**: Each artifact is validated against the user's goal; failed validations trigger automatic replanning
+
+```
+User Query
+    |
+    v
++-------------------+
+|  Goal Extraction  |  "What does the user want?"
++-------------------+
+    |
+    v
++-------------------+
+|  Plan Generation  |  Creates YAML workflow with artifact dependencies
++-------------------+
+    |
+    v
++-------------------+
+|  Workflow Engine  |  Executes DAG, flowing artifacts between agents
++-------------------+
+    |
+    v
++-------------------+
+|    Validation     |  Checks each artifact against goal (replan if needed)
++-------------------+
+    |
+    v
+  Result
+```
+
+## Agent Taxonomy
+
+Agents are classified by their role in the artifact flow:
+
+| Role | Description |
+|------|-------------|
+| **EXTRACTOR** | Pulls data from external sources (databases, APIs, documents) |
+| **TRANSFORMER** | Converts artifacts from one form to another |
+| **SYNTHESIZER** | Combines multiple artifacts into unified outputs |
+| **GENERATOR** | Creates final outputs (visualizations, files, effects) |
+
+## Available Agents
+
+| Agent | Role | Description |
+|-------|------|-------------|
+| SqlAgent | EXTRACTOR | Executes SQL queries against configured databases |
+| DocumentRetrieverAgent | EXTRACTOR | Retrieves relevant text from document collections |
+| BraveSearchAgent | EXTRACTOR | Searches the web via Brave Search API |
+| DuckDuckGoSearchAgent | EXTRACTOR | Searches the web via DuckDuckGo |
+| UrlAgent | EXTRACTOR | Fetches and extracts content from URLs |
+| UserInputAgent | EXTRACTOR | Collects information from users interactively |
+| MleAgent | TRANSFORMER | Trains machine learning models on tabular data |
+| ReviewerAgent | TRANSFORMER | Analyzes and validates artifacts |
+| ToolAgent | TRANSFORMER | Executes external tools via MCP protocol |
+| NumericalSequencesAgent | TRANSFORMER | Structures unformatted data into tables |
+| AnswererAgent | SYNTHESIZER | Combines artifacts into comprehensive answers |
+| UrlReviewerAgent | SYNTHESIZER | Aggregates and summarizes URL content |
+| VisualizationAgent | GENERATOR | Creates charts and visualizations from data |
+| BashAgent | GENERATOR | Performs filesystem operations |
+| PlannerAgent | SYNTHESIZER | Creates execution workflows from goals |
+| ValidationAgent | TRANSFORMER | Validates artifacts against user goals, triggers replanning |
+
+## How Planning Works
+
+When a query arrives, the planner generates a YAML workflow defining the artifact flow:
+
+```yaml
+assets:
+  sales_data:
+    agent: SqlAgent
+    description: "Extract quarterly sales figures"
+    type: table
+
+  sales_chart:
+    agent: VisualizationAgent
+    description: "Create bar chart of sales by quarter"
+    type: image
+    inputs: [sales_data]
+```
+
+The planner uses **RAG-based example retrieval** to find similar scenarios from a dataset of 50,000+ planning examples, ensuring high-quality workflow generation.
+
+## Quick Start
+
+### Installation
+
+```bash
+git clone <repository-url>
+cd agents_framework
+pip install -e .
+
+# Frontend (optional)
+cd frontend && pnpm install
+```
+
+### Running
+
+```bash
+# Backend (default port 4000)
+python -m yaaaf backend
+
+# Frontend (default port 3000)
+python -m yaaaf frontend
+
+# Custom ports
+python -m yaaaf backend 8080
+python -m yaaaf frontend 3001
+```
+
+### Requirements
+
+- Python 3.11+
+- Ollama running locally (default: http://localhost:11434)
+- A compatible model (e.g., `ollama pull qwen2.5:32b`)
+
+## Configuration
+
+Set `YAAAF_CONFIG` environment variable to point to your configuration file:
+
+```json
+{
+  "client": {
+    "model": "qwen2.5:32b",
+    "temperature": 0.7,
+    "host": "http://localhost:11434"
+  },
+  "agents": [
+    "sql",
+    "visualization",
+    "websearch",
+    "document_retriever",
+    "answerer",
+    "reviewer"
+  ],
+  "sources": [
+    {
+      "name": "my_database",
+      "type": "sqlite",
+      "path": "./data/database.db"
+    }
+  ]
+}
+```
+
+### Agent-Specific Configuration
+
+Override model settings per agent:
+
+```json
+{
+  "agents": [
+    "sql",
+    {
+      "name": "visualization",
+      "model": "qwen2.5-coder:32b",
+      "temperature": 0.1
+    }
+  ]
+}
+```
+
+### MCP Tool Integration
+
+Add external tools via Model Context Protocol:
+
+```json
+{
+  "tools": [
+    {
+      "name": "math_server",
+      "type": "sse",
+      "url": "http://localhost:8080/sse"
+    },
+    {
+      "name": "file_tools",
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "my_mcp_server"]
+    }
+  ]
+}
+```
+
+## Architecture
+
+```
+Frontend (Next.js)  <--HTTP-->  Backend (FastAPI)
+                                      |
+                                      v
+                              +---------------+
+                              | Orchestrator  |
+                              +---------------+
+                                      |
+                         +------------+------------+
+                         |                         |
+                         v                         v
+                  +------------+           +----------------+
+                  |  Planner   |           | Workflow Engine|
+                  +------------+           +----------------+
+                         |                         |
+                         v                         v
+                  YAML Workflow  ------>   Agent Execution
+                                           (artifact flow)
+```
+
+### Key Components
+
+- **Orchestrator**: Entry point that coordinates goal extraction and workflow execution
+- **Planner**: Generates YAML workflows using RAG-retrieved examples
+- **Workflow Engine**: Executes the DAG, managing artifact dependencies
+- **Validation**: Inspects each artifact and triggers replanning if it doesn't match the goal
+- **Artifact Storage**: Centralized store for generated artifacts (tables, images, models)
+
+## Development
+
+```bash
+# Run tests
+python -m unittest discover tests/
+
+# Code formatting
+ruff format .
+ruff check .
+
+# Frontend development
+cd frontend && pnpm dev
+```
+
+## Project Structure
+
+```
+yaaaf/
+  components/
+    agents/           # Agent implementations
+    retrievers/       # RAG and search components
+    executors/        # Workflow and tool executors
+    sources/          # Data source connectors
+  server/             # FastAPI backend
+  data/               # Packaged datasets (planner examples)
+frontend/             # Next.js application
+tests/                # Unit tests
+```
+
+## License
+
+MIT License
+
+## Support
+
+- Documentation: `documentation/` folder
+- Issues: GitHub Issues
+- Discussions: GitHub Discussions
