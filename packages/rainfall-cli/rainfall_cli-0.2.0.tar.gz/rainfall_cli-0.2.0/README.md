@@ -1,0 +1,137 @@
+# 🌧️ Rainfall
+
+> **Call functions that don't exist. AI writes and executes the code.**
+
+Rainfall is a Python CLI that runs your scripts with AI-powered stub functions. Write the function signature and docstring, leave the body as `...`, and Rainfall generates real working code.
+
+## Installation
+
+```bash
+pip install rainfall-cli
+```
+
+## Quick Start
+
+**1. Set your Gemini API key:**
+
+```bash
+export GEMINI_API_KEY=your_api_key_here
+```
+
+Get a free key at [Google AI Studio](https://aistudio.google.com/app/apikey).
+
+**2. Write a script with stub functions:**
+
+```python
+# my_script.py
+
+def calculate_tip(bill: float, quality: str) -> float:
+    """
+    Calculate tip based on bill and service quality.
+    Quality: 'poor', 'okay', 'good', 'excellent'
+    """
+    ...
+
+
+def fetch_page_title(url: str) -> str:
+    """Fetch a webpage and extract its <title> tag."""
+    ...
+
+
+def count_image_pixels(path: str) -> int:
+    """Count total pixels in an image file."""
+    ...
+
+
+# Use them like normal functions
+print(f"Tip: ${calculate_tip(85.50, 'excellent')}")
+print(f"Title: {fetch_page_title('https://python.org')}")
+print(f"Pixels: {count_image_pixels('photo.jpg')}")
+```
+
+**3. Run with Rainfall:**
+
+```bash
+rainfall my_script.py
+```
+
+Rainfall generates real Python code for each stub and executes it.
+
+## How It Works
+
+1. **Parse** — Finds stub functions (body is `...`, `pass`, or `NotImplementedError`)
+2. **Generate** — Asks LLM to write the function implementation
+3. **Cache** — Stores generated code (same function = same code)
+4. **Execute** — Runs the generated code with your arguments
+
+```
+def fetch_page_title(url: str) -> str:
+    """Fetch a webpage and extract its <title> tag."""
+    ...
+
+# Rainfall generates:
+response = requests.get(url)
+match = re.search(r'<title>(.*?)</title>', response.text)
+return match.group(1) if match else ""
+```
+
+## What It Can Do
+
+Because Rainfall executes real code, it can:
+
+- ✅ Make HTTP requests (`requests` pre-imported)
+- ✅ Process images (`PIL.Image` pre-imported)
+- ✅ Read/write files (`pathlib`, `os` pre-imported)
+- ✅ Parse JSON, regex, math operations
+- ✅ Any pure Python computation
+
+## CLI Options
+
+```bash
+rainfall script.py                    # Run with defaults
+rainfall script.py --verbose          # Show generated code
+rainfall script.py --dry-run          # List stubs without running
+rainfall script.py --model MODEL      # Use different model
+```
+
+## Best Practices
+
+### Write Clear Docstrings
+
+The docstring is your prompt. Be specific:
+
+```python
+# ✅ Good - AI knows exactly what to do
+def extract_emails(text: str) -> list:
+    """
+    Extract all email addresses from text.
+    Returns a list of email strings.
+    """
+    ...
+
+# ❌ Vague - AI has to guess
+def process(data):
+    """Process the data."""
+    ...
+```
+
+### Use Type Hints
+
+```python
+def get_count() -> int: ...      # AI returns an integer
+def get_names() -> list: ...     # AI returns a list
+def is_valid() -> bool: ...      # AI returns True/False
+```
+
+## Pre-imported Modules
+
+Generated code has access to:
+
+- `os`, `sys`, `json`, `re`, `math`, `datetime`, `html`
+- `pathlib.Path`
+- `requests` (HTTP)
+- `PIL.Image` (images)
+
+## License
+
+MIT
