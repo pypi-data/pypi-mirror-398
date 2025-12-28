@@ -1,0 +1,628 @@
+# Starlette Templates
+
+[Documentation](https://starlette-templates.tycho.engineering) | [PyPI](https://pypi.org/project/starlette-templates/)
+
+This package extends [Starlette](https://starlette.dev/) with support for template-driven routing, form handling, and reusable UI components, built on [Jinja2](https://jinja.palletsprojects.com/en/stable/) and [Pydantic](https://docs.pydantic.dev/latest/).
+
+**Why does this exist?** Starlette is a toolkit that offers building blocks for web apps. But common tasks like template routing, form validation, and UI reuse require significant boilerplate. This package streamlines those workflows by directly routing URLs to templates, validating form data with Pydantic, and enabling type-safe, reusable UI components built as Jinja templates. This makes applications easier to build, reason about, and scale.
+
+## Features
+
+- Serve HTML templates with file-based routing
+- Full async Jinja2 support with custom filters and globals
+- Pydantic-based forms with validation and rendering
+- Reusable UI components using Jinja2 and Pydantic with type and validation safety
+- Static files with gzip compression and multi-directory support
+- JSON:API compliant error responses with custom error pages
+- ETag and Last-Modified headers with 304 Not Modified support
+
+## Installation
+
+```bash
+pip install starlette-templates
+```
+
+## Quick Start
+
+### Basic application
+
+```python
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.routing import Mount
+from jinja2 import PackageLoader
+
+from starlette_templates.routing import TemplateRouter
+from starlette_templates.middleware import JinjaMiddleware
+
+app = Starlette(
+    routes=[
+        # Serve templates for all routes
+        Mount("/", TemplateRouter(debug=True)),
+    ],
+    middleware=[
+        # Configure Jinja2 environment by serving package templates
+        Middleware(
+            JinjaMiddleware,
+            template_loaders=[PackageLoader("mypackage", "templates")],
+        )
+    ]
+)
+```
+
+Create `templates/index.html`:
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>My App</title></head>
+<body><h1>Welcome to {{ request.url.hostname }}</h1></body>
+</html>
+```
+
+## Template files
+
+Visit `http://localhost:8000/` and your template will be rendered automatically.
+
+`TemplateRouter` is an ASGI app that serves HTML templates with automatic routing and file resolution.
+
+- Automatically tries `.html`, `.htm`, `.jinja`, `.jinja2`
+- Serves `index.html` or `index.htm` for directory requests
+- HTTP caching with ETag and Last-Modified headers with 304 responses
+- Automatic gzip compression for responses over 500 bytes
+- Create `404.html` for custom error pages
+- Add custom context variables to all templates with context processors
+
+Context processors are async functions that receive the [Request](https://starlette.dev/requests/) and return a dictionary of context variables to add to all templates.
+
+```python
+# This is a context processor function that adds 'user' to all templates
+# so you can access {{ user }} in any template
+async def add_user_context(request: Request) -> dict:
+    return {"user": await get_current_user(request)}
+
+templates = TemplateRouter(
+    context_processors=[add_user_context],  # Add custom context
+    cache_max_age=3600,  # 1 hour cache
+    gzip_min_size=500,   # Compress files > 500 bytes
+)
+```
+
+All templates have access to the `request`: [Request](https://starlette.dev/requests/) object and useful Jinja2 globals like `url_for`, `url`, `absurl`, and `jsonify`.
+
+```jinja
+<p>Current path: {{ request.url.path }}</p>
+<a href="{{ url_for('home') }}">Home</a>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+```
+
+## Template Response
+
+Use `TemplateResponse` to render templates in route handlers.
+
+You can override the default route handling by defining custom routes. For example, to customize the homepage, just create a route for `/`:
+
+```python
+from starlette.routing import Route
+from starlette.requests import Request
+from starlette_templates.responses import TemplateResponse
+
+async def homepage(request: Request) -> TemplateResponse:
+    return TemplateResponse("home.html", context={"title": "Welcome"})
+
+app = Starlette(
+    routes=[
+        # Override root route with custom handler
+        Route("/", homepage),
+        # Serve templates for other routes
+        Mount("/", TemplateRouter())
+    ],
+    middleware=[
+        Middleware(
+            JinjaMiddleware,
+            template_loaders=[PackageLoader("myapp", "templates")]
+        )
+    ]
+)
+```
+
+## Static Files
+
+`StaticFiles` serves static files with support for pre-compressed `.gz` files with automatic decompression in browsers and multi-directory fallback support:
+
+```python
+from starlette.routing import Mount
+from starlette_templates.staticfiles import StaticFiles
+
+app = Starlette(
+    routes=[
+        Mount(
+            path="/static",
+            app=StaticFiles(packages=[("myapp", "static")]), 
+            name="static"
+        ),
+    ]
+)
+```
+
+In templates:
+
+```html
+<!-- Browser receives decompressed CSS with caching headers -->
+<link rel="stylesheet" href="{{ url_for('static', path='/vendor/bootstrap.css.gz') }}">
+```
+
+`StaticFiles` serves static files from multiple directories or packages with fallback priority:
+
+```python
+from pathlib import Path
+from starlette_templates.staticfiles import StaticFiles
+
+static_files = StaticFiles(
+    directories=[
+        Path("myapp/static"),      # Check here first
+        Path("framework/static"),  # Fallback to here
+    ],
+    packages=[
+        ("somepackage", "static"),  # Also check package static files
+    ]
+)
+```
+
+## Middleware
+
+`JinjaMiddleware` configures and injects the Jinja2 environment into request state so the Jinja2 environment is available during the request lifecycle at `request.state.jinja_env`. The middleware can be configured with multiple Jinja2 template loaders, including package and filesystem loaders.
+
+```python
+from jinja2 import PackageLoader, FileSystemLoader
+from starlette_templates.middleware import JinjaMiddleware
+
+app = Starlette(
+    middleware=[
+        Middleware(
+            JinjaMiddleware,
+            template_loaders=[
+                PackageLoader("myapp", "templates"),
+                FileSystemLoader("custom/templates"),
+            ],
+            include_default_loader=True,  # Includes built-in templates
+            include_markdown_processor=True,  # Creates request.state.markdown_processor
+        )
+    ]
+)
+```
+
+The middleware also creates a Markdown processor instance, which is available during the request lifecycle at `request.state.markdown_processor`. With this, you can render Markdown content to HTML in your templates using the `markdown` Jinja function, like `{{ markdown(file) }}`. Files are relative to any configured template loader.
+
+## Forms
+
+### Form Models
+
+Create type-safe forms with automatic validation and rendering using Pydantic models.
+
+The `FormModel` base class is a Pydantic model with support for form fields, like `TextField`, and `EmailField`, and rendering methods.
+
+```python
+import datetime
+from starlette_templates.forms import (
+    FormModel, TextField, EmailField, DateField,
+    SelectField, CheckboxField, SubmitButtonField
+)
+
+class ContactForm(FormModel):
+    name: str = TextField(
+        label="Your Name",
+        placeholder="Enter your name",
+        required=True,
+        min_length=2,
+    )
+
+    email: str = EmailField(
+        label="Email Address",
+        placeholder="you@example.com",
+        required=True,
+    )
+
+    category: str = SelectField(
+        default="general",
+        choices={
+            "general": "General Inquiry",
+            "support": "Technical Support",
+            "sales": "Sales",
+        },
+        label="Category",
+    )
+
+    subscribe: bool = CheckboxField(
+        default=False,
+        label="Subscribe to newsletter",
+    )
+
+    submit: str = SubmitButtonField(text="Send Message")
+```
+
+### Using Forms in routes
+
+```python
+from starlette.routing import Route
+from starlette.requests import Request
+from starlette_templates.responses import TemplateResponse
+
+async def contact_page(request: Request) -> TemplateResponse:
+    # Parse form data and validate
+    form = await ContactForm.from_request(request, raise_on_error=False)
+
+    # Check if form is valid and was submitted using POST
+    if form.is_valid(request):
+        # Your form processing logic here
+        return TemplateResponse("success.html", context={"form": form})
+
+    # Show form (with errors if validation failed)
+    return TemplateResponse("contact.html", context={"form": form})
+
+app = Starlette(
+    routes=[Route("/contact", contact_page, methods=["GET", "POST"])],
+    middleware=[
+        Middleware(
+            JinjaMiddleware,
+            template_loaders=[PackageLoader("myapp", "templates")]
+        )
+    ]
+)
+```
+
+### Rendering Forms in templates
+
+```html
+<!DOCTYPE html>
+<html>
+<body>
+    <!-- Render entire form -->
+    {{ form() }}
+
+    <!-- Render form with custom action and method -->
+    {{ form(action=request.url.path, method="GET") }}
+
+    <!-- Render individual fields -->
+    <form method="POST" action="{{ request.url.path }}">
+        {{ form.render('name') }}
+        {{ form.render('email') }}
+        {{ form.render('category') }}
+        {{ form.render('subscribe') }}
+        {{ form.render('submit') }}
+    </form>
+
+    <!-- Access form field values -->
+    <p>Your name: {{ form.name }}</p>
+    <p>Your email: {{ form.email }}</p>
+</body>
+</html>
+```
+
+Forms are styled with Bootstrap 5 by default, but you can customize the rendering by overriding the form templates.
+
+### Available Form Fields
+
+- `TextField` - Single-line text input with validation
+- `TextAreaField` - Multi-line text input
+- `IntegerField` - Numeric input for integers
+- `FloatField` - Numeric input for floats
+- `EmailField` - Email input with validation
+- `CheckboxField` - Boolean checkbox
+- `SelectField` - Dropdown select (single or multiple)
+- `DateField` - Date picker with Flatpickr
+- `HiddenField` - Hidden input
+- `SubmitButtonField` - Submit button
+- `TagField` - Tag input with comma separation
+
+## Components
+
+Build reusable UI components with type safety:
+
+```python
+from starlette_templates.components.base import ComponentModel
+from pydantic import Field
+
+class Alert(ComponentModel):
+    # Path to component template in the configured loaders
+    template: str = "components/alert.html"
+    # Component properties with validation
+    message: str = Field(..., description="Alert message")
+    variant: str = Field(default="info", description="Alert variant")
+    dismissible: bool = Field(default=False, description="Show close button")
+```
+
+Template (`components/alert.html`):
+
+```html
+<div class="alert alert-{{ variant }}{% if dismissible %} alert-dismissible{% endif %}">
+    {{ message }}
+    {% if dismissible %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    {% endif %}
+</div>
+```
+
+Use in routes:
+
+```python
+from starlette_templates.responses import TemplateResponse
+
+async def dashboard(request: Request) -> TemplateResponse:
+    alert = Alert(
+        message="Welcome back!",
+        variant="success",
+        dismissible=True
+    )
+
+    return TemplateResponse(
+        "dashboard.html",
+        context={"alert": alert}
+    )
+```
+
+Use in templates:
+
+```jinja
+{{ alert }}
+```
+
+Or render directly in templates by registering the component class in the Jinja2 environment while configuring JinjaMiddleware:
+
+```python
+app = Starlette(
+    middleware=[
+        Middleware(
+            JinjaMiddleware,
+            template_loaders=[PackageLoader("myapp", "templates")],
+            extra_components=[Alert],  # Register component
+        )
+    ]
+)
+```
+
+Then use directly in any template without passing from route:
+
+```jinja
+{{ Alert(message="System error", variant="danger", dismissible=True) }}
+```
+
+### Built-in Form Components
+
+The package includes Bootstrap-compatible form components:
+
+- `Input` - Text, email, password, number inputs
+- `Textarea` - Multi-line text input
+- `Select` - Native select dropdown
+- `Checkbox` - Checkbox input
+- `Radio` - Radio button
+- `Switch` - Toggle switch
+- `FileInput` - File upload
+- `Range` - Range slider
+- `ChoicesSelect` - Enhanced select with Choices.js
+- `DatePicker` - Date picker with Flatpickr
+- `SubmitButton` - Form submit button
+
+## Context & Utilities
+
+### URL Helpers
+
+Templates have access to URL generation helpers:
+
+```html
+<!-- Generate URL for named route -->
+<a href="{{ url_for('user_profile', user_id=123) }}">Profile</a>
+
+<!-- Generate URL for mounted app by path -->
+<link rel="stylesheet" href="{{ url('static', '/css/style.css') }}">
+
+<!-- Generate absolute URL -->
+<meta property="og:url" content="{{ absurl('/blog/post-1') }}">
+```
+
+### JSON Serialization
+
+Safely embed Python data in templates:
+
+```html
+<script id="data" type="application/json">{{ jsonify(data) }}</script>
+```
+
+### Request Context
+
+All templates receive the `request` object:
+
+```jinja
+<p>Current path: {{ request.url.path }}</p>
+<p>Host: {{ request.url.hostname }}</p>
+<p>Method: {{ request.method }}</p>
+<p>User agent: {{ request.headers.get('user-agent') }}</p>
+```
+
+## Error Handling
+
+### Custom Exceptions
+
+```python
+from starlette_templates.errors import AppException, ErrorCode, ErrorSource
+
+async def get_user(user_id: int):
+    if not user_exists(user_id):
+        raise AppException(
+            detail=f"User with ID {user_id} not found",
+            status_code=404,
+            code=ErrorCode.NOT_FOUND,
+            source=ErrorSource(parameter="user_id"),
+            meta={"user_id": user_id}
+        )
+```
+
+### Error Pages
+
+Create custom error pages by adding templates:
+
+- `404.html` - Not Found page
+- `500.html` - Internal Server Error page
+- `error.html` - Generic error page (fallback)
+
+Template context includes:
+
+```html
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>{{ status_code }} - {{ error_title }}</h1>
+    <p>{{ error_message }}</p>
+
+    {% if structured_errors %}
+    <ul>
+        {% for error in structured_errors %}
+        <li>{{ error.detail }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</body>
+</html>
+```
+
+### JSON:API Error Responses
+
+API endpoints automatically return JSON:API compliant errors:
+
+```json
+{
+  "errors": [
+    {
+      "status": "404",
+      "code": "not_found",
+      "title": "Page Not Found",
+      "detail": "The requested resource was not found",
+      "source": {
+        "parameter": "user_id"
+      },
+      "meta": {
+        "user_id": 123
+      }
+    }
+  ]
+}
+```
+
+## Request Data Parsing
+
+Parse and validate request data with `model_from_request`, which combines path parameters, query parameters, and body data into a single Pydantic model instance.
+
+If path, query, and body parameters overlap, body data takes precedence over query parameters, which take precedence over path parameters.
+
+```python
+from starlette.requests import Request
+from starlette_templates.forms import model_from_request
+from pydantic import BaseModel
+
+class UserData(BaseModel):
+    name: str
+    email: str
+    age: int
+
+async def create_user(request: Request):
+    # Combines path params, query params, and body data
+    data = await model_from_request(request, UserData)
+    # data is a validated UserData instance
+    return {"user": data}
+```
+
+If validation fails, a Pydantic `ValidationError` is raised with details about the errors.
+
+## Context Processors
+
+Add custom context to all templates:
+
+```python
+async def add_site_context(request: Request) -> dict:
+    return {
+        "site_name": "My Site",
+        "year": datetime.now().year,
+        "user": await get_current_user(request),
+    }
+
+templates = TemplateRouter(
+    context_processors=[add_site_context]
+)
+```
+
+This is useful for adding global variables like the current user and site settings that should be available in all templates.
+
+### Route-Specific Context Processors
+
+Make context processors run only for specific URL patterns using Starlette's `Route`:
+
+```python
+from starlette.routing import Route
+from starlette_templates.forms import model_from_request
+
+async def add_user(request: Request) -> dict:
+    """Global processor - runs for all templates."""
+    return {"user": await get_current_user(request)}
+
+class CountryModel(BaseModel):
+    code: str
+
+async def add_country(request: Request) -> dict:
+    """Route-specific processor - only runs for /country/* paths."""
+    data = await model_from_request(request, CountryModel)
+    return {"country": await get_country(data.code)}
+
+class PostModel(BaseModel):
+    post_id: int
+
+async def add_post(request: Request) -> dict:
+    """Route-specific processor - only runs for /blog/* paths."""
+    data = await model_from_request(request, PostModel)
+    return {"post": await get_post(data.post_id)}
+
+templates = TemplateRouter(
+    context_processors=[
+        add_user,  # Global - runs for all templates
+        Route('/country/{code}', add_country),  # Only for /country/* paths
+        Route('/blog/{post_id}', add_post),  # Only for /blog/* paths
+    ]
+)
+```
+
+In your template at `/country/us`:
+
+```jinja
+<h1>{{ country.name }}</h1>
+<p>User: {{ user.name }}</p>
+```
+
+Route-specific processors have access to path parameters via `request.path_params`, making it easy to load data based on the URL.
+
+### Custom Error Handler
+
+```python
+from starlette.responses import Response
+
+async def custom_error_handler(request: Request, exc: Exception) -> Response:
+    # Log the error, send notifications, etc.
+    logger.error(f"Error processing {request.url}: {exc}")
+
+    # Return custom response
+    return JSONResponse(
+        {"error": "Something went wrong"},
+        status_code=500
+    )
+
+templates = TemplateRouter(
+    error_handler=custom_error_handler
+)
+```
+
+### HTTP Caching Configuration
+
+```python
+templates = TemplateRouter(
+    cache_max_age=3600,      # Cache for 1 hour
+    gzip_min_size=1024,      # Compress files > 1KB
+)
+```

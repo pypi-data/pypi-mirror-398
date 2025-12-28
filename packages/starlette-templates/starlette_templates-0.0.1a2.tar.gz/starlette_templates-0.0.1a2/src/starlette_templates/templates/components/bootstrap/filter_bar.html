@@ -1,0 +1,79 @@
+<div class="mb-4 d-flex justify-content-between align-items-center{% if sticky %} sticky-top{% endif %} selected-filters-bar{% if classes %} {{ classes }}{% endif %}" id="{{ id }}">
+    <div class="filter-bar-wrapper container">
+        <div class="scroll-indicator scroll-indicator-left hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </div>
+        <div class="media-container">
+            {% for item in items %}
+            <div class="media">
+                <div class="media-body">
+                    <label>{{ item.label }}</label>
+                    <h6>{{ item.value }}</h6>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="scroll-indicator scroll-indicator-right">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const filtersBar = document.getElementById('{{ id }}');
+    const mediaContainer = filtersBar.querySelector('.media-container');
+    const scrollIndicatorLeft = filtersBar.querySelector('.scroll-indicator-left');
+    const scrollIndicatorRight = filtersBar.querySelector('.scroll-indicator-right');
+
+    function updateScrollIndicators() {
+        const isScrollable = mediaContainer.scrollWidth > mediaContainer.clientWidth;
+        const scrollLeft = mediaContainer.scrollLeft;
+        const isAtStart = scrollLeft <= 10;
+        const isAtEnd = scrollLeft + mediaContainer.clientWidth >= mediaContainer.scrollWidth - 10;
+
+        if (!isScrollable || isAtStart) {
+            scrollIndicatorLeft.classList.add('hidden');
+        } else {
+            scrollIndicatorLeft.classList.remove('hidden');
+        }
+
+        if (!isScrollable || isAtEnd) {
+            scrollIndicatorRight.classList.add('hidden');
+        } else {
+            scrollIndicatorRight.classList.remove('hidden');
+        }
+    }
+
+    scrollIndicatorLeft.addEventListener('click', function() {
+        mediaContainer.scrollBy({ left: -150, behavior: 'smooth' });
+    });
+
+    scrollIndicatorRight.addEventListener('click', function() {
+        mediaContainer.scrollBy({ left: 150, behavior: 'smooth' });
+    });
+
+    mediaContainer.addEventListener('scroll', updateScrollIndicators);
+    window.addEventListener('resize', updateScrollIndicators);
+    updateScrollIndicators();
+
+    {% if sticky %}
+    const filtersBarOffsetTop = filtersBar.offsetTop;
+
+    function handleScroll() {
+        if (window.pageYOffset > filtersBarOffsetTop) {
+            filtersBar.classList.add('is-stuck');
+        } else {
+            filtersBar.classList.remove('is-stuck');
+        }
+    }
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    {% endif %}
+})();
+</script>

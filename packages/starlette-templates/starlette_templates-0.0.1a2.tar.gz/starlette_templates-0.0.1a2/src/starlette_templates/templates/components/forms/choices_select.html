@@ -1,0 +1,54 @@
+<div id="{{ id }}-wrapper" class="mb-3">
+    {% if label %}
+    <label for="{{ id }}" class="form-label">{{ label }}{% if required %} <span class="text-danger">*</span>{% endif %}</label>
+    {% endif %}
+    <select id="{{ id }}" name="{{ name }}" class="form-select{% if validation_state %} is-{{ validation_state }}{% endif %}"{% if multiple %} multiple{% endif %}{% if required %} required{% endif %}{% if disabled %} disabled{% endif %}>
+        {% for item in options %}
+            {% if item.options is defined %}
+                {# Option group #}
+                <optgroup label="{{ item.label }}">
+                    {% for option in item.options %}
+                    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}{% if option.disabled %} disabled{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </optgroup>
+            {% else %}
+                {# Regular option #}
+                <option value="{{ item.value }}"{% if item.selected %} selected{% endif %}{% if item.disabled %} disabled{% endif %}>{{ item.label }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+    {%- if validation_message %}
+    <div class="{% if validation_state == 'valid' %}valid{% else %}invalid{% endif %}-feedback">
+        {{ validation_message }}
+    </div>
+    {%- endif %}
+    {% if help_text %}
+    <div class="form-text">{{ help_text }}</div>
+    {% endif %}
+</div>
+
+<script type="text/javascript">
+(function() {
+    const element = document.getElementById('{{ id }}');
+    const choices = new Choices(element, {
+        searchEnabled: {{ 'true' if search_enabled else 'false' }},
+        searchPlaceholderValue: '{{ search_placeholder }}',
+        removeItemButton: {{ 'true' if remove_button else 'false' }},
+        {% if max_item_count %}
+        maxItemCount: {{ max_item_count }},
+        {% endif %}
+        placeholder: true,
+        placeholderValue: '{{ placeholder }}',
+        itemSelectText: ''
+    });
+
+    // Add Bootstrap form-select class to Choices container
+    const container = element.parentElement.querySelector('.choices');
+    if (container) {
+        container.classList.add('form-select');
+        {% if validation_state %}
+        container.classList.add('is-{{ validation_state }}');
+        {% endif %}
+    }
+})();
+</script>
