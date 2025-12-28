@@ -1,0 +1,54 @@
+query GetPipelineVersionAndModelConfigs(
+  $pipeline_version_id: bigint!
+  $model_config_ids: [bigint!]!
+) {
+  pipeline_version_by_pk(id: $pipeline_version_id) {
+    id
+    pipeline {
+      pipeline_id
+      workspace_id
+    }
+    version
+    definition
+    created_on_version
+    created_by
+  }
+  model_config(where: { id: { _in: $model_config_ids } }) {
+    id
+    filter_threshold
+    tensor_fields
+    runtime
+    input_schema
+    output_schema
+    dynamic_batching_config
+    continuous_batching_config
+    batch_config
+    model_id
+    openai
+    model {
+      id
+      model_id
+      file_name
+      visibility
+      sha
+      model_version
+      image_path
+      status
+      task_id
+      conversion
+      created_on_version
+      file_size
+      created_by
+      created_at
+      model_configs_aggregate(
+        where: {
+          deployment_model_configs: { deployment: { deployed: { _eq: true } } }
+        }
+      ) {
+        aggregate {
+          count(columns: id)
+        }
+      }
+    }
+  }
+}

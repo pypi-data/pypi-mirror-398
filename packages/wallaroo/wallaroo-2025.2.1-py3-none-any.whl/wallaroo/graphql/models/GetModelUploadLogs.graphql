@@ -1,0 +1,16 @@
+# Query to find a task's logs in fluentbit. The tag contains the task id truncated to 16 char and  mashed up with a bunch of other
+# K8s goop. The caller needs to form the pattern like this (you can't do string ops in graphql like this):
+#
+# tag in db is like ...               tasks-1eee24d8-6b91-4d-1_1ee-exec-orch-packackaging...
+# task id is actually like                  1eee24d8-6b91-4db5-9e7b-50d63f0deee1
+# so need to trunc the id to 16:            1eee24d8-6b91-4d
+# to form the task pattern:         "%tasks-1eee24d8-6b91-4d%"
+#
+# I'd also like to do data->>'log' here to get only the log portion from the jsonb but you can't do that either, so the caller must.
+
+query GetModelUploadLogs($task_pattern: String!) {
+  fluentbit(where: {
+    tag: { _like: $task_pattern }}, order_by: {time: asc}) {
+    data
+  }
+}
