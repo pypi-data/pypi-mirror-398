@@ -1,0 +1,347 @@
+Metadata-Version: 2.4
+Name: linecover-hook
+Version: 0.1.0
+Summary: Code coverage enforcement tool with flake8-style reporting
+License-Expression: BSD-3-Clause
+License-File: LICENSE
+Requires-Python: >=3.12
+Requires-Dist: click>=8.1.7
+Requires-Dist: coverage>=7.13.0
+Requires-Dist: loguru>=0.7.3
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=6.0.0; extra == 'dev'
+Requires-Dist: pytest>=9.0.2; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# LineCover
+
+Code coverage enforcement tool with flake8-style reporting.
+
+## Overview
+
+LineCover is a command-line tool that analyzes pytest coverage reports and enforces code quality standards. It reports violations in flake8-compatible format, making it easy to integrate into CI/CD pipelines and pre-commit hooks.
+
+## Features
+
+- **Line Coverage Enforcement**: Check that each file meets minimum line coverage thresholds
+- **Function/Class Coverage**: Ensure functions and classes are adequately tested
+- **Total Project Coverage**: Enforce overall project coverage requirements
+- **Complexity Checks**: Detect files with too many functions/classes or too many lines
+- **Flake8-Style Output**: Standard violation format for easy integration with existing tools
+- **Flexible Execution**: Run pytest automatically or analyze existing coverage data
+- **Pre-commit Integration**: Use as a pre-commit hook to enforce coverage on every commit
+
+## Installation
+
+```bash
+uv add linecover
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/yourusername/linecover.git
+cd linecover
+uv sync
+```
+
+## Quick Start
+
+Run linecover on your project:
+
+```bash
+# Run pytest and check that all files have 90% coverage
+uv run linecover --run-pytest --line-threshold 90
+
+# Check total project coverage is above 90%
+uv run linecover --total-threshold 90
+
+# Check for code complexity issues
+uv run linecover --max-units 10 --max-lines 500
+
+# Combine multiple checks
+uv run linecover --run-pytest \
+    --line-threshold 90 \
+    --func-threshold 85 \
+    --total-threshold 90 \
+    --max-units 10 \
+    --max-lines 600
+```
+
+## Command-Line Options
+
+### Coverage Thresholds
+
+- `--line-threshold PERCENT`: Minimum line coverage percentage per file (default: none)
+- `--func-threshold PERCENT`: Minimum function/class coverage percentage per file (default: none)
+- `--total-threshold PERCENT`: Minimum total project coverage percentage (default: none)
+
+### Complexity Checks
+
+- `--max-units N`: Maximum number of functions/classes per file (default: none)
+- `--max-lines N`: Maximum lines per file (default: none)
+
+### Execution Options
+
+- `--run-pytest`: Execute `pytest --cov` before analyzing coverage (default: false)
+
+### Logging Options
+
+- `--logfile PATH`: Write logs to file (default: stderr only)
+- `--loglevel LEVEL`: Set log level - DEBUG, INFO, WARNING, ERROR (default: INFO)
+
+## Error Codes
+
+LineCover reports violations using flake8-style error codes:
+
+- **COV001**: File line coverage below threshold
+- **COV002**: Function/class coverage below threshold
+- **COV003**: Too many units (functions/classes) in a file
+- **COV004**: File exceeds maximum line count
+
+## Output Format
+
+Violations are reported in flake8-compatible format:
+
+```
+path/to/file.py:1:1: COV001 Line coverage 75.0% is below threshold 90.0%
+path/to/file.py:1:1: COV002 Function coverage 60.0% is below threshold 85.0%
+complex.py:1:1: COV003 File has 15 units (functions+classes), exceeds maximum 10
+long_file.py:1:1: COV004 File has 650 lines, exceeds maximum 600
+```
+
+## Pre-commit Integration
+
+Add LineCover to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/yourusername/linecover
+    rev: v0.1.0
+    hooks:
+      - id: linecover
+        args:
+          - '--run-pytest'
+          - '--line-threshold'
+          - '90'
+          - '--total-threshold'
+          - '90'
+```
+
+Or use as a local hook if linecover is installed in your project:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: linecover
+        name: LineCover
+        entry: uv run linecover
+        language: system
+        pass_filenames: false
+        always_run: true
+        args: ['--run-pytest', '--total-threshold', '90']
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Coverage Check
+on: [push, pull_request]
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync
+      - name: Run linecover
+        run: uv run linecover --run-pytest --line-threshold 90 --total-threshold 90
+```
+
+### Exit Codes
+
+- **0**: No violations found
+- **1**: Violations found or error occurred
+
+## Examples
+
+### Enforcing 90% Line Coverage Per File
+
+```bash
+uv run linecover --run-pytest --line-threshold 90
+```
+
+Output if violations found:
+
+```
+src/parser.py:1:1: COV001 Line coverage 75.0% is below threshold 90.0%
+src/utils.py:1:1: COV001 Line coverage 82.5% is below threshold 90.0%
+```
+
+### Checking Project-Wide Coverage
+
+```bash
+uv run linecover --total-threshold 90
+```
+
+Output if project coverage is low:
+
+```
+<total>:1:1: COV001 Total project coverage 85.0% is below threshold 90.0%
+```
+
+### Finding Complex Files
+
+```bash
+uv run linecover --max-units 10 --max-lines 500
+```
+
+Output for files that are too complex:
+
+```
+src/legacy.py:1:1: COV003 File has 25 units (functions+classes), exceeds maximum 10
+src/monolith.py:1:1: COV004 File has 1250 lines, exceeds maximum 500
+```
+
+## Development
+
+### Project Structure
+
+```
+linecover/
+├── linecover/
+│   ├── __init__.py
+│   ├── cli.py          # Click-based CLI interface
+│   ├── runner.py       # Pytest execution
+│   ├── parser.py       # Coverage analysis with AST
+│   ├── checker.py      # Threshold validation
+│   └── reporter.py     # Flake8-style output
+├── tests/
+│   ├── test_cli.py
+│   ├── test_runner.py
+│   ├── test_parser.py
+│   ├── test_checker.py
+│   └── test_reporter.py
+├── pyproject.toml
+├── .pre-commit-config.yaml
+├── .pre-commit-hooks.yaml
+└── README.md
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=linecover --cov-report=term-missing
+
+# Run linecover on itself
+uv run linecover --run-pytest --total-threshold 90
+```
+
+### Technology Stack
+
+- **Python 3.12+** with modern type hints (`str | None` instead of `Optional`)
+- **uv** for fast dependency management
+- **click** for CLI interface with automatic help generation
+- **loguru** for structured logging
+- **coverage.py** for reading pytest coverage data
+- **AST parsing** to count functions, classes, and code lines
+- **pytest** for testing framework
+- **pre-commit** for code quality automation
+
+### Code Quality
+
+This project maintains high code quality standards:
+
+- 97%+ test coverage
+- Type hints on all functions
+- Pre-commit hooks for formatting (ruff, mypy)
+- Self-testing with linecover
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions welcome! Please ensure:
+
+1. Tests pass: `uv run pytest --cov`
+1. Coverage stays above 90%: `uv run linecover --run-pytest --total-threshold 90`
+1. Pre-commit hooks pass: `pre-commit run --all-files`
+1. Type hints are included for all new functions
+1. Docstrings follow Google style
+
+### Development Workflow
+
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/linecover.git
+cd linecover
+uv sync
+
+# Install pre-commit hooks
+pre-commit install
+
+# Make changes and test
+uv run pytest
+uv run linecover --run-pytest --total-threshold 90
+
+# Commit (pre-commit hooks will run automatically)
+git commit -m "Your changes"
+```
+
+## Comparison with Other Tools
+
+| Feature                | LineCover | pytest-cov  | coverage.py  |
+| ---------------------- | --------- | ----------- | ------------ |
+| Flake8-style output    | ✅        | ❌          | ❌           |
+| Per-file thresholds    | ✅        | ❌          | ⚠️ (limited) |
+| Complexity checks      | ✅        | ❌          | ❌           |
+| Pre-commit integration | ✅        | ⚠️ (manual) | ⚠️ (manual)  |
+| Exit code on failure   | ✅        | ✅          | ✅           |
+| AST-based metrics      | ✅        | ❌          | ❌           |
+
+## FAQ
+
+**Q: Why does linecover exist when coverage.py already exists?**
+
+A: LineCover adds enforcement capabilities with flake8-compatible output, making it easy to integrate into existing workflows. It also adds complexity checks (max units, max lines) that coverage.py doesn't provide.
+
+**Q: Can I use linecover without pytest?**
+
+A: LineCover requires a `.coverage` file generated by coverage.py. While pytest is the recommended way to generate this, you can use coverage.py directly with any test framework.
+
+**Q: Does linecover modify my code?**
+
+A: No, linecover only analyzes coverage data and reports violations. It never modifies source files.
+
+**Q: Can I enforce different thresholds for different files?**
+
+A: Currently, linecover enforces the same thresholds across all files. File-specific thresholds may be added in a future release.
+
+**Q: What happens if pytest fails?**
+
+A: If `--run-pytest` is used and pytest fails, linecover will still analyze coverage for any tests that ran. This allows you to see which files need more coverage even when tests fail.
+
+## Changelog
+
+### v0.1.0 (2025-12-23)
+
+- Initial release
+- Core functionality: coverage parsing, threshold checking, reporting
+- Pre-commit hook support
+- CLI with logging options
+- 97%+ test coverage
+- AST-based complexity metrics
