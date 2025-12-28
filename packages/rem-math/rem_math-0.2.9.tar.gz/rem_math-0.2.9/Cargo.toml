@@ -1,0 +1,40 @@
+[package]
+name = "rem_math"
+version = "0.2.9"
+edition = "2021"
+readme = "README.md"
+
+[lib]
+# The name of the native library. This is the name which will be used in Python to import the
+# library (i.e. `import rem_math`). If you change this, you must also change the name of the
+# `#[pymodule]` in `src/lib.rs`.
+name = "rem_math"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+#
+# Downstream Rust code (including code in `bin/`, `examples/`, and `tests/`) will not be able
+# to `use rem_math;` unless the "rlib" or "lib" crate type is also included, e.g.:
+# crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+numpy = "0.25.0"
+pyo3 = { version = "0.25.1", features = ["extension-module"] }
+rayon = "1.10.0"
+anyhow = "1.0"
+
+[dependencies.rem_math_gpu]
+path = "rem_math_gpu"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "common"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[workspace]
+members = ["rem_math_gpu"]
