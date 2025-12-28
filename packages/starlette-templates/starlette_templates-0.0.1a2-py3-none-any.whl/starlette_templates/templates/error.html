@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{{ status_code }} - {{ error_title }}</title>
+    <style>
+    /* Error page styles */
+    :root {
+        --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body.error-page {
+        font-family: var(--font-family-base);
+        font-size: 16px;
+        line-height: 1.25;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+        color: #333;
+    }
+
+    /* Debug error page */
+    body.error-debug {
+        background: #fff;
+        padding: 2rem;
+    }
+
+    .error-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* Error header banner */
+    .error-header {
+        background: #fff3cd;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: start;
+        gap: 0.5rem;
+        flex-direction: column;
+    }
+
+    .error-header .status {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #dc3545;
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+    }
+
+    .error-header h1 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0;
+        flex: 1;
+        font-family: var(--font-family-base);
+    }
+
+    .error-message {
+        font-size: 0.875rem;
+        color: #000;
+        border-left: 4px solid #ffc107;
+        padding-left: 0.75rem;
+    }
+
+    /* Collapsible sections */
+    .error-section {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+
+    .error-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: #f8f8f8;
+        border-bottom: 1px solid #e0e0e0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .error-section-header:hover {
+        background: #f0f0f0;
+    }
+
+    .error-section-header::after {
+        content: '▼';
+        font-size: 0.75rem;
+        color: #666;
+    }
+
+    .error-section.collapsed .error-section-header::after {
+        transform: rotate(-90deg);
+    }
+
+    .error-section-content {
+        padding: 0;
+        max-height: 600px;
+        overflow: auto;
+    }
+
+    .error-section.collapsed .error-section-content {
+        display: none;
+    }
+
+    /* Frame items */
+    .error-frame {
+        border-bottom: 1px solid #eee;
+    }
+
+    .error-frame:last-child {
+        border-bottom: none;
+    }
+
+    .error-frame-header {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        background: #fafafa;
+    }
+
+    .error-frame-header:hover {
+        background: #f0f0f0;
+    }
+
+    .error-frame-header .filename {
+        font-weight: 600;
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        color: #e74c3c;
+    }
+
+    .error-frame-header .function {
+        color: #007aff;
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+    }
+
+    .error-frame-header .lineno {
+        color: #666;
+        font-size: 0.75rem;
+        background: #f0f0f0;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+    }
+
+    .error-frame-details {
+        display: none;
+        background: #fafafa;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .error-frame.expanded .error-frame-details {
+        display: block;
+    }
+
+    .error-frame-header::before {
+        content: '▶';
+        font-size: 0.625rem;
+        color: #666;
+    }
+
+    .error-frame.expanded .error-frame-header::before {
+        transform: rotate(90deg);
+    }
+
+    /* Code display */
+    .error-code {
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        font-size: 13px;
+        overflow-x: auto;
+        background: #fff;
+        margin: 0;
+    }
+
+    .error-code-line {
+        display: flex;
+        min-width: 600px;
+    }
+
+    .error-code-line.current {
+        background: #fff3cd;
+    }
+
+    .error-line-number {
+        width: 50px;
+        min-width: 50px;
+        text-align: right;
+        padding: 2px 10px;
+        color: #999;
+        user-select: none;
+        flex-shrink: 0;
+        background: #f8f8f8;
+        border-right: 1px solid #e0e0e0;
+    }
+
+    .error-line-content {
+        padding: 2px 10px;
+        white-space: pre;
+        flex: 1;
+    }
+
+    /* Local variables */
+    .error-locals {
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        font-size: 12px;
+        padding: 0.75rem 1rem;
+        background: #f8f8f8;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .error-locals-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #666;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .error-locals dl {
+        margin: 0;
+    }
+
+    .error-locals dt {
+        color: #007aff;
+        float: left;
+        clear: left;
+        width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 2px 0;
+    }
+
+    .error-locals dd {
+        margin-left: 160px;
+        color: #28a745;
+        word-break: break-all;
+        padding: 2px 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .error-locals dd:last-of-type {
+        border-bottom: none;
+    }
+
+    /* Validation errors */
+    .validation-errors {
+        padding: 0;
+    }
+
+    .validation-error {
+        border-bottom: 1px solid #eee;
+        padding: 0.5rem 1rem;
+        background: #fafafa;
+    }
+
+    .validation-error:last-child {
+        border-bottom: none;
+    }
+
+    .validation-error-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .validation-error-header .validation-error-source-value {
+        margin-left: 0.25rem;
+        white-space: nowrap;
+        color: #28a745;
+    }
+
+    .validation-error-header .error-code {
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #dc3545;
+        background: #fff;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        border: 1px solid #e0e0e0;
+        flex-shrink: 0;
+    }
+
+    .validation-error-header .error-title {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
+
+    .validation-error-detail {
+        color: #666;
+        font-size: 0.8rem;
+        line-height: 1.4;
+        padding-left: 0;
+    }
+
+    .validation-error-source {
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        font-size: 0.7rem;
+        color: #666;
+        background: #f8f8f8;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        white-space: nowrap;
+    }
+
+    .validation-error-source strong {
+        color: #333;
+    }
+
+    .validation-error-meta {
+        margin-top: 0.25rem;
+        font-size: 0.7rem;
+    }
+
+    .validation-error-meta strong {
+        color: #333;
+        display: block;
+        margin-bottom: 0.15rem;
+    }
+
+    .validation-error-meta pre {
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        background: #f8f8f8;
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        overflow-x: auto;
+        margin: 0;
+        font-size: 11px;
+    }
+
+    /* Request info */
+    .error-request-info {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 0.5rem 1rem;
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        font-size: 13px;
+        padding: 1rem;
+    }
+
+    .error-request-info dt {
+        color: #666;
+        font-weight: 600;
+    }
+
+    .error-request-info dd {
+        color: #333;
+        word-break: break-all;
+        margin: 0;
+    }
+
+    /* Traceback */
+    pre.error-traceback {
+        background: #f8f8f8;
+        padding: 1rem;
+        margin: 0;
+        overflow-x: auto;
+        font-size: 12px;
+        color: #dc3545;
+        font-family: Menlo, Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+        min-width: 600px;
+    }
+
+    /* Copy button */
+    .copy-btn {
+        font-size: 0.75rem;
+        padding: 0.3rem 0.6rem;
+        margin-left: 1rem;
+        background: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .copy-btn:hover {
+        background: #5a6268;
+    }
+
+    .copy-btn.copied {
+        background: #28a745;
+    }
+
+    /* Simple validation errors */
+    .validation-errors-simple {
+        margin-top: 1.5rem;
+        text-align: left;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .validation-errors-simple h2 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+        color: #333;
+    }
+
+    .validation-errors-simple ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .validation-errors-simple li {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .validation-errors-simple li strong {
+        color: #dc3545;
+    }
+
+    /* Simple error page (light theme) */
+    body.error-simple {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #f5f5f5;
+        color: #333;
+    }
+
+    .error-simple-content {
+        text-align: center;
+        padding: 40px;
+    }
+
+    .error-simple-content h1 {
+        font-size: 8em;
+        margin: 0;
+        color: #e74c3c;
+        line-height: 1;
+    }
+
+    .error-simple-content p {
+        font-size: 1.5em;
+        color: #666;
+        margin-top: 20px;
+    }
+
+    .error-simple-content a {
+        display: inline-block;
+        margin-top: 30px;
+        padding: 12px 30px;
+        background: #007aff;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+    }
+
+    .error-simple-content a:hover {
+        background: #0066dd;
+    }
+
+    /* Responsive */
+    @media (min-width: 500px) {
+        body.error-page {
+            padding: 2rem;
+        }
+    }
+    </style>
+</head>
+<body class="error-page {% if frames %}error-debug{% else %}error-simple{% endif %}">
+    {% if frames %}
+    <div class="error-container">
+        <div class="error-header">
+            <span class="status">{{ status_code }}</span>
+            <h1>{{ error_title }}</h1>
+            <p class="error-message">{{ error_message }}</p>
+        </div>
+
+        {% if structured_errors %}
+        <div class="error-section">
+            <div class="error-section-header" onclick="toggleSection(this)">
+                Validation Errors ({{ structured_errors|length }})
+            </div>
+            <div class="error-section-content">
+                <div class="validation-errors">
+                    {% for error in structured_errors %}
+                    <div class="validation-error">
+                        <div class="validation-error-header">
+                            <div>
+                                <span class="error-code">{{ error.code }}</span>
+                                <span class="error-title">{{ error.title }}</span>
+                            </div>
+                            {% if error.source %}
+                            <span class="validation-error-source">
+                                {% if error.source.pointer %}
+                                <strong>Location:</strong><span class="validation-error-source-value">{{ error.source.pointer }}</span>
+                                {% elif error.source.parameter %}
+                                <strong>Parameter:</strong><span class="validation-error-source-value">{{ error.source.parameter }}</span>
+                                {% elif error.source.header %}
+                                <strong>Header:</strong><span class="validation-error-source-value">{{ error.source.header }}</span>
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="validation-error-detail">
+                            {{ error.detail }}
+                        </div>
+                        {% if error.meta %}
+                        <div class="validation-error-meta">
+                            <strong>Additional Info:</strong>
+                            <pre>{{ error.meta | jsonify(indent=2) }}</pre>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="error-section">
+            <div class="error-section-header" onclick="toggleSection(this)">
+                Traceback (most recent call last)
+            </div>
+            <div class="error-section-content">
+                {% for frame in frames %}
+                <div class="error-frame">
+                    <div class="error-frame-header" onclick="toggleFrame(this)">
+                        <span class="filename">{{ frame.filename }}</span>
+                        <span class="function">{{ frame.function }}</span>
+                        <span class="lineno">{{ frame.lineno }}</span>
+                    </div>
+                    <div class="error-frame-details">
+                        <div class="error-code">
+                            {% for line_num, line in frame.code_context %}
+                            <div class="error-code-line {% if line_num == frame.lineno %}current{% endif %}">
+                                <span class="error-line-number">{{ line_num }}</span>
+                                <span class="error-line-content">{{ line }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if frame.locals %}
+                        <div class="error-locals">
+                            <div class="error-locals-title">Local Variables</div>
+                            <dl>
+                                {% for name, value in frame.locals.items() %}
+                                <dt>{{ name }}</dt>
+                                <dd>{{ value }}</dd>
+                                {% endfor %}
+                            </dl>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="error-section collapsed">
+            <div class="error-section-header" onclick="toggleSection(this)">
+                Request Information
+            </div>
+            <div class="error-section-content">
+                <dl class="error-request-info">
+                    <dt>Method</dt><dd>{{ request_method }}</dd>
+                    <dt>URL</dt><dd>{{ request_url }}</dd>
+                    <dt>Client</dt><dd>{{ client_host or 'Unknown' }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="error-section collapsed">
+            <div class="error-section-header" onclick="toggleSection(this)">
+                <div>
+                    Full Traceback
+                    <button class="copy-btn" onclick="copyTraceback(event)">Copy</button>
+                </div>
+            </div>
+            <div class="error-section-content">
+                <pre class="error-traceback" id="traceback-text">{{ traceback_text }}</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function toggleSection(header) {
+        const section = header.parentElement;
+        section.classList.toggle('collapsed');
+    }
+
+    function toggleFrame(header) {
+        const frame = header.parentElement;
+        frame.classList.toggle('expanded');
+    }
+
+    function copyTraceback(event) {
+        event.stopPropagation();
+        const btn = event.target;
+        const traceback = document.getElementById('traceback-text').textContent;
+
+        navigator.clipboard.writeText(traceback).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.classList.remove('copied');
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
+    }
+
+    // Expand the first frame by default
+    document.addEventListener('DOMContentLoaded', function() {
+        const firstFrame = document.querySelector('.error-frame');
+        if (firstFrame) {
+            firstFrame.classList.add('expanded');
+        }
+    });
+    </script>
+    {% else %}
+    <div class="error-simple-content">
+        <h1>{{ status_code }}</h1>
+        <p>{{ error_message }}</p>
+
+        {% if structured_errors %}
+        <div class="validation-errors-simple">
+            <h2>Errors:</h2>
+            <ul>
+            {% for error in structured_errors %}
+                <li>
+                    <strong>{{ error.title }}</strong>: {{ error.detail }}
+                    {% if error.source and error.source.parameter %}
+                    ({{ error.source.parameter }})
+                    {% endif %}
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <a href="/">Go Home</a>
+    </div>
+    {% endif %}
+</body>
+</html>
