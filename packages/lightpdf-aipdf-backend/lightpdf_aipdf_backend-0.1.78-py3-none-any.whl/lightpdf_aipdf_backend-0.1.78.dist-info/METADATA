@@ -1,0 +1,226 @@
+Metadata-Version: 2.4
+Name: lightpdf-aipdf-backend
+Version: 0.1.78
+Summary: Backend API for LightPDF AI-PDF
+Author: LightPDF Team
+License: Proprietary
+Requires-Python: >=3.10
+Requires-Dist: fastapi
+Requires-Dist: mcp
+Requires-Dist: mcp[cli]
+Requires-Dist: openai
+Requires-Dist: oss2
+Requires-Dist: pydantic
+Requires-Dist: python-dotenv
+Requires-Dist: python-multipart
+Requires-Dist: redis
+Requires-Dist: uv
+Requires-Dist: uvicorn
+Provides-Extra: dev
+Requires-Dist: black; extra == 'dev'
+Requires-Dist: isort; extra == 'dev'
+Requires-Dist: pytest; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# LightPDF AI-PDF Backend
+
+这是LightPDF AI-PDF的后端API服务，提供AI驱动的文档处理功能。
+
+## 功能特点
+
+- 基于OpenAI GPT模型的智能聊天功能
+- 文件上传和处理支持
+- 文件引用功能（支持已上传文件和外部文件）
+- 流式响应实现
+- 模块化设计，易于扩展
+- 异步处理，高性能IO操作
+
+## 系统要求
+
+- Python 3.12+ 
+- 支持异步IO的现代操作系统
+- 足够的内存和存储空间用于文件处理
+
+## 安装
+
+### 使用uv安装（推荐）：
+
+```bash
+# 安装uv（如果尚未安装）
+curl -fsSL https://install.uvx.sh | sh
+
+# 安装项目
+uv pip install -e .
+```
+
+### 或者使用传统pip安装：
+
+```bash
+pip install -e .
+```
+
+### 构建并安装：
+
+```bash
+uv build
+uv pip install dist/*.whl
+```
+
+## 环境配置
+
+有两种配置方式：
+
+### 1. 使用.env文件（开发环境）
+
+创建一个`.env`文件，包含以下环境变量：
+
+```
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_BASE_URL=https://api.openai.com/v1
+UPLOAD_DIR=uploads
+MAX_FILE_SIZE=10485760  # 10MB
+ALLOWED_EXTENSIONS=.pdf,.txt,.csv,.md,.py,.js,.html,.css,.json
+# 其他必要的环境变量
+```
+
+注意：`.env`文件不会包含在构建包中，需要在部署环境中手动创建。
+
+### 2. 使用环境变量（生产环境）
+
+直接设置环境变量：
+
+```bash
+export OPENAI_API_KEY=your_openai_api_key
+export OPENAI_MODEL=gpt-4o-mini
+export OPENAI_BASE_URL=https://api.openai.com/v1
+export UPLOAD_DIR=uploads
+export MAX_FILE_SIZE=10485760  # 10MB
+export ALLOWED_EXTENSIONS=.pdf,.txt,.csv,.md,.py,.js,.html,.css,.json
+# 设置其他必要的环境变量
+```
+
+### 3. 默认指令配置
+
+系统支持从配置文件中读取默认指令，可以通过以下方式配置：
+
+1. 创建一个`.instructions`文件（或通过环境变量指定的其他文件名）
+2. 在文件中编写默认指令内容
+3. 系统会在没有前端传递指令时使用这些默认指令
+
+默认指令文件示例：
+```
+- 使用Markdown格式回答
+- 遵循特定的回答格式
+- 按照规定的方式处理文件和链接
+```
+
+注意：前端传递的指令优先级高于配置文件中的默认指令。
+
+## 服务启动
+
+安装后，可以通过以下方式启动服务器：
+
+### 方法1：使用命令行工具
+
+```bash
+lightpdf-aipdf-server
+```
+
+### 方法2：作为Python模块运行
+
+```bash
+python -m lightpdf_aipdf_backend
+```
+
+### 方法3：使用uvicorn直接运行
+
+```bash
+uvicorn lightpdf_aipdf_backend.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+## API接口说明
+
+服务启动后，可以访问以下API接口：
+
+- `GET /`: 服务器状态检查，返回API状态信息
+- `POST /api/chat`: 聊天接口，支持流式响应和文件引用
+- `POST /api/upload`: 文件上传接口
+
+### 文件处理功能
+
+系统支持两种方式引用文件:
+
+1. **通过file_ids参数**: 引用已经上传到系统的文件
+   - 先通过`/api/upload`接口上传文件获取file_id
+   - 在聊天请求中通过file_ids参数引用这些文件
+
+2. **通过file_infos参数**: 直接引用外部文件，无需上传
+   - 提供文件名和URL信息
+   - 系统会将这些外部文件作为链接添加到消息中
+   - 格式: `[{filename: "文件名.pdf", path: "https://example.com/文件路径.pdf"}]`
+
+这两种方式可以同时使用，系统会合并所有文件链接到消息中。
+
+API文档接口:
+- `GET /docs`: Swagger UI文档
+- `GET /redoc`: ReDoc文档
+
+## 项目结构
+
+```
+backend/
+├── src/                        # 源代码目录
+│   └── lightpdf_aipdf_backend/ # 主包
+│       ├── __init__.py         # 包初始化
+│       ├── __main__.py         # 模块入口
+│       ├── app.py              # FastAPI应用
+│       ├── cli.py              # 命令行接口
+│       ├── chat_handler.py     # 聊天处理
+│       ├── config.py           # 配置模块
+│       ├── file_handler.py     # 文件处理
+│       ├── main.py             # 主程序入口
+│       ├── models.py           # 数据模型
+│       ├── state.py            # 状态管理
+│       ├── tools.py            # 工具处理
+│       └── utils.py            # 辅助函数
+├── uploads/                    # 上传文件目录
+├── pyproject.toml              # 项目配置
+├── .env                        # 环境变量
+└── run.py                      # 开发运行脚本
+```
+
+## 开发指南
+
+### 安装开发依赖
+
+```bash
+uv pip install -e ".[dev]"
+```
+
+### 添加新功能
+
+1. 在相应模块文件中添加功能实现
+2. 在`app.py`中注册新的API端点
+3. 更新依赖（如果需要）
+4. 测试新功能
+
+## 测试
+
+运行测试:
+
+```bash
+pytest
+```
+
+## 故障排除
+
+- **无法连接到OpenAI API**: 检查`OPENAI_API_KEY`和`OPENAI_BASE_URL`设置
+- **文件上传失败**: 验证`UPLOAD_DIR`权限和`MAX_FILE_SIZE`设置
+- **端口被占用**: 更改启动命令中的端口号
+- **依赖冲突**: 使用虚拟环境隔离项目依赖
+- **运行错误**: 确保使用Python 3.12+版本
+
+## 许可证
+
+[MIT License](LICENSE)
