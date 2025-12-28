@@ -1,0 +1,112 @@
+workflows:
+  main_workflow:
+    - id: use_tasklist_tool
+      description: "Universal workflow for all task management operations with intelligent routing"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        - id: normalize_input
+          agent: input_normalizer
+          input: |
+            user_input: ${user_input}
+            user_query: ${user_query}
+          output:
+            to: classify_task_action
+
+        - id: classify_task_action
+          agent: task_action_classifier
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            
+            Classify this task management request as one of:
+            - create_task: Create new task or tasks
+            - list_tasks: Show existing tasks with filters
+            - update_task: Modify existing task details
+            - complete_task: Mark task(s) as completed
+            - delete_task: Remove task(s)
+            - search_tasks: Search through tasks
+            - task_status: Get status of specific tasks
+            - bulk_operations: Perform operations on multiple tasks
+            
+            Return the classification and specific parameters.
+          output:
+            to: extract_task_details
+
+        - id: extract_task_details
+          agent: task_details_extractor
+          input: |
+            Action: ${context.step_outputs.classify_task_action}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Extract task-related details for this operation.
+          output:
+            to: validate_task_request
+
+        - id: validate_task_request
+          agent: task_validator
+          input: |
+            Action: ${context.step_outputs.classify_task_action.type}
+            Task details: ${context.step_outputs.extract_task_details}
+            
+            Validate the task operation request.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.validate_task_request.valid} == true"
+                  then: build_task_parameters
+                  else: request_task_correction
+
+        - id: request_task_correction
+          agent: task_correction_agent
+          input: |
+            Validation errors: ${context.step_outputs.validate_task_request.errors}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Request corrections for task operation parameters.
+          output:
+            to: user
+
+        - id: build_task_parameters
+          agent: task_parameter_builder
+          input: |
+            Action: ${context.step_outputs.classify_task_action.type}
+            Validated details: ${context.step_outputs.validate_task_request}
+            
+            Build the appropriate parameters for the tasklist tool call.
+          output:
+            to: execute_task_operation
+
+        - id: execute_task_operation
+          function: langswarm.core.utils.workflows.functions.mcp_call
+          args:
+            mcp_url: "local://tasklist"
+            payload: ${context.step_outputs.build_task_parameters}
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.execute_task_operation.success} == true"
+                  then: format_task_response
+                  else: handle_task_error
+
+        - id: format_task_response
+          agent: task_response_formatter
+          input: |
+            Action performed: ${context.step_outputs.classify_task_action.type}
+            Task result: ${context.step_outputs.execute_task_operation}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Format the task management response.
+          output:
+            to: user
+
+        - id: handle_task_error
+          agent: task_error_handler
+          input: |
+            Error details: ${context.step_outputs.execute_task_operation}
+            Action attempted: ${context.step_outputs.classify_task_action.type}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Provide helpful error guidance and suggest alternatives.
+          output:
+            to: user
