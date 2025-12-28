@@ -1,0 +1,127 @@
+Metadata-Version: 2.4
+Name: uniserve
+Version: 0.0.5
+Summary: model serving frame work
+Author-email: Yaqiang Sun <sunyaking@163.com>
+License: GPL-3.0
+Requires-Python: <3.14,>=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: litserve>=0.2.16
+Dynamic: license-file
+
+# UniServe
+
+English | [中文](README_zh.md)
+
+UniServe is a model serving framework built on top of [LitServe](https://github.com/Lightning-AI/litserve), designed to simplify the deployment and serving of machine learning models. 
+
+## Features
+
+- Easy deployment of machine learning models with minimal code
+- Support for both simple APIs and file-based APIs
+- Built-in support for batching and multi-device inference
+- Extensible base classes for custom model APIs
+- CLI tool for launching model servers
+- Compatible with OpenAI API format for easy client integration
+
+## Installation
+
+```bash
+pip install uniserve
+```
+
+Or install from source:
+
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+### Run example
+
+```bash
+# Run with a simple API example
+uniserve --api-list example.simple_api.api_list --port 8000
+```
+
+```bash
+# Run with a simple API example in the no installed source code
+uv run uniserve --api-list example.simple_api.api_list --port 8000
+```
+
+### Create your own API
+
+Create a custom API by extending the BaseLitAPI class:
+
+```python
+from uniserve import BaseLitAPI
+
+class MyModelAPI(BaseLitAPI):
+    def load_model(self):
+        # Load your model here
+        model = MyModel()
+        return model
+
+    def decode_request(self, request):
+        # Decode the incoming request
+        return request.get("input")
+
+    def predict(self, x):
+        # Run model inference
+        return self.model(x)
+
+    def encode_response(self, output):
+        # Encode the output into a response
+        return {"result": output}
+
+# Create an instance
+my_api = MyModelAPI()
+api_list = [my_api]
+```
+
+Then run your API:
+
+```bash
+uniserve --api-list my_module.api_list --port 8000
+```
+
+### Debug Without Request
+
+UniServe provides a convenient way to debug your API implementation without sending actual HTTP requests. This is especially useful during development to quickly test your model logic.
+
+You can use the built-in `debug` method in your API class:
+
+```python
+# Directly test your API methods without HTTP requests
+api = MyModelAPI()
+result = api.debug(request={"input": "test_data"}, device="cpu")
+print(result)
+```
+
+See `example/uni_api_debug.py` for a complete example of how to debug your API implementation.
+
+## CLI Options
+
+- `--api-list`: Fully qualified name of the API list object to serve (required)
+- `--port`: Port to run the server on (default: 8000)
+- `--host`: Host to run the server on (default: 127.0.0.1)
+- `--accelerator`: Accelerator to use (e.g., 'cuda', 'cpu', 'auto') (default: auto)
+- `--devices`: Devices to use (e.g., 'auto', '[0]', '[0,1]') (default: auto)
+- `--api-path`: API endpoint path (default: None)
+
+## Base Classes
+
+- `BaseLitAPI`: Base class for simple APIs, extends LitAPI with a setup method
+- `RequestLitAPI`: Base class for handling file uploads with additional parameters
+- `MultiFileLitAPI`: Alternative base class for handling multiple file uploads
+- `NNRequestLitAPI`: Specialized base class for neural network inference with structured preprocessing and postprocessing steps
+
+## Examples
+
+Check the `example/` directory for more detailed examples of how to use UniServe with different types of models.
+
+## License
+
+This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
