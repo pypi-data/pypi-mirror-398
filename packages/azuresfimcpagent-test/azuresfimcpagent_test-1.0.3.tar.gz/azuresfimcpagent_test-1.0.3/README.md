@@ -1,0 +1,151 @@
+# Azure SFI MCP Agent - Installation Guide
+
+## Description
+
+**Azure SFI MCP Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. This agent helps you create SFI compliant Azure resources with automatic compliance orchestration.
+
+### Capabilities
+
+1. **List Azure Permissions** - View your active role assignments and access levels
+2. **List Azure Resources** - Browse resources across subscriptions and resource groups
+3. **Create SFI-Compliant Resources** - Deploy Azure resources with automatic compliance features:
+   - Storage Accounts (ADLS Gen2)
+   - Key Vaults
+   - Azure OpenAI
+   - AI Search
+   - AI Foundry
+   - Cosmos DB
+   - Log Analytics Workspaces
+   - Network Security Perimeters (NSP)
+   - User Assigned Managed Identity (UAMI)
+4. **Add Diagnostic Settings** - Automatically configure Log Analytics monitoring
+5. **NSP Attachment** - Automatic Network Security Perimeter attachment for supported resources
+
+---
+
+## Prerequisites
+
+Before installing the Azure SFI MCP Agent, ensure you have the following installed:
+
+### Required Software
+
+1. **Visual Studio Code** - [Download](https://code.visualstudio.com/download)
+2. **PowerShell Core (pwsh)** - [Download](https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows?view=powershell-7.5)
+3. **Azure CLI** - [Download](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-windows?view=azure-cli-latest&pivots=winget)
+4. **Python 3.10+** - [Download](https://www.python.org/downloads/)
+5. **uvx** - [Download](https://docs.astral.sh/uv/getting-started/installation/)
+6. **GitHub Copilot Chat Extension** - [Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat)
+
+### Azure Requirements
+
+- Active Azure subscription
+- Appropriate Azure RBAC permissions for resource creation
+- Azure CLI authenticated (`az login`)
+
+---
+
+## Installation Steps
+
+### Step 1: Open GitHub Copilot Chat
+
+1. Launch **Visual Studio Code**
+2. Open **GitHub Copilot Chat** (click the chat icon in the sidebar or press `Ctrl+Alt+I`)
+
+### Step 2: Access MCP Tools Menu
+
+1. In the Copilot Chat window, click on the **🔧 Tools** button
+2. Select **"Install MCP Server from PyPI"** or similar option
+
+### Step 3: Install the Package
+
+1. When prompted for the package name, enter:
+   ```
+   azuresfimcpagent
+   ```
+2. Select the **latest version** when prompted
+3. Wait for the installation to complete
+
+### Step 4: Configure MCP Settings
+Add the following configuration to the `mcp.json` file:
+
+```json
+{
+    "mcpServers": {
+        "azuresfimcpagent": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+                "azuresfimcpagent==1.0.0"
+            ]
+        }
+    }
+}
+```
+
+> **Note**: Replace `1.0.0` with the latest version number you installed.
+
+### Step 5: Restart VS Code
+
+1. Close and reopen Visual Studio Code to load the MCP server configuration
+2. Open GitHub Copilot Chat again
+3. Select the MCP Tool installed
+
+### Step 6: Verify Installation
+
+In GitHub Copilot Chat, type:
+```
+show menu
+```
+
+You should see the available actions menu confirming successful installation.
+
+---
+
+## 💡 Usage Examples
+
+### List Your Azure Permissions
+```
+list my azure permissions
+```
+
+### List Azure Resources
+```
+list resources in resource-group-name
+```
+
+### Create a Storage Account
+```
+create storage account
+```
+
+### Create a Key Vault
+```
+create key vault
+```
+
+The agent will interactively prompt you for required parameters and automatically:
+- ✅ Deploy the SFI compliant resources
+- ✅ Configure Log Analytics diagnostic settings
+- ✅ Apply security best practices and compliance controls
+
+---
+
+### Azure CLI Authentication
+
+Ensure you're logged into Azure CLI:
+```bash
+az login
+az account show
+```
+
+### PowerShell Core Required
+
+This agent requires PowerShell Core (pwsh), not Windows PowerShell. Verify:
+```bash
+pwsh --version
+```
+---
+
+## 📄 License
+
+MIT License - see LICENSE file for details
