@@ -1,0 +1,1 @@
+"""MiViA CLI module."""
