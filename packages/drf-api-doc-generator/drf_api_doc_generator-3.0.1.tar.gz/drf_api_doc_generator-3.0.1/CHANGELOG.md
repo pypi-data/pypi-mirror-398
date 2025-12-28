@@ -1,0 +1,111 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.0.1] - 2025-12-25
+
+### Fixed
+- Corrected proper installed app name in `README.md` documentation (`api_docs_generator` instead of `drf_api_doc_generator`)
+- Updated installation instructions to prevent `ModuleNotFoundError`
+
+## [3.0.0] - 2025-12-25
+
+### 🚀 Major Features
+
+#### Magic Command (`complete-project-zip-html`)
+- Introduced a powerful new command to automate the entire documentation process in one step:
+  ```bash
+  python manage.py generate_api_docs complete-project-zip-html
+  ```
+- **Auto-Discovery**: Automatically finds all installed Django Apps (REST APIs)
+- **WebSocket Detection**: Automatically searches for and parses all `consumers.py` files in every app
+- **One-Click Export**: Generates HTML documentation and immediately packages it into a ZIP file
+- **Zero Configuration**: No need to manually specify app names or file paths anymore
+
+### Added
+- Auto-discovery logic for `consumers.py` files across the entire project
+- New `commands.txt` file with Malayalam instructions for easy usage
+- Helper method `_discover_consumer_files` in management command
+
+### Changed
+- Improved CLI experience with "Magic Command" shortcut
+- Updated project to Version 3.0.0
+
+---
+
+## [2.0.0] - 2025-12-25
+
+### 🚀 Major New Features
+
+#### WebSocket Documentation Support
+- **New WebSocket Parser**: Automatically parses Django Channels consumers
+- **Action Handlers**: Documents all `handle_*` methods as client-to-server actions
+- **Server Events**: Documents broadcast events (`chat_message`, `user_typing`, etc.)
+- **Connection Lifecycle**: Full documentation of connect/disconnect flow with error codes
+- **Auto-generated Examples**: Creates example JSON for requests and responses
+- **Smart URL Detection**: Automatically generates WebSocket URLs from consumer class names
+
+#### ZIP Package Export
+- **New `--zip` option**: Creates a shareable ZIP package containing all documentation
+- **README included**: Auto-generated instructions for frontend developers
+- **Offline-ready**: HTML works without any server
+
+#### Improved PDF Design
+- **Clean, Modern Layout**: Matches professional API documentation standards
+- **Syntax Highlighting**: JSON and JavaScript code blocks with proper colors
+- **Better Typography**: Improved fonts and spacing for readability
+- **Code Boxes**: Styled code blocks with language labels
+
+#### Improved HTML Design
+- **Light Theme**: Clean white background with professional styling
+- **Sidebar Navigation**: Quick access to all endpoints
+- **Method Badges**: Color-coded badges for HTTP methods and WebSocket
+- **Responsive Design**: Works on mobile devices
+
+### Added
+- `--websocket` / `-ws` option to specify consumer files
+- `--zip` option to create shareable documentation package
+- `--ws-base-url` option to set WebSocket base URL
+- `WebSocketParser` class for parsing Django Channels consumers
+- `WebSocketAction`, `WebSocketEndpoint`, `WebSocketAppInfo` dataclasses
+- Support for multiple consumers in a single file
+- Auto-detection of consumer classes by name pattern
+
+### Changed
+- PDF generator completely redesigned with clean layout
+- HTML generator updated to support WebSocket documentation
+- Default description updated to include WebSocket
+- Version bumped to 2.0.0
+
+### Fixed
+- Duplicate action detection in WebSocket parser
+- Unicode encoding issues on Windows console
+- Style naming conflicts in PDF generator
+
+---
+
+## [1.0.0] - 2025-12-06
+
+### Initial Release
+
+#### Features
+- Auto-discovery of DRF API endpoints
+- PDF documentation with cover page and table of contents
+- Interactive HTML documentation with sidebar navigation
+- OpenAPI 3.0 JSON specification generation
+- Serializer field extraction (types, validations, help text)
+- Authentication and permission detection
+- Query parameter documentation from filter backends
+- Custom styling with theme colors
+- Command line options for customization
+
+---
+
+## Links
+
+- [PyPI Package](https://pypi.org/project/drf-api-doc-generator/)
+- [GitHub Repository](https://github.com/yourusername/drf-api-doc-generator)
+- [Documentation](https://github.com/yourusername/drf-api-doc-generator#readme)
