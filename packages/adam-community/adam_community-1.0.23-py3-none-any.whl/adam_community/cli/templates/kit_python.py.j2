@@ -1,0 +1,105 @@
+from adam_community.tool import Tool
+from adam_community.util import runCmd
+from datetime import datetime
+
+class runner(Tool):
+    """
+    {{ description }}
+    
+    :param str input_text: 输入的文本内容
+    """
+    
+    DISPLAY_NAME = "{{ display_name }}"
+    NETWORK = False  # 根据需要设置是否需要网络访问
+    CPU = 1  # 需要的CPU数量
+    GPU = 0  # 需要的GPU数量
+    SIF = "adam-base:1.0.0"  # 指定容器镜像（必填）
+    
+    def call(self, kwargs):
+        """
+        工具的主要实现函数
+        
+        Args:
+            kwargs: 包含args、message、files、user、task_id等参数的字典
+        
+        Returns:
+            执行结果
+        """
+        # 获取用户输入的参数
+        input_text = kwargs['args']['input_text']
+        
+        # TODO: 在这里实现你的主要逻辑
+        # 示例：简单的文本处理
+        processed_text = f"处理后的文本: {input_text}"
+        
+        # 生成报告（kit类型的工具需要生成report.md文件）
+        report_content = f"""# {{ display_name }} 处理报告
+
+## 输入内容
+{input_text}
+
+## 处理结果
+{processed_text}
+
+## 处理时间
+{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## 作者
+{{ author }}
+"""
+        
+        # 写入报告文件
+        with open('./report.md', 'w', encoding='utf-8') as f:
+            f.write(report_content)
+        
+        print(f"处理完成，输入文本: {input_text}")
+        print(f"处理结果: {processed_text}")
+        print("报告已生成: report.md")
+        
+        return processed_text
+    
+    def outputShow(self, kwargs):
+        """
+        自定义输出显示格式（可选）
+        
+        Args:
+            kwargs: 包含stdout、stderr、exitcode等的参数字典
+            
+        Returns:
+            (display_text, file_list): 显示文本和文件列表的元组
+        """
+        output = kwargs.get('stdout', '')
+        
+        # 自定义输出格式
+        display_text = f"""## 🎉 处理完成
+
+### 📋 处理结果
+```
+{output}
+```
+
+### 📄 生成文件
+- report.md: 详细处理报告
+"""
+        
+        # 返回生成的文件列表
+        file_list = ['report.md']
+        
+        return display_text, file_list
+    
+    def summary(self, kwargs):
+        """
+        为AI生成简短的执行摘要（可选）
+        
+        Args:
+            kwargs: 包含stdout、stderr、exitcode等的参数字典
+            
+        Returns:
+            str: 执行摘要文本
+        """
+        output = kwargs.get('stdout', '')
+        
+        if kwargs.get('stderr'):
+            return f"工具执行完成但有警告: {output}。警告信息: {kwargs['stderr']}"
+        else:
+            return f"工具执行成功: {output}"

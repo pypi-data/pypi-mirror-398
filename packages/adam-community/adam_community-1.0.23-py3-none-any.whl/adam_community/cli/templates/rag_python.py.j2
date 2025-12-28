@@ -1,0 +1,76 @@
+from adam_community.tool import Tool
+from adam_community.util import knowledgeSearch
+import json
+
+class {{ class_name }}(Tool, calltype="python"):
+    """
+    {{ description }}
+    
+    :param str query: 搜索的关键词
+    """
+    
+    DISPLAY_NAME = "{{ display_name }}"
+    NETWORK = True
+    CONDA_ENV = "knowledgebase"
+    SIF = "akb:1.0.0"
+    COLLECTION_NAME = "{{ collection_name }}"
+    PROJECT_NAME = "default"
+    
+    # 基础提示词模板
+    BASIC_PROMPT = """
+# 参考资料
+<context>
+  {}
+</context>
+"""
+    
+    def call(self, kwargs):
+        """
+        执行知识库搜索并生成提示词
+        
+        Args:
+            kwargs: 包含查询参数的字典
+        """
+        query = kwargs.get('args', {}).get('query')
+        if not query:
+            self.logger.error("查询参数为空")
+            return
+            
+        self.logger.debug(f"搜索知识库 {self.COLLECTION_NAME}: {query}")
+
+        try:
+            # 调用知识库搜索（messages_prev 参数在本地实现中未使用，传 None 即可）
+            response_text = knowledgeSearch(query, None, self.PROJECT_NAME, self.COLLECTION_NAME)
+            
+            # 解析响应并提取内容
+            response = json.loads(response_text)
+            if response.get("code") != 0:
+                self.logger.warning(f"知识库搜索返回错误: {response.get('message', '未知错误')}")
+                return
+                
+            # 提取知识库内容
+            result_list = response.get("data", {}).get("result_list", [])
+            context_content = ""
+            
+            for point in result_list:
+                content = point.get("content", "")
+                if content:
+                    context_content += f"{content}\n---\n"
+            
+            # 生成最终提示词
+            prompt = self.BASIC_PROMPT.format(context_content)
+            print(prompt)
+                
+        except Exception as e:
+            self.logger.error(f"知识库搜索失败: {e}")
+    
+    def inputShow(self, **kwargs):
+        """显示输入信息"""
+        query = kwargs.get('args', {}).get('query', '')
+        return f"Searching knowledge base {self.COLLECTION_NAME}: {query}"
+    
+    def outputShow(self, kwargs):
+        """显示输出信息"""
+        query = kwargs.get('args', {}).get('query', '')
+        stderr = kwargs.get('stderr', '')
+        return f"Done searching knowledge base {self.COLLECTION_NAME}: {query}", stderr
