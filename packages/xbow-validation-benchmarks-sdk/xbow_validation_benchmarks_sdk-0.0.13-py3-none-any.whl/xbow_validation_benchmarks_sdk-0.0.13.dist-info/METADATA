@@ -1,0 +1,74 @@
+Metadata-Version: 2.4
+Name: xbow-validation-benchmarks-sdk
+Version: 0.0.13
+Summary: Add your description here
+Requires-Python: >=3.12
+Requires-Dist: dotenv>=0.9.9
+Requires-Dist: gitpython>=3.1.45
+Requires-Dist: portpicker>=1.6.0
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: python-on-whales>=0.79.0
+Requires-Dist: pyyaml>=6.0.3
+Requires-Dist: rich>=14.2.0
+Requires-Dist: structlog>=25.5.0
+Requires-Dist: typer>=0.20.1
+Description-Content-Type: text/markdown
+
+# XBOW Validation Benchmarks SDK
+
+Python SDK for managing XBOW validation benchmark environments.
+
+## Installation
+
+```bash
+pip install xbow-validation-benchmarks-sdk
+```
+
+## Quick Start
+
+```python
+from xbow_validation_benchmarks_sdk.managers.repository import BenchmarkRepository
+from xbow_validation_benchmarks_sdk.managers.environment import EnvironmentManager
+from xbow_validation_benchmarks_sdk.models.benchmark import Benchmark
+
+# Initialize repository (auto-clones if needed)
+repository = BenchmarkRepository()
+
+# List available benchmarks
+benchmark_ids = repository.list_benchmarks()
+
+# Load a benchmark
+benchmark_path = repository.get_benchmark_path(benchmark_ids[0])
+benchmark = Benchmark.model_validate_json(
+    (benchmark_path / "benchmark.json").read_text()
+)
+
+# Create and start environment
+env_manager = EnvironmentManager(repository=repository)
+environment = env_manager.create_environment(benchmark=benchmark, flag="FLAG{test}")
+env_manager.start_environment(environment)
+
+# Access targets
+for target in environment.targets:
+    print(f"Target: {target.host}:{target.port}")
+
+# Cleanup
+env_manager.stop_environment(environment)
+env_manager.destroy_environment(environment)
+```
+
+## Features
+
+- **Repository Management**: Auto-clone and update benchmark repositories
+- **Environment Isolation**: Each environment gets unique ports and isolated containers
+- **Docker Integration**: Seamless Docker Compose orchestration
+- **Flag Injection**: Dynamic flag configuration for CTF-style benchmarks
+
+## Requirements
+
+- Python >= 3.12
+- Docker
+
+## License
+
+MIT
