@@ -1,0 +1,1 @@
+"""Forward rate calculation."""
