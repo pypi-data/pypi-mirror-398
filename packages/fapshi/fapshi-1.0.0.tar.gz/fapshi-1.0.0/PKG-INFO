@@ -1,0 +1,429 @@
+Metadata-Version: 2.4
+Name: fapshi
+Version: 1.0.0
+Summary: Python SDK for the Fapshi Payment API
+Home-page: https://github.com/Fapshi/python-sdk
+Author: Fapshi
+Author-email: signeeric9@gmail.com
+License: MIT
+Keywords: fapshi,payment,api,sdk
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.0.0; extra == "dev"
+Requires-Dist: black>=21.0.0; extra == "dev"
+Requires-Dist: flake8>=3.8.0; extra == "dev"
+Requires-Dist: mypy>=0.800; extra == "dev"
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Fapshi Python SDK
+
+A Python client library for the [Fapshi Payment API](https://fapshi.com). This SDK makes it easy to integrate Fapshi payments into your Python backend applications.
+
+## Features
+
+- 🚀 **Automatic Environment Detection** - Automatically detects sandbox vs live environment from your API key
+- 📦 **Type Hints** - Full type annotations for better IDE support
+- ✅ **Input Validation** - Validates request parameters before sending
+- 🎯 **Flexible Response Format** - Choose between raw dictionaries or typed models
+- 🛡️ **Error Handling** - Custom exceptions for better error handling
+- 🐍 **Python 3.7+** - Supports Python 3.7 and above
+
+## Installation
+
+```bash
+pip install fapshi
+```
+
+## Quick Start
+
+```python
+from fapshi import FapshiClient
+
+# Initialize client (automatically detects sandbox from API key)
+client = FapshiClient(
+    api_user="your_api_user",
+    api_key="FAK_TEST_xxx"  # Sandbox key (starts with FAK_TEST_)
+)
+
+# Generate a payment link
+response = client.initiate_pay(
+    amount=1000,  # Amount in smallest currency unit (min 100)
+    email="customer@example.com",
+    redirect_url="https://yourapp.com/callback"
+)
+
+print(f"Payment link: {response['link']}")
+print(f"Transaction ID: {response['transId']}")
+
+# Check payment status
+transaction = client.get_payment_status(response['transId'])
+print(f"Status: {transaction['status']}")
+```
+
+## Environment Detection
+
+The SDK automatically detects whether you're using sandbox or live environment based on your API key:
+
+- **Sandbox**: API keys starting with `FAK_TEST_` → uses `https://sandbox.fapshi.com`
+- **Live**: All other API keys → uses `https://live.fapshi.com`
+
+You don't need to specify the environment manually!
+
+## Usage Examples
+
+### Initiate Payment (Payment Link)
+
+Create a payment link where users complete payment on a Fapshi-hosted page:
+
+```python
+response = client.initiate_pay(
+    amount=1000,
+    email="customer@example.com",
+    redirect_url="https://yourapp.com/callback",
+    user_id="user123",
+    external_id="order456",
+    message="Payment for order #456"
+)
+
+# Access the payment link
+payment_link = response['link']
+```
+
+### Direct Payment
+
+Send a payment request directly to a user's mobile device:
+
+```python
+response = client.direct_pay(
+    amount=1000,
+    phone="612345678",  # Must start with 6, without country code 237
+    medium="mobile money",  # or "orange money"
+    name="John Doe",
+    email="john@example.com"
+)
+
+trans_id = response['transId']
+```
+
+### Get Payment Status
+
+Check the status of a payment:
+
+```python
+transaction = client.get_payment_status("trans_123456")
+
+print(f"Status: {transaction['status']}")  # CREATED, PENDING, SUCCESSFUL, FAILED, EXPIRED
+print(f"Amount: {transaction['amount']}")
+```
+
+### Expire Payment
+
+Invalidate a payment link:
+
+```python
+response = client.expire_pay("trans_123456")
+print(f"Status: {response['status']}")  # EXPIRED
+```
+
+### Get Transactions by User
+
+Retrieve all transactions for a user:
+
+```python
+transactions = client.get_transactions_by_user("user123")
+for transaction in transactions:
+    print(f"{transaction['transId']}: {transaction['status']}")
+```
+
+### Search Transactions
+
+Search transactions with filters:
+
+```python
+transactions = client.search_transactions(
+    status="successful",
+    medium="mobile money",
+    start="2024-01-01",
+    end="2024-01-31",
+    limit=50,
+    sort="desc"
+)
+```
+
+### Get Balance
+
+Get your service balance:
+
+```python
+balance = client.get_balance()
+print(f"Balance: {balance['balance']} {balance['currency']}")
+```
+
+### Make a Payout
+
+Send money to a user's account:
+
+```python
+# Payout to mobile money
+response = client.payout(
+    amount=5000,
+    phone="612345678",  # Must start with 6, without country code 237
+    medium="mobile money"
+)
+
+# Payout to Fapshi account (requires email)
+response = client.payout(
+    amount=5000,
+    email="recipient@example.com",
+    medium="fapshi"
+)
+```
+
+## Using Data Models
+
+You can optionally use typed data models instead of dictionaries:
+
+```python
+from fapshi import FapshiClient, Transaction, PaymentResponse
+
+client = FapshiClient(api_user="user", api_key="FAK_TEST_xxx")
+
+# Get typed response
+response = client.initiate_pay(
+    amount=1000,
+    use_models=True
+)
+# response is now a PaymentResponse object
+print(response.link)
+print(response.trans_id)
+
+# Get typed transaction
+transaction = client.get_payment_status("trans_123", use_models=True)
+print(transaction.status)
+print(transaction.amount)
+```
+
+## Error Handling
+
+The SDK provides custom exceptions for better error handling:
+
+```python
+from fapshi import FapshiClient, FapshiAPIError, FapshiValidationError
+
+try:
+    response = client.initiate_pay(amount=50)  # Amount too low
+except FapshiValidationError as e:
+    print(f"Validation error: {e.message}")
+
+try:
+    response = client.initiate_pay(amount=1000)
+except FapshiAPIError as e:
+    print(f"API error: {e.message}")
+    print(f"Status code: {e.status_code}")
+```
+
+### Exception Types
+
+- `FapshiException` - Base exception for all Fapshi errors
+- `FapshiAPIError` - API errors (4XX/5XX responses)
+- `FapshiValidationError` - Input validation errors
+- `FapshiAuthenticationError` - Authentication failures
+
+## API Reference
+
+### FapshiClient
+
+Main client class for interacting with the Fapshi API.
+
+#### Constructor
+
+```python
+FapshiClient(api_user: str, api_key: str, base_url: Optional[str] = None)
+```
+
+- `api_user`: Your Fapshi API user
+- `api_key`: Your Fapshi API key (sandbox keys start with `FAK_TEST_`)
+- `base_url`: Optional base URL override (auto-detected if not provided)
+
+#### Methods
+
+##### `initiate_pay(amount, email=None, redirect_url=None, user_id=None, external_id=None, message=None, use_models=False)`
+
+Generate a payment link.
+
+**Parameters:**
+- `amount` (int, required): Payment amount (minimum 100)
+- `email` (str, optional): Customer email
+- `redirect_url` (str, optional): URL to redirect after payment
+- `user_id` (str, optional): User ID (format: `^[a-zA-Z0-9\-_]{1,100}$`)
+- `external_id` (str, optional): External ID (format: `^[a-zA-Z0-9\-_]{1,100}$`)
+- `message` (str, optional): Payment message
+- `use_models` (bool, optional): Return `PaymentResponse` model instead of dict
+
+**Returns:** `dict` or `PaymentResponse`
+
+##### `direct_pay(amount, phone, medium=None, name=None, email=None, user_id=None, external_id=None, message=None, use_models=False)`
+
+Initiate a direct payment request.
+
+**Parameters:**
+- `amount` (int, required): Payment amount (minimum 100)
+- `phone` (str, required): User's phone number (must start with 6, without country code 237)
+- `medium` (str, optional): "mobile money" or "orange money"
+- `name` (str, optional): Payer name
+- `email` (str, optional): Customer email
+- `user_id` (str, optional): User ID
+- `external_id` (str, optional): External ID
+- `message` (str, optional): Payment message
+- `use_models` (bool, optional): Return `PaymentResponse` model instead of dict
+
+**Returns:** `dict` or `PaymentResponse`
+
+##### `get_payment_status(trans_id, use_models=False)`
+
+Get payment status by transaction ID.
+
+**Parameters:**
+- `trans_id` (str, required): Transaction ID
+- `use_models` (bool, optional): Return `Transaction` model instead of dict
+
+**Returns:** `dict` or `Transaction`
+
+##### `expire_pay(trans_id, use_models=False)`
+
+Expire a payment transaction.
+
+**Parameters:**
+- `trans_id` (str, required): Transaction ID to expire
+- `use_models` (bool, optional): Return `Transaction` model instead of dict
+
+**Returns:** `dict` or `Transaction`
+
+##### `get_transactions_by_user(user_id, use_models=False)`
+
+Get all transactions for a user.
+
+**Parameters:**
+- `user_id` (str, required): User ID
+- `use_models` (bool, optional): Return `Transaction` models instead of dicts
+
+**Returns:** `List[dict]` or `List[Transaction]`
+
+##### `search_transactions(status=None, medium=None, start=None, end=None, amt=None, limit=None, sort=None, use_models=False)`
+
+Search transactions with filters.
+
+**Parameters:**
+- `status` (str, optional): "created", "successful", "failed", or "expired"
+- `medium` (str, optional): "mobile money" or "orange money"
+- `start` (str, optional): Start date (YYYY-MM-DD)
+- `end` (str, optional): End date (YYYY-MM-DD)
+- `amt` (int, optional): Amount filter
+- `limit` (int, optional): Result limit (1-100, default 10)
+- `sort` (str, optional): "asc" or "desc" (default "desc")
+- `use_models` (bool, optional): Return `Transaction` models instead of dicts
+
+**Returns:** `List[dict]` or `List[Transaction]`
+
+##### `get_balance(use_models=False)`
+
+Get service balance.
+
+**Parameters:**
+- `use_models` (bool, optional): Return `BalanceResponse` model instead of dict
+
+**Returns:** `dict` or `BalanceResponse`
+
+##### `payout(amount, phone=None, medium=None, name=None, email=None, user_id=None, external_id=None, message=None, use_models=False)`
+
+Make a payout.
+
+**Parameters:**
+- `amount` (int, required): Payout amount (minimum 100)
+- `phone` (str, conditional): Required if medium is not "fapshi" (must start with 6, without country code 237)
+- `medium` (str, optional): "mobile money", "orange money", or "fapshi"
+- `name` (str, optional): Recipient name
+- `email` (str, conditional): Required if medium is "fapshi"
+- `user_id` (str, optional): User ID
+- `external_id` (str, optional): External ID
+- `message` (str, optional): Payout message
+- `use_models` (bool, optional): Return `PaymentResponse` model instead of dict
+
+**Returns:** `dict` or `PaymentResponse`
+
+## Data Models
+
+### Transaction
+
+Represents a payment transaction.
+
+**Fields:**
+- `trans_id` (str): Transaction ID
+- `status` (str): Status (CREATED, PENDING, SUCCESSFUL, FAILED, EXPIRED)
+- `medium` (str, optional): Payment medium
+- `service_name` (str, optional): Service name
+- `amount` (int, optional): Amount
+- `revenue` (int, optional): Revenue
+- `payer_name` (str, optional): Payer name
+- `email` (str, optional): Email
+- `redirect_url` (str, optional): Redirect URL
+- `external_id` (str, optional): External ID
+- `user_id` (str, optional): User ID
+- `webhook` (str, optional): Webhook URL
+- `financial_trans_id` (str, optional): Financial transaction ID
+- `date_initiated` (datetime, optional): Date initiated
+- `date_confirmed` (datetime, optional): Date confirmed
+
+### PaymentResponse
+
+Response from payment initiation endpoints.
+
+**Fields:**
+- `message` (str): Response message
+- `link` (str, optional): Payment link (for initiate-pay)
+- `trans_id` (str): Transaction ID
+- `date_initiated` (datetime, optional): Date initiated
+
+### BalanceResponse
+
+Response from balance endpoint.
+
+**Fields:**
+- `service` (str): Service name
+- `balance` (int): Balance amount
+- `currency` (str): Currency code
+
+## Requirements
+
+- Python 3.7+
+- requests >= 2.25.0
+
+## License
+
+MIT License
+
+## Documentation
+
+For complete API documentation, visit the [Fapshi API Reference](https://docs.fapshi.com/en/api-reference/getting-started).
+
+## Support
+
+For support, visit [https://fapshi.com](https://fapshi.com) or email [email protected]
+
