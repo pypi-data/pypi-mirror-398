@@ -1,0 +1,404 @@
+Metadata-Version: 2.3
+Name: phantomfetch
+Version: 0.1.3
+Summary: High-performance agentic web scraping library combining curl-cffi speed with Playwright browser capabilities
+Keywords: web-scraping,playwright,curl-cffi,async,browser-automation,http-client,agentic,anti-detection
+Author: CosmicBull
+Author-email: CosmicBull <cosmicbull@example.com>
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: AsyncIO
+Requires-Dist: curl-cffi>=0.13.0
+Requires-Dist: msgspec>=0.20.0
+Requires-Dist: playwright>=1.56.0
+Requires-Dist: rusticsoup>=0.3.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: opentelemetry-api>=1.38.0
+Requires-Dist: loguru>=0.7.3
+Requires-Python: >=3.13
+Project-URL: Changelog, https://github.com/iristech-systems/PhantomFetch/blob/main/CHANGELOG.md
+Project-URL: Documentation, https://github.com/iristech-systems/PhantomFetch#readme
+Project-URL: Homepage, https://github.com/iristech-systems/PhantomFetch
+Project-URL: Issues, https://github.com/iristech-systems/PhantomFetch/issues
+Project-URL: Repository, https://github.com/iristech-systems/PhantomFetch
+Description-Content-Type: text/markdown
+
+# PhantomFetch
+
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+**PhantomFetch** is a high-performance, agentic web scraping library for Python. It seamlessly combines the speed of `curl-cffi` with the capabilities of `Playwright`, offering a unified API for all your data extraction needs.
+
+## Why PhantomFetch?
+
+Most web scraping requires choosing between speed (httpx, requests) or browser capabilities (Playwright, Selenium). PhantomFetch gives you **both** with a unified interface:
+
+| Feature | PhantomFetch | requests/httpx | Playwright/Selenium |
+|---------|--------------|----------------|---------------------|
+| **Speed** | ⚡ Fast (curl-cffi) | ⚡ Fast | 🐌 Slow |
+| **JavaScript Support** | ✅ Yes (Playwright) | ❌ No | ✅ Yes |
+| **Anti-Detection** | ✅ Built-in | ❌ No | ⚠️ Manual |
+| **Smart Caching** | ✅ Configurable | ❌ No | ❌ No |
+| **Proxy Rotation** | ✅ Automatic | ⚠️ Manual | ⚠️ Manual |
+| **Async-First** | ✅ Yes | ⚠️ Partial | ✅ Yes |
+| **Unified API** | ✅ One interface | N/A | N/A |
+| **OpenTelemetry** | ✅ Built-in | ❌ No | ❌ No |
+
+**Key Benefits:**
+- 🎯 **Start Fast, Scale Smart**: Use curl for quick requests, switch to browser when needed
+- 🧠 **Intelligent**: Automatic retry logic, exponential backoff, fingerprint rotation
+- 🚀 **Production-Ready**: Built-in observability, caching, and error handling
+- 🛠️ **Developer-Friendly**: Intuitive API, comprehensive type hints, rich documentation
+
+## Features
+
+- 🚀 **Unified API**: Switch between `curl` (fast, lightweight) and `browser` (JavaScript-capable) engines with a single parameter
+- 🧠 **Smart Caching**: Configurable caching strategies (`all`, `resources`, `conservative`) to speed up development and save bandwidth
+- 🤖 **Agentic Actions**: Define browser interactions (click, scroll, input, wait) declaratively
+- 🛡️ **Anti-Detection**: Built-in support for proxy rotation and fingerprinting protection (via `curl-cffi`)
+- ⚡ **Async First**: Built on `asyncio` for high concurrency
+- 🔄 **Smart Retries**: Configurable retry logic with exponential backoff
+- 🍪 **Cookie Management**: Automatic cookie handling across engines
+- 📊 **Observability**: OpenTelemetry integration out of the box
+
+## Installation
+
+```bash
+pip install phantomfetch
+# or with uv (recommended)
+uv pip install phantomfetch
+```
+
+After installation, install Playwright browsers:
+```bash
+playwright install chromium
+```
+
+## Quick Start
+
+### Basic Fetch (Curl Engine)
+
+```python
+import asyncio
+from phantomfetch import Fetcher
+
+async def main():
+    async with Fetcher() as f:
+        response = await f.fetch("https://httpbin.org/get")
+        print(response.json())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Browser Fetch with Caching
+
+Use the `resources` strategy to cache static assets (images, CSS, scripts) while keeping the main page fresh.
+
+```python
+from phantomfetch import Fetcher, FileSystemCache
+
+async def main():
+    # Cache sub-resources to speed up subsequent fetches
+    cache = FileSystemCache(strategy="resources")
+
+    async with Fetcher(browser_engine="cdp", cache=cache) as f:
+        # First run: downloads everything
+        resp = await f.fetch("https://example.com", engine="browser")
+
+        # Second run: uses cached resources, only fetches main HTML
+        resp = await f.fetch("https://example.com", engine="browser")
+        print(resp.text)
+```
+
+### Browser Actions
+
+Perform interactions like clicking, scrolling, and taking screenshots:
+
+```python
+from phantomfetch import Fetcher
+
+actions = [
+    {"action": "wait", "selector": "#search-input"},
+    {"action": "input", "selector": "#search-input", "value": "phantomfetch"},
+    {"action": "click", "selector": "#search-button"},
+    {"action": "wait_for_load"},
+    {"action": "screenshot", "value": "search_results.png"}
+]
+
+async with Fetcher(browser_engine="cdp") as f:
+    resp = await f.fetch("https://example.com", actions=actions, engine="browser")
+    # Screenshot saved to search_results.png
+```
+
+### Advanced: Retry Configuration
+
+Fine-tune retry behavior per request:
+
+```python
+from phantomfetch import Fetcher
+
+async with Fetcher() as f:
+    # Custom retry logic for flaky endpoints
+    resp = await f.fetch(
+        "https://api.example.com/data",
+        max_retries=5,  # Override default retries
+        timeout=60.0,   # Longer timeout for slow APIs
+    )
+```
+
+### Cookie Handling
+
+Pass cookies to any engine and retrieve them from the response:
+
+```python
+from phantomfetch import Fetcher, Cookie
+
+async with Fetcher() as f:
+    # Set cookies
+    resp = await f.fetch(
+        "https://httpbin.org/cookies",
+        cookies={"session_id": "secret_token"}
+    )
+    print(resp.json())
+
+    # Get cookies (including from redirects)
+    resp = await f.fetch("https://httpbin.org/cookies/set/foo/bar")
+    for cookie in resp.cookies:
+        print(f"{cookie.name}: {cookie.value}")
+```
+
+## Configuration
+
+### Caching Strategies
+
+- **`all`**: Caches everything, including the main document. Good for offline development
+- **`resources`** (Default): Caches sub-resources (images, styles, scripts) but fetches the main document fresh. Best for scraping dynamic sites
+- **`conservative`**: Caches only heavy static assets like images and fonts
+
+Example:
+```python
+from phantomfetch import FileSystemCache, Fetcher
+
+cache = FileSystemCache(
+    cache_dir=".cache",
+    strategy="resources"
+)
+
+async with Fetcher(cache=cache) as f:
+    # Resources will be cached automatically
+    resp = await f.fetch("https://example.com", engine="browser")
+```
+
+### Proxy Rotation
+
+Multiple proxy strategies available:
+
+```python
+from phantomfetch import Fetcher, Proxy
+
+proxies = [
+    Proxy(url="http://user:pass@proxy1:8080", location="US", weight=2),
+    Proxy(url="http://user:pass@proxy2:8080", location="EU", weight=1),
+]
+
+async with Fetcher(
+    proxies=proxies,
+    proxy_strategy="round_robin"  # or "random", "sticky", "geo_match"
+) as f:
+    resp = await f.fetch("https://example.com")
+```
+
+### Observability (OpenTelemetry)
+
+PhantomFetch is fully instrumented with OpenTelemetry:
+
+```python
+from phantomfetch.telemetry import configure_telemetry
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+
+# Setup OTel with custom service name
+configure_telemetry(service_name="my-scraper")
+
+async with Fetcher() as f:
+    await f.fetch("https://example.com")
+    # Spans automatically created and exported
+```
+
+Or use standard OpenTelemetry environment variables:
+```bash
+export OTEL_SERVICE_NAME="my-scraper"
+export OTEL_TRACES_EXPORTER="console"
+python my_scraper.py
+```
+
+## Troubleshooting
+
+### Playwright Installation Issues
+
+If you encounter browser-related errors:
+```bash
+# Install all browsers
+playwright install
+
+# Or just chromium (recommended)
+playwright install chromium
+
+# Check installation
+playwright install --help
+```
+
+### SSL Certificate Errors
+
+For development/testing, you can disable SSL verification:
+```python
+# Note: Only use this in development!
+async with Fetcher() as f:
+    # SSL verification is handled by curl-cffi and Playwright
+    # For curl engine, certificates are validated by default
+    resp = await f.fetch("https://self-signed.badssl.com/")
+```
+
+### Memory Issues with Caching
+
+If cache grows too large:
+```python
+from phantomfetch import FileSystemCache
+
+cache = FileSystemCache(cache_dir=".cache")
+
+# Manually clear expired entries
+cache.clear_expired()
+
+# Or just delete the cache directory
+import shutil
+shutil.rmtree(".cache", ignore_errors=True)
+```
+
+### Browser Engine Not Working
+
+Common issues:
+1. **Playwright not installed**: Run `playwright install chromium`
+2. **Marimo notebook issues**: Browser engines may not work in some notebook environments
+3. **Port conflicts**: CDP uses random ports, but firewall rules might block them
+
+Debug with:
+```python
+async with Fetcher(browser_engine="cdp") as f:
+    # Enable verbose logging
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
+    resp = await f.fetch("https://example.com", engine="browser")
+```
+
+### Rate Limiting / 429 Errors
+
+Use retry configuration and delays:
+```python
+import asyncio
+
+async with Fetcher(max_retries=5) as f:
+    for url in urls:
+        resp = await f.fetch(url)
+        await asyncio.sleep(1)  # Be nice to servers
+```
+
+### Scrapeless Session Recording
+
+When using Scrapeless's CDP endpoint for session recording, PhantomFetch automatically reuses existing browser windows:
+
+```python
+async with Fetcher(
+    browser_engine="cdp",
+    browser_engine_config={
+        "cdp_endpoint": "wss://YOUR_SESSION.scrapeless.com/chrome/cdp"
+        # use_existing_page=True (default) ensures recording compatibility
+    }
+) as f:
+    # Uses existing window - Scrapeless records this! ✓
+    resp = await f.fetch("https://example.com", engine="browser")
+```
+
+**Why this matters**: Scrapeless can only record a single window. By default (`use_existing_page=True`), PhantomFetch detects and reuses the existing browser page in your Scrapeless session instead of creating new windows.
+
+**To disable** (not recommended for recording): Set `use_existing_page=False` in `browser_engine_config`.
+
+See [`examples/scrapeless_cdp_recording.py`](examples/scrapeless_cdp_recording.py) for a complete example.
+
+
+## Next Steps
+
+Ready to dive deeper? Here's what to explore:
+
+1. **[Examples](examples/)** - See retry configuration and advanced patterns
+2. **[CHANGELOG](CHANGELOG.md)** - See what's new
+3. **[Contributing Guide](CONTRIBUTING.md)** - Help improve PhantomFetch
+
+## Community & Support
+
+- **🐛 Found a bug?** [Open an issue](https://github.com/iristech-systems/PhantomFetch/issues/new?template=bug_report.md)
+- **💡 Have a feature idea?** [Request a feature](https://github.com/iristech-systems/PhantomFetch/issues/new?template=feature_request.md)
+- **❓ Questions?** [Start a discussion](https://github.com/iristech-systems/PhantomFetch/discussions)
+- **📖 Documentation issues?** [Improve the docs](https://github.com/iristech-systems/PhantomFetch/edit/main/README.md)
+
+## Contributing
+
+We love contributions! PhantomFetch is built by developers, for developers. Whether you're:
+- 🐛 Fixing bugs
+- ✨ Adding features
+- 📝 Improving documentation
+- 🧪 Writing tests
+
+Check out our [Contributing Guide](CONTRIBUTING.md) to get started!
+
+### Quick Start for Contributors
+
+```bash
+# Clone and setup
+git clone https://github.com/iristech-systems/PhantomFetch.git
+cd phantomfetch
+uv sync
+uv run pre-commit install
+
+# Run tests
+uv run pytest
+
+# Make changes and commit
+git checkout -b feature/amazing-feature
+# ... make changes ...
+uv run pre-commit run --all-files
+git commit -m "feat: add amazing feature"
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+Built on the shoulders of giants:
+- [curl-cffi](https://github.com/yifeikong/curl-cffi) - Amazing curl bindings with anti-detection
+- [Playwright](https://playwright.dev) - Best-in-class browser automation
+- [msgspec](https://jcristharif.com/msgspec/) - Fast serialization
+- [OpenTelemetry](https://opentelemetry.io/) - Observability standard
+
+Special thanks to all [contributors](https://github.com/iristech-systems/PhantomFetch/graphs/contributors) who help make PhantomFetch better!
+
+---
+
+<div align="center">
+
+**Made with ❤️  for the web scraping community**
+
+[⭐ Star us on GitHub](https://github.com/iristech-systems/PhantomFetch) • [📦 Install from PyPI](https://pypi.org/project/phantomfetch/)
+
+</div>
