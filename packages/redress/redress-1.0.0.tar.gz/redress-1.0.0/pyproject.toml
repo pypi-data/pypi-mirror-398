@@ -1,0 +1,116 @@
+[project]
+name = "redress"
+version = "1.0.0"
+description = "A composable retry policy framework with classification, jitter strategies, and observability hooks."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://aponysus.github.io/redress/"
+Documentation = "https://aponysus.github.io/redress/"
+Source = "https://github.com/aponysus/redress"
+Issues = "https://github.com/aponysus/redress/issues"
+
+# ---------------------
+# Optional dependencies
+# ---------------------
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-cov>=7.0.0",
+    "hypothesis>=6.99.0",
+    "mypy>=1.10.0",
+    "ruff>=0.6.0",
+    "black>=24.8.0",
+    "pre-commit>=3.7.0",
+    "types-setuptools",
+    "pyperf>=2.7.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+]
+
+[project.scripts]
+redress = "redress.cli:main"
+
+[tool.uv]
+# uv will install dev dependencies with:
+#   uv pip install -e .[dev]
+#
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-markers",
+    "--disable-warnings",
+    "--cov=redress",
+    "--cov-report=term",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["redress"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+disallow_untyped_defs = true
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_return_any = true
+exclude = ["tests/"]  # tests don't need strict typing
+mypy_path = ["src"]
+explicit_package_bases = true
+
+[tool.ruff]
+line-length = 100
+exclude = ["build/", "dist/", ".venv/", "README.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B"]
+ignore = [
+    "E501", # handled by formatter
+]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+
+[tool.hatch.build]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/redress"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/redress/py.typed" = "redress/py.typed"
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/redress/py.typed" = "src/redress/py.typed"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
