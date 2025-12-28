@@ -1,0 +1,313 @@
+from __future__ import annotations
+
+import collections
+from collections.abc import Iterable, Mapping, Sequence
+import dataclasses
+import enum
+import glob
+import itertools
+import logging
+import os
+
+from ..common import Json
+
+
+_DEFAULT_TITLE = "untitled"
+
+
+_logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class LocalSpecificationSource:
+    """A document containing one or more model definitions
+
+    Models can comprise multiple sources, with each source only containing a
+    subset of the model's definitions. This provides an easy way to share
+    definitions between models.
+    """
+
+    text: str
+    """The source's contents"""
+
+    title: str = _DEFAULT_TITLE
+    """A title used to easily identify the source"""
+
+    def _repr_markdown_(self) -> str:
+        return _get_renderer().render_source(self)
+
+
+@dataclasses.dataclass(frozen=True)
+class LocalSpecificationAnnotation:
+    """API-generated annotation"""
+
+    issue_count: int
+    """The total number of issues detected in this specification"""
+
+    issues: Mapping[int, Sequence[LocalSpecificationIssue]]
+    """All issues associated with the specification, keyed by source index"""
+
+
+@dataclasses.dataclass(frozen=True)
+class LocalSpecificationIssue:
+    """An issue detected within a specification"""
+
+    source_index: int
+    start_offset: int
+    end_offset: int
+    message: str
+    code: str
+
+
+def local_specification_issue_from_json(data: Json) -> LocalSpecificationIssue:
+    rg = data["range"]
+    return LocalSpecificationIssue(
+        message=data["message"],
+        source_index=data["index"],
+        start_offset=rg["start"]["offset"],
+        end_offset=rg["end"]["offset"],
+        code=data["code"],
+    )
+
+
+_SPECIFICATION_STYLE = " ".join(
+    [
+        "margin-top: 1em;",
+        "margin-bottom: 1em;",
+    ]
+)
+
+
+_SUMMARY_STYLE = " ".join(
+    [
+        "cursor: pointer;",
+        "text-decoration: underline;",
+        "text-decoration-style: dotted;",
+    ]
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class LocalSpecification:
+    """A local model specification
+
+    Instances of this class are integrated with IPython's `rich display
+    capabilities`_ and will automatically render their LaTeX sources when
+    output in notebooks.
+
+    Note that this type of specification cannot be used to queue solves.
+
+    .. _rich display capabilities: https://ipython.readthedocs.io/en/stable/config/integrating.html#rich-display
+    """
+
+    sources: Sequence[LocalSpecificationSource]
+    """The model's mathematical source definitions"""
+
+    description: str | None = None
+    """Optional description"""
+
+    annotation: LocalSpecificationAnnotation | None = None
+    """API-issued annotation
+
+    This field is generated automatically by clients'
+    :meth:`~opvious.Client.annotate_specification` method. When any issues are
+    detected, the specification's pretty-printed representation will highlight
+    any errors.
+    """
+
+    def source(self, title: str | None = None) -> LocalSpecificationSource:
+        """Returns the first source, optionally matching a given title"""
+        if title is None:
+            return self.sources[0]
+        for source in self.sources:
+            if source.title == title:
+                return source
+        raise Exception(f"Missing source for title {title}")
+
+    @classmethod
+    def inline(cls, *texts: str) -> LocalSpecification:
+        """Creates a local specification from inline LaTeX definitions"""
+        sources = [LocalSpecificationSource(s) for s in texts]
+        return LocalSpecification(sources)
+
+    @classmethod
+    def globs(cls, *likes: str, root: str | None = None) -> LocalSpecification:
+        """Creates a local specification from LaTeX definition files
+
+        Args:
+            *likes: File names or globs
+            root: Optional root folder used for matching file names and globs.
+                As a convenience this argument can also be an existing file's
+                name, in which case it will be interpreted as its parent
+                directory (this is typically handy when used with `__file__`).
+        """
+        if root:
+            root = os.path.realpath(root)
+            if os.path.isfile(root):
+                root = os.path.dirname(root)
+        sources: list[LocalSpecificationSource] = []
+        for like in likes:
+            for path in glob.iglob(like, root_dir=root, recursive=True):
+                if root:
+                    path = os.path.join(root, path)
+                with open(path, encoding="utf-8") as reader:
+                    sources.append(
+                        LocalSpecificationSource(
+                            text=reader.read(),
+                            title=path,
+                        )
+                    )
+        return LocalSpecification(sources)
+
+    def annotated(
+        self, issues: Iterable[LocalSpecificationIssue]
+    ) -> LocalSpecification:
+        count = 0
+        grouped: dict[int, list[LocalSpecificationIssue]] = (
+            collections.defaultdict(list)
+        )
+        for issue in issues:
+            count += 1
+            grouped[issue.source_index].append(issue)
+        annotation = LocalSpecificationAnnotation(
+            issues=dict(grouped),
+            issue_count=count,
+        )
+        return dataclasses.replace(self, annotation=annotation)
+
+    def _repr_markdown_(self) -> str:
+        return _get_renderer().render(self)
+
+
+class _Renderer:
+    def render(self, spec: LocalSpecification) -> str:
+        raise NotImplementedError()
+
+    def render_source(
+        self,
+        source: LocalSpecificationSource,
+        _issues: Sequence[LocalSpecificationIssue] = (),
+        collapse: bool=False,
+    ) -> str:
+        raise NotImplementedError()
+
+
+class _MarkdownParagraphsRenderer(_Renderer):
+    def render(self, spec: LocalSpecification) -> str:
+        return "\n".join(self.render_source(s) for s in spec.sources)
+
+    def render_source(
+        self,
+        source: LocalSpecificationSource,
+        _issues: Sequence[LocalSpecificationIssue] = (),
+        _collapse: bool = False,
+    ) -> str:
+        return source.text
+
+
+class _HtmlDetailsRenderer(_Renderer):
+    def render(self, spec: LocalSpecification) -> str:
+        if spec.annotation:
+            issues = spec.annotation.issues
+            for index, group in issues.items():
+                messages = [f"\t* {i.message} [{i.code}]" for i in group]
+                _logger.error(
+                    "%s issue(s) in specification '%s':\n%s",
+                    len(group),
+                    spec.sources[index].title,
+                    "\n".join(messages),
+                )
+        else:
+            issues = {}
+        contents = "\n---\n".join(
+            self.render_source(s, issues.get(i) or [], i != 0)
+            for i, s in enumerate(spec.sources)
+        )
+        return f'<div style="{_SPECIFICATION_STYLE}">{contents}</div>'
+
+    def render_source(
+        self,
+        source: LocalSpecificationSource,
+        issues: Sequence[LocalSpecificationIssue] = (),
+        collapse: bool=False,
+    ) -> str:
+        summary = source.title
+        if issues:
+            summary += " &#9888;"
+        return "\n".join(
+            [
+                "",
+                "<details>" if collapse else "<details open>",
+                f'<summary style="{_SUMMARY_STYLE}">{summary}</summary>',
+                '<div style="margin-top: 1em;">',
+                _colorize(source.text, issues),
+                "</div>",
+                "</details>",
+                "",
+            ]
+        )
+
+
+_default_renderer: _Renderer | None = None
+
+
+class LocalSpecificationStyle(enum.Enum):
+    """Specification rendering style"""
+
+    MARKDOWN_PARAGRAPHS = _MarkdownParagraphsRenderer()
+    HTML_DETAILS = _HtmlDetailsRenderer()
+
+    def __init__(self, renderer: _Renderer) -> None:
+        self._renderer = renderer
+
+    def enable(self) -> None:
+        """Use this rendering style for all specifications"""
+        global _default_renderer  # noqa
+        _default_renderer = self._renderer
+
+    @staticmethod
+    def reset() -> None:
+        """Clear any rendering style override"""
+        global _default_renderer  # noqa
+        _default_renderer = None
+
+
+def _get_renderer() -> _Renderer:
+    if _default_renderer:
+        return _default_renderer
+    if "VSCODE_CWD" in os.environ:
+        return _MarkdownParagraphsRenderer()
+    return _HtmlDetailsRenderer()
+
+
+def _colorize(text: str, issues: Sequence[LocalSpecificationIssue]) -> str:
+    if not issues:
+        return text
+
+    by_start = sorted(issues, key=lambda i: i.start_offset)
+    cutoffs: list[int] = []
+    end = 0
+    for issue in by_start:
+        if issue.code == "ERR_INVALID_SYNTAX":
+            # These issues can't be easily colorized as they span name
+            # boundaries
+            continue
+        if issue.start_offset <= end:
+            end = max(issue.end_offset + 1, end)
+        else:
+            cutoffs.append(end)
+            cutoffs.append(issue.start_offset)
+            end = issue.end_offset + 1
+    cutoffs.append(end)
+    cutoffs.append(len(text))
+
+    ret: list[str] = []
+    for i, piece in enumerate(
+        text[m:n] for m, n in itertools.pairwise(cutoffs)
+    ):
+        is_error = i % 2 == 1
+        if is_error:
+            ret.append(f"\\color{{orange}}{{{piece}}}")
+        else:
+            ret.append(piece)
+    return "".join(ret)
