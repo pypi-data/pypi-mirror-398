@@ -1,0 +1,189 @@
+Metadata-Version: 2.1
+Name: group_cc_hook
+Version: 0.1.2
+Summary: A hook for torch.distributed ProcessGroup primitives with timeout detection
+Home-page: https://github.com/yangrudan/group_cc_hook
+Author: Yang Rudan
+Keywords: pytorch distributed monitoring timeout hook nccl
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: System :: Monitoring
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Operating System :: POSIX :: Linux
+Requires-Python: >=3.7,<3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# Group Collective Communication Hook
+
+> A monitoring solution for PyTorch distributed training that hooks into all ProcessGroup collective communication primitives and performs timeout detection in pure Python using multiprocessing to avoid GIL limitations.
+
+## Overview
+
+This package provides a robust monitoring mechanism for distributed PyTorch training by:
+
+- Hooking all ProcessGroup collective communication primitives
+- Implementing timeout detection using a separate process to avoid Python GIL constraints
+- Sending SIGUSR1 signal when timeout is detected
+- No C++ compilation required - pure Python implementation with multiprocessing
+
+[![PyPI version](https://badge.fury.io/py/group_cc_hook.svg)](https://badge.fury.io/py/group_cc_hook)
+
+## Quick Start
+
+### Build from Source
+
+```bash
+# Install the package (no build step needed - pure Python)
+pip install .
+
+# Run tests
+torchrun --nproc_per_node=4 test_all_reduce.py 
+
+# Test basic hook functionality
+torchrun --nproc_per_node=4 test_hook_simple.py
+```
+
+### Installation
+
+Install the package using pip:
+
+```bash
+pip install .
+```
+
+### Usage
+
+Add the following code to your training script:
+
+```python
+from group_cc_hook import run_daemon, stop_daemon
+
+# Start the monitoring daemon
+run_daemon()
+ 
+############################# Your Training Code START #########################
+
+############################# Your Training Code END ###########################
+
+# Stop the monitoring daemon
+stop_daemon()
+```
+
+### Configuration
+
+You can configure the timeout threshold and other parameters by modifying the `run_daemon` function call.
+
+```python
+from group_cc_hook import HookConfig, run_daemon
+
+# Default: timeout detection with SIGUSR1 signal
+run_daemon()
+
+# Custom configuration
+config = HookConfig(
+    timeout_seconds=600,
+    signal_number=12,  # SIGUSR1 (default), change to another signal if needed
+    send_signal_on_timeout=True, # Default: True, set to False if you want to handle timeouts in your code
+    check_interval_ms=10 # Enabled by default
+    
+)
+run_daemon(config)
+```
+
+Or just use the **environment variables** directly:
+
+```bash
+export PG_HOOK_TIMEOUT=600
+export PG_HOOK_CHECK_INTERVAL=10
+export PG_HOOK_SIGNAL=12
+export PG_HOOK_SEND_SIGNAL=1
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.   
+
+## Project Structure
+
+```bash
+├── work_monitor.py                                # Pure Python work monitoring and timeout detection
+├── config.py                                      # Configuration management   
+├── patch_all_collective_primi.py                  # Hooks for ProcessGroup primitives
+├── run_daemon.py                                  # Daemon launcher script
+├── setup.py                                       # Package setup configuration
+├── test_all_reduce.py                             # AllReduce test script
+├── test_hook_simple.py                            # Basic hook functionality test
+├── README.md                                      # This file
+└── doc/                                           # Documentation directory
+    ├── DESIGN_ANALYSIS.md                         # Design analysis report
+    ├── COMPATIBILITY.md                           # Version compatibility guide
+    └── DEBUG_USAGE.md                             # Debug logging instructions
+```
+
+## Documentation
+
+- [Design Analysis Report](./doc/DESIGN_ANALYSIS.md) - Comprehensive analysis of design integrity, functionality, robustness, and version compatibility
+- [Version Compatibility Guide](./doc/COMPATIBILITY.md) - Compatibility information for PyTorch, Python, CUDA, and other dependencies
+- [Debug Usage Guide](./doc/DEBUG_USAGE.md) - Detailed instructions for debug logging
+
+## Requirements
+
+- **Python**: >= 3.7, < 3.13
+- **PyTorch**: >= 1.8.0, < 3.0.0
+- **CUDA**: Required for GPU support (if using NCCL backend)
+- **Operating System**: Linux (or any OS supporting PyTorch distributed)
+
+For detailed compatibility information, please refer to [COMPATIBILITY.md](./doc/COMPATIBILITY.md).
+
+## Development
+
+### Running Tests
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run unit tests
+pytest tests/unit/
+
+# Code quality checks
+black --check .
+flake8 .
+```
+
+## release
+
+```bash
+# Build package
+python setup.py sdist bdist_wheel  
+
+# Publish package to PyPI
+twine upload dist/*
+```
+
+### Contributing
+
+Contributions are welcome! Please feel free to submit Issues and Pull Requests.
+
+Before submitting your code, please ensure:
+
+- All tests pass
+- Code follows the project style guidelines (Black, Flake8)
+- Documentation is updated if necessary
+
+## License
+
+See [LICENSE](./LICENSE) file for details.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history and changes.
