@@ -1,0 +1,303 @@
+Metadata-Version: 2.4
+Name: togather-event-sdk
+Version: 1.0.51
+Summary: Shared Protobuf event schemas for toGather microservices
+Author: toGather team
+License-Expression: ISC
+Project-URL: Homepage, https://github.com/CrossroadsAcademy/togather-shared-events
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: protobuf<7.0.0,>=6.0.0
+
+# togather-shared-events
+
+This repository contains **event schemas** for the toGather event-driven backend system. We use **Protocol Buffers (Protobuf)** as the messaging format for events. It provides type-safe code generation for **TypeScript** and **Python**, enabling services in different languages to share a consistent event schema.
+
+[![npm package](https://img.shields.io/npm/v/@togatherlabs/event-sdk.svg)](https://www.npmjs.com/package/@togatherlabs/event-sdk)
+[![npm downloads](https://img.shields.io/npm/dm/@togatherlabs/event-sdk.svg)](https://www.npmjs.com/package/@togatherlabs/event-sdk)
+[![license](https://img.shields.io/npm/l/@togatherlabs/event-sdk.svg)](./LICENSE)
+
+## Table of Contents
+
+1. [Directory Structure](#directory-structure)
+2. [SDK Development](#sdk-development)
+   * [Adding New Proto Files](#adding-new-proto-files)
+   * [Linting](#linting)
+   * [Code Generation](#code-generation)
+   * [Publishing Package](#publishing-package)
+3. [Using Generated Code](#using-generated-code)
+   * [TypeScript](#typescript)
+   * [Python](#python)
+4. [Best Practices](#best-practices)
+5. [Troubleshooting](#troubleshooting)
+
+
+## Directory Structure
+
+Protobuf files should follow a **domain/version-based structure**:
+
+```
+proto/
+└── <domain>/
+    └── <version>/
+        └── <event>.proto
+```
+1. **Domain**: The feature or module (e.g., `user`)
+2. **Version**: The event schema version (e.g., `v1`)
+
+
+Example:
+
+```
+proto/user/v1/UserCreated.proto
+```
+
+> This structure ensures forward-compatibility and makes schema evolution manageable.
+
+
+
+## SDK Development
+
+### Adding New Proto Files
+
+1. Place your `.proto` file in the appropriate `proto/<domain>/<version>` folder.
+2. Define the `package` in the `.proto` file to match the folder structure.
+
+Example for `user.create.v1`:
+
+```proto
+syntax = "proto3";
+
+package user.create.v1;
+
+message UserCreated {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  int64 created_at = 4;
+}
+```
+
+### Linting
+
+Lint your proto files to ensure consistency and adherence to standards:
+
+```bash
+pnpm buf:lint
+```
+
+This checks for things like missing packages, incorrect directory structure, and other style issues.
+
+### Code Generation
+
+Generate TypeScript and Python code from your proto files:
+
+```bash
+pnpm buf:generate
+```
+The generated code is placed in the `gen/` directory:
+
+  ```
+  gen/ts/...
+  gen/python/...
+  ```
+
+> **Tip:** Keep `buf.gen.yaml` updated if you add new languages or plugins.
+
+### Publishing Package
+
+To publish the package, run the following command:
+
+```bash
+pnpm run release
+```
+
+This command performs the following steps:
+- Deletes the old build artifacts.
+- Lints the proto files.
+- Generates new code for TypeScript and Python.
+- Patches the npm version.
+- Publishes the package to the registry.
+
+> **Note:** Ensure all changes are committed and tested before running this command.
+
+
+## Using Generated Code
+
+### TypeScript
+
+**Dependencies:**
+
+```bash
+pnpm add @bufbuild/protobuf@^2.9.0
+```
+
+**Example usage:**
+
+```ts
+import {UserCreated,UserCreatedSchema} from '@togatherlabs/event-sdk/user/v1'
+import { create, toBinary, fromBinary, toJson } from '@bufbuild/protobuf';
+
+// Create a new message
+const newUser: UserCreated = create(UserCreatedSchema, {
+  id: "1",
+  name: "Abhiram",
+  email: "abhiram.ars@gmail.com",
+  createdAt: BigInt(Date.now()),
+});
+
+// Serialize to binary
+const buffer = toBinary(UserCreatedSchema, newUser);
+
+// Deserialize from binary
+const decoded = fromBinary(UserCreatedSchema, buffer);
+
+// Convert to JSON
+const json = toJson(UserCreatedSchema, decoded);
+```
+
+> **Tip:** Use `toBinary`/`fromBinary` for Kafka or network transmission. Use `toJson`/`fromJson` for logging or debugging.
+
+
+<br>
+
+### Python
+
+**Install dependencies (for usage):**
+
+```bash
+pip install protobuf togather-event-sdk 
+```
+
+**Dependencies (for maintainers / publishing):**
+
+```bash
+pip install build twine
+```
+
+**Example usage:**
+
+```python
+from togather_event_sdk.user.v1 import UserCreated
+
+# Create a new message
+msg = UserCreated(
+    id="1",
+    name="Abhiram",
+    email="abhiram@gmail.com",
+    created_at=int(1728512345123),
+)
+
+# Serialize to bytes
+binary_data = msg.SerializeToString()
+
+# Deserialize from bytes
+decoded = UserCreated()
+decoded.ParseFromString(binary_data)
+
+print(decoded)
+```
+
+**Build & Publish Python SDK (for maintainers):**
+
+```bash
+pnpm python:build
+```
+This runs:
+* buf generate
+* Adds __init__.py files
+* Builds the Python wheel + source tarball
+
+
+
+> **Tip:** Python type hints can be added with `mypy-protobuf` or community plugins for full static type checking.
+
+
+
+## Best Practices
+
+1. **Package and folder alignment**
+
+   * `package` in `.proto` must match folder structure (`proto/<domain>/<version>`).
+
+2. **Versioning**
+
+   * Always increment the version folder (`v1`, `v2`, etc.) when changing message formats to avoid breaking consumers.
+
+3. **Type safety**
+
+   * Use the generated schemas rather than manually constructing messages.
+   * In TypeScript, always use `create()`; in Python, use the generated `UserCreated` class.
+
+4. **Schema evolution**
+
+   * Avoid renaming or deleting existing fields; mark them deprecated instead.
+   * Use `int64` for timestamps, `string` for IDs/emails, etc.
+
+
+## How to Type a Event
+
+A Event will have many fields like 
+```proto
+message DomainEventExample {
+ /// event name (e.g. "user.account.created")
+  string event_name = 1;  
+  /// Schema version (e.g."v1"), reciving systems can use this to deserialize the payload accordingly with version
+  string event_version = 2; 
+  /// The entity or aggregate this event belongs to (for partitioning) 
+  string aggregate_id = 3; 
+ /// Binary-encoded event data (the inner protobuf message),will be typed check events for specific event
+  bytes payload = 4;     
+  /// Epoch timestamp in milliseconds when the event was created,indicate when this action was recorded by the system
+  int64 timestamp = 5; 
+}
+```
+### How should you type a event
+```proto
+syntax = "proto3";
+
+package admin.v1;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string fixed_value = 50001;
+}
+
+message Payload {
+  string id = 10;          // Account ID
+  string email = 11;       // Account email
+  string name = 12;        // Account name
+  int64 created_at = 13;   // Account creation timestamp
+}
+
+message AdminAccountCreated {
+  // Common metadata fields (in every event)
+   // "admin.account.created"
+   string event_name = 1 [(fixed_value) = "admin.account.created"];
+  
+  string event_version = 2;    // "v1"
+  string aggregate_id = 3;     // Account ID for partitioning
+  int64 timestamp = 4;         // When event was created
+  string trace_id = 5;   // For distributed tracing
+
+  Payload payload = 9;         // Event-specific data
+}
+
+```
+check the docs to see why this decistion was taken: [docs](./docs/how_to_type_event.md)
+
+## Troubleshooting
+
+* **ModuleNotFoundError in Python**
+
+  * Ensure `gen/` folder is in your `PYTHONPATH`.
+  * Add `__init__.py` files in each subfolder if needed.
+
+* **TypeScript errors with missing `$typeName` or `UserCreated`**
+
+  * Make sure you are importing the **schema** (`UserCreatedSchema`) and using `create()` instead of instantiating the type directly.
+
+* **Buf generation issues**
+
+  * Run `pnpm buf:lint` first to catch package/directory mismatches.
