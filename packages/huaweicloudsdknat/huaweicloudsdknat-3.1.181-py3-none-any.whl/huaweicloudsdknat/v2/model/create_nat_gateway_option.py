@@ -1,0 +1,357 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class CreateNatGatewayOption:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'name': 'str',
+        'router_id': 'str',
+        'internal_network_id': 'str',
+        'ngport_ip_address': 'str',
+        'description': 'str',
+        'tags': 'list[str]',
+        'spec': 'str',
+        'enterprise_project_id': 'str',
+        'session_conf': 'SessionConfiguration',
+        'prepaid_options': 'PrepaidOptions'
+    }
+
+    attribute_map = {
+        'name': 'name',
+        'router_id': 'router_id',
+        'internal_network_id': 'internal_network_id',
+        'ngport_ip_address': 'ngport_ip_address',
+        'description': 'description',
+        'tags': 'tags',
+        'spec': 'spec',
+        'enterprise_project_id': 'enterprise_project_id',
+        'session_conf': 'session_conf',
+        'prepaid_options': 'prepaid_options'
+    }
+
+    def __init__(self, name=None, router_id=None, internal_network_id=None, ngport_ip_address=None, description=None, tags=None, spec=None, enterprise_project_id=None, session_conf=None, prepaid_options=None):
+        r"""CreateNatGatewayOption
+
+        The model defined in huaweicloud sdk
+
+        :param name: 公网NAT网关实例的名字，长度限制为64。 公网NAT网关实例的名字仅支持数字、字母、_（下划线）、-（中划线）、中文。 
+        :type name: str
+        :param router_id: VPC的id。
+        :type router_id: str
+        :param internal_network_id: 公网NAT网关下行口（DVR的下一跳）所属的network id。
+        :type internal_network_id: str
+        :param ngport_ip_address: 公网NAT网关ng口占用的ip。
+        :type ngport_ip_address: str
+        :param description: 公网NAT网关实例的描述，长度范围小于等于255个字符，不能包含“&lt;”和“&gt;”。
+        :type description: str
+        :param tags: 标签列表, 用以标识资源类型
+        :type tags: list[str]
+        :param spec: 公网NAT网关的规格。 取值为： “1”：小型，SNAT最大连接数10000 “2”：中型，SNAT最大连接数50000 “3”：大型，SNAT最大连接数200000 “4”：超大型，SNAT最大连接数1000000 “5”：企业型，SNAT最大连接数10000000 
+        :type spec: str
+        :param enterprise_project_id: 企业项目ID 创建公网NAT网关实例时，关联的企业项目ID。 关于企业项目ID的获取及企业项目特性的详细信息，请参考《企业管理用户指南》。
+        :type enterprise_project_id: str
+        :param session_conf: 
+        :type session_conf: :class:`huaweicloudsdknat.v2.SessionConfiguration`
+        :param prepaid_options: 
+        :type prepaid_options: :class:`huaweicloudsdknat.v2.PrepaidOptions`
+        """
+        
+        
+
+        self._name = None
+        self._router_id = None
+        self._internal_network_id = None
+        self._ngport_ip_address = None
+        self._description = None
+        self._tags = None
+        self._spec = None
+        self._enterprise_project_id = None
+        self._session_conf = None
+        self._prepaid_options = None
+        self.discriminator = None
+
+        self.name = name
+        self.router_id = router_id
+        self.internal_network_id = internal_network_id
+        if ngport_ip_address is not None:
+            self.ngport_ip_address = ngport_ip_address
+        if description is not None:
+            self.description = description
+        if tags is not None:
+            self.tags = tags
+        self.spec = spec
+        if enterprise_project_id is not None:
+            self.enterprise_project_id = enterprise_project_id
+        if session_conf is not None:
+            self.session_conf = session_conf
+        if prepaid_options is not None:
+            self.prepaid_options = prepaid_options
+
+    @property
+    def name(self):
+        r"""Gets the name of this CreateNatGatewayOption.
+
+        公网NAT网关实例的名字，长度限制为64。 公网NAT网关实例的名字仅支持数字、字母、_（下划线）、-（中划线）、中文。 
+
+        :return: The name of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this CreateNatGatewayOption.
+
+        公网NAT网关实例的名字，长度限制为64。 公网NAT网关实例的名字仅支持数字、字母、_（下划线）、-（中划线）、中文。 
+
+        :param name: The name of this CreateNatGatewayOption.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def router_id(self):
+        r"""Gets the router_id of this CreateNatGatewayOption.
+
+        VPC的id。
+
+        :return: The router_id of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._router_id
+
+    @router_id.setter
+    def router_id(self, router_id):
+        r"""Sets the router_id of this CreateNatGatewayOption.
+
+        VPC的id。
+
+        :param router_id: The router_id of this CreateNatGatewayOption.
+        :type router_id: str
+        """
+        self._router_id = router_id
+
+    @property
+    def internal_network_id(self):
+        r"""Gets the internal_network_id of this CreateNatGatewayOption.
+
+        公网NAT网关下行口（DVR的下一跳）所属的network id。
+
+        :return: The internal_network_id of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._internal_network_id
+
+    @internal_network_id.setter
+    def internal_network_id(self, internal_network_id):
+        r"""Sets the internal_network_id of this CreateNatGatewayOption.
+
+        公网NAT网关下行口（DVR的下一跳）所属的network id。
+
+        :param internal_network_id: The internal_network_id of this CreateNatGatewayOption.
+        :type internal_network_id: str
+        """
+        self._internal_network_id = internal_network_id
+
+    @property
+    def ngport_ip_address(self):
+        r"""Gets the ngport_ip_address of this CreateNatGatewayOption.
+
+        公网NAT网关ng口占用的ip。
+
+        :return: The ngport_ip_address of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._ngport_ip_address
+
+    @ngport_ip_address.setter
+    def ngport_ip_address(self, ngport_ip_address):
+        r"""Sets the ngport_ip_address of this CreateNatGatewayOption.
+
+        公网NAT网关ng口占用的ip。
+
+        :param ngport_ip_address: The ngport_ip_address of this CreateNatGatewayOption.
+        :type ngport_ip_address: str
+        """
+        self._ngport_ip_address = ngport_ip_address
+
+    @property
+    def description(self):
+        r"""Gets the description of this CreateNatGatewayOption.
+
+        公网NAT网关实例的描述，长度范围小于等于255个字符，不能包含“<”和“>”。
+
+        :return: The description of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this CreateNatGatewayOption.
+
+        公网NAT网关实例的描述，长度范围小于等于255个字符，不能包含“<”和“>”。
+
+        :param description: The description of this CreateNatGatewayOption.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def tags(self):
+        r"""Gets the tags of this CreateNatGatewayOption.
+
+        标签列表, 用以标识资源类型
+
+        :return: The tags of this CreateNatGatewayOption.
+        :rtype: list[str]
+        """
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        r"""Sets the tags of this CreateNatGatewayOption.
+
+        标签列表, 用以标识资源类型
+
+        :param tags: The tags of this CreateNatGatewayOption.
+        :type tags: list[str]
+        """
+        self._tags = tags
+
+    @property
+    def spec(self):
+        r"""Gets the spec of this CreateNatGatewayOption.
+
+        公网NAT网关的规格。 取值为： “1”：小型，SNAT最大连接数10000 “2”：中型，SNAT最大连接数50000 “3”：大型，SNAT最大连接数200000 “4”：超大型，SNAT最大连接数1000000 “5”：企业型，SNAT最大连接数10000000 
+
+        :return: The spec of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        r"""Sets the spec of this CreateNatGatewayOption.
+
+        公网NAT网关的规格。 取值为： “1”：小型，SNAT最大连接数10000 “2”：中型，SNAT最大连接数50000 “3”：大型，SNAT最大连接数200000 “4”：超大型，SNAT最大连接数1000000 “5”：企业型，SNAT最大连接数10000000 
+
+        :param spec: The spec of this CreateNatGatewayOption.
+        :type spec: str
+        """
+        self._spec = spec
+
+    @property
+    def enterprise_project_id(self):
+        r"""Gets the enterprise_project_id of this CreateNatGatewayOption.
+
+        企业项目ID 创建公网NAT网关实例时，关联的企业项目ID。 关于企业项目ID的获取及企业项目特性的详细信息，请参考《企业管理用户指南》。
+
+        :return: The enterprise_project_id of this CreateNatGatewayOption.
+        :rtype: str
+        """
+        return self._enterprise_project_id
+
+    @enterprise_project_id.setter
+    def enterprise_project_id(self, enterprise_project_id):
+        r"""Sets the enterprise_project_id of this CreateNatGatewayOption.
+
+        企业项目ID 创建公网NAT网关实例时，关联的企业项目ID。 关于企业项目ID的获取及企业项目特性的详细信息，请参考《企业管理用户指南》。
+
+        :param enterprise_project_id: The enterprise_project_id of this CreateNatGatewayOption.
+        :type enterprise_project_id: str
+        """
+        self._enterprise_project_id = enterprise_project_id
+
+    @property
+    def session_conf(self):
+        r"""Gets the session_conf of this CreateNatGatewayOption.
+
+        :return: The session_conf of this CreateNatGatewayOption.
+        :rtype: :class:`huaweicloudsdknat.v2.SessionConfiguration`
+        """
+        return self._session_conf
+
+    @session_conf.setter
+    def session_conf(self, session_conf):
+        r"""Sets the session_conf of this CreateNatGatewayOption.
+
+        :param session_conf: The session_conf of this CreateNatGatewayOption.
+        :type session_conf: :class:`huaweicloudsdknat.v2.SessionConfiguration`
+        """
+        self._session_conf = session_conf
+
+    @property
+    def prepaid_options(self):
+        r"""Gets the prepaid_options of this CreateNatGatewayOption.
+
+        :return: The prepaid_options of this CreateNatGatewayOption.
+        :rtype: :class:`huaweicloudsdknat.v2.PrepaidOptions`
+        """
+        return self._prepaid_options
+
+    @prepaid_options.setter
+    def prepaid_options(self, prepaid_options):
+        r"""Sets the prepaid_options of this CreateNatGatewayOption.
+
+        :param prepaid_options: The prepaid_options of this CreateNatGatewayOption.
+        :type prepaid_options: :class:`huaweicloudsdknat.v2.PrepaidOptions`
+        """
+        self._prepaid_options = prepaid_options
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, CreateNatGatewayOption):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
