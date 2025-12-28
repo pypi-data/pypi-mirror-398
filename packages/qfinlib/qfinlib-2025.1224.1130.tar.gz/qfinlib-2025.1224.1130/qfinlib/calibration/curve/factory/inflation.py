@@ -1,0 +1,1 @@
+"""Inflation curve factory."""
