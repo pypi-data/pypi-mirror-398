@@ -1,0 +1,122 @@
+# Better VenvKiller 🗑️
+
+Find and delete Python virtual environments to free disk space. Works on Windows, macOS, and Linux.
+
+## Features
+
+- 🔍 **Smart Detection**: Finds both Python venvs and Conda environments
+- 📊 **Size Analysis**: Shows disk usage for each environment
+- 🎯 **Flexible Filtering**: Filter by size, age, and type
+- 🖥️ **Dual Interface**: Command-line and GUI versions
+- 🛡️ **Safety First**: Dry-run mode and confirmation prompts
+- ⚡ **Fast Scanning**: Optimized directory traversal
+- 🎨 **User Friendly**: Clean interface with progress indicators
+
+## Installation
+
+```bash
+pip install better-venv-killer
+```
+
+## Usage
+
+### Command Line Interface
+
+```bash
+# Basic usage - scan home directory
+better-venv-killer
+
+# Scan specific paths
+better-venv-killer /projects /home/user/dev
+
+# Dry run (preview only)
+better-venv-killer --dry-run
+
+# Filter by size and age
+better-venv-killer --min-size 100MB --older-than 30
+
+# Include Conda environments
+better-venv-killer --include-conda
+
+# Limit scan depth for performance
+better-venv-killer --max-depth 5
+```
+
+### GUI Interface
+
+```bash
+# Launch the GUI
+better-venv-killer-gui
+```
+
+The GUI provides:
+- ➕ Add/remove scan paths with folder browser
+- 🔧 All CLI options as visual controls
+- ☑️ Interactive selection with checkboxes
+- 📊 Real-time size calculations
+- 🛡️ Built-in dry-run mode
+
+## Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--dry-run` | Preview what would be deleted | `--dry-run` |
+| `--min-size` | Minimum size filter | `--min-size 100MB` |
+| `--older-than` | Age filter in days | `--older-than 30` |
+| `--include-conda` | Include Conda environments | `--include-conda` |
+| `--max-depth` | Maximum scan depth | `--max-depth 5` |
+
+## Size Formats
+
+Supports: `B`, `KB`, `MB`, `GB`, `TB`
+
+Examples: `100MB`, `1.5GB`, `500KB`
+
+## What Gets Detected
+
+**Python Virtual Environments:**
+- `.venv`, `venv`, `env`, `.env` folders
+- Detected by `pyvenv.cfg`, `Scripts/python.exe`, `bin/python`
+- Cross-platform compatible
+
+**Conda Environments:**
+- Detected by `conda-meta` folder
+- Requires `--include-conda` flag
+
+## Safety Features
+
+- 🔍 **Dry Run Mode**: See what would be deleted without actually deleting
+- ⚠️ **Confirmation Prompts**: Always asks before deletion
+- 📊 **Size Preview**: Shows total space to be freed
+- 🚫 **Error Handling**: Graceful handling of permission errors
+- 📝 **Detailed Logging**: Clear feedback on operations
+
+## Examples
+
+```bash
+# Find all environments larger than 500MB
+better-venv-killer --min-size 500MB --dry-run
+
+# Clean up old environments (older than 60 days)
+better-venv-killer --older-than 60
+
+# Comprehensive scan including Conda
+better-venv-killer --include-conda --min-size 100MB
+
+# Quick scan with limited depth
+better-venv-killer --max-depth 3 ~/projects
+```
+
+## Requirements
+
+- Python 3.7+
+- No external dependencies (uses only standard library)
+- Works on Windows, macOS, and Linux
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions welcome! Please feel free to submit issues and pull requests.
