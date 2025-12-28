@@ -1,0 +1,858 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class BaseServer:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'id': 'str',
+        'name': 'str',
+        'machine_name': 'str',
+        'description': 'str',
+        'server_group_id': 'str',
+        'flavor': 'Flavor',
+        'status': 'str',
+        'create_time': 'datetime',
+        'update_time': 'datetime',
+        'image_id': 'str',
+        'availability_zone': 'str',
+        'domain': 'str',
+        'ou_name': 'str',
+        'sid': 'str',
+        'instance_id': 'str',
+        'os_version': 'str',
+        'os_type': 'str',
+        'order_id': 'str',
+        'maintain_status': 'bool',
+        'scaling_auto_create': 'bool',
+        'job_id': 'str',
+        'job_type': 'str',
+        'job_status': 'str',
+        'job_time': 'datetime',
+        'resource_pool_id': 'str',
+        'resource_pool_type': 'str',
+        'host_id': 'str'
+    }
+
+    attribute_map = {
+        'id': 'id',
+        'name': 'name',
+        'machine_name': 'machine_name',
+        'description': 'description',
+        'server_group_id': 'server_group_id',
+        'flavor': 'flavor',
+        'status': 'status',
+        'create_time': 'create_time',
+        'update_time': 'update_time',
+        'image_id': 'image_id',
+        'availability_zone': 'availability_zone',
+        'domain': 'domain',
+        'ou_name': 'ou_name',
+        'sid': 'sid',
+        'instance_id': 'instance_id',
+        'os_version': 'os_version',
+        'os_type': 'os_type',
+        'order_id': 'order_id',
+        'maintain_status': 'maintain_status',
+        'scaling_auto_create': 'scaling_auto_create',
+        'job_id': 'job_id',
+        'job_type': 'job_type',
+        'job_status': 'job_status',
+        'job_time': 'job_time',
+        'resource_pool_id': 'resource_pool_id',
+        'resource_pool_type': 'resource_pool_type',
+        'host_id': 'host_id'
+    }
+
+    def __init__(self, id=None, name=None, machine_name=None, description=None, server_group_id=None, flavor=None, status=None, create_time=None, update_time=None, image_id=None, availability_zone=None, domain=None, ou_name=None, sid=None, instance_id=None, os_version=None, os_type=None, order_id=None, maintain_status=None, scaling_auto_create=None, job_id=None, job_type=None, job_status=None, job_time=None, resource_pool_id=None, resource_pool_type=None, host_id=None):
+        r"""BaseServer
+
+        The model defined in huaweicloud sdk
+
+        :param id: aps实例的唯一标识。
+        :type id: str
+        :param name: 服务器名称。
+        :type name: str
+        :param machine_name: 计算机名称。
+        :type machine_name: str
+        :param description: 描述。
+        :type description: str
+        :param server_group_id: 服务器组ID。
+        :type server_group_id: str
+        :param flavor: 
+        :type flavor: :class:`huaweicloudsdkworkspaceapp.v1.Flavor`
+        :param status: 实例的状态： * &#x60;UNREGISTER&#x60; - 未就绪 * &#x60;REGISTERED&#x60; - 就绪状态 * &#x60;MAINTAINING&#x60; - 维护中 * &#x60;FREEZE&#x60; - 冻结 * &#x60;STOPPED&#x60; - 停止 * &#x60;NONE&#x60; - 异常状态
+        :type status: str
+        :param create_time: 服务器创建时间。
+        :type create_time: datetime
+        :param update_time: 更新时间。
+        :type update_time: datetime
+        :param image_id: 镜像ID。
+        :type image_id: str
+        :param availability_zone: 服务器可用分区。
+        :type availability_zone: str
+        :param domain: 域。
+        :type domain: str
+        :param ou_name: 组织名称。
+        :type ou_name: str
+        :param sid: 实例的SID。
+        :type sid: str
+        :param instance_id: 实例的ID。
+        :type instance_id: str
+        :param os_version: 服务器系统版本。
+        :type os_version: str
+        :param os_type: 操作系统类型，当前仅支持Windows： - Linux - Windows - Other
+        :type os_type: str
+        :param order_id: 包周期产品的订单ID。
+        :type order_id: str
+        :param maintain_status: 是否维护状态。
+        :type maintain_status: bool
+        :param scaling_auto_create: 配置弹性伸缩策略时，服务自动创建的实例。 - true : 通过弹性伸缩创建。 - false: 不是通过弹性伸缩创建。
+        :type scaling_auto_create: bool
+        :param job_id: 上一次执行job的id。
+        :type job_id: str
+        :param job_type: job类型： * &#x60;CREATE_SERVER&#x60; - 创建服务器 * &#x60;DELETE_SERVER&#x60; - 删除服务器 * &#x60;UPDATE_FREEZE_STATUS&#x60; - 修改服务器冻结状态 * &#x60;CREATE_SERVER_IMAGE&#x60; - 构建镜像 * &#x60;REINSTALL_OS&#x60; - 重装操作系统 * &#x60;CHANGE_SERVER_IMAGE&#x60; - 更换镜像 * &#x60;REJOIN_DOMAIN&#x60; - 重新加域 * &#x60;MIGRATE_SERVER&#x60; - 迁移服务器 * &#x60;UPGRADE_ACCESS_AGENT&#x60; - hda升级 * &#x60;UPDATE_SERVER_TSVI&#x60; - 更新虚拟会话IP * &#x60;SCHEDULED_TASK&#x60; - 定时任务job * &#x60;COLLECT_HDA_LOG&#x60; - 收集hda日志 * &#x60;COLLECT_APS_LOG&#x60; - 收集aps日志 * &#x60;CREATE_SERVER_SNAPSHOT&#x60; - 创建服务器快照 * &#x60;DELETE_SERVER_SNAPSHOT&#x60; - 删除服务器快照 * &#x60;RESTORE_SERVER_SNAPSHOT&#x60; - 恢复服务器快照 * &#x60;BATCH_INSTALL_APP&#x60; - 批量安装应用 * &#x60;INSTALL_CES_AGENT&#x60; - 安装CES服务AGENT * &#x60;UNINSTALL_CES_AGENT&#x60; - 卸载CES服务AGENT
+        :type job_type: str
+        :param job_status: job状态 * &#x60;WAITING&#x60; - 等待 * &#x60;RUNNING&#x60; - 运行中 * &#x60;SUCCESS&#x60; - 完成 * &#x60;FAILED&#x60; - 失败
+        :type job_status: str
+        :param job_time: 上一次执行job的执行时间。
+        :type job_time: datetime
+        :param resource_pool_id: 资源池ID。
+        :type resource_pool_id: str
+        :param resource_pool_type: 资源池类型： - private：私有资源池。 - public: 工作资源池。
+        :type resource_pool_type: str
+        :param host_id: 云专属主机id。
+        :type host_id: str
+        """
+        
+        
+
+        self._id = None
+        self._name = None
+        self._machine_name = None
+        self._description = None
+        self._server_group_id = None
+        self._flavor = None
+        self._status = None
+        self._create_time = None
+        self._update_time = None
+        self._image_id = None
+        self._availability_zone = None
+        self._domain = None
+        self._ou_name = None
+        self._sid = None
+        self._instance_id = None
+        self._os_version = None
+        self._os_type = None
+        self._order_id = None
+        self._maintain_status = None
+        self._scaling_auto_create = None
+        self._job_id = None
+        self._job_type = None
+        self._job_status = None
+        self._job_time = None
+        self._resource_pool_id = None
+        self._resource_pool_type = None
+        self._host_id = None
+        self.discriminator = None
+
+        if id is not None:
+            self.id = id
+        if name is not None:
+            self.name = name
+        if machine_name is not None:
+            self.machine_name = machine_name
+        if description is not None:
+            self.description = description
+        if server_group_id is not None:
+            self.server_group_id = server_group_id
+        if flavor is not None:
+            self.flavor = flavor
+        if status is not None:
+            self.status = status
+        if create_time is not None:
+            self.create_time = create_time
+        if update_time is not None:
+            self.update_time = update_time
+        if image_id is not None:
+            self.image_id = image_id
+        if availability_zone is not None:
+            self.availability_zone = availability_zone
+        if domain is not None:
+            self.domain = domain
+        if ou_name is not None:
+            self.ou_name = ou_name
+        if sid is not None:
+            self.sid = sid
+        if instance_id is not None:
+            self.instance_id = instance_id
+        if os_version is not None:
+            self.os_version = os_version
+        if os_type is not None:
+            self.os_type = os_type
+        if order_id is not None:
+            self.order_id = order_id
+        if maintain_status is not None:
+            self.maintain_status = maintain_status
+        if scaling_auto_create is not None:
+            self.scaling_auto_create = scaling_auto_create
+        if job_id is not None:
+            self.job_id = job_id
+        if job_type is not None:
+            self.job_type = job_type
+        if job_status is not None:
+            self.job_status = job_status
+        if job_time is not None:
+            self.job_time = job_time
+        if resource_pool_id is not None:
+            self.resource_pool_id = resource_pool_id
+        if resource_pool_type is not None:
+            self.resource_pool_type = resource_pool_type
+        if host_id is not None:
+            self.host_id = host_id
+
+    @property
+    def id(self):
+        r"""Gets the id of this BaseServer.
+
+        aps实例的唯一标识。
+
+        :return: The id of this BaseServer.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this BaseServer.
+
+        aps实例的唯一标识。
+
+        :param id: The id of this BaseServer.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def name(self):
+        r"""Gets the name of this BaseServer.
+
+        服务器名称。
+
+        :return: The name of this BaseServer.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this BaseServer.
+
+        服务器名称。
+
+        :param name: The name of this BaseServer.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def machine_name(self):
+        r"""Gets the machine_name of this BaseServer.
+
+        计算机名称。
+
+        :return: The machine_name of this BaseServer.
+        :rtype: str
+        """
+        return self._machine_name
+
+    @machine_name.setter
+    def machine_name(self, machine_name):
+        r"""Sets the machine_name of this BaseServer.
+
+        计算机名称。
+
+        :param machine_name: The machine_name of this BaseServer.
+        :type machine_name: str
+        """
+        self._machine_name = machine_name
+
+    @property
+    def description(self):
+        r"""Gets the description of this BaseServer.
+
+        描述。
+
+        :return: The description of this BaseServer.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this BaseServer.
+
+        描述。
+
+        :param description: The description of this BaseServer.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def server_group_id(self):
+        r"""Gets the server_group_id of this BaseServer.
+
+        服务器组ID。
+
+        :return: The server_group_id of this BaseServer.
+        :rtype: str
+        """
+        return self._server_group_id
+
+    @server_group_id.setter
+    def server_group_id(self, server_group_id):
+        r"""Sets the server_group_id of this BaseServer.
+
+        服务器组ID。
+
+        :param server_group_id: The server_group_id of this BaseServer.
+        :type server_group_id: str
+        """
+        self._server_group_id = server_group_id
+
+    @property
+    def flavor(self):
+        r"""Gets the flavor of this BaseServer.
+
+        :return: The flavor of this BaseServer.
+        :rtype: :class:`huaweicloudsdkworkspaceapp.v1.Flavor`
+        """
+        return self._flavor
+
+    @flavor.setter
+    def flavor(self, flavor):
+        r"""Sets the flavor of this BaseServer.
+
+        :param flavor: The flavor of this BaseServer.
+        :type flavor: :class:`huaweicloudsdkworkspaceapp.v1.Flavor`
+        """
+        self._flavor = flavor
+
+    @property
+    def status(self):
+        r"""Gets the status of this BaseServer.
+
+        实例的状态： * `UNREGISTER` - 未就绪 * `REGISTERED` - 就绪状态 * `MAINTAINING` - 维护中 * `FREEZE` - 冻结 * `STOPPED` - 停止 * `NONE` - 异常状态
+
+        :return: The status of this BaseServer.
+        :rtype: str
+        """
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        r"""Sets the status of this BaseServer.
+
+        实例的状态： * `UNREGISTER` - 未就绪 * `REGISTERED` - 就绪状态 * `MAINTAINING` - 维护中 * `FREEZE` - 冻结 * `STOPPED` - 停止 * `NONE` - 异常状态
+
+        :param status: The status of this BaseServer.
+        :type status: str
+        """
+        self._status = status
+
+    @property
+    def create_time(self):
+        r"""Gets the create_time of this BaseServer.
+
+        服务器创建时间。
+
+        :return: The create_time of this BaseServer.
+        :rtype: datetime
+        """
+        return self._create_time
+
+    @create_time.setter
+    def create_time(self, create_time):
+        r"""Sets the create_time of this BaseServer.
+
+        服务器创建时间。
+
+        :param create_time: The create_time of this BaseServer.
+        :type create_time: datetime
+        """
+        self._create_time = create_time
+
+    @property
+    def update_time(self):
+        r"""Gets the update_time of this BaseServer.
+
+        更新时间。
+
+        :return: The update_time of this BaseServer.
+        :rtype: datetime
+        """
+        return self._update_time
+
+    @update_time.setter
+    def update_time(self, update_time):
+        r"""Sets the update_time of this BaseServer.
+
+        更新时间。
+
+        :param update_time: The update_time of this BaseServer.
+        :type update_time: datetime
+        """
+        self._update_time = update_time
+
+    @property
+    def image_id(self):
+        r"""Gets the image_id of this BaseServer.
+
+        镜像ID。
+
+        :return: The image_id of this BaseServer.
+        :rtype: str
+        """
+        return self._image_id
+
+    @image_id.setter
+    def image_id(self, image_id):
+        r"""Sets the image_id of this BaseServer.
+
+        镜像ID。
+
+        :param image_id: The image_id of this BaseServer.
+        :type image_id: str
+        """
+        self._image_id = image_id
+
+    @property
+    def availability_zone(self):
+        r"""Gets the availability_zone of this BaseServer.
+
+        服务器可用分区。
+
+        :return: The availability_zone of this BaseServer.
+        :rtype: str
+        """
+        return self._availability_zone
+
+    @availability_zone.setter
+    def availability_zone(self, availability_zone):
+        r"""Sets the availability_zone of this BaseServer.
+
+        服务器可用分区。
+
+        :param availability_zone: The availability_zone of this BaseServer.
+        :type availability_zone: str
+        """
+        self._availability_zone = availability_zone
+
+    @property
+    def domain(self):
+        r"""Gets the domain of this BaseServer.
+
+        域。
+
+        :return: The domain of this BaseServer.
+        :rtype: str
+        """
+        return self._domain
+
+    @domain.setter
+    def domain(self, domain):
+        r"""Sets the domain of this BaseServer.
+
+        域。
+
+        :param domain: The domain of this BaseServer.
+        :type domain: str
+        """
+        self._domain = domain
+
+    @property
+    def ou_name(self):
+        r"""Gets the ou_name of this BaseServer.
+
+        组织名称。
+
+        :return: The ou_name of this BaseServer.
+        :rtype: str
+        """
+        return self._ou_name
+
+    @ou_name.setter
+    def ou_name(self, ou_name):
+        r"""Sets the ou_name of this BaseServer.
+
+        组织名称。
+
+        :param ou_name: The ou_name of this BaseServer.
+        :type ou_name: str
+        """
+        self._ou_name = ou_name
+
+    @property
+    def sid(self):
+        r"""Gets the sid of this BaseServer.
+
+        实例的SID。
+
+        :return: The sid of this BaseServer.
+        :rtype: str
+        """
+        return self._sid
+
+    @sid.setter
+    def sid(self, sid):
+        r"""Sets the sid of this BaseServer.
+
+        实例的SID。
+
+        :param sid: The sid of this BaseServer.
+        :type sid: str
+        """
+        self._sid = sid
+
+    @property
+    def instance_id(self):
+        r"""Gets the instance_id of this BaseServer.
+
+        实例的ID。
+
+        :return: The instance_id of this BaseServer.
+        :rtype: str
+        """
+        return self._instance_id
+
+    @instance_id.setter
+    def instance_id(self, instance_id):
+        r"""Sets the instance_id of this BaseServer.
+
+        实例的ID。
+
+        :param instance_id: The instance_id of this BaseServer.
+        :type instance_id: str
+        """
+        self._instance_id = instance_id
+
+    @property
+    def os_version(self):
+        r"""Gets the os_version of this BaseServer.
+
+        服务器系统版本。
+
+        :return: The os_version of this BaseServer.
+        :rtype: str
+        """
+        return self._os_version
+
+    @os_version.setter
+    def os_version(self, os_version):
+        r"""Sets the os_version of this BaseServer.
+
+        服务器系统版本。
+
+        :param os_version: The os_version of this BaseServer.
+        :type os_version: str
+        """
+        self._os_version = os_version
+
+    @property
+    def os_type(self):
+        r"""Gets the os_type of this BaseServer.
+
+        操作系统类型，当前仅支持Windows： - Linux - Windows - Other
+
+        :return: The os_type of this BaseServer.
+        :rtype: str
+        """
+        return self._os_type
+
+    @os_type.setter
+    def os_type(self, os_type):
+        r"""Sets the os_type of this BaseServer.
+
+        操作系统类型，当前仅支持Windows： - Linux - Windows - Other
+
+        :param os_type: The os_type of this BaseServer.
+        :type os_type: str
+        """
+        self._os_type = os_type
+
+    @property
+    def order_id(self):
+        r"""Gets the order_id of this BaseServer.
+
+        包周期产品的订单ID。
+
+        :return: The order_id of this BaseServer.
+        :rtype: str
+        """
+        return self._order_id
+
+    @order_id.setter
+    def order_id(self, order_id):
+        r"""Sets the order_id of this BaseServer.
+
+        包周期产品的订单ID。
+
+        :param order_id: The order_id of this BaseServer.
+        :type order_id: str
+        """
+        self._order_id = order_id
+
+    @property
+    def maintain_status(self):
+        r"""Gets the maintain_status of this BaseServer.
+
+        是否维护状态。
+
+        :return: The maintain_status of this BaseServer.
+        :rtype: bool
+        """
+        return self._maintain_status
+
+    @maintain_status.setter
+    def maintain_status(self, maintain_status):
+        r"""Sets the maintain_status of this BaseServer.
+
+        是否维护状态。
+
+        :param maintain_status: The maintain_status of this BaseServer.
+        :type maintain_status: bool
+        """
+        self._maintain_status = maintain_status
+
+    @property
+    def scaling_auto_create(self):
+        r"""Gets the scaling_auto_create of this BaseServer.
+
+        配置弹性伸缩策略时，服务自动创建的实例。 - true : 通过弹性伸缩创建。 - false: 不是通过弹性伸缩创建。
+
+        :return: The scaling_auto_create of this BaseServer.
+        :rtype: bool
+        """
+        return self._scaling_auto_create
+
+    @scaling_auto_create.setter
+    def scaling_auto_create(self, scaling_auto_create):
+        r"""Sets the scaling_auto_create of this BaseServer.
+
+        配置弹性伸缩策略时，服务自动创建的实例。 - true : 通过弹性伸缩创建。 - false: 不是通过弹性伸缩创建。
+
+        :param scaling_auto_create: The scaling_auto_create of this BaseServer.
+        :type scaling_auto_create: bool
+        """
+        self._scaling_auto_create = scaling_auto_create
+
+    @property
+    def job_id(self):
+        r"""Gets the job_id of this BaseServer.
+
+        上一次执行job的id。
+
+        :return: The job_id of this BaseServer.
+        :rtype: str
+        """
+        return self._job_id
+
+    @job_id.setter
+    def job_id(self, job_id):
+        r"""Sets the job_id of this BaseServer.
+
+        上一次执行job的id。
+
+        :param job_id: The job_id of this BaseServer.
+        :type job_id: str
+        """
+        self._job_id = job_id
+
+    @property
+    def job_type(self):
+        r"""Gets the job_type of this BaseServer.
+
+        job类型： * `CREATE_SERVER` - 创建服务器 * `DELETE_SERVER` - 删除服务器 * `UPDATE_FREEZE_STATUS` - 修改服务器冻结状态 * `CREATE_SERVER_IMAGE` - 构建镜像 * `REINSTALL_OS` - 重装操作系统 * `CHANGE_SERVER_IMAGE` - 更换镜像 * `REJOIN_DOMAIN` - 重新加域 * `MIGRATE_SERVER` - 迁移服务器 * `UPGRADE_ACCESS_AGENT` - hda升级 * `UPDATE_SERVER_TSVI` - 更新虚拟会话IP * `SCHEDULED_TASK` - 定时任务job * `COLLECT_HDA_LOG` - 收集hda日志 * `COLLECT_APS_LOG` - 收集aps日志 * `CREATE_SERVER_SNAPSHOT` - 创建服务器快照 * `DELETE_SERVER_SNAPSHOT` - 删除服务器快照 * `RESTORE_SERVER_SNAPSHOT` - 恢复服务器快照 * `BATCH_INSTALL_APP` - 批量安装应用 * `INSTALL_CES_AGENT` - 安装CES服务AGENT * `UNINSTALL_CES_AGENT` - 卸载CES服务AGENT
+
+        :return: The job_type of this BaseServer.
+        :rtype: str
+        """
+        return self._job_type
+
+    @job_type.setter
+    def job_type(self, job_type):
+        r"""Sets the job_type of this BaseServer.
+
+        job类型： * `CREATE_SERVER` - 创建服务器 * `DELETE_SERVER` - 删除服务器 * `UPDATE_FREEZE_STATUS` - 修改服务器冻结状态 * `CREATE_SERVER_IMAGE` - 构建镜像 * `REINSTALL_OS` - 重装操作系统 * `CHANGE_SERVER_IMAGE` - 更换镜像 * `REJOIN_DOMAIN` - 重新加域 * `MIGRATE_SERVER` - 迁移服务器 * `UPGRADE_ACCESS_AGENT` - hda升级 * `UPDATE_SERVER_TSVI` - 更新虚拟会话IP * `SCHEDULED_TASK` - 定时任务job * `COLLECT_HDA_LOG` - 收集hda日志 * `COLLECT_APS_LOG` - 收集aps日志 * `CREATE_SERVER_SNAPSHOT` - 创建服务器快照 * `DELETE_SERVER_SNAPSHOT` - 删除服务器快照 * `RESTORE_SERVER_SNAPSHOT` - 恢复服务器快照 * `BATCH_INSTALL_APP` - 批量安装应用 * `INSTALL_CES_AGENT` - 安装CES服务AGENT * `UNINSTALL_CES_AGENT` - 卸载CES服务AGENT
+
+        :param job_type: The job_type of this BaseServer.
+        :type job_type: str
+        """
+        self._job_type = job_type
+
+    @property
+    def job_status(self):
+        r"""Gets the job_status of this BaseServer.
+
+        job状态 * `WAITING` - 等待 * `RUNNING` - 运行中 * `SUCCESS` - 完成 * `FAILED` - 失败
+
+        :return: The job_status of this BaseServer.
+        :rtype: str
+        """
+        return self._job_status
+
+    @job_status.setter
+    def job_status(self, job_status):
+        r"""Sets the job_status of this BaseServer.
+
+        job状态 * `WAITING` - 等待 * `RUNNING` - 运行中 * `SUCCESS` - 完成 * `FAILED` - 失败
+
+        :param job_status: The job_status of this BaseServer.
+        :type job_status: str
+        """
+        self._job_status = job_status
+
+    @property
+    def job_time(self):
+        r"""Gets the job_time of this BaseServer.
+
+        上一次执行job的执行时间。
+
+        :return: The job_time of this BaseServer.
+        :rtype: datetime
+        """
+        return self._job_time
+
+    @job_time.setter
+    def job_time(self, job_time):
+        r"""Sets the job_time of this BaseServer.
+
+        上一次执行job的执行时间。
+
+        :param job_time: The job_time of this BaseServer.
+        :type job_time: datetime
+        """
+        self._job_time = job_time
+
+    @property
+    def resource_pool_id(self):
+        r"""Gets the resource_pool_id of this BaseServer.
+
+        资源池ID。
+
+        :return: The resource_pool_id of this BaseServer.
+        :rtype: str
+        """
+        return self._resource_pool_id
+
+    @resource_pool_id.setter
+    def resource_pool_id(self, resource_pool_id):
+        r"""Sets the resource_pool_id of this BaseServer.
+
+        资源池ID。
+
+        :param resource_pool_id: The resource_pool_id of this BaseServer.
+        :type resource_pool_id: str
+        """
+        self._resource_pool_id = resource_pool_id
+
+    @property
+    def resource_pool_type(self):
+        r"""Gets the resource_pool_type of this BaseServer.
+
+        资源池类型： - private：私有资源池。 - public: 工作资源池。
+
+        :return: The resource_pool_type of this BaseServer.
+        :rtype: str
+        """
+        return self._resource_pool_type
+
+    @resource_pool_type.setter
+    def resource_pool_type(self, resource_pool_type):
+        r"""Sets the resource_pool_type of this BaseServer.
+
+        资源池类型： - private：私有资源池。 - public: 工作资源池。
+
+        :param resource_pool_type: The resource_pool_type of this BaseServer.
+        :type resource_pool_type: str
+        """
+        self._resource_pool_type = resource_pool_type
+
+    @property
+    def host_id(self):
+        r"""Gets the host_id of this BaseServer.
+
+        云专属主机id。
+
+        :return: The host_id of this BaseServer.
+        :rtype: str
+        """
+        return self._host_id
+
+    @host_id.setter
+    def host_id(self, host_id):
+        r"""Sets the host_id of this BaseServer.
+
+        云专属主机id。
+
+        :param host_id: The host_id of this BaseServer.
+        :type host_id: str
+        """
+        self._host_id = host_id
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, BaseServer):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

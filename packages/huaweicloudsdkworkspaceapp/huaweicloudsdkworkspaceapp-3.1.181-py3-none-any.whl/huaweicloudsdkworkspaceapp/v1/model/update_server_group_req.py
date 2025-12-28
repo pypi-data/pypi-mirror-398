@@ -1,0 +1,423 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class UpdateServerGroupReq:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'name': 'str',
+        'description': 'str',
+        'route_policy': 'RoutePolicy',
+        'storage_mount_policy': 'str',
+        'image_id': 'str',
+        'image_product_id': 'str',
+        'image_type': 'str',
+        'system_disk_type': 'str',
+        'system_disk_size': 'int',
+        'ou_name': 'str',
+        'app_type': 'str',
+        'server_group_status': 'bool'
+    }
+
+    attribute_map = {
+        'name': 'name',
+        'description': 'description',
+        'route_policy': 'route_policy',
+        'storage_mount_policy': 'storage_mount_policy',
+        'image_id': 'image_id',
+        'image_product_id': 'image_product_id',
+        'image_type': 'image_type',
+        'system_disk_type': 'system_disk_type',
+        'system_disk_size': 'system_disk_size',
+        'ou_name': 'ou_name',
+        'app_type': 'app_type',
+        'server_group_status': 'server_group_status'
+    }
+
+    def __init__(self, name=None, description=None, route_policy=None, storage_mount_policy=None, image_id=None, image_product_id=None, image_type=None, system_disk_type=None, system_disk_size=None, ou_name=None, app_type=None, server_group_status=None):
+        r"""UpdateServerGroupReq
+
+        The model defined in huaweicloud sdk
+
+        :param name: 服务器组名称，名称需满足如下规则: 1. 由中文，英文大小写，数字，_-组成，不能有空格。 2. 长度范围1~64个字符。
+        :type name: str
+        :param description: 服务器组描述。
+        :type description: str
+        :param route_policy: 
+        :type route_policy: :class:`huaweicloudsdkworkspaceapp.v1.RoutePolicy`
+        :param storage_mount_policy: 用户访问APS的应用时，对应NAS存储目录在APS上的挂载策略。 * &#x60;USER&#x60; - 仅挂载个人目录。 * &#x60;SHARE&#x60; - 仅挂载共享目录。 * &#x60;ANY&#x60; - 挂载目录不做限制(个人和共享NAS存储目录都会自动挂载)。
+        :type storage_mount_policy: str
+        :param image_id: 服务器组关联的镜像ID，更新镜像ID只对组下新创建的云服务器生效。
+        :type image_id: str
+        :param image_product_id: 服务器组的镜像的productId。
+        :type image_product_id: str
+        :param image_type: 镜像类型： * &#x60;gold&#x60; - 云市场镜像 * &#x60;public&#x60; - 公共镜像 * &#x60;private&#x60; - 私有镜像 * &#x60;shared&#x60; - 共享镜像 * &#x60;other&#x60; - 其他
+        :type image_type: str
+        :param system_disk_type: 磁盘类型，获取可用磁盘类型详见接口磁盘管理ListVolumeType。 * &#x60;ESSD&#x60; - 极速型SSD * &#x60;SSD&#x60; - 超高IO * &#x60;GPSSD&#x60; - 通用型SSD * &#x60;SAS&#x60; - 高IO * &#x60;SATA&#x60; - 普通IO
+        :type system_disk_type: str
+        :param system_disk_size: 磁盘容量，单位GB。
+        :type system_disk_size: int
+        :param ou_name: 默认组织名称。
+        :type ou_name: str
+        :param app_type: 服务器组应用类型： * &#x60;SESSION_DESKTOP_APP&#x60; - 会话桌面app * &#x60;COMMON_APP&#x60; - 普通app
+        :type app_type: str
+        :param server_group_status: 服务器是否处于禁用状态： * &#x60;true&#x60; - 启用状态 * &#x60;false&#x60; - 禁用状态
+        :type server_group_status: bool
+        """
+        
+        
+
+        self._name = None
+        self._description = None
+        self._route_policy = None
+        self._storage_mount_policy = None
+        self._image_id = None
+        self._image_product_id = None
+        self._image_type = None
+        self._system_disk_type = None
+        self._system_disk_size = None
+        self._ou_name = None
+        self._app_type = None
+        self._server_group_status = None
+        self.discriminator = None
+
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
+        if route_policy is not None:
+            self.route_policy = route_policy
+        if storage_mount_policy is not None:
+            self.storage_mount_policy = storage_mount_policy
+        if image_id is not None:
+            self.image_id = image_id
+        if image_product_id is not None:
+            self.image_product_id = image_product_id
+        if image_type is not None:
+            self.image_type = image_type
+        if system_disk_type is not None:
+            self.system_disk_type = system_disk_type
+        if system_disk_size is not None:
+            self.system_disk_size = system_disk_size
+        if ou_name is not None:
+            self.ou_name = ou_name
+        if app_type is not None:
+            self.app_type = app_type
+        if server_group_status is not None:
+            self.server_group_status = server_group_status
+
+    @property
+    def name(self):
+        r"""Gets the name of this UpdateServerGroupReq.
+
+        服务器组名称，名称需满足如下规则: 1. 由中文，英文大小写，数字，_-组成，不能有空格。 2. 长度范围1~64个字符。
+
+        :return: The name of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this UpdateServerGroupReq.
+
+        服务器组名称，名称需满足如下规则: 1. 由中文，英文大小写，数字，_-组成，不能有空格。 2. 长度范围1~64个字符。
+
+        :param name: The name of this UpdateServerGroupReq.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def description(self):
+        r"""Gets the description of this UpdateServerGroupReq.
+
+        服务器组描述。
+
+        :return: The description of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this UpdateServerGroupReq.
+
+        服务器组描述。
+
+        :param description: The description of this UpdateServerGroupReq.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def route_policy(self):
+        r"""Gets the route_policy of this UpdateServerGroupReq.
+
+        :return: The route_policy of this UpdateServerGroupReq.
+        :rtype: :class:`huaweicloudsdkworkspaceapp.v1.RoutePolicy`
+        """
+        return self._route_policy
+
+    @route_policy.setter
+    def route_policy(self, route_policy):
+        r"""Sets the route_policy of this UpdateServerGroupReq.
+
+        :param route_policy: The route_policy of this UpdateServerGroupReq.
+        :type route_policy: :class:`huaweicloudsdkworkspaceapp.v1.RoutePolicy`
+        """
+        self._route_policy = route_policy
+
+    @property
+    def storage_mount_policy(self):
+        r"""Gets the storage_mount_policy of this UpdateServerGroupReq.
+
+        用户访问APS的应用时，对应NAS存储目录在APS上的挂载策略。 * `USER` - 仅挂载个人目录。 * `SHARE` - 仅挂载共享目录。 * `ANY` - 挂载目录不做限制(个人和共享NAS存储目录都会自动挂载)。
+
+        :return: The storage_mount_policy of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._storage_mount_policy
+
+    @storage_mount_policy.setter
+    def storage_mount_policy(self, storage_mount_policy):
+        r"""Sets the storage_mount_policy of this UpdateServerGroupReq.
+
+        用户访问APS的应用时，对应NAS存储目录在APS上的挂载策略。 * `USER` - 仅挂载个人目录。 * `SHARE` - 仅挂载共享目录。 * `ANY` - 挂载目录不做限制(个人和共享NAS存储目录都会自动挂载)。
+
+        :param storage_mount_policy: The storage_mount_policy of this UpdateServerGroupReq.
+        :type storage_mount_policy: str
+        """
+        self._storage_mount_policy = storage_mount_policy
+
+    @property
+    def image_id(self):
+        r"""Gets the image_id of this UpdateServerGroupReq.
+
+        服务器组关联的镜像ID，更新镜像ID只对组下新创建的云服务器生效。
+
+        :return: The image_id of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._image_id
+
+    @image_id.setter
+    def image_id(self, image_id):
+        r"""Sets the image_id of this UpdateServerGroupReq.
+
+        服务器组关联的镜像ID，更新镜像ID只对组下新创建的云服务器生效。
+
+        :param image_id: The image_id of this UpdateServerGroupReq.
+        :type image_id: str
+        """
+        self._image_id = image_id
+
+    @property
+    def image_product_id(self):
+        r"""Gets the image_product_id of this UpdateServerGroupReq.
+
+        服务器组的镜像的productId。
+
+        :return: The image_product_id of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._image_product_id
+
+    @image_product_id.setter
+    def image_product_id(self, image_product_id):
+        r"""Sets the image_product_id of this UpdateServerGroupReq.
+
+        服务器组的镜像的productId。
+
+        :param image_product_id: The image_product_id of this UpdateServerGroupReq.
+        :type image_product_id: str
+        """
+        self._image_product_id = image_product_id
+
+    @property
+    def image_type(self):
+        r"""Gets the image_type of this UpdateServerGroupReq.
+
+        镜像类型： * `gold` - 云市场镜像 * `public` - 公共镜像 * `private` - 私有镜像 * `shared` - 共享镜像 * `other` - 其他
+
+        :return: The image_type of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._image_type
+
+    @image_type.setter
+    def image_type(self, image_type):
+        r"""Sets the image_type of this UpdateServerGroupReq.
+
+        镜像类型： * `gold` - 云市场镜像 * `public` - 公共镜像 * `private` - 私有镜像 * `shared` - 共享镜像 * `other` - 其他
+
+        :param image_type: The image_type of this UpdateServerGroupReq.
+        :type image_type: str
+        """
+        self._image_type = image_type
+
+    @property
+    def system_disk_type(self):
+        r"""Gets the system_disk_type of this UpdateServerGroupReq.
+
+        磁盘类型，获取可用磁盘类型详见接口磁盘管理ListVolumeType。 * `ESSD` - 极速型SSD * `SSD` - 超高IO * `GPSSD` - 通用型SSD * `SAS` - 高IO * `SATA` - 普通IO
+
+        :return: The system_disk_type of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._system_disk_type
+
+    @system_disk_type.setter
+    def system_disk_type(self, system_disk_type):
+        r"""Sets the system_disk_type of this UpdateServerGroupReq.
+
+        磁盘类型，获取可用磁盘类型详见接口磁盘管理ListVolumeType。 * `ESSD` - 极速型SSD * `SSD` - 超高IO * `GPSSD` - 通用型SSD * `SAS` - 高IO * `SATA` - 普通IO
+
+        :param system_disk_type: The system_disk_type of this UpdateServerGroupReq.
+        :type system_disk_type: str
+        """
+        self._system_disk_type = system_disk_type
+
+    @property
+    def system_disk_size(self):
+        r"""Gets the system_disk_size of this UpdateServerGroupReq.
+
+        磁盘容量，单位GB。
+
+        :return: The system_disk_size of this UpdateServerGroupReq.
+        :rtype: int
+        """
+        return self._system_disk_size
+
+    @system_disk_size.setter
+    def system_disk_size(self, system_disk_size):
+        r"""Sets the system_disk_size of this UpdateServerGroupReq.
+
+        磁盘容量，单位GB。
+
+        :param system_disk_size: The system_disk_size of this UpdateServerGroupReq.
+        :type system_disk_size: int
+        """
+        self._system_disk_size = system_disk_size
+
+    @property
+    def ou_name(self):
+        r"""Gets the ou_name of this UpdateServerGroupReq.
+
+        默认组织名称。
+
+        :return: The ou_name of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._ou_name
+
+    @ou_name.setter
+    def ou_name(self, ou_name):
+        r"""Sets the ou_name of this UpdateServerGroupReq.
+
+        默认组织名称。
+
+        :param ou_name: The ou_name of this UpdateServerGroupReq.
+        :type ou_name: str
+        """
+        self._ou_name = ou_name
+
+    @property
+    def app_type(self):
+        r"""Gets the app_type of this UpdateServerGroupReq.
+
+        服务器组应用类型： * `SESSION_DESKTOP_APP` - 会话桌面app * `COMMON_APP` - 普通app
+
+        :return: The app_type of this UpdateServerGroupReq.
+        :rtype: str
+        """
+        return self._app_type
+
+    @app_type.setter
+    def app_type(self, app_type):
+        r"""Sets the app_type of this UpdateServerGroupReq.
+
+        服务器组应用类型： * `SESSION_DESKTOP_APP` - 会话桌面app * `COMMON_APP` - 普通app
+
+        :param app_type: The app_type of this UpdateServerGroupReq.
+        :type app_type: str
+        """
+        self._app_type = app_type
+
+    @property
+    def server_group_status(self):
+        r"""Gets the server_group_status of this UpdateServerGroupReq.
+
+        服务器是否处于禁用状态： * `true` - 启用状态 * `false` - 禁用状态
+
+        :return: The server_group_status of this UpdateServerGroupReq.
+        :rtype: bool
+        """
+        return self._server_group_status
+
+    @server_group_status.setter
+    def server_group_status(self, server_group_status):
+        r"""Sets the server_group_status of this UpdateServerGroupReq.
+
+        服务器是否处于禁用状态： * `true` - 启用状态 * `false` - 禁用状态
+
+        :param server_group_status: The server_group_status of this UpdateServerGroupReq.
+        :type server_group_status: bool
+        """
+        self._server_group_status = server_group_status
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, UpdateServerGroupReq):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

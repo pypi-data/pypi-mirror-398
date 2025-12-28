@@ -1,0 +1,253 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ImageJobInfo:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'id': 'str',
+        'job_type': 'str',
+        'begin_time': 'datetime',
+        'end_time': 'datetime',
+        'status': 'str',
+        'sub_jobs_total': 'int'
+    }
+
+    attribute_map = {
+        'id': 'id',
+        'job_type': 'job_type',
+        'begin_time': 'begin_time',
+        'end_time': 'end_time',
+        'status': 'status',
+        'sub_jobs_total': 'sub_jobs_total'
+    }
+
+    def __init__(self, id=None, job_type=None, begin_time=None, end_time=None, status=None, sub_jobs_total=None):
+        r"""ImageJobInfo
+
+        The model defined in huaweicloud sdk
+
+        :param id: 任务ID。
+        :type id: str
+        :param job_type: job类型。 * &#x60;CREATE_SERVER&#x60; - 创建镜像实例 * &#x60;CREATE_SERVER_IMAGE&#x60; - 构建镜像 * &#x60;DELETE_SERVER&#x60; - 删除镜像实例
+        :type job_type: str
+        :param begin_time: 任务创建时间。
+        :type begin_time: datetime
+        :param end_time: 任务结束时间。
+        :type end_time: datetime
+        :param status: job状态。 * &#x60;WAITING&#x60; - 等待 * &#x60;RUNNING&#x60; - 运行中 * &#x60;SUCCESS - 完成 * &#x60;FAILED&#x60; - 失败
+        :type status: str
+        :param sub_jobs_total: 子任务总数。
+        :type sub_jobs_total: int
+        """
+        
+        
+
+        self._id = None
+        self._job_type = None
+        self._begin_time = None
+        self._end_time = None
+        self._status = None
+        self._sub_jobs_total = None
+        self.discriminator = None
+
+        if id is not None:
+            self.id = id
+        if job_type is not None:
+            self.job_type = job_type
+        if begin_time is not None:
+            self.begin_time = begin_time
+        if end_time is not None:
+            self.end_time = end_time
+        if status is not None:
+            self.status = status
+        if sub_jobs_total is not None:
+            self.sub_jobs_total = sub_jobs_total
+
+    @property
+    def id(self):
+        r"""Gets the id of this ImageJobInfo.
+
+        任务ID。
+
+        :return: The id of this ImageJobInfo.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this ImageJobInfo.
+
+        任务ID。
+
+        :param id: The id of this ImageJobInfo.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def job_type(self):
+        r"""Gets the job_type of this ImageJobInfo.
+
+        job类型。 * `CREATE_SERVER` - 创建镜像实例 * `CREATE_SERVER_IMAGE` - 构建镜像 * `DELETE_SERVER` - 删除镜像实例
+
+        :return: The job_type of this ImageJobInfo.
+        :rtype: str
+        """
+        return self._job_type
+
+    @job_type.setter
+    def job_type(self, job_type):
+        r"""Sets the job_type of this ImageJobInfo.
+
+        job类型。 * `CREATE_SERVER` - 创建镜像实例 * `CREATE_SERVER_IMAGE` - 构建镜像 * `DELETE_SERVER` - 删除镜像实例
+
+        :param job_type: The job_type of this ImageJobInfo.
+        :type job_type: str
+        """
+        self._job_type = job_type
+
+    @property
+    def begin_time(self):
+        r"""Gets the begin_time of this ImageJobInfo.
+
+        任务创建时间。
+
+        :return: The begin_time of this ImageJobInfo.
+        :rtype: datetime
+        """
+        return self._begin_time
+
+    @begin_time.setter
+    def begin_time(self, begin_time):
+        r"""Sets the begin_time of this ImageJobInfo.
+
+        任务创建时间。
+
+        :param begin_time: The begin_time of this ImageJobInfo.
+        :type begin_time: datetime
+        """
+        self._begin_time = begin_time
+
+    @property
+    def end_time(self):
+        r"""Gets the end_time of this ImageJobInfo.
+
+        任务结束时间。
+
+        :return: The end_time of this ImageJobInfo.
+        :rtype: datetime
+        """
+        return self._end_time
+
+    @end_time.setter
+    def end_time(self, end_time):
+        r"""Sets the end_time of this ImageJobInfo.
+
+        任务结束时间。
+
+        :param end_time: The end_time of this ImageJobInfo.
+        :type end_time: datetime
+        """
+        self._end_time = end_time
+
+    @property
+    def status(self):
+        r"""Gets the status of this ImageJobInfo.
+
+        job状态。 * `WAITING` - 等待 * `RUNNING` - 运行中 * `SUCCESS - 完成 * `FAILED` - 失败
+
+        :return: The status of this ImageJobInfo.
+        :rtype: str
+        """
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        r"""Sets the status of this ImageJobInfo.
+
+        job状态。 * `WAITING` - 等待 * `RUNNING` - 运行中 * `SUCCESS - 完成 * `FAILED` - 失败
+
+        :param status: The status of this ImageJobInfo.
+        :type status: str
+        """
+        self._status = status
+
+    @property
+    def sub_jobs_total(self):
+        r"""Gets the sub_jobs_total of this ImageJobInfo.
+
+        子任务总数。
+
+        :return: The sub_jobs_total of this ImageJobInfo.
+        :rtype: int
+        """
+        return self._sub_jobs_total
+
+    @sub_jobs_total.setter
+    def sub_jobs_total(self, sub_jobs_total):
+        r"""Sets the sub_jobs_total of this ImageJobInfo.
+
+        子任务总数。
+
+        :param sub_jobs_total: The sub_jobs_total of this ImageJobInfo.
+        :type sub_jobs_total: int
+        """
+        self._sub_jobs_total = sub_jobs_total
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ImageJobInfo):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
