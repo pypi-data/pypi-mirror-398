@@ -1,0 +1,135 @@
+# Enhanced Codebase Indexer MCP Tool - Workflow Configuration
+# Single comprehensive workflow for all code analysis operations
+
+workflows:
+  main_workflow:
+    - id: comprehensive_analysis_workflow
+      description: "Universal workflow for all codebase analysis operations with intelligent routing"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        - id: normalize_input
+          agent: input_normalizer
+          input: |
+            user_input: ${user_input}
+            user_query: ${user_query}
+          output:
+            to: classify_analysis_intent
+
+        - id: classify_analysis_intent
+          agent: code_analysis_classifier
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            
+            Classify this codebase analysis request as one of:
+            - architecture_analysis: Analyze system architecture and design patterns
+            - code_quality_review: Assess code quality, metrics, and best practices
+            - dependency_analysis: Analyze dependencies and relationships
+            - security_audit: Security-focused code review
+            - performance_analysis: Performance bottlenecks and optimization
+            - documentation_review: Code documentation and comments analysis
+            - refactoring_suggestions: Identify refactoring opportunities
+            - pattern_detection: Detect design patterns and anti-patterns
+            - code_navigation: Help navigate and understand specific code sections
+            
+            Return the classification and specific focus areas.
+          output:
+            to: scope_analysis
+
+        - id: scope_analysis
+          agent: code_scope_analyzer
+          input: |
+            Analysis type: ${context.step_outputs.classify_analysis_intent}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Determine the scope of analysis needed.
+          output:
+            to:
+              - condition:
+                  switch: "${context.step_outputs.classify_analysis_intent.type}"
+                  cases:
+                    architecture_analysis: perform_architecture_analysis
+                    code_quality_review: perform_quality_analysis
+                  default: perform_general_analysis
+
+        - id: perform_architecture_analysis
+          agent: architecture_analyst
+          input: |
+            Scope: ${context.step_outputs.scope_analysis}
+            Request: ${context.step_outputs.normalize_input}
+            
+            Perform comprehensive architecture analysis using codebase_indexer tools.
+          output:
+            to: integrate_findings
+
+        - id: perform_quality_analysis
+          agent: code_quality_inspector
+          input: |
+            Scope: ${context.step_outputs.scope_analysis}
+            Request: ${context.step_outputs.normalize_input}
+            
+            Analyze code quality using codebase_indexer tools.
+          output:
+            to: integrate_findings
+
+        - id: perform_general_analysis
+          agent: code_navigator
+          input: |
+            Analysis type: ${context.step_outputs.classify_analysis_intent.type}
+            Scope: ${context.step_outputs.scope_analysis}
+            Request: ${context.step_outputs.normalize_input}
+            
+            Perform the requested codebase analysis using appropriate tools.
+          output:
+            to: integrate_findings
+
+        - id: integrate_findings
+          agent: integration_coordinator
+          input: |
+            Analysis type: ${context.step_outputs.classify_analysis_intent.type}
+            Architecture results: ${context.step_outputs.perform_architecture_analysis}
+            Quality results: ${context.step_outputs.perform_quality_analysis}
+            General results: ${context.step_outputs.perform_general_analysis}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Integrate all analysis results into a comprehensive assessment.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.integrate_findings.success} == true"
+                  then: generate_recommendations
+                  else: handle_analysis_error
+
+        - id: generate_recommendations
+          agent: code_recommendation_engine
+          input: |
+            Integrated findings: ${context.step_outputs.integrate_findings}
+            Analysis type: ${context.step_outputs.classify_analysis_intent.type}
+            
+            Generate specific, actionable recommendations based on the analysis.
+          output:
+            to: format_analysis_response
+
+        - id: format_analysis_response
+          agent: code_analysis_formatter
+          input: |
+            Analysis type: ${context.step_outputs.classify_analysis_intent.type}
+            Findings: ${context.step_outputs.integrate_findings}
+            Recommendations: ${context.step_outputs.generate_recommendations}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Format a comprehensive code analysis response.
+          output:
+            to: user
+
+        - id: handle_analysis_error
+          agent: code_analysis_error_handler
+          input: |
+            Error details: ${context.step_outputs.integrate_findings}
+            Analysis type: ${context.step_outputs.classify_analysis_intent.type}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Provide helpful error guidance and alternative analysis approaches.
+          output:
+            to: user

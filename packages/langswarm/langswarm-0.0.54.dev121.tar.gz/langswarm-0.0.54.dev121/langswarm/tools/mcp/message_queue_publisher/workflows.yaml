@@ -1,0 +1,110 @@
+workflows:
+  main_workflow:
+    - id: use_message_queue_tool
+      description: "Universal workflow for all message queue publishing operations"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        - id: normalize_input
+          agent: input_normalizer
+          input: |
+            user_input: ${user_input}
+            user_query: ${user_query}
+          output:
+            to: classify_publish_intent
+
+        - id: classify_publish_intent
+          agent: message_intent_classifier
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            
+            Classify this message queue request as one of:
+            - publish_message: Send a message to a queue
+            - publish_batch: Send multiple messages at once
+            - schedule_message: Schedule a message for future delivery
+            - broadcast_message: Send message to multiple queues/topics
+            - configure_queue: Set up or modify queue configuration
+            - queue_status: Check queue status and health
+            
+            Return the classification and specific parameters.
+          output:
+            to: extract_message_details
+
+        - id: extract_message_details
+          agent: message_extractor
+          input: |
+            Operation: ${context.step_outputs.classify_publish_intent}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Extract message publishing details.
+          output:
+            to: validate_message_format
+
+        - id: validate_message_format
+          agent: message_validator
+          input: |
+            Operation: ${context.step_outputs.classify_publish_intent.type}
+            Message details: ${context.step_outputs.extract_message_details}
+            
+            Validate the message format and publishing parameters.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.validate_message_format.valid} == true"
+                  then: build_publish_request
+                  else: request_message_correction
+
+        - id: request_message_correction
+          agent: message_correction_agent
+          input: |
+            Validation errors: ${context.step_outputs.validate_message_format.errors}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Request corrections for message format or parameters.
+          output:
+            to: user
+
+        - id: build_publish_request
+          agent: queue_request_builder
+          input: |
+            Operation: ${context.step_outputs.classify_publish_intent.type}
+            Validated params: ${context.step_outputs.validate_message_format}
+            
+            Build the message queue publishing request.
+          output:
+            to: execute_publish_operation
+
+        - id: execute_publish_operation
+          function: langswarm.core.utils.workflows.functions.mcp_call
+          args:
+            mcp_url: "local://message_queue_publisher"
+            payload: ${context.step_outputs.build_publish_request}
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.execute_publish_operation.success} == true"
+                  then: format_publish_response
+                  else: handle_publish_error
+
+        - id: format_publish_response
+          agent: publish_response_formatter
+          input: |
+            Operation: ${context.step_outputs.classify_publish_intent.type}
+            Publish result: ${context.step_outputs.execute_publish_operation}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Format the publishing response.
+          output:
+            to: user
+
+        - id: handle_publish_error
+          agent: publish_error_handler
+          input: |
+            Error details: ${context.step_outputs.execute_publish_operation}
+            Operation attempted: ${context.step_outputs.classify_publish_intent.type}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Provide helpful error guidance and suggest alternatives.
+          output:
+            to: user

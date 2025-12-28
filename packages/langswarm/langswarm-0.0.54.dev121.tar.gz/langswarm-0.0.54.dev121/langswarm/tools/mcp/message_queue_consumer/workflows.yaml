@@ -1,0 +1,112 @@
+version: "1.0"
+
+workflows:
+  main_workflow:
+    - id: start_queue_consumer
+      description: "Universal workflow for all message queue consumer operations"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        - id: normalize_input
+          agent: input_normalizer
+          input: |
+            user_input: ${user_input}
+            user_query: ${user_query}
+          output:
+            to: classify_consumer_intent
+
+        - id: classify_consumer_intent
+          agent: consumer_intent_classifier
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            
+            Classify this message queue consumer request as one of:
+            - start_consumer: Start consuming messages from queue(s)
+            - stop_consumer: Stop active consumer processes
+            - consumer_status: Check consumer status and performance
+            - configure_consumer: Set up or modify consumer configuration
+            - process_messages: Process specific messages or batches
+            - monitor_queues: Monitor queue activity and metrics
+            
+            Return the classification and specific parameters.
+          output:
+            to: extract_consumer_config
+
+        - id: extract_consumer_config
+          agent: consumer_config_extractor
+          input: |
+            Operation: ${context.step_outputs.classify_consumer_intent}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Extract consumer configuration details.
+          output:
+            to: validate_consumer_setup
+
+        - id: validate_consumer_setup
+          agent: consumer_validator
+          input: |
+            Operation: ${context.step_outputs.classify_consumer_intent.type}
+            Consumer config: ${context.step_outputs.extract_consumer_config}
+            
+            Validate the consumer configuration.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.validate_consumer_setup.valid} == true"
+                  then: coordinate_consumer_task
+                  else: request_config_correction
+
+        - id: request_config_correction
+          agent: config_correction_agent
+          input: |
+            Validation errors: ${context.step_outputs.validate_consumer_setup.errors}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Request corrections for consumer configuration.
+          output:
+            to: user
+
+        - id: coordinate_consumer_task
+          agent: task_consumer_coordinator
+          input: |
+            Operation: ${context.step_outputs.classify_consumer_intent.type}
+            Validated config: ${context.step_outputs.validate_consumer_setup}
+            
+            Coordinate the consumer operation.
+          output:
+            to: execute_consumer_operation
+
+        - id: execute_consumer_operation
+          function: langswarm.core.utils.workflows.functions.mcp_call
+          args:
+            mcp_url: "local://message_queue_consumer"
+            payload: ${context.step_outputs.coordinate_consumer_task}
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.execute_consumer_operation.success} == true"
+                  then: format_consumer_response
+                  else: handle_consumer_error
+
+        - id: format_consumer_response
+          agent: consumer_response_formatter
+          input: |
+            Operation: ${context.step_outputs.classify_consumer_intent.type}
+            Consumer result: ${context.step_outputs.execute_consumer_operation}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Format the consumer response.
+          output:
+            to: user
+
+        - id: handle_consumer_error
+          agent: consumer_error_handler
+          input: |
+            Error details: ${context.step_outputs.execute_consumer_operation}
+            Operation attempted: ${context.step_outputs.classify_consumer_intent.type}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Provide helpful error guidance and recovery options.
+          output:
+            to: user
