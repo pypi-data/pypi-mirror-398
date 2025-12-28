@@ -1,0 +1,3 @@
+from decimal import ROUND_HALF_UP
+
+DEFAULT_ROUNDING = ROUND_HALF_UP
