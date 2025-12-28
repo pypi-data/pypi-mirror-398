@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# Verify that paths in index (i.e. files being committed) comply
+# with the pipeline codestyle checks and create a commit
+# only if all checks pass
+# https://git-scm.com/docs/git-diff#Documentation/git-diff.txt---diff-filterACDMRTUXB82308203
+files_changed=$(git diff --diff-filter=ACM --cached --name-only -- "*.py")
+files_change_py=$(git diff --diff-filter=ACM --cached --name-only -- "*.py")
+files_changed_no_tests=$(git diff --diff-filter=ACM --cached --name-only -- "*.py" |
+    grep -ve "test_[^\\\/]\+\.py")
+
+exit_on_error() {
+    exit_code=$1
+    if [ $exit_code -ne 0 ]; then
+        >&2 echo "Codestyle checks failed. Commit aborted!"
+        exit $exit_code
+    fi
+}
+
+# Exit with 0 if no files changed in index (e.g. if amending the commit message only)
+[ -z "$files_changed" ] && exit 0
+
+if [ -n "$files_change_py" ]; then
+  echo "Checking ruff..."
+  ruff check --fix $files_change_py
+  exit_on_error $?
+fi
+
+if [ -n "$files_change_py" ]; then
+  echo "Formatting with ruff..."
+  ruff format $files_change_py
+  exit_on_error $?
+fi
+
+git add $files_changed
+exit 0
