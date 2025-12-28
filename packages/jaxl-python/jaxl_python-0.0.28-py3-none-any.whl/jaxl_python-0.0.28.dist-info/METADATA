@@ -1,0 +1,520 @@
+Metadata-Version: 2.4
+Name: jaxl-python
+Version: 0.0.28
+Summary: Official Python SDK and CLI for interfacing with the Jaxl API. Manage calls, messages, IVRs, devices, teams, payments, campaigns, streaming transcriptions and AI Agents. Built on OpenAPI, it offers both generated API clients and Pythonic wrappers for ease of use.
+Home-page: https://github.com/jaxl-innovations-private-limited/jaxl-python
+Download-URL: https://github.com/jaxl-innovations-private-limited/jaxl-python/archive/main.zip
+Author: Jaxl Innovations Private Limited
+Author-email: engineering@jaxl.com
+License: 'Proprietary'
+Project-URL: CI: GitHub, https://github.com/jaxl-innovations-private-limited/jaxl-python/actions
+Project-URL: GitHub: discussions, https://github.com/jaxl-innovations-private-limited/jaxl-python/discussions
+Project-URL: GitHub: issues, https://github.com/jaxl-innovations-private-limited/jaxl-python/issues
+Project-URL: GitHub: repo, https://github.com/jaxl-innovations-private-limited/jaxl-python
+Keywords: jaxl,api,client,sdk,openapi
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Environment :: No Input/Output (Daemon)
+Classifier: Environment :: Web Environment
+Classifier: Environment :: MacOS X
+Classifier: Environment :: Plugins
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Natural Language :: English
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: MacOS :: MacOS 9
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: Unix
+Classifier: Operating System :: Microsoft
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: Microsoft :: Windows :: Windows 10
+Classifier: Operating System :: Android
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: Implementation
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: httpx==0.28.1
+Requires-Dist: attrs>=21.3.0
+Requires-Dist: python-dateutil<3,>=2.8.0
+Requires-Dist: cryptography==46.0.2
+Requires-Dist: PyJWT==2.8.0
+Requires-Dist: requests==2.32.4
+Requires-Dist: pydantic==2.11.9
+Provides-Extra: dev
+Requires-Dist: isort; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: autoflake; extra == "dev"
+Requires-Dist: pylint==3.3.3; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: pdoc3==0.11.6; extra == "docs"
+Requires-Dist: mkdocs==1.6.1; extra == "docs"
+Requires-Dist: mkdocstrings==0.30.1; extra == "docs"
+Requires-Dist: mkdocstrings-python==1.18.2; extra == "docs"
+Provides-Extra: types
+Requires-Dist: types-python-dateutil; extra == "types"
+Requires-Dist: types-PyYAML==6.0.12.20250915; extra == "types"
+Requires-Dist: types-Pygments==2.19.0.20250809; extra == "types"
+Requires-Dist: types-ujson==5.10.0.20250822; extra == "types"
+Requires-Dist: types-requests==2.32.0.20240602; extra == "types"
+Provides-Extra: app
+Requires-Dist: uvicorn[standard]==0.35.0; extra == "app"
+Requires-Dist: fastapi==0.116.1; extra == "app"
+Provides-Extra: grout
+Requires-Dist: proxy.py==2.4.10; extra == "grout"
+Provides-Extra: silence
+Requires-Dist: webrtcvad==2.0.10; extra == "silence"
+Requires-Dist: setuptools==80.9.0; extra == "silence"
+Provides-Extra: transcribe
+Requires-Dist: openai-whisper==20240930; extra == "transcribe"
+Requires-Dist: numpy==1.26.4; extra == "transcribe"
+Provides-Extra: openai
+Requires-Dist: openai==2.1.0; extra == "openai"
+Provides-Extra: release
+Requires-Dist: build; extra == "release"
+Requires-Dist: twine; extra == "release"
+Dynamic: download-url
+Dynamic: license-file
+
+# Jaxl CLI & Jaxl Python API Client
+
+Use Jaxl from Python code or directly via the `jaxl` command-line tool.
+
+1. [Install](#install)
+2. [JAXL CLI](#jaxl-cli)
+   - [Setup](#setup)
+   - [Verify API Credentials & Auth Token](#verify-api-credentials--auth-token)
+   - [Check Account Balance](#check-account-balance)
+   - [Create an IVR](#create-an-ivr)
+   - [Create a hangup IVR](#create-a-hangup-ivr)
+   - [Configure IVR Options](#configure-ivr-options)
+   - [List IVRs](#list-ivrs)
+   - [List Purchased Jaxl Numbers](#list-purchased-jaxl-numbers)
+   - [Assign a Phone Number to IVR by ID](#assign-a-phone-number-to-ivr-by-id)
+   - [Place Outgoing Cellular Call with Existing IVR](#place-outgoing-cellular-call-with-existing-ivr)
+   - [Place Outgoing Cellular Call with Ad-hoc IVR](#place-outgoing-cellular-call-with-ad-hoc-ivr)
+   - [Dial-out 2-Party Conference with Ad-hoc IVR](#dial-out-2-party-conference-with-ad-hoc-ivr)
+   - [Add External Phone Number to an Active Call](#add-external-phone-number-to-an-active-call)
+   - [Add External Phone Number via Another Phone Number to an Active Call](#add-external-phone-number-via-another-phone-number-to-an-active-call)
+   - [Add Agent to an Active Call](#add-agent-to-an-active-call)
+   - [Remove External Phone Number from an Active Call](#remove-external-phone-number-from-an-active-call)
+   - [Remove Agent from an Active Call](#remove-agent-from-an-active-call)
+   - [Send Text Prompts (TTS) in an Active Call](#send-text-prompts-tts-in-an-active-call)
+   - [Play Audio File in an Active Call](#play-audio-file-in-an-active-call)
+   - [Mute a Participant in an Active Call](#mute-a-participant-in-an-active-call)
+   - [Unmute a Participant in an Active Call](#unmute-a-participant-in-an-active-call)
+   - [Hold a Participant in an Active Call](#hold-a-participant-in-an-active-call)
+   - [Unhold a Participant in an Active Call](#unhold-a-participant-in-an-active-call)
+   - [Get call details](#get-call-details)
+   - [Receive Call Events via Webhook IVRs](#receive-call-events-via-webhook-ivrs)
+   - [Realtime Streaming Audio](#realtime-streaming-audio)
+   - [Realtime Streaming Speech Segments](#realtime-streaming-speech-segments)
+   - [Realtime Streaming Transcriptions per Speech Segment](#realtime-streaming-transcriptions-per-speech-segment)
+   - [AI Agent: Realtime Transcriptions STT ➡️ LLM/MCP ➡️ TTS](#ai-agent-realtime-transcriptions-stt-️-llmmcp-️-tts)
+   - [List Subscriptions Payments](#list-subscriptions-payments)
+   - [List Consumable Payments](#list-consumable-payments)
+3. [Jaxl Python SDK](#jaxl-python-sdk)
+   - [SDK Example Usage](#sdk-example-usage)
+4. [JAXL HTTP Webhook Protocol](./SPECIFICATION.md)
+5. [SDK Documentation](#sdk-documentation)
+6. [Status](#status)
+
+## Install
+
+`pip install -U jaxl-python`
+
+## JAXL CLI
+
+```bash
+jaxl -h
+usage: jaxl [-h] {accounts,apps,calls,campaigns,devices,ivrs,kycs,members,messages,notifications,orgs,payments,phones,teams} ...
+
+Jaxl CLI
+
+positional arguments:
+  {accounts,apps,calls,campaigns,devices,ivrs,kycs,members,messages,notifications,orgs,payments,phones,teams}
+    accounts            Manage Accounts
+    apps                Manage Apps for Webhooks and Streaming audio/speech/transcriptions.
+    calls               Manage Calls (Domestic & International Cellular, App-to-App)
+    campaigns           Manage Campaigns
+    devices             Manage Devices
+    ivrs                Manage IVRs (Interactive Voice Response)
+    kycs                Manage KYCs
+    members             Manage Members
+    messages            Manage Messages (SMS, WA, RCS, Email, App-to-App)
+    notifications       Manage Notifications (Android, iOS, Web)
+    orgs                Manage Organizations
+    payments            Manage Payments
+    phones              Manage Phones (Landline, Mobile, TollFree)
+    teams               Manage Teams (Managers, Phones)
+
+options:
+  -h, --help            show this help message and exit
+```
+
+### Setup
+
+You will require the following to successfully run `jaxl` command line tool:
+
+- `JAXL_API_CREDENTIALS`: Required to connect with Jaxl API Infrastructure
+- `JAXL_API_AUTH_TOKEN`: Ensure necessary permissions are added to generated auth token.
+
+Please visit [Jaxl Business Website](https://business.jaxl.com) or download the [Jaxl Business Android](https://play.google.com/store/apps/details?id=com.jaxl.business) or [Jaxl Business iOS](https://apps.apple.com/app/id6451118240) mobile application to access your credentials and auth tokens.
+
+[![Setup](https://raw.githubusercontent.com/jaxl-innovations-private-limited/jaxl-python/main/setup.gif)](https://github.com/jaxl-innovations-private-limited/jaxl-python#setup)
+
+Finally, setup following environment variables when trying `jaxl` command line.
+
+```bash
+export JAXL_API_CREDENTIALS=/path/to/jaxl-api-credentials.json
+export JAXL_API_AUTH_TOKEN="....authentication token...."
+```
+
+### Verify API Credentials & Auth Token
+
+```bash
+jaxl accounts me
+```
+
+### Check Account Balance
+
+```bash
+jaxl accounts balance
+```
+
+### Create an IVR
+
+```bash
+jaxl ivrs create \
+  --message "Hello, we are calling via Jaxl IVR demo created from CLI"
+```
+
+### Create a hangup IVR
+
+This IVR will speak the message and then hangup the call.
+
+```bash
+jaxl ivrs create \
+  --message "Hello, we are calling via Jaxl IVR demo created from CLI.  Will hang up after speaking this message." \
+  --hangup
+```
+
+### Configure IVR Options
+
+This IVR option uses `--next` to send user to another IVR or to the same IVR for a "repeat this menu" experience.
+
+```bash
+jaxl ivrs options configure \
+  --ivr <IVR ID TO CONFIGURE> \
+  --input 0 \
+  --message "Press 0 to repeat this menu" \
+  --next <NEXT IVR ID>
+```
+
+> Use same value for &lt;IVR ID TO CONFIGURE&gt; and &lt;NEXT IVR ID&gt; to complete the "repeat this menu" experience.
+
+One of the CTA key flag must be provided. Allowed CTA keys are:
+
+- `--next`: Send to another IVR
+- `--phone`: Send to an external phone number
+- `--devices`: Send to devices by ID
+- `--appusers`: Send to app users (org employees) by ID
+- `--teams`: Send to teams by ID
+
+### List IVRs
+
+```bash
+jaxl ivrs list
+```
+
+### List Purchased Jaxl Numbers
+
+```bash
+jaxl phones list
+```
+
+You can also search for a specific purchased number:
+
+```bash
+jaxl phones list --e164 "+CC<Purchased Jaxl Number>"
+```
+
+### Assign a Phone Number to IVR by ID
+
+All incoming calls to this number will send user to the assigned IVR.
+
+```bash
+jaxl phones ivrs \
+  --e164 "+CC<Purchased Jaxl Number>" \
+  --ivr <IVR ID>
+```
+
+### Place Outgoing Cellular Call with Existing IVR
+
+Below command will execute the following flow:
+
+- Places a call to &lt;Callee Number&gt;
+- When answered sends them to an existing IVR ID
+- Once IVR finishes, call continues to CTA returned by IVR
+
+```bash
+jaxl calls create \
+  --to "+CC<Callee Number>" \
+  --from "+CC<Purchased Jaxl Number>" \
+  --ivr <IVR ID>
+```
+
+### Place Outgoing Cellular Call with Ad-hoc IVR
+
+Below command will execute the following flow:
+
+- Creates an Ad-hoc IVR using `--message` and `--option` flags
+- Places a call to <Callee Number>
+- When answered sends callee to the ad-hoc IVR
+- Once IVR finishes, call continues to CTA returned by IVR
+
+```bash
+jaxl calls create \
+  --to "+CC<Callee Number>" \
+  --from "+CC<Purchased Jaxl Number>" \
+  --message "Hello, we are calling you from MyCompany" \
+  --option "1=Press 1 for sales:team=<Sales Team ID>" \
+  --option "2=Press 2 for HR department:team=<HR Team ID>
+```
+
+### Dial-out 2-Party Conference with Ad-hoc IVR
+
+Below command will execute the following flow:
+
+- Dials out to Doctor first
+- When doctor answers the call, they are asked to press 1 when ready
+- If doctor presses 1, a second call is placed to the patient
+- Ends the call when one but all others have hanged up the call
+
+```bash
+jaxl calls create \
+  --to "+CC<Doctors Number>" \
+  --from "+CC<Purchased Jaxl Number>" \
+  --message "Hello Doctor, this is a call from MyCompany regarding your appointment with Mr. Patient Name. When ready please, " \
+  --option "1=Press 1 to connect with the patient:phone=+CC<Patient Number>"
+```
+
+### Add External Phone Number to an Active Call
+
+```bash
+jaxl calls add --call-id 1234 --e164 +CC<Mobile Number>
+```
+
+### Add External Phone Number via Another Phone Number to an Active Call
+
+```bash
+jaxl calls add --call-id 1234 --e164 +CC<Mobile Number> --from-e164 +CC<Purchased Jaxl Number>
+```
+
+### Add Agent to an Active Call
+
+```bash
+jaxl calls add --call-id 1234 --email <someone@mycompany.com>
+```
+
+### Remove External Phone Number from an Active Call
+
+```bash
+jaxl calls remove --call-id 1234 --e164 +CC<Mobile Number>
+```
+
+### Remove Agent from an Active Call
+
+```bash
+jaxl calls remove --call-id 1234 --email <someone@mycompany.com>
+```
+
+### Send Text Prompts (TTS) in an Active Call
+
+```bash
+jaxl calls tts --call-id 1234 \
+  --prompt "Hello, this text was injected in the middle of an active call"
+```
+
+### Play Audio File in an Active Call
+
+```bash
+jaxl calls play --call-id 1234 --audio /path/to/a/file/on/local/disk/or/public/url
+```
+
+> NOTE: Audio file must be in SLIN16 format i.e. 8KHz Mono 16-bit.
+
+### Mute a Participant in an Active Call
+
+Mute a specific cellular user in a call.
+
+```bash
+jaxl calls mute --call-id 1234 --e164 +CC<Mobile Number>
+```
+
+Mute an agent (Jaxl App User) in a call.
+
+```bash
+jaxl calls mute --call-id 1235 --email <someone@mycompany.com>
+```
+
+### Unmute a Participant in an Active Call
+
+Unmute a specific cellular user in a call.
+
+```bash
+jaxl calls unmute --call-id 1234 --e164 +CC<Mobile Number>
+```
+
+Unmute a specific agent (Jaxl App User) in a call.
+
+```bash
+jaxl calls unmute --call-id 1235 --email <someone@mycompany.com>
+```
+
+### Hold a Participant in an Active Call
+
+Put a cellular user on-hold in a call
+
+```bash
+jaxl calls hold --call-id 1234 --e164 +CC<Mobile Number>
+```
+
+Put an agent on-hold in a call
+
+```bash
+jaxl calls hold --call-id 1235 --email <someone@mycompany.com>
+```
+
+### Unhold a Participant in an Active Call
+
+Unhold a cellular user in a call
+
+```bash
+jaxl calls unhold --call-id 1234 --e164 +CC<Mobile Number>
+```
+
+Unhold an agent in a call
+
+```bash
+jaxl calls unhold --call-id 1235 --email <someone@mycompany.com>
+```
+
+### Get call details
+
+```bash
+jaxl calls get --call-id 1234
+```
+
+### Receive Call Events via Webhook IVRs
+
+Webhook IVRs can be used to programatically control the lifecycle of incoming and outgoing calls.
+Jaxl will invoke configured webhook URL for subscribed call events. Handle the webhook request and
+use Jaxl SDK to continue and customise the call flows.
+
+To create a webhook IVR, use a `https://` URL as `--message` flag e.g.
+
+```bash
+jaxl ivrs create --message "https://example.com/jaxl-webhook-ivr"
+```
+
+Next, assign a number to webhook IVR as shown previously under [Assign a Phone Number to IVR by ID](#assign-a-phone-number-to-ivr-by-id). Now, all incoming calls on the number will start with
+webhook before proceeding further.
+
+To control flow of outgoing calls, use webhook IVR ID when placing an outbound call. See [Place Outgoing Cellular Call with Existing IVR](#place-outgoing-cellular-call-with-existing-ivr)
+
+See [examples](https://github.com/jaxl-innovations-private-limited/jaxl-python/tree/main/examples) directory for working webhook examples.
+
+### Realtime Streaming Audio
+
+Refer to [examples](https://github.com/jaxl-innovations-private-limited/jaxl-python/tree/main/examples) directory for working streaming audio examples.
+
+### Realtime Streaming Speech Segments
+
+Refer to [examples](https://github.com/jaxl-innovations-private-limited/jaxl-python/tree/main/examples) directory for working streaming speech segments examples.
+
+### Realtime Streaming Transcriptions per Speech Segment
+
+Refer to [examples](https://github.com/jaxl-innovations-private-limited/jaxl-python/tree/main/examples) directory for working streaming transcription per speech segment examples.
+
+### AI Agent: Realtime Transcriptions STT ➡️ LLM/MCP ➡️ TTS
+
+Refer to [examples](https://github.com/jaxl-innovations-private-limited/jaxl-python/tree/main/examples) directory for working AI Agent examples.
+
+### List Subscriptions Payments
+
+```bash
+jaxl payments subscriptions list
+```
+
+### List Consumable Payments
+
+```bash
+jaxl payments consumables total
+```
+
+## Jaxl Python SDK
+
+- Jaxl APIs is built upon [OpenAPI specification](https://www.openapis.org/)
+
+### SDK Example Usage:
+
+```python
+from jaxl.api import JaxlSDK
+
+os.environ.setdefault("JAXL_API_CREDENTIALS", "/path/to/jaxl-api-credentials.json")
+
+os.environ.setdefault("JAXL_API_AUTH_TOKEN", "....authentication token...")
+
+sdk = JaxlSDK()
+
+response = sdk.calls.create(to="+CC<Callee Number>", from_="+CC<Purchased Jaxl Number>", ivr=1234)
+response = sdk.calls.list(currency=2) # 1=USD, 2=INR
+response = sdk.accounts.me()
+```
+
+## SDK Documentation
+
+```
+# Clone this repository
+git clone git@github.com:jaxl-innovations-private-limited/jaxl-python.git
+
+# Enter cloned repo directory
+cd jaxl-python
+
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install
+pip install -e ".[dev,docs]"
+
+# Generate documentation
+./docs.sh
+
+# View documentation in browser
+open docs/jaxl/index.html
+```
+
+## Status
+
+[![pypi version](https://img.shields.io/pypi/v/jaxl-python)](https://pypi.org/project/jaxl-python/)
+
+[![PyPi Monthly](https://img.shields.io/pypi/dm/jaxl-python)](https://pypi.org/project/jaxl-python/)
+
+[![Python 3.x](https://img.shields.io/static/v1?label=Python&message=3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12&color=blue)](https://www.python.org/)
+
+[![Checked with mypy](https://img.shields.io/static/v1?label=MyPy&message=checked&color=blue)](http://mypy-lang.org/)
