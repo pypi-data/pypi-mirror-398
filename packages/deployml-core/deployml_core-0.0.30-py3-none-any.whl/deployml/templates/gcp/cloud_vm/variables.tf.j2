@@ -1,0 +1,377 @@
+# --- Project and Region Configuration ---
+variable "project_id" {
+  description = "GCP project ID"
+  type        = string
+}
+
+variable "region" {
+  description = "GCP region for deployment"
+  type        = string
+  default     = "us-west2"
+}
+
+variable "zone" {
+  description = "The GCP zone to deploy the VM in"
+  type        = string
+  default     = "us-west2-a"
+}
+
+# --- Service Configuration ---
+variable "create_service" {
+  description = "Whether to create the MLflow service"
+  type        = bool
+  default     = true
+}
+
+variable "service_name" {
+  description = "Name for the MLflow service container"
+  type        = string
+  default     = "mlflow-server"
+}
+
+variable "create_bucket" {
+  description = "Whether to create the artifact storage bucket"
+  type        = bool
+  default     = false
+}
+
+# --- VM Configuration ---
+variable "vm_name" {
+  description = "Name for the VM instance"
+  type        = string
+  default     = "mlflow-vm"
+}
+
+variable "machine_type" {
+  description = "GCP machine type for the VM"
+  type        = string
+  default     = "e2-medium"
+}
+
+variable "disk_size_gb" {
+  description = "Boot disk size in GB"
+  type        = number
+  default     = 20
+}
+
+variable "disk_type" {
+  description = "Boot disk type"
+  type        = string
+  default     = "pd-balanced"
+}
+
+variable "image_family" {
+  description = "VM image family"
+  type        = string
+  default     = "debian-cloud/debian-12"
+}
+
+# --- MLflow Configuration ---
+variable "artifact_bucket" {
+  description = "GCS bucket for storing MLflow artifacts"
+  type        = string
+  default     = ""
+}
+
+variable "backend_store_uri" {
+  description = "URI for MLflow backend store"
+  type        = string
+  default     = ""
+}
+
+variable "image" {
+  description = "Docker image URI for MLflow server (optional - if empty, MLflow will be installed locally on the VM)"
+  type        = string
+  default     = ""
+}
+
+variable "mlflow_port" {
+  description = "Port for MLflow server"
+  type        = number
+  default     = 5000
+}
+
+variable "fastapi_port" {
+  description = "Port for FastAPI proxy server"
+  type        = number
+  default     = 8000
+}
+
+variable "fastapi_app_source" {
+  description = "Source location for FastAPI application main.py (GCS path, local file, or 'template' for default)"
+  type        = string
+  default     = "template"
+}
+
+variable "use_postgres" {
+  description = "Whether to use PostgreSQL backend"
+  type        = bool
+  default     = false
+}
+
+variable "cloudsql_instance_annotation" {
+  description = "Cloud SQL instance connection name"
+  type        = string
+  default     = ""
+}
+
+# --- Network and Security ---
+variable "allow_public_access" {
+  description = "Whether to allow public access to MLflow UI"
+  type        = bool
+  default     = true
+}
+
+variable "enable_https" {
+  description = "Whether to enable HTTPS for MLflow"
+  type        = bool
+  default     = false
+}
+
+variable "network" {
+  description = "VPC network name"
+  type        = string
+  default     = "default"
+}
+
+variable "subnetwork" {
+  description = "VPC subnetwork name"
+  type        = string
+  default     = ""
+}
+
+variable "allow_http_https" {
+  description = "Allow HTTP/HTTPS traffic"
+  type        = bool
+  default     = true
+}
+
+variable "tags" {
+  description = "Network tags for the VM"
+  type        = list(string)
+  default     = ["mlflow-server", "http-server", "https-server"]
+}
+
+# --- Identity and Access ---
+variable "service_account_email" {
+  description = "Custom service account email (optional)"
+  type        = string
+  default     = ""
+}
+
+# --- VM Metadata and Scripts ---
+variable "metadata" {
+  description = "Additional metadata for the VM"
+  type        = map(string)
+  default     = {}
+}
+
+variable "startup_script" {
+  description = "Custom startup script (optional, overrides default)"
+  type        = string
+  default     = ""
+}
+
+# --- Feast Configuration ---
+variable "feast_port" {
+  description = "Port for Feast server"
+  type        = number
+  default     = 6566
+}
+
+variable "registry_type" {
+  description = "Feast registry type (file or sql)"
+  type        = string
+  default     = "file"
+}
+
+variable "online_store_type" {
+  description = "Feast online store type (sqlite, datastore, bigtable)"
+  type        = string
+  default     = "sqlite"
+}
+
+variable "offline_store_type" {
+  description = "Feast offline store type (bigquery, file)"
+  type        = string
+  default     = "bigquery"
+}
+
+variable "bigquery_dataset" {
+  description = "BigQuery dataset for Feast offline store"
+  type        = string
+  default     = "{{ ('feast_offline_store_' ~ stack_name ~ '_' ~ project_id ~ '_' ~ name_hash) | replace('-', '_') }}"
+}
+
+variable "create_bigquery_dataset" {
+  description = "Whether to create the BigQuery dataset for Feast"
+  type        = bool
+  default     = true
+}
+
+variable "sample_data" {
+  description = "Whether to create sample sales data table for Feast"
+  type        = bool
+  default     = false
+}
+
+# --- FEAST Database Configuration ---
+variable "feast_database_name" {
+  description = "Name of the FEAST database (defaults to 'feast')"
+  type        = string
+  default     = "feast"
+}
+
+variable "feast_database_user" {
+  description = "Name of the FEAST database user (defaults to 'feast')"
+  type        = string
+  default     = "feast"
+}
+
+variable "feast_separate_database" {
+  description = "Whether to use a separate database for FEAST (recommended for production)"
+  type        = bool
+  default     = true
+}
+
+# --- Grafana Configuration ---
+variable "enable_grafana" {
+  description = "Whether to enable Grafana monitoring service"
+  type        = bool
+  default     = false
+}
+
+variable "grafana_port" {
+  description = "Port for Grafana server"
+  type        = number
+  default     = 3000
+}
+
+variable "grafana_admin_user" {
+  description = "Admin username for Grafana"
+  type        = string
+  default     = "admin"
+}
+
+variable "grafana_admin_password" {
+  description = "Admin password for Grafana"
+  type        = string
+  default     = "admin"
+}
+
+# --- Airflow Configuration ---
+variable "airflow_port" {
+  description = "Port for Airflow web UI"
+  type        = number
+  default     = 8080
+}
+
+variable "airflow_worker_port" {
+  description = "Port for Airflow worker logs"
+  type        = number
+  default     = 8793
+}
+
+variable "airflow_flower_port" {
+  description = "Port for Airflow Flower monitoring"
+  type        = number
+  default     = 5555
+}
+
+variable "airflow_database_name" {
+  description = "Name of the Airflow database (defaults to 'airflow')"
+  type        = string
+  default     = "airflow"
+}
+
+variable "airflow_database_user" {
+  description = "Name of the Airflow database user (defaults to 'airflow')"
+  type        = string
+  default     = "airflow"
+}
+
+variable "airflow_separate_database" {
+  description = "Whether to use a separate database for Airflow (recommended for production)"
+  type        = bool
+  default     = true
+}
+
+variable "airflow_admin_user" {
+  description = "Airflow admin username"
+  type        = string
+  default     = "admin"
+}
+
+variable "airflow_admin_password" {
+  description = "Airflow admin password"
+  type        = string
+  default     = "admin"
+}
+
+variable "airflow_secret_key" {
+  description = "Secret key for Airflow (auto-generated if empty)"
+  type        = string
+  default     = ""
+}
+
+variable "airflow_fernet_key" {
+  description = "Fernet key for Airflow encryption (auto-generated if empty)"
+  type        = string
+  default     = ""
+}
+
+variable "airflow_executor" {
+  description = "Airflow executor type (LocalExecutor, CeleryExecutor, KubernetesExecutor)"
+  type        = string
+  default     = "LocalExecutor"
+}
+
+variable "airflow_parallelism" {
+  description = "Maximum number of task instances that can run concurrently"
+  type        = number
+  default     = 32
+}
+
+variable "airflow_dag_concurrency" {
+  description = "Maximum number of task instances that can run concurrently per DAG"
+  type        = number
+  default     = 16
+}
+
+variable "airflow_max_active_runs_per_dag" {
+  description = "Maximum number of active DAG runs per DAG"
+  type        = number
+  default     = 16
+}
+
+# --- Dynamic Variables from YAML ---
+# Add any extra YAML params as string variables if not already defined
+{%- set defined = [
+  "project_id", "region", "zone", "create_service", "create_bucket", "service_name", "vm_name", "machine_type", "disk_size_gb", "disk_type", "image_family", "artifact_bucket", "backend_store_uri", "image", "allow_public_access", "mlflow_port", "fastapi_port", "fastapi_app_source", "enable_https", "service_account_email", "network", "subnetwork", "allow_http_https", "use_postgres", "cloudsql_instance_annotation", "tags", "metadata", "startup_script", "feast_port", "registry_type", "online_store_type", "offline_store_type", "bigquery_dataset", "create_bigquery_dataset", "sample_data", "feast_database_name", "feast_database_user", "feast_separate_database", "enable_grafana", "grafana_port", "grafana_admin_user", "grafana_admin_password", "airflow_port", "airflow_worker_port", "airflow_flower_port", "airflow_database_name", "airflow_database_user", "airflow_separate_database", "airflow_admin_user", "airflow_admin_password", "airflow_secret_key", "airflow_fernet_key", "airflow_executor", "airflow_parallelism", "airflow_dag_concurrency", "airflow_max_active_runs_per_dag"
+] -%}
+{%- set seen = [] -%}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% for key, value in tool.params.items() %}
+      {% if key not in defined and key not in seen %}
+        {%- set _ = seen.append(key) -%}
+variable "{{ key }}" {
+  type        = string
+  description = "YAML param {{ key }}"
+  default     = ""
+}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
+
+# --- Module Control Variables ---
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+variable "enable_{{ stage_name }}_{{ tool.name }}" {
+  description = "Enable/disable {{ stage_name }}_{{ tool.name }} module"
+  type        = bool
+  default     = true
+}
+  {% endfor %}
+{% endfor %}
