@@ -1,0 +1,355 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class BaseWidgetInfo:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'group_id': 'str',
+        'metrics': 'list[WidgetMetric]',
+        'title': 'str',
+        'threshold': 'float',
+        'threshold_enabled': 'bool',
+        'view': 'str',
+        'metric_display_mode': 'str',
+        'properties': 'BaseWidgetInfoProperties',
+        'location': 'BaseWidgetInfoLocation',
+        'unit': 'str'
+    }
+
+    attribute_map = {
+        'group_id': 'group_id',
+        'metrics': 'metrics',
+        'title': 'title',
+        'threshold': 'threshold',
+        'threshold_enabled': 'threshold_enabled',
+        'view': 'view',
+        'metric_display_mode': 'metric_display_mode',
+        'properties': 'properties',
+        'location': 'location',
+        'unit': 'unit'
+    }
+
+    def __init__(self, group_id=None, metrics=None, title=None, threshold=None, threshold_enabled=None, view=None, metric_display_mode=None, properties=None, location=None, unit=None):
+        r"""BaseWidgetInfo
+
+        The model defined in huaweicloud sdk
+
+        :param group_id: **参数解释** 视图分组id **约束限制** 不涉及           **取值范围** 字符串必须以dg开头，包含22个字母和数字，长度为24个字符 **默认取值** 不涉及 
+        :type group_id: str
+        :param metrics: **参数解释** 指标列表 **约束限制** 包含的指标数量最多为200个，最少为1个 
+        :type metrics: list[:class:`huaweicloudsdkces.v2.WidgetMetric`]
+        :param title: **参数解释** 监控视图标题 **约束限制** 不涉及           **取值范围** 长度为[1,128]个字符，允许包括以下内容：1、中文汉字；2、拉丁字母；3、英文大小写字母；4、数字(0-9)；5、符号： ” \&quot; ≤ &lt; &gt; &amp; % _ : / ; “ &#39; ? + , ~ ， （ ） º ( ) [ . - **默认取值** 不涉及 
+        :type title: str
+        :param threshold: **参数解释** 监控视图指标的阈值 **约束限制** 不涉及   **取值范围** 最小值为0，最大值为1.7976931348623157e+308 **默认取值** 不涉及 
+        :type threshold: float
+        :param threshold_enabled: **参数解释** 阈值是否展示 **约束限制** 不涉及   **取值范围** - true:展示 - false:不展示 **默认取值** 不涉及 
+        :type threshold_enabled: bool
+        :param view: **参数解释** 监控视图图表类型 **约束限制** 不涉及   **取值范围** - bar:条形图 - line:折线图 - bar_chart:柱状图 - table:表格 - circular_bar:环形柱状图 - area_chart:面积图 **默认取值** 不涉及 
+        :type view: str
+        :param metric_display_mode: **参数解释** 指标展示类型 **约束限制** 不涉及   **取值范围** - single:单指标展示 - multiple:多指标展示 **默认取值** 不涉及 
+        :type metric_display_mode: str
+        :param properties: 
+        :type properties: :class:`huaweicloudsdkces.v2.BaseWidgetInfoProperties`
+        :param location: 
+        :type location: :class:`huaweicloudsdkces.v2.BaseWidgetInfoLocation`
+        :param unit: **参数解释** 单位 **约束限制** 不涉及 **取值范围** 长度为[0,32]个字符 **默认取值** 不涉及 
+        :type unit: str
+        """
+        
+        
+
+        self._group_id = None
+        self._metrics = None
+        self._title = None
+        self._threshold = None
+        self._threshold_enabled = None
+        self._view = None
+        self._metric_display_mode = None
+        self._properties = None
+        self._location = None
+        self._unit = None
+        self.discriminator = None
+
+        if group_id is not None:
+            self.group_id = group_id
+        self.metrics = metrics
+        self.title = title
+        if threshold is not None:
+            self.threshold = threshold
+        self.threshold_enabled = threshold_enabled
+        self.view = view
+        self.metric_display_mode = metric_display_mode
+        if properties is not None:
+            self.properties = properties
+        self.location = location
+        if unit is not None:
+            self.unit = unit
+
+    @property
+    def group_id(self):
+        r"""Gets the group_id of this BaseWidgetInfo.
+
+        **参数解释** 视图分组id **约束限制** 不涉及           **取值范围** 字符串必须以dg开头，包含22个字母和数字，长度为24个字符 **默认取值** 不涉及 
+
+        :return: The group_id of this BaseWidgetInfo.
+        :rtype: str
+        """
+        return self._group_id
+
+    @group_id.setter
+    def group_id(self, group_id):
+        r"""Sets the group_id of this BaseWidgetInfo.
+
+        **参数解释** 视图分组id **约束限制** 不涉及           **取值范围** 字符串必须以dg开头，包含22个字母和数字，长度为24个字符 **默认取值** 不涉及 
+
+        :param group_id: The group_id of this BaseWidgetInfo.
+        :type group_id: str
+        """
+        self._group_id = group_id
+
+    @property
+    def metrics(self):
+        r"""Gets the metrics of this BaseWidgetInfo.
+
+        **参数解释** 指标列表 **约束限制** 包含的指标数量最多为200个，最少为1个 
+
+        :return: The metrics of this BaseWidgetInfo.
+        :rtype: list[:class:`huaweicloudsdkces.v2.WidgetMetric`]
+        """
+        return self._metrics
+
+    @metrics.setter
+    def metrics(self, metrics):
+        r"""Sets the metrics of this BaseWidgetInfo.
+
+        **参数解释** 指标列表 **约束限制** 包含的指标数量最多为200个，最少为1个 
+
+        :param metrics: The metrics of this BaseWidgetInfo.
+        :type metrics: list[:class:`huaweicloudsdkces.v2.WidgetMetric`]
+        """
+        self._metrics = metrics
+
+    @property
+    def title(self):
+        r"""Gets the title of this BaseWidgetInfo.
+
+        **参数解释** 监控视图标题 **约束限制** 不涉及           **取值范围** 长度为[1,128]个字符，允许包括以下内容：1、中文汉字；2、拉丁字母；3、英文大小写字母；4、数字(0-9)；5、符号： ” \" ≤ < > & % _ : / ; “ ' ? + , ~ ， （ ） º ( ) [ . - **默认取值** 不涉及 
+
+        :return: The title of this BaseWidgetInfo.
+        :rtype: str
+        """
+        return self._title
+
+    @title.setter
+    def title(self, title):
+        r"""Sets the title of this BaseWidgetInfo.
+
+        **参数解释** 监控视图标题 **约束限制** 不涉及           **取值范围** 长度为[1,128]个字符，允许包括以下内容：1、中文汉字；2、拉丁字母；3、英文大小写字母；4、数字(0-9)；5、符号： ” \" ≤ < > & % _ : / ; “ ' ? + , ~ ， （ ） º ( ) [ . - **默认取值** 不涉及 
+
+        :param title: The title of this BaseWidgetInfo.
+        :type title: str
+        """
+        self._title = title
+
+    @property
+    def threshold(self):
+        r"""Gets the threshold of this BaseWidgetInfo.
+
+        **参数解释** 监控视图指标的阈值 **约束限制** 不涉及   **取值范围** 最小值为0，最大值为1.7976931348623157e+308 **默认取值** 不涉及 
+
+        :return: The threshold of this BaseWidgetInfo.
+        :rtype: float
+        """
+        return self._threshold
+
+    @threshold.setter
+    def threshold(self, threshold):
+        r"""Sets the threshold of this BaseWidgetInfo.
+
+        **参数解释** 监控视图指标的阈值 **约束限制** 不涉及   **取值范围** 最小值为0，最大值为1.7976931348623157e+308 **默认取值** 不涉及 
+
+        :param threshold: The threshold of this BaseWidgetInfo.
+        :type threshold: float
+        """
+        self._threshold = threshold
+
+    @property
+    def threshold_enabled(self):
+        r"""Gets the threshold_enabled of this BaseWidgetInfo.
+
+        **参数解释** 阈值是否展示 **约束限制** 不涉及   **取值范围** - true:展示 - false:不展示 **默认取值** 不涉及 
+
+        :return: The threshold_enabled of this BaseWidgetInfo.
+        :rtype: bool
+        """
+        return self._threshold_enabled
+
+    @threshold_enabled.setter
+    def threshold_enabled(self, threshold_enabled):
+        r"""Sets the threshold_enabled of this BaseWidgetInfo.
+
+        **参数解释** 阈值是否展示 **约束限制** 不涉及   **取值范围** - true:展示 - false:不展示 **默认取值** 不涉及 
+
+        :param threshold_enabled: The threshold_enabled of this BaseWidgetInfo.
+        :type threshold_enabled: bool
+        """
+        self._threshold_enabled = threshold_enabled
+
+    @property
+    def view(self):
+        r"""Gets the view of this BaseWidgetInfo.
+
+        **参数解释** 监控视图图表类型 **约束限制** 不涉及   **取值范围** - bar:条形图 - line:折线图 - bar_chart:柱状图 - table:表格 - circular_bar:环形柱状图 - area_chart:面积图 **默认取值** 不涉及 
+
+        :return: The view of this BaseWidgetInfo.
+        :rtype: str
+        """
+        return self._view
+
+    @view.setter
+    def view(self, view):
+        r"""Sets the view of this BaseWidgetInfo.
+
+        **参数解释** 监控视图图表类型 **约束限制** 不涉及   **取值范围** - bar:条形图 - line:折线图 - bar_chart:柱状图 - table:表格 - circular_bar:环形柱状图 - area_chart:面积图 **默认取值** 不涉及 
+
+        :param view: The view of this BaseWidgetInfo.
+        :type view: str
+        """
+        self._view = view
+
+    @property
+    def metric_display_mode(self):
+        r"""Gets the metric_display_mode of this BaseWidgetInfo.
+
+        **参数解释** 指标展示类型 **约束限制** 不涉及   **取值范围** - single:单指标展示 - multiple:多指标展示 **默认取值** 不涉及 
+
+        :return: The metric_display_mode of this BaseWidgetInfo.
+        :rtype: str
+        """
+        return self._metric_display_mode
+
+    @metric_display_mode.setter
+    def metric_display_mode(self, metric_display_mode):
+        r"""Sets the metric_display_mode of this BaseWidgetInfo.
+
+        **参数解释** 指标展示类型 **约束限制** 不涉及   **取值范围** - single:单指标展示 - multiple:多指标展示 **默认取值** 不涉及 
+
+        :param metric_display_mode: The metric_display_mode of this BaseWidgetInfo.
+        :type metric_display_mode: str
+        """
+        self._metric_display_mode = metric_display_mode
+
+    @property
+    def properties(self):
+        r"""Gets the properties of this BaseWidgetInfo.
+
+        :return: The properties of this BaseWidgetInfo.
+        :rtype: :class:`huaweicloudsdkces.v2.BaseWidgetInfoProperties`
+        """
+        return self._properties
+
+    @properties.setter
+    def properties(self, properties):
+        r"""Sets the properties of this BaseWidgetInfo.
+
+        :param properties: The properties of this BaseWidgetInfo.
+        :type properties: :class:`huaweicloudsdkces.v2.BaseWidgetInfoProperties`
+        """
+        self._properties = properties
+
+    @property
+    def location(self):
+        r"""Gets the location of this BaseWidgetInfo.
+
+        :return: The location of this BaseWidgetInfo.
+        :rtype: :class:`huaweicloudsdkces.v2.BaseWidgetInfoLocation`
+        """
+        return self._location
+
+    @location.setter
+    def location(self, location):
+        r"""Sets the location of this BaseWidgetInfo.
+
+        :param location: The location of this BaseWidgetInfo.
+        :type location: :class:`huaweicloudsdkces.v2.BaseWidgetInfoLocation`
+        """
+        self._location = location
+
+    @property
+    def unit(self):
+        r"""Gets the unit of this BaseWidgetInfo.
+
+        **参数解释** 单位 **约束限制** 不涉及 **取值范围** 长度为[0,32]个字符 **默认取值** 不涉及 
+
+        :return: The unit of this BaseWidgetInfo.
+        :rtype: str
+        """
+        return self._unit
+
+    @unit.setter
+    def unit(self, unit):
+        r"""Sets the unit of this BaseWidgetInfo.
+
+        **参数解释** 单位 **约束限制** 不涉及 **取值范围** 长度为[0,32]个字符 **默认取值** 不涉及 
+
+        :param unit: The unit of this BaseWidgetInfo.
+        :type unit: str
+        """
+        self._unit = unit
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, BaseWidgetInfo):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

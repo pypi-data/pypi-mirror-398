@@ -1,0 +1,282 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListAlarmTemplatesRequest:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'offset': 'int',
+        'limit': 'int',
+        'namespace': 'str',
+        'dim_name': 'str',
+        'template_type': 'str',
+        'template_name': 'str',
+        'product_name': 'str'
+    }
+
+    attribute_map = {
+        'offset': 'offset',
+        'limit': 'limit',
+        'namespace': 'namespace',
+        'dim_name': 'dim_name',
+        'template_type': 'template_type',
+        'template_name': 'template_name',
+        'product_name': 'product_name'
+    }
+
+    def __init__(self, offset=None, limit=None, namespace=None, dim_name=None, template_type=None, template_name=None, product_name=None):
+        r"""ListAlarmTemplatesRequest
+
+        The model defined in huaweicloud sdk
+
+        :param offset: **参数解释**： 分页偏移量 **约束限制**： 不涉及 **取值范围**： 整数，[0,10000] **默认取值**： 0 
+        :type offset: int
+        :param limit: **参数解释**： 分页大小 **约束限制**： 不涉及 **取值范围**： 整数，[1,100] **默认取值**： 100 
+        :type limit: int
+        :param namespace: **参数解释**： 查询服务的命名空间，各服务命名空间请参考“[服务命名空间](ces_03_0059.xml)”。 **约束限制**： 不涉及。 **取值范围**： 格式为service.item；service和item必须是字符串，必须以字母开头，只能包含0-9/a-z/A-Z/_。字符串的长度必须在 3 到 32个字符之间。 **默认取值**： 不涉及。 
+        :type namespace: str
+        :param dim_name: **参数解释**： 资源维度名称。 **约束限制**： 不涉及。 **取值范围**： 多维度用\&quot;,\&quot;分割，只能包含0-9、a-z、A-Z、_、-、#、/、(、），每个维度的最大长度为32。字符串总长度最小为1，最大为131。 **默认取值**： 不涉及。 
+        :type dim_name: str
+        :param template_type: **参数解释**： 模板类型。 **约束限制**： 不涉及。 **取值范围**： 枚举值。 - system：默认指标模板。 - custom： 自定义指标模板。    - system_event： 默认事件模板。 - custom_event： 自定义事件模板。    - system_custom_event： 全部事件模板。     **默认取值**： 不传返回全部指标模板。 
+        :type template_type: str
+        :param template_name: 告警模板的名称，以字母或汉字开头，可包含字母、数字、汉字、_、-，长度范围[1,128]，支持模糊匹配
+        :type template_name: str
+        :param product_name: **参数解释**： 产品层级跨维规则创建时需要指明的规则产品名称，一般由\&quot;服务命名空间,服务首层维度名称\&quot;组成，如\&quot;SYS.ECS,instance_id\&quot;。 **约束限制**： 不涉及。 **取值范围**： 长度为[0,128]个字符。          **默认取值**： 不涉及。 
+        :type product_name: str
+        """
+        
+        
+
+        self._offset = None
+        self._limit = None
+        self._namespace = None
+        self._dim_name = None
+        self._template_type = None
+        self._template_name = None
+        self._product_name = None
+        self.discriminator = None
+
+        if offset is not None:
+            self.offset = offset
+        if limit is not None:
+            self.limit = limit
+        if namespace is not None:
+            self.namespace = namespace
+        if dim_name is not None:
+            self.dim_name = dim_name
+        if template_type is not None:
+            self.template_type = template_type
+        if template_name is not None:
+            self.template_name = template_name
+        if product_name is not None:
+            self.product_name = product_name
+
+    @property
+    def offset(self):
+        r"""Gets the offset of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 分页偏移量 **约束限制**： 不涉及 **取值范围**： 整数，[0,10000] **默认取值**： 0 
+
+        :return: The offset of this ListAlarmTemplatesRequest.
+        :rtype: int
+        """
+        return self._offset
+
+    @offset.setter
+    def offset(self, offset):
+        r"""Sets the offset of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 分页偏移量 **约束限制**： 不涉及 **取值范围**： 整数，[0,10000] **默认取值**： 0 
+
+        :param offset: The offset of this ListAlarmTemplatesRequest.
+        :type offset: int
+        """
+        self._offset = offset
+
+    @property
+    def limit(self):
+        r"""Gets the limit of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 分页大小 **约束限制**： 不涉及 **取值范围**： 整数，[1,100] **默认取值**： 100 
+
+        :return: The limit of this ListAlarmTemplatesRequest.
+        :rtype: int
+        """
+        return self._limit
+
+    @limit.setter
+    def limit(self, limit):
+        r"""Sets the limit of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 分页大小 **约束限制**： 不涉及 **取值范围**： 整数，[1,100] **默认取值**： 100 
+
+        :param limit: The limit of this ListAlarmTemplatesRequest.
+        :type limit: int
+        """
+        self._limit = limit
+
+    @property
+    def namespace(self):
+        r"""Gets the namespace of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 查询服务的命名空间，各服务命名空间请参考“[服务命名空间](ces_03_0059.xml)”。 **约束限制**： 不涉及。 **取值范围**： 格式为service.item；service和item必须是字符串，必须以字母开头，只能包含0-9/a-z/A-Z/_。字符串的长度必须在 3 到 32个字符之间。 **默认取值**： 不涉及。 
+
+        :return: The namespace of this ListAlarmTemplatesRequest.
+        :rtype: str
+        """
+        return self._namespace
+
+    @namespace.setter
+    def namespace(self, namespace):
+        r"""Sets the namespace of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 查询服务的命名空间，各服务命名空间请参考“[服务命名空间](ces_03_0059.xml)”。 **约束限制**： 不涉及。 **取值范围**： 格式为service.item；service和item必须是字符串，必须以字母开头，只能包含0-9/a-z/A-Z/_。字符串的长度必须在 3 到 32个字符之间。 **默认取值**： 不涉及。 
+
+        :param namespace: The namespace of this ListAlarmTemplatesRequest.
+        :type namespace: str
+        """
+        self._namespace = namespace
+
+    @property
+    def dim_name(self):
+        r"""Gets the dim_name of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 资源维度名称。 **约束限制**： 不涉及。 **取值范围**： 多维度用\",\"分割，只能包含0-9、a-z、A-Z、_、-、#、/、(、），每个维度的最大长度为32。字符串总长度最小为1，最大为131。 **默认取值**： 不涉及。 
+
+        :return: The dim_name of this ListAlarmTemplatesRequest.
+        :rtype: str
+        """
+        return self._dim_name
+
+    @dim_name.setter
+    def dim_name(self, dim_name):
+        r"""Sets the dim_name of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 资源维度名称。 **约束限制**： 不涉及。 **取值范围**： 多维度用\",\"分割，只能包含0-9、a-z、A-Z、_、-、#、/、(、），每个维度的最大长度为32。字符串总长度最小为1，最大为131。 **默认取值**： 不涉及。 
+
+        :param dim_name: The dim_name of this ListAlarmTemplatesRequest.
+        :type dim_name: str
+        """
+        self._dim_name = dim_name
+
+    @property
+    def template_type(self):
+        r"""Gets the template_type of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 模板类型。 **约束限制**： 不涉及。 **取值范围**： 枚举值。 - system：默认指标模板。 - custom： 自定义指标模板。    - system_event： 默认事件模板。 - custom_event： 自定义事件模板。    - system_custom_event： 全部事件模板。     **默认取值**： 不传返回全部指标模板。 
+
+        :return: The template_type of this ListAlarmTemplatesRequest.
+        :rtype: str
+        """
+        return self._template_type
+
+    @template_type.setter
+    def template_type(self, template_type):
+        r"""Sets the template_type of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 模板类型。 **约束限制**： 不涉及。 **取值范围**： 枚举值。 - system：默认指标模板。 - custom： 自定义指标模板。    - system_event： 默认事件模板。 - custom_event： 自定义事件模板。    - system_custom_event： 全部事件模板。     **默认取值**： 不传返回全部指标模板。 
+
+        :param template_type: The template_type of this ListAlarmTemplatesRequest.
+        :type template_type: str
+        """
+        self._template_type = template_type
+
+    @property
+    def template_name(self):
+        r"""Gets the template_name of this ListAlarmTemplatesRequest.
+
+        告警模板的名称，以字母或汉字开头，可包含字母、数字、汉字、_、-，长度范围[1,128]，支持模糊匹配
+
+        :return: The template_name of this ListAlarmTemplatesRequest.
+        :rtype: str
+        """
+        return self._template_name
+
+    @template_name.setter
+    def template_name(self, template_name):
+        r"""Sets the template_name of this ListAlarmTemplatesRequest.
+
+        告警模板的名称，以字母或汉字开头，可包含字母、数字、汉字、_、-，长度范围[1,128]，支持模糊匹配
+
+        :param template_name: The template_name of this ListAlarmTemplatesRequest.
+        :type template_name: str
+        """
+        self._template_name = template_name
+
+    @property
+    def product_name(self):
+        r"""Gets the product_name of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 产品层级跨维规则创建时需要指明的规则产品名称，一般由\"服务命名空间,服务首层维度名称\"组成，如\"SYS.ECS,instance_id\"。 **约束限制**： 不涉及。 **取值范围**： 长度为[0,128]个字符。          **默认取值**： 不涉及。 
+
+        :return: The product_name of this ListAlarmTemplatesRequest.
+        :rtype: str
+        """
+        return self._product_name
+
+    @product_name.setter
+    def product_name(self, product_name):
+        r"""Sets the product_name of this ListAlarmTemplatesRequest.
+
+        **参数解释**： 产品层级跨维规则创建时需要指明的规则产品名称，一般由\"服务命名空间,服务首层维度名称\"组成，如\"SYS.ECS,instance_id\"。 **约束限制**： 不涉及。 **取值范围**： 长度为[0,128]个字符。          **默认取值**： 不涉及。 
+
+        :param product_name: The product_name of this ListAlarmTemplatesRequest.
+        :type product_name: str
+        """
+        self._product_name = product_name
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListAlarmTemplatesRequest):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

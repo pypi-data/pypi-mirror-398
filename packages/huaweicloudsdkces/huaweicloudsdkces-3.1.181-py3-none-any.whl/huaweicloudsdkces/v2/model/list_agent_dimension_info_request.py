@@ -1,0 +1,222 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListAgentDimensionInfoRequest:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'instance_id': 'str',
+        'dim_name': 'str',
+        'dim_value': 'str',
+        'offset': 'int',
+        'limit': 'int'
+    }
+
+    attribute_map = {
+        'instance_id': 'instance_id',
+        'dim_name': 'dim_name',
+        'dim_value': 'dim_value',
+        'offset': 'offset',
+        'limit': 'limit'
+    }
+
+    def __init__(self, instance_id=None, dim_name=None, dim_value=None, offset=None, limit=None):
+        r"""ListAgentDimensionInfoRequest
+
+        The model defined in huaweicloud sdk
+
+        :param instance_id: **参数描述**： 资源ID，如：4270ff17-aba3-4138-89fa-820594c39755。 **约束限制**： 不涉及。 **取值范围**： 字符串长度为36。 **默认取值**： 不涉及。 
+        :type instance_id: str
+        :param dim_name: **参数描述**： 维度名称。 **约束限制**： 不涉及。 **取值范围**： 枚举类型，mount_point:挂载点，disk:磁盘，proc:进程，gpu:显卡，raid:RAID控制器。 **默认取值**： 不涉及。 
+        :type dim_name: str
+        :param dim_value: **参数描述**： 维度值(建议：同一个instance_id下相同dim_value对应的原始维度值origin_value是一样的，无需多次调用，建议根据instance_id + dim_value作为key进行缓存重复使用)。 **约束限制**： 不涉及。  **取值范围**： 32位字符串，如：2e84018fc8b4484b94e89aae212fe615。 **默认取值**： 不涉及。 
+        :type dim_value: str
+        :param offset: **参数描述**： 分页偏移量。 **约束限制**： 不涉及。 **取值范围**： 最小值为0，最大值为2147483647。 **默认取值**： 0 
+        :type offset: int
+        :param limit: **参数描述**： 分页大小。 **约束限制**： 不涉及。 **取值范围**： 最小值为1，最大值为1000。 **默认取值**： 1000 
+        :type limit: int
+        """
+        
+        
+
+        self._instance_id = None
+        self._dim_name = None
+        self._dim_value = None
+        self._offset = None
+        self._limit = None
+        self.discriminator = None
+
+        self.instance_id = instance_id
+        self.dim_name = dim_name
+        if dim_value is not None:
+            self.dim_value = dim_value
+        if offset is not None:
+            self.offset = offset
+        if limit is not None:
+            self.limit = limit
+
+    @property
+    def instance_id(self):
+        r"""Gets the instance_id of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 资源ID，如：4270ff17-aba3-4138-89fa-820594c39755。 **约束限制**： 不涉及。 **取值范围**： 字符串长度为36。 **默认取值**： 不涉及。 
+
+        :return: The instance_id of this ListAgentDimensionInfoRequest.
+        :rtype: str
+        """
+        return self._instance_id
+
+    @instance_id.setter
+    def instance_id(self, instance_id):
+        r"""Sets the instance_id of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 资源ID，如：4270ff17-aba3-4138-89fa-820594c39755。 **约束限制**： 不涉及。 **取值范围**： 字符串长度为36。 **默认取值**： 不涉及。 
+
+        :param instance_id: The instance_id of this ListAgentDimensionInfoRequest.
+        :type instance_id: str
+        """
+        self._instance_id = instance_id
+
+    @property
+    def dim_name(self):
+        r"""Gets the dim_name of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 维度名称。 **约束限制**： 不涉及。 **取值范围**： 枚举类型，mount_point:挂载点，disk:磁盘，proc:进程，gpu:显卡，raid:RAID控制器。 **默认取值**： 不涉及。 
+
+        :return: The dim_name of this ListAgentDimensionInfoRequest.
+        :rtype: str
+        """
+        return self._dim_name
+
+    @dim_name.setter
+    def dim_name(self, dim_name):
+        r"""Sets the dim_name of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 维度名称。 **约束限制**： 不涉及。 **取值范围**： 枚举类型，mount_point:挂载点，disk:磁盘，proc:进程，gpu:显卡，raid:RAID控制器。 **默认取值**： 不涉及。 
+
+        :param dim_name: The dim_name of this ListAgentDimensionInfoRequest.
+        :type dim_name: str
+        """
+        self._dim_name = dim_name
+
+    @property
+    def dim_value(self):
+        r"""Gets the dim_value of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 维度值(建议：同一个instance_id下相同dim_value对应的原始维度值origin_value是一样的，无需多次调用，建议根据instance_id + dim_value作为key进行缓存重复使用)。 **约束限制**： 不涉及。  **取值范围**： 32位字符串，如：2e84018fc8b4484b94e89aae212fe615。 **默认取值**： 不涉及。 
+
+        :return: The dim_value of this ListAgentDimensionInfoRequest.
+        :rtype: str
+        """
+        return self._dim_value
+
+    @dim_value.setter
+    def dim_value(self, dim_value):
+        r"""Sets the dim_value of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 维度值(建议：同一个instance_id下相同dim_value对应的原始维度值origin_value是一样的，无需多次调用，建议根据instance_id + dim_value作为key进行缓存重复使用)。 **约束限制**： 不涉及。  **取值范围**： 32位字符串，如：2e84018fc8b4484b94e89aae212fe615。 **默认取值**： 不涉及。 
+
+        :param dim_value: The dim_value of this ListAgentDimensionInfoRequest.
+        :type dim_value: str
+        """
+        self._dim_value = dim_value
+
+    @property
+    def offset(self):
+        r"""Gets the offset of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 分页偏移量。 **约束限制**： 不涉及。 **取值范围**： 最小值为0，最大值为2147483647。 **默认取值**： 0 
+
+        :return: The offset of this ListAgentDimensionInfoRequest.
+        :rtype: int
+        """
+        return self._offset
+
+    @offset.setter
+    def offset(self, offset):
+        r"""Sets the offset of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 分页偏移量。 **约束限制**： 不涉及。 **取值范围**： 最小值为0，最大值为2147483647。 **默认取值**： 0 
+
+        :param offset: The offset of this ListAgentDimensionInfoRequest.
+        :type offset: int
+        """
+        self._offset = offset
+
+    @property
+    def limit(self):
+        r"""Gets the limit of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 分页大小。 **约束限制**： 不涉及。 **取值范围**： 最小值为1，最大值为1000。 **默认取值**： 1000 
+
+        :return: The limit of this ListAgentDimensionInfoRequest.
+        :rtype: int
+        """
+        return self._limit
+
+    @limit.setter
+    def limit(self, limit):
+        r"""Sets the limit of this ListAgentDimensionInfoRequest.
+
+        **参数描述**： 分页大小。 **约束限制**： 不涉及。 **取值范围**： 最小值为1，最大值为1000。 **默认取值**： 1000 
+
+        :param limit: The limit of this ListAgentDimensionInfoRequest.
+        :type limit: int
+        """
+        self._limit = limit
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListAgentDimensionInfoRequest):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

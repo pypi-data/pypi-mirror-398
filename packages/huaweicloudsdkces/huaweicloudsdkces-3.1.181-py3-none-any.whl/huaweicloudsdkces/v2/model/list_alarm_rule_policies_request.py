@@ -1,0 +1,165 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListAlarmRulePoliciesRequest:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'alarm_id': 'str',
+        'offset': 'int',
+        'limit': 'int'
+    }
+
+    attribute_map = {
+        'alarm_id': 'alarm_id',
+        'offset': 'offset',
+        'limit': 'limit'
+    }
+
+    def __init__(self, alarm_id=None, offset=None, limit=None):
+        r"""ListAlarmRulePoliciesRequest
+
+        The model defined in huaweicloud sdk
+
+        :param alarm_id: **参数解释**： 告警规则ID。     **约束限制**： 不涉及。 **取值范围**： 以al开头，后跟22个数字或字母。字符长度为24 **默认取值**： 不涉及。 
+        :type alarm_id: str
+        :param offset: **参数解释**： 分页偏移量。 **约束限制**： 不涉及。 **取值范围**： 0-10000 **默认取值**： 0 
+        :type offset: int
+        :param limit: **参数解释**： 分页大小。 **约束限制**： 不涉及。 **取值范围**： 1-100 **默认取值**： 10 
+        :type limit: int
+        """
+        
+        
+
+        self._alarm_id = None
+        self._offset = None
+        self._limit = None
+        self.discriminator = None
+
+        self.alarm_id = alarm_id
+        if offset is not None:
+            self.offset = offset
+        if limit is not None:
+            self.limit = limit
+
+    @property
+    def alarm_id(self):
+        r"""Gets the alarm_id of this ListAlarmRulePoliciesRequest.
+
+        **参数解释**： 告警规则ID。     **约束限制**： 不涉及。 **取值范围**： 以al开头，后跟22个数字或字母。字符长度为24 **默认取值**： 不涉及。 
+
+        :return: The alarm_id of this ListAlarmRulePoliciesRequest.
+        :rtype: str
+        """
+        return self._alarm_id
+
+    @alarm_id.setter
+    def alarm_id(self, alarm_id):
+        r"""Sets the alarm_id of this ListAlarmRulePoliciesRequest.
+
+        **参数解释**： 告警规则ID。     **约束限制**： 不涉及。 **取值范围**： 以al开头，后跟22个数字或字母。字符长度为24 **默认取值**： 不涉及。 
+
+        :param alarm_id: The alarm_id of this ListAlarmRulePoliciesRequest.
+        :type alarm_id: str
+        """
+        self._alarm_id = alarm_id
+
+    @property
+    def offset(self):
+        r"""Gets the offset of this ListAlarmRulePoliciesRequest.
+
+        **参数解释**： 分页偏移量。 **约束限制**： 不涉及。 **取值范围**： 0-10000 **默认取值**： 0 
+
+        :return: The offset of this ListAlarmRulePoliciesRequest.
+        :rtype: int
+        """
+        return self._offset
+
+    @offset.setter
+    def offset(self, offset):
+        r"""Sets the offset of this ListAlarmRulePoliciesRequest.
+
+        **参数解释**： 分页偏移量。 **约束限制**： 不涉及。 **取值范围**： 0-10000 **默认取值**： 0 
+
+        :param offset: The offset of this ListAlarmRulePoliciesRequest.
+        :type offset: int
+        """
+        self._offset = offset
+
+    @property
+    def limit(self):
+        r"""Gets the limit of this ListAlarmRulePoliciesRequest.
+
+        **参数解释**： 分页大小。 **约束限制**： 不涉及。 **取值范围**： 1-100 **默认取值**： 10 
+
+        :return: The limit of this ListAlarmRulePoliciesRequest.
+        :rtype: int
+        """
+        return self._limit
+
+    @limit.setter
+    def limit(self, limit):
+        r"""Sets the limit of this ListAlarmRulePoliciesRequest.
+
+        **参数解释**： 分页大小。 **约束限制**： 不涉及。 **取值范围**： 1-100 **默认取值**： 10 
+
+        :param limit: The limit of this ListAlarmRulePoliciesRequest.
+        :type limit: int
+        """
+        self._limit = limit
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListAlarmRulePoliciesRequest):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
