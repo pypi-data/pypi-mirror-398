@@ -1,0 +1,261 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.3s ease;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-600 to-purple-800 min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="bg-white rounded-t-2xl shadow-2xl overflow-hidden">
+            <div class="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-8">
+                <h1 class="text-3xl md:text-4xl font-bold text-center mb-4">
+                    🗄️ {{ title }}
+                </h1>
+                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 space-y-2">
+                    <p class="text-sm md:text-base">
+                        <span class="font-semibold">موتور دیتابیس:</span>
+                        <span class="font-mono">{{ db_engine }}</span>
+                    </p>
+                    <p class="text-sm md:text-base">
+                        <span class="font-semibold">نام دیتابیس:</span>
+                        <span class="font-mono">{{ db_name }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="bg-white rounded-b-2xl shadow-2xl p-6 md:p-10">
+            <!-- Messages -->
+            {% if messages %}
+            <div class="mb-6 space-y-3">
+                {% for message in messages %}
+                <div class="animate-slide-in rounded-lg p-4 {% if message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% elif message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+                    <p class="text-sm md:text-base">{{ message }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Backup Section -->
+            <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 md:p-8 mb-6 border border-green-100">
+                <h2 class="text-2xl font-bold text-green-700 mb-4 flex items-center gap-2">
+                    <span>📦</span>
+                    <span>ایجاد بک‌آپ</span>
+                </h2>
+                <p class="text-gray-700 mb-6 leading-relaxed">
+                    با استفاده از این بخش می‌توانید از دیتابیس خود بک‌آپ تهیه کنید. فایل بک‌آپ به صورت فشرده (ZIP) دانلود خواهد شد.
+                </p>
+
+                <form method="post" action="{% url 'database_backup' %}" id="backupForm">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 flex items-center gap-2">
+                        <span>💾</span>
+                        <span>دانلود بک‌آپ</span>
+                    </button>
+                </form>
+
+                <div class="hidden mt-6 text-center" id="backupLoading">
+                    <div class="spinner mb-3"></div>
+                    <p class="text-gray-600 font-medium">در حال ایجاد بک‌آپ...</p>
+                </div>
+            </div>
+
+            <!-- Restore Section -->
+            <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 md:p-8 border border-purple-100">
+                <h2 class="text-2xl font-bold text-purple-700 mb-4 flex items-center gap-2">
+                    <span>♻️</span>
+                    <span>بازیابی دیتابیس</span>
+                </h2>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    برای بازیابی دیتابیس، فایل بک‌آپ (.sql، .dump یا .zip) خود را انتخاب کنید.
+                </p>
+
+                <!-- Warning -->
+                <div class="bg-yellow-50 border-r-4 border-yellow-400 p-4 mb-6 rounded-lg">
+                    <div class="flex items-start gap-3">
+                        <span class="text-2xl">⚠️</span>
+                        <div>
+                            <p class="font-bold text-yellow-800 mb-2">هشدار مهم:</p>
+                            <p class="text-yellow-700 text-sm leading-relaxed">
+                                بازیابی دیتابیس تمام اطلاعات فعلی را جایگزین می‌کند. قبل از ادامه، مطمئن شوید که از دیتابیس فعلی بک‌آپ تهیه کرده‌اید.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post" action="{% url 'database_restore' %}" enctype="multipart/form-data" id="restoreForm">
+                    {% csrf_token %}
+
+                    <div class="mb-6">
+                        <label class="block text-gray-700 font-semibold mb-3">
+                            انتخاب فایل بک‌آپ:
+                        </label>
+
+                        <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                            <label class="cursor-pointer bg-white hover:bg-gray-50 text-purple-600 font-semibold py-3 px-6 rounded-lg border-2 border-purple-300 hover:border-purple-400 transition-all duration-200 flex items-center gap-2">
+                                <span>📁</span>
+                                <span>انتخاب فایل</span>
+                                <input type="file" name="backup_file" id="backupFile" accept=".sql,.dump,.zip" class="hidden" required>
+                            </label>
+
+                            <div class="flex-1 w-full md:w-auto">
+                                <div id="fileName" class="bg-white border-2 border-dashed border-purple-300 rounded-lg p-3 text-gray-500 text-sm min-w-[200px]">
+                                    هیچ فایلی انتخاب نشده
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-gray-500 mt-2">
+                            فرمت‌های مجاز: .sql، .dump، .zip
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button type="submit" id="restoreBtn" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2" disabled>
+                            <span>♻️</span>
+                            <span>بازیابی دیتابیس</span>
+                        </button>
+
+                        <button type="button" onclick="window.location.href='{% url 'database_management' %}'" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-8 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                            <span>↩️</span>
+                            <span>بازگشت</span>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="hidden mt-6 text-center" id="restoreLoading">
+                    <div class="spinner mb-3"></div>
+                    <p class="text-gray-600 font-medium">در حال بازیابی دیتابیس...</p>
+                    <p class="text-sm text-gray-500 mt-2">این عملیات ممکن است چند دقیقه طول بکشد...</p>
+                </div>
+            </div>
+
+            <!-- Info Section -->
+            <div class="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-6">
+                <h3 class="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+                    <span>ℹ️</span>
+                    <span>راهنما</span>
+                </h3>
+                <ul class="space-y-2 text-sm text-blue-700">
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1">•</span>
+                        <span>برای ایجاد بک‌آپ، روی دکمه "دانلود بک‌آپ" کلیک کنید</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1">•</span>
+                        <span>فایل بک‌آپ به صورت خودکار فشرده و دانلود می‌شود</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1">•</span>
+                        <span>برای بازیابی، فایل بک‌آپ را انتخاب کرده و روی "بازیابی دیتابیس" کلیک کنید</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1">•</span>
+                        <span>حتماً قبل از بازیابی، از دیتابیس فعلی بک‌آپ تهیه کنید</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // File input handler
+        const fileInput = document.getElementById('backupFile');
+        const fileName = document.getElementById('fileName');
+        const restoreBtn = document.getElementById('restoreBtn');
+
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                const file = this.files[0];
+                const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+                fileName.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-700 font-medium truncate">${file.name}</span>
+                        <span class="text-gray-500 text-xs mr-2">${fileSize} MB</span>
+                    </div>
+                `;
+                fileName.classList.remove('border-dashed', 'text-gray-500');
+                fileName.classList.add('border-solid', 'border-green-400', 'bg-green-50');
+                restoreBtn.disabled = false;
+            } else {
+                fileName.textContent = 'هیچ فایلی انتخاب نشده';
+                fileName.classList.add('border-dashed', 'text-gray-500');
+                fileName.classList.remove('border-solid', 'border-green-400', 'bg-green-50');
+                restoreBtn.disabled = true;
+            }
+        });
+
+        // Backup form handler
+        const backupForm = document.getElementById('backupForm');
+        const backupLoading = document.getElementById('backupLoading');
+
+        backupForm.addEventListener('submit', function() {
+            backupLoading.classList.remove('hidden');
+            this.querySelector('button').disabled = true;
+        });
+
+        // Restore form handler
+        const restoreForm = document.getElementById('restoreForm');
+        const restoreLoading = document.getElementById('restoreLoading');
+
+        restoreForm.addEventListener('submit', function(e) {
+            if (!confirm('⚠️ آیا مطمئن هستید که می‌خواهید دیتابیس را بازیابی کنید؟\n\nتمام اطلاعات فعلی جایگزین خواهند شد!')) {
+                e.preventDefault();
+                return false;
+            }
+
+            restoreLoading.classList.remove('hidden');
+            restoreBtn.disabled = true;
+            restoreBtn.innerHTML = '<span class="spinner-small"></span> در حال بازیابی...';
+        });
+
+        // Auto-hide messages after 5 seconds
+        setTimeout(function() {
+            const messages = document.querySelectorAll('.animate-slide-in');
+            messages.forEach(function(msg) {
+                msg.style.transition = 'opacity 0.5s ease';
+                msg.style.opacity = '0';
+                setTimeout(function() {
+                    msg.remove();
+                }, 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>
