@@ -1,0 +1,468 @@
+import os
+import queue
+import threading
+import logging
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, CancelledError
+from functools import wraps
+from .graph import DAGraph
+from .timer import Timer
+from .logger import configure_logging
+from colorama import Fore, Style
+
+default_workers = min(8, os.cpu_count())
+
+class Scheduler:
+    """ run functions concurrently across multiple threads while maintaining a defined
+        execution order
+    """
+    def __init__(self, workers=None, setup_logging=False, add_stream_handler=True,
+                 state=None, store_results=True, clear_results_on_start=True, verbose=False,
+                 skip_dependents=False):
+        """ initialize scheduler with thread pool size, logging, and callback placeholders
+        """
+        # number of concurrent worker threads in the pool
+        self._workers = workers if workers else default_workers
+        # task name → callable object to execute
+        self._callables = {}
+        # direct acyclic graph
+        self._graph = DAGraph()
+        # protects access to _futures (shared by scheduler and worker threads)
+        self._lock = threading.Lock()
+        # currently running task names
+        self._active = set()
+        # future → task name mapping for cancellation and error recovery
+        self._futures = {}
+        # signals scheduler when all tasks have completed
+        self._completed = threading.Event()
+        # ThreadPoolExecutor instance (managed inside start())
+        self._executor = None
+        # thread-safe queue for passing start/done events from workers to scheduler
+        self._events = queue.Queue()
+
+        # timing info
+        self._timer = Timer()
+
+        # results tracking
+        self._ran = []
+        self._results = {}
+        self._failed = []
+        self._skipped = []
+
+        # user-defined callbacks
+        self._on_task_start = None
+        self._on_task_run = None
+        self._on_task_done = None
+        self._on_scheduler_start = None
+        self._on_scheduler_done = None
+
+        # state storage
+        self.state = state if state is not None else {}
+        self._store_results = store_results
+        self._clear_results_on_start = clear_results_on_start
+        self.state_lock = threading.RLock()
+        self.state.setdefault('_state_lock', self.state_lock)
+        if 'results' not in self.state and store_results:
+            self.state['results'] = {}
+
+        self._prefix = 'thread'
+        if setup_logging or verbose:
+            configure_logging(self._workers, prefix=self._prefix,
+                              add_stream_handler=add_stream_handler, verbose=verbose)
+
+        self._skip_dependents = skip_dependents
+
+    def register(self, obj, name, after=None, with_state=False):
+        """ register a callable for execution, optionally dependent on other tasks
+        """
+        if not callable(obj):
+            raise ValueError('object must be callable')
+        self._graph.add(name, after=after)
+        self._callables[name] = (obj, with_state)
+
+    def dregister(self, after=None, with_state=False):
+        """ decorator form of register() for convenient inline task definition
+        """
+        def decorator(function):
+            @wraps(function)
+            def wrapper(*args, **kwargs):
+                return function(*args, **kwargs)
+            # register at decoration time so start() can discover it
+            self.register(wrapper, function.__name__, after=after, with_state=with_state)
+            # keep a pointer to the original
+            wrapper.__original__ = function
+            return wrapper
+        return decorator
+
+    def _maybe_schedule_next(self, logger):
+        """ schedule next ready tasks if there are free worker slots
+        """
+        # determine number of free worker slots
+        free = max(0, self._workers - len(self._active))
+        if not free:
+            return
+
+        # get ready candidates
+        cands = self._graph.get_candidates(self._active, free)
+        if not self._skip_dependents:
+            # no skipping of dependents; submit all candidates
+            for cand in cands:
+                self._submit(cand)
+            return
+
+        # skipping of dependents enabled; check for failed dependencies
+        failed_or_skipped = set(self._failed) | set(self._skipped)
+        for cand in cands:
+            deps = self._graph.original_parents_of(cand)
+            failed_deps = failed_or_skipped & set(deps)
+            if failed_deps:
+                # skip this candidate due to failed dependencies
+                logger.info(f'{cand} SKIPPED')
+                logger.debug(f'{cand} skipped due to failed dependencies: {failed_deps}')
+                error = f'skipped due to failed dependency: {failed_deps}'
+                # add to active to avoid re-selection
+                self._active.add(cand)
+                self._events.put(('done', (cand, False, 'DependencyError', error)))
+            else:
+                self._submit(cand)
+
+    def _handle_done(self, payload, logger):
+        """ process a completed task, record its result, and schedule next tasks
+        """
+        name, ok, error_type, error = payload
+        logger.debug(f'removing {name!r} from active futures')
+        self._active.discard(name)
+        self._graph.remove(name)
+        self._ran.append(name)
+        self._results[name] = {
+            'ok': ok,
+            'error_type': error_type,
+            'error': error
+        }
+        if not ok:
+            (self._skipped if error_type == 'DependencyError' else self._failed).append(name)
+
+        self._callback(self._on_task_done, name, ok)
+        self._maybe_schedule_next(logger)
+
+        # check for overall completion
+        if self._graph.is_empty() and not self._active:
+            logger.debug('nothing more to run and no active futures remain - signaling all done')
+            self._completed.set()
+
+    def _handle_event(self):
+        """ process queued task and scheduler events on the scheduler thread
+        """
+        logger = logging.getLogger(threading.current_thread().name)
+        while True:
+            try:
+                kind, payload = self._events.get_nowait()
+            except queue.Empty:
+                break
+
+            if kind == 'start':
+                name = payload
+                self._callback(self._on_task_start, name)
+
+            elif kind == 'run':
+                name, thread = payload
+                self._callback(self._on_task_run, name, thread)
+
+            elif kind == 'done':
+                self._handle_done(payload, logger)
+
+    def _build_summary(self):
+        """ assemble concise run summary from collected results and timings
+        """
+        ran = list(self._ran)
+        passed = [name for name, result in self._results.items() if result["ok"]]
+        failed = list(self._failed)
+        skipped = list(self._skipped)
+        failures = {
+            name: {
+                'error_type': self._results[name]['error_type'],
+                'error': self._results[name]['error']
+            } for name in failed
+        }
+        failure_counts = Counter(
+            result['error_type'] for result in self._results.values() if not result['ok']
+        )
+        summary = {
+            'ran': ran,
+            'passed': passed,
+            'failed': failed,
+            'skipped': self._skipped,
+            'failures': failures,
+            'failure_counts': dict(failure_counts),
+            'started_at': self._timer.started_at,
+            'finished_at': self._timer.finished_at,
+            'duration': self._timer.duration,
+        }
+        lp = len(passed)
+        lf = len(failed)
+        ls = len(skipped)
+        text = f"==== {lp} passed, {lf} failed, {ls} skipped in {summary['duration']:.2f}s ===="
+        summary['text'] = f'{Style.BRIGHT + Fore.BLUE + text + Style.RESET_ALL}'
+        return summary
+
+    def _handle_interrupt(self, logger):
+        """ cancel in-flight work, drain events, and mark remaining tasks as cancelled
+        """
+        logger.error('interrupt received; cancelling remaining tasks')
+
+        # cancel all futures we still track
+        with self._lock:
+            futures = list(self._futures.keys())
+        for future in futures:
+            try:
+                future.cancel()
+            except (CancelledError, RuntimeError) as exception:
+                logger.debug(f'cancel() ignored for completed future: {exception}')
+
+        # drain anything already completed and queued
+        self._handle_event()
+
+        # mark any still-active tasks as cancelled (these never emitted a 'done' event)
+        still_active = list(self._active)
+        self._active.clear()
+        for name in still_active:
+            # remove from graph so completion logic won't wait on them
+            self._graph.remove(name)
+            # record cancellation
+            self._ran.append(name)
+            self._results[name] = {
+                'ok': False,
+                'error_type': 'CancelledError',
+                'error': 'cancelled'
+            }
+            self._failed.append(name)
+
+        # signal completion so the loop (if resumed) would exit
+        self._completed.set()
+
+    def _prep_start(self):
+        """ prepare internal state for a fresh run
+        """
+        # reset tracking structures
+        self._ran.clear()
+        self._results.clear()
+        self._failed.clear()
+        self._skipped.clear()
+        self._completed.clear()
+        self._futures.clear()
+        self._active.clear()
+        # clear stored results
+        if self._store_results and self._clear_results_on_start and 'results' in self.state:
+            with self.state_lock:
+                self.state['results'].clear()
+        # drain any stale events
+        try:
+            while True:
+                self._events.get_nowait()
+        except queue.Empty:
+            pass
+
+    def start(self):
+        """ run all registered tasks respecting dependencies, collect results, and trigger callbacks
+        """
+        logger = logging.getLogger(threading.current_thread().name)
+
+        self._prep_start()
+
+        self._timer.start()
+        meta = {
+            'total_tasks': len(self._callables),
+            'workers': self._workers,
+            'start_time': self._timer.started_at
+        }
+        self._callback(self._on_scheduler_start, meta)
+
+        try:
+            with ThreadPoolExecutor(max_workers=self._workers,
+                                    thread_name_prefix=self._prefix) as executor:
+                self._executor = executor
+                logger.info(f'starting thread pool with {self._workers} threads')
+                # initial seeding
+                for name in self._graph.get_candidates(self._active, self._workers):
+                    self._submit(name)
+
+                # main loop of scheduler thread
+                while not self._completed.wait(timeout=0.1):
+                    self._handle_event()
+
+                # final drain
+                self._handle_event()
+                logger.info('all work completed')
+
+        except KeyboardInterrupt:
+            self._handle_interrupt(logger)
+
+        finally:
+            self._timer.stop()
+            logger.debug(f'duration: {self._timer.duration:.2f}s')
+
+            # build and return summary
+            summary = self._build_summary()
+            self._callback(self._on_scheduler_done, summary)
+            return summary
+
+    def _submit(self, name):
+        """ submit a ready task to the thread pool and queue its start event
+        """
+        logger = logging.getLogger(threading.current_thread().name)
+        logger.debug(f'submitting {name!r} to thread pool')
+
+        # queue 'start' event
+        self._events.put(('start', name))
+
+        future = self._executor.submit(self._run, name)
+        logger.debug(f'adding {name} to active futures')
+        self._active.add(name)
+        with self._lock:
+            # track future to name
+            self._futures[future] = name
+        future.add_done_callback(self._done)
+
+    def _done(self, future):
+        """ enqueue a 'done' event for a finished Future
+            safely extracts the task result or synthesizes a failure if the Future raised
+        """
+        try:
+            payload = future.result()
+        except Exception as exception:
+            # worker failed before building payload - recover name and emit synthetic failure
+            name = self._futures.get(future, '<unknown>')
+            payload = (name, False, type(exception).__name__, str(exception))
+        finally:
+            # cleanup no matter what
+            with self._lock:
+                self._futures.pop(future, '<unknown>')
+
+        # queue 'done' event
+        self._events.put(('done', payload))
+
+    def _run(self, name):
+        """ execute a task callable, capture errors, and return its result tuple
+        """
+        thread = threading.current_thread().name
+        logger = logging.getLogger(thread)
+
+        # queue 'run' event
+        payload = (name, thread)
+        self._events.put(('run', payload))
+
+        logger.debug(f'run {name!r}')
+        ok = False
+        error_type = None
+        error = None
+        try:
+            function, with_state = self._callables[name]
+            if with_state:
+                result = function(self.state)
+            else:
+                result = function()
+
+            if self._store_results:
+                with self.state_lock:
+                    self.state['results'][name] = result
+            ok = True
+        except Exception as exception:
+            error_type = type(exception).__name__
+            error = str(exception)
+            logger.error(f'{function.__name__}: FAILED: {error_type}: {error}')
+        return (name, ok, error_type, error)
+
+    def _callback(self, callback, *args):
+        """ safely invoke a user callback, logging any exceptions raised
+        """
+        if not callback:
+            return
+        logger = logging.getLogger(threading.current_thread().name)
+        try:
+            if isinstance(callback, tuple):
+                function, user_args, user_kwargs = callback
+                function(*args, *user_args, **user_kwargs)
+            else:
+                callback(*args)
+        except Exception:
+            callback_name = getattr(callback, '__name__', callback)
+            logger.debug(f'callback {callback_name!r} failed', exc_info=True)
+
+    def on_task_start(self, function, *args, **kwargs):
+        """ register callback fired when a task is about to start
+        """
+        self._on_task_start = (function, args, kwargs)
+
+    def on_task_run(self, function, *args, **kwargs):
+        """ register callback fired when a task is running on thread
+        """
+        self._on_task_run = (function, args, kwargs)
+
+    def on_task_done(self, function, *args, **kwargs):
+        """ register callback fired when a task finishes execution
+        """
+        self._on_task_done = (function, args, kwargs)
+
+    def on_scheduler_start(self, function, *args, **kwargs):
+        """ register callback fired when the scheduler begins execution
+        """
+        self._on_scheduler_start = (function, args, kwargs)
+
+    def on_scheduler_done(self, function, *args, **kwargs):
+        """ register callback fired when the scheduler completes all tasks
+        """
+        self._on_scheduler_done = (function, args, kwargs)
+
+    @property
+    def graph(self):
+        """ return the underlying dependency graph (read-only)
+        """
+        return self._graph
+
+
+def mark(*, after=None, with_state=True, tags=None):
+    """ mark a function for deferred registration by a Scheduler
+        does NOT register anything; only attaches metadata for discovery
+    """
+    deps = list(after) if after else []
+
+    def decorator(function):
+        # preserve wrapper metadata if function is further decorated later
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            return function(*args, **kwargs)
+
+        # attach metadata to the function object
+        wrapped.__threaded_order__ = {
+            'after': deps,
+            'with_state': with_state,
+            'orig_name': function.__name__,
+            'tags': [] if tags is None else [t.strip() for t in tags.split(',') if t.strip()],
+        }
+        return wrapped
+
+    return decorator
+
+
+def dmark(*, after=None, with_state=False, tags=None):
+    """ mark a function for deferred registration by a Scheduler
+        does NOT register anything; only attaches metadata for discovery
+    """
+    deps = list(after) if after else []
+
+    def decorator(function):
+        # preserve wrapper metadata if function is further decorated later
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            return function(*args, **kwargs)
+
+        # attach metadata to the function object
+        wrapped.__threaded_order__ = {
+            'after': deps,
+            'with_state': with_state,
+            'orig_name': function.__name__,
+            'tags': [] if tags is None else [t.strip() for t in tags.split(',') if t.strip()],
+        }
+        return wrapped
+
+    return decorator
