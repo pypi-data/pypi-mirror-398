@@ -1,0 +1,148 @@
+Metadata-Version: 2.4
+Name: rshub
+Version: 0.3.4
+Summary: This a python package to run and download submitted files on RSHub
+Author-email: Yiwen Fang <yiwenfang@intl.zju.edu.cn>
+License: MIT
+Project-URL: Homepage, https://rshub.zju.edu.cn
+Project-URL: demos, https://github.com/zjuiEMLab/rshub/tree/main/demo
+Keywords: toolbox,utilities
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests
+Requires-Dist: scipy
+Requires-Dist: tqdm
+Requires-Dist: h5py
+Requires-Dist: pandas
+Dynamic: license-file
+
+# Toolbox overview
+- `submit_jobs.run`: submit a simulation job to the RSHub service.
+- `submit_jobs.check_completion`: poll a job’s task status/path.
+- `loader = load_file.load_file`: helper class to list, download, and load outputs.
+- `loader.list_files`: list available outputs filtered by expected extension.
+- `loader.load_outputs`: load or download outputs (auto memory/disk or forced).
+
+## RSHub client quickstart
+
+This package lets you submit simulation jobs and fetch the resulting files from the RSHub service.
+
+### Prerequisites
+- Python 3.8+ with `requests`, `pandas`, `scipy`, `h5py`, and `tqdm` available.
+
+### Function 1: Submit a job and job status
+```python
+from rshub.submit_jobs import run, check_completion
+
+payload = {
+    "token": "YOUR_TOKEN",
+    "project_name": "demo_project",
+    "task_name": "snow_run_001",
+    # ...other inputs expected by the backend...
+}
+
+# Fire off the job
+resp = run(payload)
+print("Submission response:", resp)
+
+# Later, poll status
+status = check_completion(payload["token"], payload["project_name"], payload["task_name"])
+print("Task status:", status["task_status"])
+```
+- `run` posts your JSON payload to the service and returns the parsed JSON on success.
+
+### Function 2: Load outputs
+`load_file.load_file` handles listing outputs, downloading files, and loading datasets.
+### Basic example: load one output file
+```python
+from rshub.load_file import load_file
+
+loader = load_file(
+    token="YOUR_TOKEN",
+    project_name="demo_project",
+    task_name="snow_run_001",
+    scenario_flag="snow",
+    algorithm="qms",
+    output_var="tb",
+)
+
+# Load and return the dataset (auto memory/disk)
+data = loader.load_outputs(fGHz=16.7, inc_ang=40)
+print(data.keys())  # inspect variables in the file
+```
+### Full input lists
+```python
+from rshub.load_file import load_file
+
+loader = load_file(
+    token="YOUR_TOKEN",
+    project_name="demo_project",
+    task_name="snow_run_001",
+    scenario_flag="snow",      # matches output_info.csv
+    algorithm="qms",
+    output_var="tb",
+    size_threshold_mb=50,      # switch to disk download above this size
+    chunk_size=8192,           # streaming chunk size when downloading
+    show_progress=True,        # show tqdm progress for large downloads
+)
+```
+**Constructor inputs (`load_file`)**
+- `token`, `project_name`, `task_name`: identify the job; required for auth/path lookup.
+- `scenario_flag`, `algorithm`, `output_var`: select the output filename.
+- `(optional) size_threshold_mb`: MB cutoff to switch from in-memory load to disk download. Default: 50.
+- `(optional) chunk_size`: bytes per stream chunk when downloading large files. Default: 8192.
+- `(optional) show_progress`: whether to display a tqdm progress bar during large downloads. Default: True
+
+#### List available output files 
+```python
+print(loader.list_files())
+```
+
+#### Load an output file
+**Path1**: load using frequency and incident angle
+
+```python
+# Autodetect memory vs disk based on size; 
+data = loader.load_outputs(fGHz=16.7, inc_ang=40)
+```
+
+- `fGHz`: frequency placeholder for filename patterns.
+- `inc_ang`: incidence angle placeholder for filename patterns.
+
+**Path2**: load using filename output from load_outputs 
+
+```python
+filelists = loader.list_files() 
+filename=filelists[0]
+data = loader.load_outputs(filename)
+```
+- `filename`: output filename with extension
+
+**Other optinal inputs**
+
+```python
+# Force a strategy
+data_mem = loader.load_outputs(fGHz=16.7, inc_ang=40, force_method="memory")
+data_disk = loader.load_outputs(fGHz=16.7, inc_ang=40, force_method="disk")
+```
+- (experimental) `var`: single variable or space-separated names to extract from the loaded data.
+- `force_method`: `"memory"` or `"disk"` to override size-based strategy.
+- `download_path`: directory path; if set, performs download-only behavior for matching files.
+
+#### Download-only outputs (wildcard patterns)
+```python
+loader.load_outputs(download_path="downloads/", fGHz=16.7, inc_ang=40)
+```
+- `download_path`: local path to download all outputs.
+
+#### load submitted parameters for a job
+```python
+params = loader.load_parameters()
+# prints project parameters
+```
+
+#### Check error messages for a job
+```python
+loader.load_error_message()  # prints contents of Job/error.txt if present
+```
