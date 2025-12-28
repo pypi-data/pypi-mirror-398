@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipes &mdash; aionetiface 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Interfaces" href="interfaces.html" />
+    <link rel="prev" title="Basic concepts" href="basics.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            aionetiface
+          </a>
+              <div class="version">
+                3.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">General networking</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="basics.html">Basic concepts</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Pipes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#interface-selection">Interface selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tcp-echo-server-example">TCP echo server example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#udp-await-example">UDP await example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pipe-methods">Pipe methods</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#def-add-msg-cb-self-msg-cb">def add_msg_cb(self, msg_cb)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#def-del-msg-cb-self-msg-cb">def del_msg_cb(self, msg_cb)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#def-add-end-cb-self-end-cb">def add_end_cb(self, end_cb)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#def-del-end-cb-self-end-cb">def del_end_cb(self, end_cb)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#def-add-pipe-self-pipe">def add_pipe(self, pipe)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#def-del-pipe-self-pipe">def del_pipe(self, pipe)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#async-def-close-self">async def close(self)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#additional-pipe-options">Additional pipe options</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="interfaces.html">Interfaces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="queues.html">Queues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="daemons.html">Daemons</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../articles/index.html">Knowledge articles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../built/index.html">Feature showcase</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dev/index.html">Development</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">aionetiface</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">General networking</a></li>
+      <li class="breadcrumb-item active">Pipes</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/general/pipes.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="pipes">
+<h1>Pipes<a class="headerlink" href="#pipes" title="Permalink to this heading"></a></h1>
+<p>In aionetiface all messages are sent and received via pipes. Pipes are simply the
+name given to the object providing a common list of functions for transmission
+and message processing. A pipe supports UDP or TCP; IPv4 or IPv6; and can
+be used for clients or servers.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">async</span> <span class="k">def</span> <span class="nf">Pipe</span><span class="p">(</span><span class="n">proto</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">route</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sock</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">conf</span><span class="o">=</span><span class="n">NET_CONF</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">msg_cb</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    proto  = TCP or UDP.</span>
+<span class="sd">    dest   = If it&#39;s a client pipe a destination should be included.</span>
+<span class="sd">            (&#39;host/ip&#39;, port)</span>
+<span class="sd">            A server includes no destination - None</span>
+<span class="sd">    route  = Route object that&#39;s been bound with await route.bind().</span>
+<span class="sd">    sock   = Used to wrap a pre-existing socket in a pipe. If the protocol is</span>
+<span class="sd">            TCP and dest is included the socket is assumed to be connected.</span>
+<span class="sd">    msb_cb = A message handler registered with servers before they&#39;re started</span>
+<span class="sd">            so that messages aren&#39;t received before a handler is setup.</span>
+<span class="sd">    conf  = A dictionary describing many different configuration options for</span>
+<span class="sd">            changing various properties of the pipe.</span>
+
+<span class="sd">    More details on msg_cb format and conf format later.</span>
+<span class="sd">    Returns: a pipe object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>Whether a pipe is for a client or server, UDP or TCP, IPv4 or IPv6, every
+pipe works the same. Pipes are able to queue messages or process them as they arrive.
+They pass such messages to any handlers (to process in real-time)
+or add them to a message queue (to be processed later).</p>
+<section id="interface-selection">
+<h2>Interface selection<a class="headerlink" href="#interface-selection" title="Permalink to this heading"></a></h2>
+<p>In network programming its very common to write code that doesn’t manually
+choose a network interface. The reason for this is arguably because its hard
+to do; If you don’t specify an interface the code will still work. But you’ll
+have to be fine using the default chosen by the OS.</p>
+<p>For some applications this is fine. Maybe the only thing that matters is
+whether the code works. But other applications might want to be more nuanced.
+Imagine a server that has multiple interfaces and it wants to select what ones
+to listen on. Or perhaps a torrent client that wants to work across interfaces
+(and Internet connections) to increase download speed.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Normally in aionetiface you would choose an interface and a route to use for a pipe.
+But to simplify these examples no route is given. In which case – the
+default interface is loaded for each pipe. This is very inefficient as
+STUN will lookup external addressing each time!</p>
+</div>
+</section>
+<section id="tcp-echo-server-example">
+<h2>TCP echo server example<a class="headerlink" href="#tcp-echo-server-example" title="Permalink to this heading"></a></h2>
+<p>Starts a simple TCP server that writes back received data down the client
+pipes for the sender. If this example works you should see nothing.
+Notice that msg handlers include a field for the senders addressing information
+and a pipe that can be used to interact with that client.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">aionetiface</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">msg_cb</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">client_tup</span><span class="p">,</span> <span class="n">pipe</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">client_tup</span><span class="p">)</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">example</span><span class="p">():</span>
+    <span class="c1"># Start the server and use msg_cb to process messages.</span>
+    <span class="n">server</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Pipe</span><span class="p">(</span><span class="n">TCP</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">msg_cb</span><span class="o">=</span><span class="n">msg_cb</span><span class="p">)</span>
+
+    <span class="c1"># Connect to the server.</span>
+    <span class="c1"># Use the IP of the route and unused port for the destination.</span>
+    <span class="n">dest</span> <span class="o">=</span> <span class="n">server</span><span class="o">.</span><span class="n">sock</span><span class="o">.</span><span class="n">getsockname</span><span class="p">()[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Pipe</span><span class="p">(</span><span class="n">TCP</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+    
+    <span class="c1"># Send data to the server and check receipt.</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;test msg.&quot;</span>
+    <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">()</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">msg</span> <span class="o">==</span> <span class="n">out</span><span class="p">)</span>
+    
+    <span class="c1"># Close both.</span>
+    <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">await</span> <span class="n">server</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<span class="c1"># From inside the async REPL.</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">async_test</span><span class="p">(</span><span class="n">example</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="udp-await-example">
+<h2>UDP await example<a class="headerlink" href="#udp-await-example" title="Permalink to this heading"></a></h2>
+<p>In Python if you want to do asynchronous networking you normally
+have to write different code for UDP and TCP. Python has decent enough
+classes for TCP clients (stream readers) – though UDP has no such equivalent.
+As for servers Python offers protocol classes. Wouldn’t it be great if you
+could use either style on either protocol?</p>
+<p>Here’s an example of how simple aionetiface makes this. Here I’m using await for UDP
+which is based on message queues. Since there is no delivery guarantees for UDP it’s
+possible this example throws a timeout error for you. Note that the await for
+the recv is fully asynchronous. The event loop is free to run other tasks
+until a message is received.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">binascii</span>
+<span class="kn">from</span> <span class="nn">aionetiface</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">example</span><span class="p">():</span>
+    <span class="c1"># Open a UDP pipe to google&#39;s STUN server.</span>
+    <span class="n">pipe</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Pipe</span><span class="p">(</span><span class="n">UDP</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;stun.l.google.com&quot;</span><span class="p">,</span> <span class="mi">19302</span><span class="p">))</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+    
+    <span class="c1"># Random STUN message ID.</span>
+    <span class="n">msg_id</span> <span class="o">=</span> <span class="n">binascii</span><span class="o">.</span><span class="n">hexlify</span><span class="p">(</span><span class="n">rand_b</span><span class="p">(</span><span class="mi">12</span><span class="p">))</span>
+    
+    <span class="c1">#  req  = req type    len     magic cookie</span>
+    <span class="n">req_hex</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;0001&quot;</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">&quot;0000&quot;</span>  <span class="o">+</span> <span class="sa">b</span><span class="s2">&quot;2112A442&quot;</span>  <span class="o">+</span> <span class="n">msg_id</span>
+    <span class="n">req_buf</span> <span class="o">=</span> <span class="n">binascii</span><span class="o">.</span><span class="n">unhexlify</span><span class="p">(</span><span class="n">req_hex</span><span class="p">)</span>
+    
+    <span class="c1"># UDP is unreliable -- try up to 3 times.</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+        <span class="c1"># Send STUN bind request and get resp.</span>
+        <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">req_buf</span><span class="p">)</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">recv</span><span class="p">()</span>
+        
+        <span class="c1"># Timeout -- try again.</span>
+        <span class="k">if</span> <span class="n">resp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        
+        <span class="c1"># Show resp -- exit loop.</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
+        <span class="k">break</span>
+    
+    <span class="c1"># Cleanup.</span>
+    <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">async_test</span><span class="p">(</span><span class="n">example</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="pipe-methods">
+<h2>Pipe methods<a class="headerlink" href="#pipe-methods" title="Permalink to this heading"></a></h2>
+<p>Pipes are an instance of the PipeEvents class that provides many useful methods
+and properties for working with connections (TCP or UDP.) Assume all of
+these methods are of the form ‘pipe.method_name()’ and that they ‘belong’
+to a PipeEvents class instance.</p>
+<hr class="docutils" />
+<section id="def-add-msg-cb-self-msg-cb">
+<h3>def add_msg_cb(self, msg_cb)<a class="headerlink" href="#def-add-msg-cb-self-msg-cb" title="Permalink to this heading"></a></h3>
+<p>When a pipe receives a message it will also forward it to any installed message
+handlers.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>async def msg_cb(msg, client_tup, pipe)</p>
+</div>
+<p>The msg_cb also doesn’t have to be an async callback but keep in mind if it’s
+given as a regular function you will have to use asyncio.create_task
+to schedule any callbacks and you won’t be able to await them. Since
+the whole library uses async await it’s best to use an async method.</p>
+<p>Using message handlers like this is useful because you can install them
+for either a server pipe or a client pipe and it will automatically be
+called when there’s a new message. No need to run your own loop and
+call await on them The event loop handles it.</p>
+</section>
+<hr class="docutils" />
+<section id="def-del-msg-cb-self-msg-cb">
+<h3>def del_msg_cb(self, msg_cb)<a class="headerlink" href="#def-del-msg-cb-self-msg-cb" title="Permalink to this heading"></a></h3>
+<p>Removes a function reference designated by msg_cb from the pipe’s msg_cbs.</p>
+</section>
+<hr class="docutils" />
+<section id="def-add-end-cb-self-end-cb">
+<h3>def add_end_cb(self, end_cb)<a class="headerlink" href="#def-add-end-cb-self-end-cb" title="Permalink to this heading"></a></h3>
+<p>When a connection is closed manually or forcefully the end_cb handlers are
+called.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>async def end_cb(msg, client_tup, pipe)</p>
+</div>
+<p>Where message is set to None.</p>
+</section>
+<hr class="docutils" />
+<section id="def-del-end-cb-self-end-cb">
+<h3>def del_end_cb(self, end_cb)<a class="headerlink" href="#def-del-end-cb-self-end-cb" title="Permalink to this heading"></a></h3>
+<p>Removes a function reference designated by end_cb from the pipe’s end_cb handlers.</p>
+</section>
+<hr class="docutils" />
+<section id="def-add-pipe-self-pipe">
+<h3>def add_pipe(self, pipe)<a class="headerlink" href="#def-add-pipe-self-pipe" title="Permalink to this heading"></a></h3>
+<p>Pipes can be made to route messages to other pipes.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pipe_a</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">pipe_b</span><span class="p">)</span>
+<span class="n">pipe_b</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">pipe_a</span><span class="p">)</span>
+</pre></div>
+</div>
+<ol class="arabic simple">
+<li><p>Messages received at pipe_a will be sent down pipe_b.</p></li>
+<li><p>Messages received at pipe_b will be sent down pipe_a.</p></li>
+</ol>
+<p>This doesn’t cause looping as the messages get sent to the destination rather than the pipe itself.
+Linking pipes together is the trick used in the aionetiface REST API for ‘converting’ an
+active HTTP connection into a two-way relay to an active P2P connection in
+only two lines of code.</p>
+</section>
+<hr class="docutils" />
+<section id="def-del-pipe-self-pipe">
+<h3>def del_pipe(self, pipe)<a class="headerlink" href="#def-del-pipe-self-pipe" title="Permalink to this heading"></a></h3>
+<p>Unlink ‘pipe’ from self.</p>
+</section>
+<hr class="docutils" />
+<section id="async-def-close-self">
+<h3>async def close(self)<a class="headerlink" href="#async-def-close-self" title="Permalink to this heading"></a></h3>
+<p>Closes all resources associated with a pipe. If it’s a server it will stop serving
+any clients and all client connections will be closed. All sockets will be
+closed forcefully. Server’s that immediately reuse the same port may experience
+errors where they fail to receive designated packets. There may be a solution to
+this by setting SO_LINGER to enabled and using a zero timeout. But using
+this option on client TCP sockets on Windows prevents the hole punching algorithm
+from working so this needs to only be considered for server sockets.</p>
+</section>
+<hr class="docutils" />
+<section id="additional-pipe-options">
+<h3>Additional pipe options<a class="headerlink" href="#additional-pipe-options" title="Permalink to this heading"></a></h3>
+<p>A default dictionary of configuration options is passed to each pipe. The
+options look like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">NET_CONF</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c1"># Seconds to use for a DNS request before timeout exception.</span>
+    <span class="s2">&quot;dns_timeout&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+
+    <span class="c1"># Wrap socket with SSL.</span>
+    <span class="s2">&quot;use_ssl&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+
+    <span class="c1"># Timeout for SSL handshake.</span>
+    <span class="s2">&quot;ssl_handshake&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+
+    <span class="c1"># Protocol family used for the socket.socket function.</span>
+    <span class="s2">&quot;sock_proto&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+
+    <span class="c1"># N seconds before a registering recv timeout.</span>
+    <span class="s2">&quot;recv_timeout&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+
+    <span class="c1"># Only applies to TCP.</span>
+    <span class="s2">&quot;con_timeout&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+
+    <span class="c1"># No of messages to receive per subscription.</span>
+    <span class="s2">&quot;max_qsize&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+
+    <span class="c1"># Require unique messages or not.</span>
+    <span class="s2">&quot;enable_msg_ids&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+
+    <span class="c1"># Number of message IDs to keep around.</span>
+    <span class="s2">&quot;max_msg_ids&quot;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span>
+
+    <span class="c1"># Reuse address tuple for bind() socket call.</span>
+    <span class="s2">&quot;reuse_addr&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+
+    <span class="c1"># Setup socket as a broadcast socket.</span>
+    <span class="s2">&quot;broadcast&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+
+    <span class="c1"># Buf size for asyncio.StreamReader.</span>
+    <span class="s2">&quot;reader_limit&quot;</span><span class="p">:</span> <span class="mi">2</span> <span class="o">**</span> <span class="mi">16</span><span class="p">,</span>
+
+    <span class="c1"># Return the sock instead of the base proto.</span>
+    <span class="s2">&quot;sock_only&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+
+    <span class="c1"># Enable closing sock on error.</span>
+    <span class="s2">&quot;do_close&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+
+    <span class="c1"># Whether to set SO_LINGER. None = off.</span>
+    <span class="c1"># Non-none = linger value.</span>
+    <span class="s2">&quot;linger&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+
+    <span class="c1"># Retry N times on reply timeout.</span>
+    <span class="s2">&quot;send_retry&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+
+    <span class="c1"># Ref to an event loop.</span>
+    <span class="s2">&quot;loop&quot;</span><span class="p">:</span> <span class="kc">None</span>
+<span class="p">}</span>
+
+<span class="c1"># Here&#39;s where to use these options.</span>
+<span class="n">pipe</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Pipe</span><span class="p">(</span><span class="n">TCP</span><span class="p">,</span> <span class="n">route</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">conf</span><span class="o">=</span><span class="n">NET_CONF</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="basics.html" class="btn btn-neutral float-left" title="Basic concepts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="interfaces.html" class="btn btn-neutral float-right" title="Interfaces" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
