@@ -1,0 +1,337 @@
+package com.buildz;
+
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
+class Link{
+    public Map<String, Link> maps=new HashMap<>();
+    public String val=null;
+    public boolean set = false;
+    public Link(){}
+}
+class LinkMatch{
+    public String val;
+    public int deep;
+    public boolean find;
+    public LinkMatch(String val, int deep, boolean find){
+        this.val = val;
+        this.deep=deep;
+        this.find = find;
+    }
+}
+public class Conf{
+    public static Object[] args(Object... vars){
+        return vars;
+    }
+    public String toString(){
+        return val().toString();
+    }
+    public <T> boolean isType(Class<T> clazz) {
+        return clazz.isInstance(val());
+    }
+    public boolean hasVal(){
+        return top().hget(domain).find;
+    }
+    public <T> T getObj(Class<T> targetClass) {
+        try{
+            return ConfUtil.fill(this, targetClass);
+        }catch (Exception exp){
+            throw new RuntimeException(""+exp);
+        }
+    }
+    public Map<String, Object> conf=null;
+    Conf root=null;
+    Map<String, List> history=null;
+    Link _links=null;
+    public String spt;
+    public String spts;
+    public String domain;
+    <<default(".", ",", null, null)||Conf>>
+    public Conf(String spt, String spts, String domain, Conf root) {
+        this.spt = spt;
+        this.spts = spts;
+        this.domain = domain;
+        this.root = root;
+        if (root==null) {
+            conf = new HashMap<>();
+            history = new HashMap<>();
+            _links = new Link();
+        }
+    }
+    <<default(null, -1, 0)||rename(ltop)||top>>
+    <<default(null,0,0)||top>>
+    public Conf top(String domain, int loop, int link){
+        Conf obj = this;
+        if (root!=null)obj =root;
+        if (domain!=null) {
+            obj = obj.sub(domain, loop, link);
+        }
+        return obj;
+    }
+    <<rename(val)||getConf>>
+    public Map getConf(){
+        Conf obj = top();
+        if (domain!=null) {
+            return (Map)obj._get(domain);
+        }
+        return obj.conf;
+    }
+    <<default(-1,0)||rename(lsub)||sub>>
+    <<default(0,0)||sub>>
+    public Conf sub(String domain, int loop, int link) {
+        domain = dmKey(domain);
+        Conf obj = top();
+        if (loop!=0) {
+            Result rst = obj.hget(domain, null, link);
+            while (loop!=0&&rst.find&&rst.val instanceof String) {
+                domain=(String)rst.val;
+                rst = obj.hget(domain, link);
+                loop--;
+            }
+        }
+        return new Conf(spt, spts, domain, obj);
+    }
+    public Conf clean(){
+        if (root!=null) {
+            root.clean();
+            return this;
+        }
+        conf = new HashMap<>();
+        history = new HashMap<>();
+        _links = new Link();
+        return this;
+    }
+    public String dmKey(String key){
+        if (domain !=null) {
+            key = domain+spt+key;
+        }
+        return key;
+    }
+    <<default(true,true)||
+    public Conf update(Map<String, Object> conf, boolean flush, boolean replace) {
+        //System.out.println("[TESTZ] update: "+conf);
+        if (conf==null)return this;
+        if (domain!=null) {
+            String[] ks = Utils.keys(domain, spt);
+            Map tmp = new HashMap();
+            Utils.dset(tmp, ks, conf);
+            conf = tmp;
+        }
+        if (root!=null) {
+            root.update(conf, flush, replace);
+            return this;
+        }
+        if (flush) {
+            conf = Utils.flushMaps(conf, spt);
+        }
+        Utils.fill(conf, this.conf, replace);
+        return this;
+    }>>
+    <<methods(stackSets,val=true)||domain(stackSet)||default(true,false)||
+    public void _stackSet(String key, Object value, boolean flush, boolean update) {
+        _push(key, value, flush, update, true);
+    }>>
+    <<domain(stackUnset)||
+    public boolean _stackUnset(String key) {
+        return _pop(key, true);
+    }>>
+    <<rename(tmpSet)||stackSet>>
+    <<rename(tmpUnset)||stackUnset>>
+    <<rename(tmpSets)||stackSets>>
+    <<rename(tmpUnsets)||stackUnsets>>
+    // TODO: move to Utils
+    <<methods(pushs,val=true)||domain(push)||default(true, false, false)||_push>>
+    public void _push(String key, Object value, boolean flush, boolean update, boolean cleanHistory) {
+        String[] keys = sptKeys(key);
+        Result rst = Utils.dget(conf, keys);
+        if (rst.find){
+            rst.val = Utils.deepClone(rst.val);
+        }
+        if (cleanHistory|| !history.containsKey(key)) {
+            history.put(key, new ArrayList());
+        }
+        List list = (List)history.get(key);
+        list.add(rst);
+        if (value instanceof Map && flush) {
+            value = Utils.flushMaps((Map)value, spt);
+        }
+        if (value instanceof Map && update) {
+            top(key).update((Map<String, Object>)value, false);
+        } else {
+            _set(key, value);
+        }
+    }
+    public void stackUnsets(String keys) {
+        pops(keys, true);
+    }
+    <<default(false)||
+    public void pops(String key, boolean cleanHistory) {
+        String[] keys = sptsKeys(key);
+        for(int i=keys.length-1;i>=0;i--) {
+            pop(key, cleanHistory);
+        }
+    }>>
+    <<domain(pop)||default(false)||
+    public boolean _pop(String key, boolean cleanHistory) {
+        if (!history.containsKey(key)) {
+            return false;
+        }
+        List list = history.get(key);
+        if (list.size()==0)return false;
+        Result rst = (Result)list.get(list.size()-1);
+        list.remove(list.size()-1);
+        if (!rst.find){
+            _remove(key);
+        } else {
+            _set(key, rst.val);
+        }
+        return true;
+    }>>
+    public static Link linkGet(Link links, String[] keys, boolean init) {
+        for (String key:keys) {
+            if (!links.maps.containsKey(key)) {
+                if (!init)return null;
+                links.maps.put(key, new Link());
+            }
+            links = links.maps.get(key);
+        }
+        return links;
+    }
+    <<domain(link)||_link>>
+    <<methods(links,val=true,ret=false,align=true)||link>>
+    public void _link(String src, String target) {
+        String[] keys = Utils.keys(src, spt);
+        Link links = linkGet(_links, keys, true);
+        links.val = target;
+        links.set = true;
+    }
+    <<methods(unlinks)||domain(unlink)||_unlink>>
+    public boolean _unlink(String key) {
+        String[] keys = Utils.keys(key, spt);
+        Link links = linkGet(_links, keys, false);
+        if (links==null)return false;
+        links.val = null;
+        links.set = false;
+        return true;
+    }
+    private LinkMatch linkMatch(String[] keys) {
+        Conf obj = top();
+        Link links = obj._links;
+        int deep=0;
+        LinkMatch match = new LinkMatch(links.val, 0, false);
+        for(String key:keys){
+            if (!links.maps.containsKey(key)){
+                break;
+            }
+            deep+=1;
+            links = links.maps.get(key);
+            if (links.set) {
+                match.val = links.val;
+                match.find = true;
+                match.deep=deep;
+            }
+        }
+        return match;
+    }
+    <<methods(sets,val=true,ret=false,align=true)||domain(set)||
+    public void _set(String key, Object value) {
+        String[] keys = sptKeys(key);
+        // System.out.println("[XXX] set.key:"+key);
+        // System.out.println("[XXX] set.keys:"+keys.length);
+        Utils.dset(this.conf, keys, value);
+    }>>
+    <<domain(lhget)||default(null,-1,-1)||
+    public Result _lhget(String key, Object def, int loop, int link) {
+        Result rst = _hget(key, def, link);
+        Result bak = rst;
+        while (rst.find && rst.val instanceof String && loop!=0) {
+            rst = _hget((String)rst.val, def, link);
+            if (rst.find)bak = rst;
+            loop--;
+        }
+        return bak;
+    }>>
+    <<methods(lgets)||domain(lget)||default(null,-1,-1)||
+    public Object _lget(String key, Object def, int loop, int link){
+        return _lhget(key, def, loop, link).val;
+    }>>
+    <<||->||domain(hget)->default(null,-1)->
+    public Result _hget(String key, Object def, int link){
+        Result rst = new Result();
+        String[] keys = sptKeys(key);
+        Utils.dget(conf, keys, def, rst);
+        if (rst.find || link==0){
+            return rst;
+        }
+        LinkMatch match = linkMatch(keys);
+        if (!match.find) {
+            return rst;
+        }
+        keys = Arrays.copyOfRange(keys, match.deep, keys.length);
+        key = String.join(spt, keys);
+        if (match.val != null) {
+            key = match.val + spt+key;
+        }
+        if (link>0)link-=1;
+        return _hget(key, def, link);
+    }>>
+    <<methods(gets, Object, true, false,'null')||domain(get)||default(null,-1)||
+    public Object _get(String key, Object def, int link) {
+        return _hget(key, def, link).val;
+    }>>
+    <<default(-1)||
+    public <T> T wget(String key, T def, int link) {
+        Object val = get(key, def, link);
+        return (T) val;
+    }>>
+    <<default(-1, -1)||
+    public <T> T wlget(String key, T def, int loop, int link) {
+        Object val = lget(key, def, loop, link);
+        return (T) val;
+    }>>
+    <<default(null, -1)||
+    public <T> T tget(String key, Class<T> type, T def, int link) {
+        Object val = get(key, def, link);
+        return (T) val;
+    }>>
+    <<default(null, -1, -1)||
+    public <T> T tlget(String key, Class<T> type, T def, int loop, int link) {
+        Object val = lget(key, def, loop, link);
+        return (T) val;
+    }>>
+    <<methods(removes)||domain(remove)||
+    public boolean _remove(String key) {
+        String[] keys = sptKeys(key);
+        return Utils.dremove(conf, keys);
+    }>>
+    <<domain(has)||default(0)||
+    public boolean _has(String key, int link){
+        return _hget(key, null, link).find;
+    }>>
+    public String[] sptKeys(String key){
+        return Utils.keys(key, spt);
+    }
+    public String[] sptsKeys(String keys) {
+        String[] ks = Utils.keys(keys, spts);
+        for(int i=0;i<ks.length;i++){
+            ks[i] = ks[i].trim();
+        }
+        return ks;
+    }
+    public boolean hasAll(String keys, int link) {
+        String[] ks = sptsKeys(keys);
+        for(String key:ks) {
+            if (!has(key,link))return false;
+        }
+        return true;
+    }
+    public boolean hasAny(String keys, int link) {
+        String[] ks = sptsKeys(keys);
+        for(String key:ks) {
+            if (has(key,link))return true;
+        }
+        return false;
+    }
+}

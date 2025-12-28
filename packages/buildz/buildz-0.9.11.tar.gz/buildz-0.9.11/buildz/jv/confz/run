@@ -1,0 +1,1 @@
+./jvc Test.java && ./jv Test

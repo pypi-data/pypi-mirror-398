@@ -1,0 +1,107 @@
+
+测试结果: 
+训练模式大概能达到纯显卡（75W，更高的没测）二分之一或三分之一的性能，显存不够的可以用用
+
+环境: 
+    笔记本（游戏本）
+    显卡: RTX4060 8GB 75W残血版
+    CPU: i7-13700H
+    内存: 16GB
+
+1）线性层：
+训练模式：
+python -m buildz.gpuz.test.test_linear_demo train cuda,cache,cpu
+结果：
+data size: 0.457763671875 MB
+Model Size: 1.7890334129333496 GB
+Analyze
+    mean time cost not used DictCache: 4.274392604827881 sec
+    mean time cost using DictCache: 4.48450231552124 sec
+    mean time cost using CPU: 24.141416311264038 sec
+
+用不用DictCache耗时都是4秒左右，猜测是因为显存足够，可能转内存后显存还在哪里做了缓存
+先占掉4GB显存再测试：
+占用4GB显存（开另一个命令行窗口执行）
+python -m buildz.gpuz.test.take_gpu_mem 20
+时间测试（去掉cuda是因为显存不够，全部用cuda直接报错显存不足，根本用不了）：
+python -m buildz.gpuz.test.test_linear_demo train cache,cpu
+Analyze
+    mean time cost using DictCache: 12.55063670873642 sec
+    mean time cost using CPU: 23.80371403694153 sec
+
+用DictCache要12.6秒左右，性能推测是全部用显存的1/3，但起码比CPU快
+
+测试模式：
+python -m buildz.gpuz.test.test_linear_demo eval cuda,cache,cpu
+Analyze
+    mean time cost not used DictCache: 0.022499561309814453 sec
+    mean time cost using DictCache: 1.3205116987228394 sec
+    mean time cost using CPU: 0.3452974557876587 sec
+
+测试模式DictCache比CPU还慢，以测试结果为准，结论是测试模式线性层有显存用显存，没显存用CPU，尽量别用DictCache，具体原因不清楚
+
+2）卷积层：
+训练模式：
+python -m buildz.gpuz.test.test_resnet_demo train cuda,cache,cpu
+结果：
+data size: 60.0 MB
+Model Size: 2.75390625 MB
+Analyze
+    mean time cost not used DictCache: 4.0497170554267035 sec
+    mean time cost using DictCache: 8.11503267288208 sec
+    mean time cost using CPU: 60.47528860304091 sec
+CPU模式下卷积一直很慢，另外别看模型参数很小，全放显存的时候8GB显卡直接占满了
+
+显存占用一半后计算：
+python -m buildz.gpuz.test.take_gpu_mem 20
+#去掉cpu是因为显存对cpu没影响，没必要再测，去掉cuda到不是显存报错了，cuda能运行，但在显存不够的情况下，时间是两分钟左右，比cpu还慢，不测了
+python -m buildz.gpuz.test.test_linear_demo train cache
+Analyze
+    mean time cost using DictCache: 12.734953820705414 sec
+
+
+测试模式：
+python -m buildz.gpuz.test.test_resnet_demo eval cuda,cache,cpu
+Analyze
+    mean time cost not used DictCache: 2.141914208730062 sec
+    mean time cost using DictCache: 2.1802857451968722 sec
+    mean time cost using CPU: 18.77076021830241 sec
+
+显存足够，卷积层用不用DictCache感觉没啥差别，本来测试模式占用显存就少，不如不用DictCache
+
+多头注意力
+训练模式：
+python -m buildz.gpuz.test.test_resnet_demo train cuda,cache,cpu
+Analyze
+    mean time cost not used DictCache: 1.6817578077316284 sec
+    mean time cost using DictCache: 9.037651598453522 sec
+    mean time cost using CPU: 16.668074309825897 sec
+显存扣掉3GB
+python -m buildz.gpuz.test.take_gpu_mem 12
+python -m buildz.gpuz.test.test_resnet_demo train cuda,cache,cpu
+No Used DictCache
+ train: 0 mean loss: 7.049219369888306 time: 32.67351007461548
+ train: 1 mean loss: 6.776383876800537 time: 26.468174934387207
+ train: 2 mean loss: 6.425022125244141 time: 26.648658752441406
+ train: 3 mean loss: 6.085292339324951 time: 26.714829921722412
+ train: 4 mean loss: 5.76223087310791 time: 26.91315507888794
+Using DictCache:
+ train: 0 mean loss: 7.036778688430786 time: 14.886789083480835
+ train: 1 mean loss: 6.7514262199401855 time: 8.72349238395691
+ train: 2 mean loss: 6.392669439315796 time: 8.646085023880005
+看DictCache和之前差不多就没测完直接ctrl+C了，显存不够的时候，多头注意力全放显存比使用CPU还慢
+目前看卷积和多头注意力都有这种情况，在显存不够情况下和CPU差不多或者比CPU还慢，还不如用DictCache做下缓存
+
+测试模式:
+python -m buildz.gpuz.test.test_resnet_demo eval cuda,cache,cpu
+Analyze
+    mean time cost not used DictCache: 0.6104159355163574 sec
+    mean time cost using DictCache: 0.6807375550270081 sec
+    mean time cost using CPU: 6.312976717948914 sec
+
+
+如果是测试模式，显存不够的时候，可以部分模型全放显存，部分全放内存，建议是卷积和注意力多放显存，线性层多放内存，因为线性层占用空间大
+convs = [...]
+linears = [...]
+cache = DictCache(dvs=[torch.device('cuda'), torch.device('cpu')], dvs_nets = [convs, linears])
+...

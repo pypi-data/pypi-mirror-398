@@ -1,0 +1,119 @@
+package com.buildz;
+
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.regex.Pattern;
+class Result{
+    public Object val=null;
+    public boolean find=false;
+    public Result() {
+    }
+}
+public class Utils {
+    public static Object deepClone(Object obj) {
+        Object rst;
+        if (obj instanceof List) {
+            List lst = (List) obj;
+            List lrst = new ArrayList(lst.size());
+            for(Object it:lst) {
+                lrst.add(deepClone(it));
+            }
+            rst = lrst;
+        } else if (obj instanceof Map) {
+            Map mp = (Map) obj;
+            Map mrst = new HashMap(mp.size());
+            for(Object key:mp.keySet()) {
+                mrst.put(key, deepClone(mp.get(key)));
+            }
+            rst = mrst;
+        } else {
+            rst = obj;
+        }
+        return rst;
+    }
+    public static Map flushMaps(Map maps, String spt) {
+        Map rst = new HashMap();
+        for(Object key:maps.keySet()) {
+            Object val = maps.get(key);
+            String[] keys = keys((String)key,spt);
+            if (val instanceof Map) {
+                val = (Object)flushMaps((Map)val, spt);
+            }
+            dset(rst, keys, val);
+        }
+        return rst;
+    }
+    <<default(true)||
+    public static void fill(Map src, Map target, boolean replace) {
+        if (src==null)return;
+        for(Object key:src.keySet()) {
+            Object val = src.get(key);
+            if (!target.containsKey(key)) {
+                target.put(key, val);
+                continue;
+            }
+            Object mval = target.get(key);
+            if (val instanceof Map && mval instanceof Map) {
+                fill((Map)val, (Map)mval, replace);
+            } else if (replace) {
+                target.put(key, val);
+            }
+        }
+    }>>
+    public static void dset(Map maps, String[] keys, Object val){
+        for(int i=0;i<keys.length-1;i++) {
+            String key  = keys[i];
+            if (!maps.containsKey(key)) {
+                maps.put(key, new HashMap());
+            }
+            maps = (Map)maps.get(key);
+        }
+        maps.put(keys[keys.length-1], val);
+    }
+    public static String[] keys(String key, String spt) {
+        return key.split(Pattern.quote(spt));
+    }
+    <<default(null, new Result())||dget>>
+    public static Result dget(Map maps, String[] keys, Object def, Result result) {
+        Object obj = maps;
+        for(String key: keys) {
+            maps = (Map)obj;
+            if (!maps.containsKey(key)) {
+                result.find = false;
+                result.val = def;
+                return result;
+            }
+            obj = maps.get(key);
+        }
+        result.find=true;
+        result.val = obj;
+        return result;
+    }
+    public static boolean dremove(Map maps, String[] keys) {
+        List<Map> arr = new ArrayList(keys.length);
+        Object obj = maps;
+        for(String key:keys){
+            maps = (Map)obj;
+            if (!maps.containsKey(key)){
+                return false;
+            }
+            arr.add(maps);
+            obj = maps.get(key);
+        }
+        for(int i=keys.length-1;i>=0;i--) {
+            maps = arr.get(i);
+            if (i==keys.length-1){
+                maps.remove(keys[i]);
+            } else {
+                Map sub = (Map)maps.get(keys[i]);
+                if (sub.size()==0){
+                    maps.remove(keys[i]);
+                }
+            }
+        }
+        return true;
+    }
+}

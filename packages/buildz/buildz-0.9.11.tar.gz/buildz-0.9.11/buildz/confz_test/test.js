@@ -1,0 +1,4 @@
+{
+    fps: [conf.js]
+    conf:{}
+}

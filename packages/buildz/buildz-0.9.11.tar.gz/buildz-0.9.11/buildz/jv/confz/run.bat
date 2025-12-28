@@ -1,0 +1,1 @@
+jvc.bat Test.java && jv.bat Test
