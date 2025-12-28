@@ -1,0 +1,293 @@
+[build-system]
+requires = [ "setuptools>=41", "wheel", "setuptools-git-versioning>=2.0,<3", ]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
+version_file = "data_rentgen/VERSION"
+count_commits_from_version_file = true
+dev_template = "{tag}.dev{env:GITHUB_RUN_ID:{ccount}}+git.{sha}"
+dirty_template = "{tag}"
+
+[project]
+name = "data-rentgen"
+license = "Apache-2.0"
+description = "Data.Rentgen REST API + Kafka consumer"
+authors = [{name= "MWS Data Bridge", email = "onetools@mts.ru"}]
+readme = "README.rst"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pydantic",
+    "Framework :: Pydantic :: 2",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+keywords = ["Lineage", "FastAPI", "REST", "FastStream"]
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic~=2.12.5",
+  "pydantic-settings~=2.12.0",
+  "typing-extensions~=4.15.0",
+  "alembic~=1.17.2",
+  "sqlalchemy~=2.0.44",
+  "sqlalchemy-utils~=0.42.0",
+  "greenlet>=3.2.4,<3.4.0",
+  "pyyaml~=6.0.3",
+  "python-json-logger~=4.0.0",
+  "coloredlogs~=15.0.1",
+  "uuid6~=2025.0.0",
+  "python-dateutil~=2.9.0.post0",
+  "packaging~=25.0",
+  "cachetools~=6.2.2",
+]
+dynamic = ["version"]
+
+[tool.setuptools.packages.find]
+include = ["data_rentgen*"]
+exclude = ["docs", "tests"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed", "*.yml",  "*.ini", "VERSION"]
+
+[project.urls]  # Optional
+"Homepage" = "https://github.com/MobileTeleSystems/data-rentgen"
+"Documentation" = "https://data-rentgen.readthedocs.io/"
+"Source" = "https://github.com/MobileTeleSystems/data-rentgen"
+"CI/CD" = "https://github.com/MobileTeleSystems/data-rentgen/actions"
+"Tracker" = "https://github.com/MobileTeleSystems/data-rentgen/issues"
+
+
+[project.optional-dependencies]
+server = [
+  "fastapi>=0.123.10,<0.128.0",
+  "starlette~=0.50.0",
+  "uvicorn>=0.38,<0.41",
+  "starlette-exporter~=0.23.0",
+  "asgi-correlation-id~=4.3.4",
+  "pyjwt~=2.10.1 ",
+  "itsdangerous~=2.2.0",
+  "python-multipart~=0.0.20",
+  "python-keycloak~=5.8.1",
+]
+consumer = [
+  "faststream[kafka,cli]~=0.6.3",
+  "cramjam~=2.11.0",
+]
+http2kafka = [
+  "fastapi>=0.123.10,<0.128.0",
+  "starlette~=0.50.0",
+  "uvicorn>=0.38,<0.41",
+  "starlette-exporter~=0.23.0",
+  "asgi-correlation-id~=4.3.4",
+  "faststream[kafka,cli]~=0.6.3",
+  "cramjam~=2.11.0",
+]
+postgres = [
+  "asyncpg~=0.31.0",
+]
+gssapi = [
+  "gssapi~=1.10.0",
+]
+seed = [
+  "faker>=38.2,<39.1"
+]
+
+[dependency-groups]
+test =[
+  "pytest~=9.0.1",
+  "httpx~=0.28.1",
+  "pytest-asyncio~=1.3.0",
+  "pytest-randomly~=4.0.0",
+  "pytest-deadfixtures~=3.0.0",
+  "pytest-rerunfailures~=16.1",
+  "coverage>=7.12,<7.14",
+  "psycopg2-binary~=2.9.11",
+  "deepdiff~=8.6.1",
+  "respx~=0.22.0",
+  "dirty_equals>=0.9,<0.12",
+  "gevent~=25.9.1",
+]
+dev = [
+  "pre-commit~=4.5.0",
+  "mypy~=1.19.0",
+  "sqlalchemy[mypy]~=2.0.44",
+  "types-pyyaml~=6.0.12",
+  "types-python-dateutil~=2.9.0",
+  "types-jwcrypto~=1.5.0",
+  "types-cachetools~=6.2.0",
+]
+docs = [
+  "setuptools-git-versioning~=2.1.0",
+  "autodoc-pydantic~=2.2.0",
+  "numpydoc>=1.9,<1.11",
+  # sphinx-design doesn't support sphinx 9
+  "sphinx~=8.2.3",
+  "furo>=2025.9.25,<2025.13.0",
+  "sphinx-copybutton~=0.5.2",
+  "sphinxcontrib-towncrier~=0.5.0a0",
+  "towncrier~=25.8.0",
+  "sphinx-issues~=5.0.1",
+  "sphinx-design~=0.6.1",
+  "sphinx-favicon~=1.0.1",
+  "sphinx-last-updated-by-git~= 0.3.8",
+  # uncomment after https://github.com/zqmillet/sphinx-plantuml/pull/4
+  # "sphinx-plantuml~=1.0.0",
+  "sphinx-argparse~=0.5.2",
+  "sphinx-tabs~=3.4.7",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "server: tests for server (require running database)",
+    "consumer: tests for consumer (require running database and kafka)",
+    "http2kafka: tests for consumer (require running database and kafka)",
+    "db: tests for db structure and migrations",
+    "lineage: tests for lineage endpoints (require running database)"
+]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.paths]
+source = ["data_rentgen"]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+relative_files = true
+concurrency = ["gevent"]
+omit = [
+  "tests/*",
+]
+data_file = "reports/.coverage"
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "if .*debug",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "if logger.isEnabledFor",
+  "if sys.version_info",
+  "@(abc\\.)?abstractmethod",
+  "\\.\\.\\.",
+  "def downgrade\\(\\)",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = ["docs/", "Makefile"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+# TODO: Optionally remove from ignore later: RUF005, TC001-003
+ignore = ["ARG", "ANN", "D", "COM812", "TD", "FIX002", "RUF005"]
+
+[tool.ruff.lint.per-file-ignores]
+"data_rentgen/server/services/*" = ["PLR0913"]
+"data_rentgen/server/schemas/*" = ["TC"]
+"data_rentgen/server/middlewares/*" = ["TC"]
+"data_rentgen/dto/*" = ["TC"]
+"data_rentgen/server/providers/auth/*" = ["FA102"]
+"data_rentgen/server/api/*" = ["B008"]
+"data_rentgen/db/utils/*" = ["INP001"]
+"data_rentgen/db/utils/uuid.py" = ["A005"]
+"data_rentgen/db/scripts/*" = ["TC"]
+"data_rentgen/db/repositories/*" = ["TC", "PLR0913"]
+"data_rentgen/db/models/*" = ["TC"]
+"data_rentgen/db/migrations/*" = ["INP001", "E501", "S608"]
+"data_rentgen/consumer/*" = ["TC", "B008"]
+"data_rentgen/openlineage/*" = ["N815"]
+"data_rentgen/utils/uuid.py" = ["A005"]
+"data_rentgen/logging/*" = ["A005"]
+
+
+"tests/*" = ["S", "A", "E501", "FBT001", "PD901", "SIM300", "PLR0913", "PLR2004",  "SLF001", "RET504", "PLR0915"]
+"tests/test_server/fixtures/*" = ["INP001"]
+
+[tool.ruff.lint.flake8-pytest-style]
+parametrize-names-type = "list"
+parametrize-values-type = "list"
+parametrize-values-row-type = "tuple"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+docstring-quotes = "double"
+
+[[tool.mypy.overrides]]
+module=["sqlalchemy_utils.*"]
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module=["aiokafka.*"]
+follow_untyped_imports = true
+
+[tool.darglint]
+docstring_style = "sphinx"
+
+[tool.codespell]
+exclude-file="uv.lock"
+ignore-words-list = "selectin"
+
+[tool.towncrier]
+name = "Data.Rentgen"
+package = "data_rentgen"
+filename = "docs/changelog/NEXT_RELEASE.rst"
+directory = "docs/changelog/next_release/"
+title_format = "{version} ({project_date})"
+issue_format = ":issue:`{issue}`"
+
+[[tool.towncrier.type]]
+directory = "breaking"
+name = "Breaking Changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "significant"
+name = "Significant Changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "improvement"
+name = "Improvements"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Bug Fixes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "dependency"
+name = "Dependencies"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Doc only Changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Misc"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removal"
+name = "Removal"
+showcontent = true
