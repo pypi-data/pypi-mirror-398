@@ -1,0 +1,29 @@
+from minjiang_client.experiment.experiment import Experiment as Experiment
+from minjiang_client.experiment.result import Result as Result
+from minjiang_client.group.group import Group as Group
+from minjiang_client.utils.config_manager import ConfigManager as ConfigManager
+from minjiang_client.utils.json_database import Column as Column, JSONDatatable as JSONDatatable
+from typing import Any
+
+class Fitter:
+    title: str
+    desc: str
+    group: Group
+    config_manager: ConfigManager
+    exp_id: int | None
+    exp: Experiment | None
+    exp_detail: dict[str, Any]
+    task_detail: dict[str, Any]
+    res: Result | None
+    def __init__(self, title: str, desc: str, group: Group) -> None: ...
+    @property
+    def cm(self) -> ConfigManager: ...
+    def get_fitter_setup(self) -> dict: ...
+    def set_fitter_setup(self) -> None: ...
+    @staticmethod
+    def get_fitter_description() -> dict: ...
+    def input_settings(self, **kwargs) -> None: ...
+    def fit(self, **kwargs): ...
+    @staticmethod
+    def make_json_datatable(table_file): ...
+    def make_result_table(self, **kwargs) -> None: ...

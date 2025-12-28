@@ -1,0 +1,23 @@
+from _typeshed import Incomplete
+from minjiang_client.group.space_initializer import SpaceInitializer as SpaceInitializer
+from minjiang_client.plugin.plugin_object import PluginObject as PluginObject
+from minjiang_client.utils.config_manager import ConfigManager as ConfigManager
+
+__MJ_PLUGIN_NAME__: str
+__MJ_PLUGIN_HOOKS__: Incomplete
+priority_options: Incomplete
+readout_options: Incomplete
+
+class CopyInitializer(SpaceInitializer):
+    def __init__(self) -> None: ...
+    def set_initializer_setup(self) -> None: ...
+    @staticmethod
+    def get_initializer_description() -> dict: ...
+    def make_parameters(self, **kwargs): ...
+
+class Main(PluginObject):
+    plugin_name: Incomplete
+    hooks: Incomplete
+    def __init__(self) -> None: ...
+    def experiment_options(self, options_config_manager: ConfigManager): ...
+    def space_initializer_extension(self, *args, **kwargs): ...
