@@ -1,0 +1,3 @@
+-- Tessera database initialization
+-- Tables are created automatically by SQLAlchemy on first run
+-- This file is kept for any custom PostgreSQL initialization if needed
