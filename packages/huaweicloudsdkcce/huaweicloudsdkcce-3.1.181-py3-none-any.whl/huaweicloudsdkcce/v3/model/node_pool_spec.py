@@ -1,0 +1,385 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class NodePoolSpec:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'type': 'str',
+        'node_template': 'NodeTemplate',
+        'initial_node_count': 'int',
+        'autoscaling': 'NodePoolNodeAutoscaling',
+        'node_management': 'NodeManagement',
+        'pod_security_groups': 'list[SecurityID]',
+        'extension_scale_groups': 'list[ExtensionScaleGroup]',
+        'custom_security_groups': 'list[str]',
+        'taint_policy_on_existing_nodes': 'str',
+        'label_policy_on_existing_nodes': 'str',
+        'user_tags_policy_on_existing_nodes': 'str'
+    }
+
+    attribute_map = {
+        'type': 'type',
+        'node_template': 'nodeTemplate',
+        'initial_node_count': 'initialNodeCount',
+        'autoscaling': 'autoscaling',
+        'node_management': 'nodeManagement',
+        'pod_security_groups': 'podSecurityGroups',
+        'extension_scale_groups': 'extensionScaleGroups',
+        'custom_security_groups': 'customSecurityGroups',
+        'taint_policy_on_existing_nodes': 'taintPolicyOnExistingNodes',
+        'label_policy_on_existing_nodes': 'labelPolicyOnExistingNodes',
+        'user_tags_policy_on_existing_nodes': 'userTagsPolicyOnExistingNodes'
+    }
+
+    def __init__(self, type=None, node_template=None, initial_node_count=None, autoscaling=None, node_management=None, pod_security_groups=None, extension_scale_groups=None, custom_security_groups=None, taint_policy_on_existing_nodes=None, label_policy_on_existing_nodes=None, user_tags_policy_on_existing_nodes=None):
+        r"""NodePoolSpec
+
+        The model defined in huaweicloud sdk
+
+        :param type: 节点池类型。不填写时默认为vm。  - vm：弹性云服务器 - ElasticBMS：C6型弹性裸金属通用计算增强型云服务器，规格示例：c6.22xlarge.2.physical - pm: 裸金属服务器 
+        :type type: str
+        :param node_template: 
+        :type node_template: :class:`huaweicloudsdkcce.v3.NodeTemplate`
+        :param initial_node_count: 节点池初始化节点个数。查询时为节点池目标节点数量。
+        :type initial_node_count: int
+        :param autoscaling: 
+        :type autoscaling: :class:`huaweicloudsdkcce.v3.NodePoolNodeAutoscaling`
+        :param node_management: 
+        :type node_management: :class:`huaweicloudsdkcce.v3.NodeManagement`
+        :param pod_security_groups: 1.21版本集群节点池支持绑定安全组，最多五个。
+        :type pod_security_groups: list[:class:`huaweicloudsdkcce.v3.SecurityID`]
+        :param extension_scale_groups: **参数解释**： 节点池扩展伸缩组配置列表，详情参见ExtensionScaleGroup类型定义。 **约束限制**： 更新节点池时如果未指定则保持原伸缩组配置，如果指定伸缩组（包括空数组），则基于请求体刷新所有伸缩组配置。
+        :type extension_scale_groups: list[:class:`huaweicloudsdkcce.v3.ExtensionScaleGroup`]
+        :param custom_security_groups: 节点池自定义安全组相关配置。支持节点池新扩容节点绑定指定的安全组。  - 未指定安全组ID，新建节点将添加Node节点默认安全组。  - 指定有效安全组ID，新建节点将使用指定安全组。  - 指定安全组，应避免对CCE运行依赖的端口规则进行修改。[详细设置请参考[集群安全组规则配置](https://support.huaweicloud.com/cce_faq/cce_faq_00265.html)。](tag:hws)[详细设置请参考[集群安全组规则配置](https://support.huaweicloud.com/intl/zh-cn/cce_faq/cce_faq_00265.html)。](tag:hws_hk) 
+        :type custom_security_groups: list[str]
+        :param taint_policy_on_existing_nodes: **参数解释**： 存量节点污点同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\&quot;ignore\&quot;后，节点池不再同步更新存量节点的污点。 - refresh：配置为\&quot;refresh\&quot;后，节点池将同步更新存量节点的污点。  **默认取值**： refresh
+        :type taint_policy_on_existing_nodes: str
+        :param label_policy_on_existing_nodes: **参数解释**： 存量节点标签同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\&quot;ignore\&quot;后，节点池不再同步更新存量节点的标签。 - refresh：配置为\&quot;refresh\&quot;后，节点池将同步更新存量节点的标签。  **默认取值**： refresh
+        :type label_policy_on_existing_nodes: str
+        :param user_tags_policy_on_existing_nodes: **参数解释**： 存量节点资源标签同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\&quot;ignore\&quot;后，节点池不再同步更新存量节点的资源标签。 - refresh：配置为\&quot;refresh\&quot;后，节点池将同步更新存量节点的资源标签。  **默认取值**： ignore
+        :type user_tags_policy_on_existing_nodes: str
+        """
+        
+        
+
+        self._type = None
+        self._node_template = None
+        self._initial_node_count = None
+        self._autoscaling = None
+        self._node_management = None
+        self._pod_security_groups = None
+        self._extension_scale_groups = None
+        self._custom_security_groups = None
+        self._taint_policy_on_existing_nodes = None
+        self._label_policy_on_existing_nodes = None
+        self._user_tags_policy_on_existing_nodes = None
+        self.discriminator = None
+
+        if type is not None:
+            self.type = type
+        self.node_template = node_template
+        if initial_node_count is not None:
+            self.initial_node_count = initial_node_count
+        if autoscaling is not None:
+            self.autoscaling = autoscaling
+        if node_management is not None:
+            self.node_management = node_management
+        if pod_security_groups is not None:
+            self.pod_security_groups = pod_security_groups
+        if extension_scale_groups is not None:
+            self.extension_scale_groups = extension_scale_groups
+        if custom_security_groups is not None:
+            self.custom_security_groups = custom_security_groups
+        if taint_policy_on_existing_nodes is not None:
+            self.taint_policy_on_existing_nodes = taint_policy_on_existing_nodes
+        if label_policy_on_existing_nodes is not None:
+            self.label_policy_on_existing_nodes = label_policy_on_existing_nodes
+        if user_tags_policy_on_existing_nodes is not None:
+            self.user_tags_policy_on_existing_nodes = user_tags_policy_on_existing_nodes
+
+    @property
+    def type(self):
+        r"""Gets the type of this NodePoolSpec.
+
+        节点池类型。不填写时默认为vm。  - vm：弹性云服务器 - ElasticBMS：C6型弹性裸金属通用计算增强型云服务器，规格示例：c6.22xlarge.2.physical - pm: 裸金属服务器 
+
+        :return: The type of this NodePoolSpec.
+        :rtype: str
+        """
+        return self._type
+
+    @type.setter
+    def type(self, type):
+        r"""Sets the type of this NodePoolSpec.
+
+        节点池类型。不填写时默认为vm。  - vm：弹性云服务器 - ElasticBMS：C6型弹性裸金属通用计算增强型云服务器，规格示例：c6.22xlarge.2.physical - pm: 裸金属服务器 
+
+        :param type: The type of this NodePoolSpec.
+        :type type: str
+        """
+        self._type = type
+
+    @property
+    def node_template(self):
+        r"""Gets the node_template of this NodePoolSpec.
+
+        :return: The node_template of this NodePoolSpec.
+        :rtype: :class:`huaweicloudsdkcce.v3.NodeTemplate`
+        """
+        return self._node_template
+
+    @node_template.setter
+    def node_template(self, node_template):
+        r"""Sets the node_template of this NodePoolSpec.
+
+        :param node_template: The node_template of this NodePoolSpec.
+        :type node_template: :class:`huaweicloudsdkcce.v3.NodeTemplate`
+        """
+        self._node_template = node_template
+
+    @property
+    def initial_node_count(self):
+        r"""Gets the initial_node_count of this NodePoolSpec.
+
+        节点池初始化节点个数。查询时为节点池目标节点数量。
+
+        :return: The initial_node_count of this NodePoolSpec.
+        :rtype: int
+        """
+        return self._initial_node_count
+
+    @initial_node_count.setter
+    def initial_node_count(self, initial_node_count):
+        r"""Sets the initial_node_count of this NodePoolSpec.
+
+        节点池初始化节点个数。查询时为节点池目标节点数量。
+
+        :param initial_node_count: The initial_node_count of this NodePoolSpec.
+        :type initial_node_count: int
+        """
+        self._initial_node_count = initial_node_count
+
+    @property
+    def autoscaling(self):
+        r"""Gets the autoscaling of this NodePoolSpec.
+
+        :return: The autoscaling of this NodePoolSpec.
+        :rtype: :class:`huaweicloudsdkcce.v3.NodePoolNodeAutoscaling`
+        """
+        return self._autoscaling
+
+    @autoscaling.setter
+    def autoscaling(self, autoscaling):
+        r"""Sets the autoscaling of this NodePoolSpec.
+
+        :param autoscaling: The autoscaling of this NodePoolSpec.
+        :type autoscaling: :class:`huaweicloudsdkcce.v3.NodePoolNodeAutoscaling`
+        """
+        self._autoscaling = autoscaling
+
+    @property
+    def node_management(self):
+        r"""Gets the node_management of this NodePoolSpec.
+
+        :return: The node_management of this NodePoolSpec.
+        :rtype: :class:`huaweicloudsdkcce.v3.NodeManagement`
+        """
+        return self._node_management
+
+    @node_management.setter
+    def node_management(self, node_management):
+        r"""Sets the node_management of this NodePoolSpec.
+
+        :param node_management: The node_management of this NodePoolSpec.
+        :type node_management: :class:`huaweicloudsdkcce.v3.NodeManagement`
+        """
+        self._node_management = node_management
+
+    @property
+    def pod_security_groups(self):
+        r"""Gets the pod_security_groups of this NodePoolSpec.
+
+        1.21版本集群节点池支持绑定安全组，最多五个。
+
+        :return: The pod_security_groups of this NodePoolSpec.
+        :rtype: list[:class:`huaweicloudsdkcce.v3.SecurityID`]
+        """
+        return self._pod_security_groups
+
+    @pod_security_groups.setter
+    def pod_security_groups(self, pod_security_groups):
+        r"""Sets the pod_security_groups of this NodePoolSpec.
+
+        1.21版本集群节点池支持绑定安全组，最多五个。
+
+        :param pod_security_groups: The pod_security_groups of this NodePoolSpec.
+        :type pod_security_groups: list[:class:`huaweicloudsdkcce.v3.SecurityID`]
+        """
+        self._pod_security_groups = pod_security_groups
+
+    @property
+    def extension_scale_groups(self):
+        r"""Gets the extension_scale_groups of this NodePoolSpec.
+
+        **参数解释**： 节点池扩展伸缩组配置列表，详情参见ExtensionScaleGroup类型定义。 **约束限制**： 更新节点池时如果未指定则保持原伸缩组配置，如果指定伸缩组（包括空数组），则基于请求体刷新所有伸缩组配置。
+
+        :return: The extension_scale_groups of this NodePoolSpec.
+        :rtype: list[:class:`huaweicloudsdkcce.v3.ExtensionScaleGroup`]
+        """
+        return self._extension_scale_groups
+
+    @extension_scale_groups.setter
+    def extension_scale_groups(self, extension_scale_groups):
+        r"""Sets the extension_scale_groups of this NodePoolSpec.
+
+        **参数解释**： 节点池扩展伸缩组配置列表，详情参见ExtensionScaleGroup类型定义。 **约束限制**： 更新节点池时如果未指定则保持原伸缩组配置，如果指定伸缩组（包括空数组），则基于请求体刷新所有伸缩组配置。
+
+        :param extension_scale_groups: The extension_scale_groups of this NodePoolSpec.
+        :type extension_scale_groups: list[:class:`huaweicloudsdkcce.v3.ExtensionScaleGroup`]
+        """
+        self._extension_scale_groups = extension_scale_groups
+
+    @property
+    def custom_security_groups(self):
+        r"""Gets the custom_security_groups of this NodePoolSpec.
+
+        节点池自定义安全组相关配置。支持节点池新扩容节点绑定指定的安全组。  - 未指定安全组ID，新建节点将添加Node节点默认安全组。  - 指定有效安全组ID，新建节点将使用指定安全组。  - 指定安全组，应避免对CCE运行依赖的端口规则进行修改。[详细设置请参考[集群安全组规则配置](https://support.huaweicloud.com/cce_faq/cce_faq_00265.html)。](tag:hws)[详细设置请参考[集群安全组规则配置](https://support.huaweicloud.com/intl/zh-cn/cce_faq/cce_faq_00265.html)。](tag:hws_hk) 
+
+        :return: The custom_security_groups of this NodePoolSpec.
+        :rtype: list[str]
+        """
+        return self._custom_security_groups
+
+    @custom_security_groups.setter
+    def custom_security_groups(self, custom_security_groups):
+        r"""Sets the custom_security_groups of this NodePoolSpec.
+
+        节点池自定义安全组相关配置。支持节点池新扩容节点绑定指定的安全组。  - 未指定安全组ID，新建节点将添加Node节点默认安全组。  - 指定有效安全组ID，新建节点将使用指定安全组。  - 指定安全组，应避免对CCE运行依赖的端口规则进行修改。[详细设置请参考[集群安全组规则配置](https://support.huaweicloud.com/cce_faq/cce_faq_00265.html)。](tag:hws)[详细设置请参考[集群安全组规则配置](https://support.huaweicloud.com/intl/zh-cn/cce_faq/cce_faq_00265.html)。](tag:hws_hk) 
+
+        :param custom_security_groups: The custom_security_groups of this NodePoolSpec.
+        :type custom_security_groups: list[str]
+        """
+        self._custom_security_groups = custom_security_groups
+
+    @property
+    def taint_policy_on_existing_nodes(self):
+        r"""Gets the taint_policy_on_existing_nodes of this NodePoolSpec.
+
+        **参数解释**： 存量节点污点同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\"ignore\"后，节点池不再同步更新存量节点的污点。 - refresh：配置为\"refresh\"后，节点池将同步更新存量节点的污点。  **默认取值**： refresh
+
+        :return: The taint_policy_on_existing_nodes of this NodePoolSpec.
+        :rtype: str
+        """
+        return self._taint_policy_on_existing_nodes
+
+    @taint_policy_on_existing_nodes.setter
+    def taint_policy_on_existing_nodes(self, taint_policy_on_existing_nodes):
+        r"""Sets the taint_policy_on_existing_nodes of this NodePoolSpec.
+
+        **参数解释**： 存量节点污点同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\"ignore\"后，节点池不再同步更新存量节点的污点。 - refresh：配置为\"refresh\"后，节点池将同步更新存量节点的污点。  **默认取值**： refresh
+
+        :param taint_policy_on_existing_nodes: The taint_policy_on_existing_nodes of this NodePoolSpec.
+        :type taint_policy_on_existing_nodes: str
+        """
+        self._taint_policy_on_existing_nodes = taint_policy_on_existing_nodes
+
+    @property
+    def label_policy_on_existing_nodes(self):
+        r"""Gets the label_policy_on_existing_nodes of this NodePoolSpec.
+
+        **参数解释**： 存量节点标签同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\"ignore\"后，节点池不再同步更新存量节点的标签。 - refresh：配置为\"refresh\"后，节点池将同步更新存量节点的标签。  **默认取值**： refresh
+
+        :return: The label_policy_on_existing_nodes of this NodePoolSpec.
+        :rtype: str
+        """
+        return self._label_policy_on_existing_nodes
+
+    @label_policy_on_existing_nodes.setter
+    def label_policy_on_existing_nodes(self, label_policy_on_existing_nodes):
+        r"""Sets the label_policy_on_existing_nodes of this NodePoolSpec.
+
+        **参数解释**： 存量节点标签同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\"ignore\"后，节点池不再同步更新存量节点的标签。 - refresh：配置为\"refresh\"后，节点池将同步更新存量节点的标签。  **默认取值**： refresh
+
+        :param label_policy_on_existing_nodes: The label_policy_on_existing_nodes of this NodePoolSpec.
+        :type label_policy_on_existing_nodes: str
+        """
+        self._label_policy_on_existing_nodes = label_policy_on_existing_nodes
+
+    @property
+    def user_tags_policy_on_existing_nodes(self):
+        r"""Gets the user_tags_policy_on_existing_nodes of this NodePoolSpec.
+
+        **参数解释**： 存量节点资源标签同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\"ignore\"后，节点池不再同步更新存量节点的资源标签。 - refresh：配置为\"refresh\"后，节点池将同步更新存量节点的资源标签。  **默认取值**： ignore
+
+        :return: The user_tags_policy_on_existing_nodes of this NodePoolSpec.
+        :rtype: str
+        """
+        return self._user_tags_policy_on_existing_nodes
+
+    @user_tags_policy_on_existing_nodes.setter
+    def user_tags_policy_on_existing_nodes(self, user_tags_policy_on_existing_nodes):
+        r"""Sets the user_tags_policy_on_existing_nodes of this NodePoolSpec.
+
+        **参数解释**： 存量节点资源标签同步策略 **约束限制**： 不涉及 **取值范围**： - ignore：配置为\"ignore\"后，节点池不再同步更新存量节点的资源标签。 - refresh：配置为\"refresh\"后，节点池将同步更新存量节点的资源标签。  **默认取值**： ignore
+
+        :param user_tags_policy_on_existing_nodes: The user_tags_policy_on_existing_nodes of this NodePoolSpec.
+        :type user_tags_policy_on_existing_nodes: str
+        """
+        self._user_tags_policy_on_existing_nodes = user_tags_policy_on_existing_nodes
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, NodePoolSpec):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

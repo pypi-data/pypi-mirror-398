@@ -1,0 +1,282 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class UpdateNodePoolStatus:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'current_node': 'int',
+        'creating_node': 'int',
+        'deleting_node': 'int',
+        'configuration_synced_node_count': 'int',
+        'phase': 'str',
+        'conditions': 'list[NodePoolCondition]',
+        'scale_group_statuses': 'list[ScaleGroupStatus]'
+    }
+
+    attribute_map = {
+        'current_node': 'currentNode',
+        'creating_node': 'creatingNode',
+        'deleting_node': 'deletingNode',
+        'configuration_synced_node_count': 'configurationSyncedNodeCount',
+        'phase': 'phase',
+        'conditions': 'conditions',
+        'scale_group_statuses': 'scaleGroupStatuses'
+    }
+
+    def __init__(self, current_node=None, creating_node=None, deleting_node=None, configuration_synced_node_count=None, phase=None, conditions=None, scale_group_statuses=None):
+        r"""UpdateNodePoolStatus
+
+        The model defined in huaweicloud sdk
+
+        :param current_node: 当前节点池中所有节点数量（不含删除中的节点）。
+        :type current_node: int
+        :param creating_node: 当前节点池中处于创建流程中的节点数量。
+        :type creating_node: int
+        :param deleting_node: 当前节点池中删除中的节点数量。
+        :type deleting_node: int
+        :param configuration_synced_node_count: **参数解释** 当前节点池中已经同步了节点池配置参数的节点数量。 **约束限制**： 不涉及 **取值范围**： 不涉及 **默认取值**： 不涉及
+        :type configuration_synced_node_count: int
+        :param phase: 节点池状态。 - 空值：可用（节点池当前节点数已达到预期，且无伸缩中的节点） - Synchronizing：伸缩中（节点池当前节点数未达到预期，且无伸缩中的节点） - Synchronized：伸缩等待中（节点池当前节点数未达到预期，或者存在伸缩中的节点） - SoldOut：节点池当前不可扩容（兼容字段，标记节点池资源售罄、资源配额不足等不可扩容状态） &gt; 上述节点池状态已废弃，仅兼容保留，不建议使用，替代感知方式如下： &gt; - 节点池扩缩状态：可通过currentNode/creatingNode/deletingNode节点状态统计信息，精确感知当前节点池扩缩状态。 &gt; - 节点池可扩容状态：可通过conditions感知节点池详细状态，其中\&quot;Scalable\&quot;可替代SoldOut语义。 - Deleting：删除中 - Error：错误 
+        :type phase: str
+        :param conditions: 节点池当前详细状态列表，详情参见Condition类型定义。 
+        :type conditions: list[:class:`huaweicloudsdkcce.v3.NodePoolCondition`]
+        :param scale_group_statuses: 伸缩组当前详细状态信息，详情参见ScaleGroupStatus类型定义
+        :type scale_group_statuses: list[:class:`huaweicloudsdkcce.v3.ScaleGroupStatus`]
+        """
+        
+        
+
+        self._current_node = None
+        self._creating_node = None
+        self._deleting_node = None
+        self._configuration_synced_node_count = None
+        self._phase = None
+        self._conditions = None
+        self._scale_group_statuses = None
+        self.discriminator = None
+
+        if current_node is not None:
+            self.current_node = current_node
+        if creating_node is not None:
+            self.creating_node = creating_node
+        if deleting_node is not None:
+            self.deleting_node = deleting_node
+        if configuration_synced_node_count is not None:
+            self.configuration_synced_node_count = configuration_synced_node_count
+        if phase is not None:
+            self.phase = phase
+        if conditions is not None:
+            self.conditions = conditions
+        if scale_group_statuses is not None:
+            self.scale_group_statuses = scale_group_statuses
+
+    @property
+    def current_node(self):
+        r"""Gets the current_node of this UpdateNodePoolStatus.
+
+        当前节点池中所有节点数量（不含删除中的节点）。
+
+        :return: The current_node of this UpdateNodePoolStatus.
+        :rtype: int
+        """
+        return self._current_node
+
+    @current_node.setter
+    def current_node(self, current_node):
+        r"""Sets the current_node of this UpdateNodePoolStatus.
+
+        当前节点池中所有节点数量（不含删除中的节点）。
+
+        :param current_node: The current_node of this UpdateNodePoolStatus.
+        :type current_node: int
+        """
+        self._current_node = current_node
+
+    @property
+    def creating_node(self):
+        r"""Gets the creating_node of this UpdateNodePoolStatus.
+
+        当前节点池中处于创建流程中的节点数量。
+
+        :return: The creating_node of this UpdateNodePoolStatus.
+        :rtype: int
+        """
+        return self._creating_node
+
+    @creating_node.setter
+    def creating_node(self, creating_node):
+        r"""Sets the creating_node of this UpdateNodePoolStatus.
+
+        当前节点池中处于创建流程中的节点数量。
+
+        :param creating_node: The creating_node of this UpdateNodePoolStatus.
+        :type creating_node: int
+        """
+        self._creating_node = creating_node
+
+    @property
+    def deleting_node(self):
+        r"""Gets the deleting_node of this UpdateNodePoolStatus.
+
+        当前节点池中删除中的节点数量。
+
+        :return: The deleting_node of this UpdateNodePoolStatus.
+        :rtype: int
+        """
+        return self._deleting_node
+
+    @deleting_node.setter
+    def deleting_node(self, deleting_node):
+        r"""Sets the deleting_node of this UpdateNodePoolStatus.
+
+        当前节点池中删除中的节点数量。
+
+        :param deleting_node: The deleting_node of this UpdateNodePoolStatus.
+        :type deleting_node: int
+        """
+        self._deleting_node = deleting_node
+
+    @property
+    def configuration_synced_node_count(self):
+        r"""Gets the configuration_synced_node_count of this UpdateNodePoolStatus.
+
+        **参数解释** 当前节点池中已经同步了节点池配置参数的节点数量。 **约束限制**： 不涉及 **取值范围**： 不涉及 **默认取值**： 不涉及
+
+        :return: The configuration_synced_node_count of this UpdateNodePoolStatus.
+        :rtype: int
+        """
+        return self._configuration_synced_node_count
+
+    @configuration_synced_node_count.setter
+    def configuration_synced_node_count(self, configuration_synced_node_count):
+        r"""Sets the configuration_synced_node_count of this UpdateNodePoolStatus.
+
+        **参数解释** 当前节点池中已经同步了节点池配置参数的节点数量。 **约束限制**： 不涉及 **取值范围**： 不涉及 **默认取值**： 不涉及
+
+        :param configuration_synced_node_count: The configuration_synced_node_count of this UpdateNodePoolStatus.
+        :type configuration_synced_node_count: int
+        """
+        self._configuration_synced_node_count = configuration_synced_node_count
+
+    @property
+    def phase(self):
+        r"""Gets the phase of this UpdateNodePoolStatus.
+
+        节点池状态。 - 空值：可用（节点池当前节点数已达到预期，且无伸缩中的节点） - Synchronizing：伸缩中（节点池当前节点数未达到预期，且无伸缩中的节点） - Synchronized：伸缩等待中（节点池当前节点数未达到预期，或者存在伸缩中的节点） - SoldOut：节点池当前不可扩容（兼容字段，标记节点池资源售罄、资源配额不足等不可扩容状态） > 上述节点池状态已废弃，仅兼容保留，不建议使用，替代感知方式如下： > - 节点池扩缩状态：可通过currentNode/creatingNode/deletingNode节点状态统计信息，精确感知当前节点池扩缩状态。 > - 节点池可扩容状态：可通过conditions感知节点池详细状态，其中\"Scalable\"可替代SoldOut语义。 - Deleting：删除中 - Error：错误 
+
+        :return: The phase of this UpdateNodePoolStatus.
+        :rtype: str
+        """
+        return self._phase
+
+    @phase.setter
+    def phase(self, phase):
+        r"""Sets the phase of this UpdateNodePoolStatus.
+
+        节点池状态。 - 空值：可用（节点池当前节点数已达到预期，且无伸缩中的节点） - Synchronizing：伸缩中（节点池当前节点数未达到预期，且无伸缩中的节点） - Synchronized：伸缩等待中（节点池当前节点数未达到预期，或者存在伸缩中的节点） - SoldOut：节点池当前不可扩容（兼容字段，标记节点池资源售罄、资源配额不足等不可扩容状态） > 上述节点池状态已废弃，仅兼容保留，不建议使用，替代感知方式如下： > - 节点池扩缩状态：可通过currentNode/creatingNode/deletingNode节点状态统计信息，精确感知当前节点池扩缩状态。 > - 节点池可扩容状态：可通过conditions感知节点池详细状态，其中\"Scalable\"可替代SoldOut语义。 - Deleting：删除中 - Error：错误 
+
+        :param phase: The phase of this UpdateNodePoolStatus.
+        :type phase: str
+        """
+        self._phase = phase
+
+    @property
+    def conditions(self):
+        r"""Gets the conditions of this UpdateNodePoolStatus.
+
+        节点池当前详细状态列表，详情参见Condition类型定义。 
+
+        :return: The conditions of this UpdateNodePoolStatus.
+        :rtype: list[:class:`huaweicloudsdkcce.v3.NodePoolCondition`]
+        """
+        return self._conditions
+
+    @conditions.setter
+    def conditions(self, conditions):
+        r"""Sets the conditions of this UpdateNodePoolStatus.
+
+        节点池当前详细状态列表，详情参见Condition类型定义。 
+
+        :param conditions: The conditions of this UpdateNodePoolStatus.
+        :type conditions: list[:class:`huaweicloudsdkcce.v3.NodePoolCondition`]
+        """
+        self._conditions = conditions
+
+    @property
+    def scale_group_statuses(self):
+        r"""Gets the scale_group_statuses of this UpdateNodePoolStatus.
+
+        伸缩组当前详细状态信息，详情参见ScaleGroupStatus类型定义
+
+        :return: The scale_group_statuses of this UpdateNodePoolStatus.
+        :rtype: list[:class:`huaweicloudsdkcce.v3.ScaleGroupStatus`]
+        """
+        return self._scale_group_statuses
+
+    @scale_group_statuses.setter
+    def scale_group_statuses(self, scale_group_statuses):
+        r"""Sets the scale_group_statuses of this UpdateNodePoolStatus.
+
+        伸缩组当前详细状态信息，详情参见ScaleGroupStatus类型定义
+
+        :param scale_group_statuses: The scale_group_statuses of this UpdateNodePoolStatus.
+        :type scale_group_statuses: list[:class:`huaweicloudsdkcce.v3.ScaleGroupStatus`]
+        """
+        self._scale_group_statuses = scale_group_statuses
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, UpdateNodePoolStatus):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
