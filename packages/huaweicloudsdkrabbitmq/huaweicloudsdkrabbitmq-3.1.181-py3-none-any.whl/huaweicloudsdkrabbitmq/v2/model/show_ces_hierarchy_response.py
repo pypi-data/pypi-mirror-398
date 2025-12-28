@@ -1,0 +1,286 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowCesHierarchyResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'dimensions': 'list[ShowCeshierarchyRespDimensions]',
+        'instance_ids': 'list[ShowCeshierarchyRespInstanceIds]',
+        'nodes': 'list[ShowCeshierarchyRespNodes]',
+        'queues': 'list[ShowCeshierarchyRespQueues]',
+        'vhosts': 'list[ShowCeshierarchyRespVhosts]',
+        'exchanges': 'list[ShowCeshierarchyRespExchanges]',
+        'groups': 'list[ShowCeshierarchyRespGroups]'
+    }
+
+    attribute_map = {
+        'dimensions': 'dimensions',
+        'instance_ids': 'instance_ids',
+        'nodes': 'nodes',
+        'queues': 'queues',
+        'vhosts': 'vhosts',
+        'exchanges': 'exchanges',
+        'groups': 'groups'
+    }
+
+    def __init__(self, dimensions=None, instance_ids=None, nodes=None, queues=None, vhosts=None, exchanges=None, groups=None):
+        r"""ShowCesHierarchyResponse
+
+        The model defined in huaweicloud sdk
+
+        :param dimensions: 监控维度。
+        :type dimensions: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespDimensions`]
+        :param instance_ids: 实例信息。
+        :type instance_ids: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespInstanceIds`]
+        :param nodes: 节点信息。
+        :type nodes: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespNodes`]
+        :param queues: Queue信息。
+        :type queues: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespQueues`]
+        :param vhosts: Vhost信息
+        :type vhosts: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespVhosts`]
+        :param exchanges: exchange信息
+        :type exchanges: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespExchanges`]
+        :param groups: 消费组信息。
+        :type groups: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespGroups`]
+        """
+        
+        super().__init__()
+
+        self._dimensions = None
+        self._instance_ids = None
+        self._nodes = None
+        self._queues = None
+        self._vhosts = None
+        self._exchanges = None
+        self._groups = None
+        self.discriminator = None
+
+        if dimensions is not None:
+            self.dimensions = dimensions
+        if instance_ids is not None:
+            self.instance_ids = instance_ids
+        if nodes is not None:
+            self.nodes = nodes
+        if queues is not None:
+            self.queues = queues
+        if vhosts is not None:
+            self.vhosts = vhosts
+        if exchanges is not None:
+            self.exchanges = exchanges
+        if groups is not None:
+            self.groups = groups
+
+    @property
+    def dimensions(self):
+        r"""Gets the dimensions of this ShowCesHierarchyResponse.
+
+        监控维度。
+
+        :return: The dimensions of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespDimensions`]
+        """
+        return self._dimensions
+
+    @dimensions.setter
+    def dimensions(self, dimensions):
+        r"""Sets the dimensions of this ShowCesHierarchyResponse.
+
+        监控维度。
+
+        :param dimensions: The dimensions of this ShowCesHierarchyResponse.
+        :type dimensions: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespDimensions`]
+        """
+        self._dimensions = dimensions
+
+    @property
+    def instance_ids(self):
+        r"""Gets the instance_ids of this ShowCesHierarchyResponse.
+
+        实例信息。
+
+        :return: The instance_ids of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespInstanceIds`]
+        """
+        return self._instance_ids
+
+    @instance_ids.setter
+    def instance_ids(self, instance_ids):
+        r"""Sets the instance_ids of this ShowCesHierarchyResponse.
+
+        实例信息。
+
+        :param instance_ids: The instance_ids of this ShowCesHierarchyResponse.
+        :type instance_ids: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespInstanceIds`]
+        """
+        self._instance_ids = instance_ids
+
+    @property
+    def nodes(self):
+        r"""Gets the nodes of this ShowCesHierarchyResponse.
+
+        节点信息。
+
+        :return: The nodes of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespNodes`]
+        """
+        return self._nodes
+
+    @nodes.setter
+    def nodes(self, nodes):
+        r"""Sets the nodes of this ShowCesHierarchyResponse.
+
+        节点信息。
+
+        :param nodes: The nodes of this ShowCesHierarchyResponse.
+        :type nodes: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespNodes`]
+        """
+        self._nodes = nodes
+
+    @property
+    def queues(self):
+        r"""Gets the queues of this ShowCesHierarchyResponse.
+
+        Queue信息。
+
+        :return: The queues of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespQueues`]
+        """
+        return self._queues
+
+    @queues.setter
+    def queues(self, queues):
+        r"""Sets the queues of this ShowCesHierarchyResponse.
+
+        Queue信息。
+
+        :param queues: The queues of this ShowCesHierarchyResponse.
+        :type queues: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespQueues`]
+        """
+        self._queues = queues
+
+    @property
+    def vhosts(self):
+        r"""Gets the vhosts of this ShowCesHierarchyResponse.
+
+        Vhost信息
+
+        :return: The vhosts of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespVhosts`]
+        """
+        return self._vhosts
+
+    @vhosts.setter
+    def vhosts(self, vhosts):
+        r"""Sets the vhosts of this ShowCesHierarchyResponse.
+
+        Vhost信息
+
+        :param vhosts: The vhosts of this ShowCesHierarchyResponse.
+        :type vhosts: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespVhosts`]
+        """
+        self._vhosts = vhosts
+
+    @property
+    def exchanges(self):
+        r"""Gets the exchanges of this ShowCesHierarchyResponse.
+
+        exchange信息
+
+        :return: The exchanges of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespExchanges`]
+        """
+        return self._exchanges
+
+    @exchanges.setter
+    def exchanges(self, exchanges):
+        r"""Sets the exchanges of this ShowCesHierarchyResponse.
+
+        exchange信息
+
+        :param exchanges: The exchanges of this ShowCesHierarchyResponse.
+        :type exchanges: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespExchanges`]
+        """
+        self._exchanges = exchanges
+
+    @property
+    def groups(self):
+        r"""Gets the groups of this ShowCesHierarchyResponse.
+
+        消费组信息。
+
+        :return: The groups of this ShowCesHierarchyResponse.
+        :rtype: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespGroups`]
+        """
+        return self._groups
+
+    @groups.setter
+    def groups(self, groups):
+        r"""Sets the groups of this ShowCesHierarchyResponse.
+
+        消费组信息。
+
+        :param groups: The groups of this ShowCesHierarchyResponse.
+        :type groups: list[:class:`huaweicloudsdkrabbitmq.v2.ShowCeshierarchyRespGroups`]
+        """
+        self._groups = groups
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ShowCesHierarchyResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowCesHierarchyResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
