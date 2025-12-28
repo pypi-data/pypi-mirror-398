@@ -1,0 +1,241 @@
+# Triclick Doc Toolset
+
+一个基于管道架构的文档处理工具集（最新代码对齐版）
+
+## 环境要求与安装
+- 运行环境：`Python >= 3.12`
+- 依赖：`pyyaml`、`python-docx`、`pydantic`、`openpyxl`
+- 安装方式：
+  - 源码开发：在仓库根执行 `PYTHONPATH=src python -m pytest -q` 验证；或 `pip install -e .`
+  - 打包使用：`pip install triclick-doc-toolset`（打包后内置 `resources` 资源：`pipelines/`、`templates/`）
+
+## 架构与执行语义
+
+### 三层架构
+- 管道（`Pipeline`）：按配置构建并运行策略序列，输出最终 `Context`。
+- 策略（`Strategy`）：组织命令与执行方式；支持 `sequential` 和（预留）`parallel` 两种模式。
+- 命令（`Command`）：封装具体处理逻辑，具备 `is_satisfied` 与 `check_condition` 两阶段检查。
+
+### 优先级与条件
+- 优先级语义：数值越小越先执行（策略与命令均如此）。
+- 条件语法：在命令配置的 `condition` 中使用受限表达式，支持：
+  - 变量：`doc_type`、`metadata`、`sections`
+  - 运算：与/或/非、比较与成员判断（详见 `pipeline.py::_compile_condition`）
+  - 示例：`doc_type == 'docx' and metadata.get('output_dir')`
+
+## Context 数据结构
+- `doc_type`: 文档类型（如 `docx`、`rtf`）
+- `document_uri`: 输入文档的路径（文件或文件夹）
+- `metadata`: 通用元数据（含 `source_file`/`source_dir`、`output_dir`）
+- `errors`: 处理过程中的错误消息（含跳过原因/异常）
+- `individual_files`: 当输入为目录时展开得到的文件列表
+- `sections`: 解析出的结构化片段列表（标题/表格/脚注等）
+- `processing_summary`: 阶段性统计信息
+- `generated_files`: 生成的文件路径集合
+
+示例 `sections` 项（字段按解析与拆分后常见场景）：
+```json
+{
+  "type": "table",
+  "level": 2,
+  "table_index": 3,
+  "label": "Table 2.3",
+  "section": "2.3",
+  "title": "Table 2.3 Title Text",
+  "same_as": false,
+  "title_indices": [12, 13],
+  "footnote": "Same as Table 2.1",
+  "footnote_indices": [34, 35],
+  "local_path": "output/source.Table_2.3.docx",
+  "source_file": "/path/to/source.docx"
+}
+```
+
+## 内置命令与行为
+- `FileTypeIdentificationCommand`
+  - 识别输入文件或目录的主要文档类型；目录时按 `docx > rtf > doc` 优先级选择。
+  - 写入 `context.doc_type` 与统计信息 `processing_summary['file_type_identification']`。
+- `DocxFileParseCommand`
+  - 解析 DOCX，按“标题 -> 表格 -> 脚注”结构提取元数据（只记录索引与文本，不复制元素）。
+  - 组装标题：根据 `title_indices` 按序拼接非空段落，遇空行停止；将标题前缀替换为规范化 `label`。
+  - 规则：可启用 `normalize_duplicate_labels`，为同源文件重复标签追加序号后缀（默认 `.{n}`）。
+- `DocxFilePartitionCommand`
+  - 拆分 DOCX：生成新文档（标题段落 + 表格 + 脚注段落），保留原样式与页面设置。
+  - 命名规则：`<源文件名>.<slug(label)>.docx`；若冲突则生成 `#<slug>_N` 版本。
+  - 规则：可启用 `same_as`，对无表格但脚注含 “Same as/Repeat …” 的段落复制目标表格文件，并替换标题与文件名。
+- `EnhanceLevelCommand`
+  - 当 `level == 0` 且存在 `local_path` 时，设置 `level = 1`，统一层级。
+- `EnhanceTreeCommand`
+  - 为缺失的父节点自动补齐（如存在 `x.y.z` 则补 `x.y`），并在 `table` 类型下分配递增 `table_index`。
+
+## 配置与模式
+
+### 管道配置（示例）
+```yaml
+pipeline:
+  strategies:
+    - name: detect_file_type
+      exec_mode: sequential
+      priority: 1
+      commands:
+        - type: FileTypeIdentificationCommand
+          name: detect_file_type
+          priority: 1
+
+    - name: parse_by_type
+      exec_mode: sequential
+      priority: 2
+      commands:
+        - type: DocxFileParseCommand
+          name: parse_docx_title_table_footnote
+          priority: 1
+          condition: "doc_type == 'docx'"
+          rules:
+            - name: normalize_duplicate_labels
+              enabled: true
+              params:
+                suffix_format: ".{n}"
+
+    - name: split_docx_tables
+      exec_mode: sequential
+      priority: 3
+      commands:
+        - type: DocxFilePartitionCommand
+          name: split_docx_to_single_table
+          priority: 1
+          condition: "doc_type == 'docx'"
+          rules:
+            - name: same_as
+              enabled: true
+
+    - name: enhance_sections_level
+      exec_mode: sequential
+      priority: 99
+      commands:
+        - type: EnhanceLevelCommand
+          name: enhance_level_if_has_local_path
+          priority: 1
+
+    - name: enhance_tree_structure
+      exec_mode: sequential
+      priority: 100
+      commands:
+        - type: EnhanceTreeCommand
+          name: enhance_tree_fill_missing_parent
+          priority: 1
+```
+
+### 标题/标签/脚注模式（可配置）
+`resources/pipelines/title_table_footnote_patterns.yaml` 提供可扩展的正则列表：
+```yaml
+label_patterns:
+  - "\bTABLE\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+  - "\bLISTING\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+  - "\bFIGURE\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+
+footnote_patterns:
+  - "same\s+as\s+(?:table|listing|figure)\s+[0-9]+(?:\.[0-9]+)*"
+  - "same\s+with\s+(?:table|listing|figure)\s+[0-9]+(?:\.[0-9]+)*"
+  - "repeat\s+(?:table|listing|figure)\s+[0-9]+(?:\.[0-9]+)*"
+
+title_patterns:
+  - "^\s*\bTABLE\b\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+  - "^\s*\bLISTING\b\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+  - "^\s*\bFIGURE\b\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+  - "^\s*\b(?:TABLE|LISTING|FIGURE)\b\s+[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*(?=\s|$|[:：])"
+```
+
+## 使用方式
+
+### 快速开始
+```python
+from triclick_doc_toolset import run_generation, run_review
+
+# 输入可为单个文件或文件夹；不支持用逗号分隔的多文件列表
+run_generation("/path/to/input.docx", "/path/to/output_dir")
+run_review("/path/to/input_folder", "/path/to/output_dir")
+```
+
+### 自定义管道运行
+```python
+from triclick_doc_toolset import run_pipeline
+
+# 使用自定义 YAML 配置运行；自动开启管线缓存
+run_pipeline("/path/to/custom_pipeline.yaml", "/path/to/input", "/path/to/output")
+```
+
+### Excel 工具集
+- 功能：生成占位 TOC Excel 模板或将解析结果填充到模板中，保留样式、筛选与列宽。
+- 导出：`write_tlf_toc_file(document_path, data, output_path, sheet_name='TOC')` 与 `write_tlf_toc_bytes(document_path, data, sheet_name='TOC')`。
+- 数据字段：自动标准化列名（大小写与空格不敏感，内部使用 snake_case）；多余列保留。
+- 模板来源：优先加载包内模板 `resources/templates/TLF_TOC_heading_template.xlsx`；开发环境下会尝试本地模板路径。
+
+```python
+from pathlib import Path
+from triclick_doc_toolset import write_tlf_toc_file, write_tlf_toc_bytes
+
+data = [
+    {
+        "table_index": 7,
+        "label": "Table 7",
+        "title": "Title A continued Title B",
+        "section": "7",
+        "file": "source.Table_7.docx",
+        "same_as": False,
+        "footnote": "",
+    },
+    {
+        "label": "Listing 3.1",
+        "title": "Sample Listing",
+        "section": "3.1",
+        "file": "source.Listing_3.1.docx",
+    },
+]
+
+# 写入文件
+write_tlf_toc_file("/path/to/source.docx", data, "/path/to/output.xlsx")
+
+# 或获取字节并自行保存
+toc_bytes = write_tlf_toc_bytes("/path/to/source.docx", data)
+Path("/path/to/output.xlsx").write_bytes(toc_bytes)
+```
+
+## 资源定位与缓存
+- 内置 `resources/pipelines/*.yaml` 通过 `importlib.resources` 定位；打包场景会自动从包资源解析。
+- 开发场景回退到仓库根目录的 `resources/pipelines/` 路径。
+- Excel 模板位于 `resources/templates/TLF_TOC_heading_template.xlsx`，供 TOC 生成工具使用。
+- 管线缓存以配置文件的绝对路径为键，使用文件 `mtime_ns` 与 `size` 作为轻量签名；缓存失效后自动重建。
+- 线程安全：全局缓存读写使用锁保护。
+
+## 错误与容错
+- 命令在条件不满足或前置条件失败时会被跳过，并记录到 `Context.errors`。
+- 单个命令失败不会中断整体流程（优雅降级）。
+- 解析与拆分阶段均尽量保留样式与结构；文件命名冲突时自动生成唯一文件名。
+
+## 测试与开发
+- 运行测试：
+  - `PYTHONPATH=src python -m pytest -q`
+  - 或使用 uv：`UV_INDEX_URL=https://pypi.org/simple/ PYTHONPATH=src uv run python -m pytest -q`
+- 示例脚本：`tests/test_run_review.py` 提供了运行与结果筛选示例。
+
+## 项目结构
+```
+triclick-doc-toolset/
+├── resources/
+│   ├── pipelines/
+│   │   ├── generation.yaml
+│   │   ├── review.yaml
+│   │   └── title_table_footnote_patterns.yaml
+│   └── templates/
+│       └── TLF_TOC_heading_template.xlsx
+├── src/triclick_doc_toolset/
+│   ├── framework/
+│   ├── commands/
+│   ├── common/
+│   ├── toolset/
+│   │   └── gen_tlf_header_excel.py
+│   └── service.py
+└── tests/
+```
+
+该架构具备良好的可维护性、可扩展性与可测试性，能够灵活应对不同的文档处理需求。
