@@ -1,0 +1,144 @@
+[build-system]
+requires = [
+    "hatchling>=1.21.1",
+    "jupyterlab>=4.0.0,<5",
+    "hatch-nodejs-version>=0.3.2",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "net_vis"
+version = "0.6.0"
+# dynamic = ["version"]
+description = "NetVis is a package for interactive visualization of Python NetworkX graphs within JupyterLab. It leverages D3.js for dynamic rendering and provides a high-level Plotter API for effortless network analysis."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Manabu TERADA", email = "terada@cmscom.jp" },
+]
+keywords = [
+    "IPython",
+    "Jupyter",
+    "Widgets",
+]
+classifiers = [
+    "Framework :: Jupyter",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "networkx>=3.0",
+    "numpy>=2.0",
+]
+
+[project.optional-dependencies]
+full = [
+    "scipy>=1.8",  # Required for kamada_kawai and spectral layouts
+]
+docs = [
+    "jupyter_sphinx",
+    "nbsphinx",
+    "nbsphinx-link",
+    "pypandoc",
+    "pytest_check_links",
+    "recommonmark",
+    "sphinx>=1.5",
+    "sphinx_rtd_theme",
+]
+examples = []
+test = [
+    "nbval",
+    "pytest-cov",
+    "pytest>=6.0",
+    "ruff>=0.8.0",
+    "pyright>=1.1.0",
+    "scipy>=1.8",  # Include full dependencies for comprehensive testing
+]
+
+[project.urls]
+Homepage = "https://github.com/cmscom/netvis"
+ChangeLog = "https://github.com/cmscom/netvis/blob/main/CHANGES.md"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build]
+artifacts = [
+    "net_vis/labextension/*.tgz",
+    "net_vis/labextension",
+]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"net_vis/labextension" = "share/jupyter/labextensions/net_vis"
+"./install.json" = "share/jupyter/labextensions/net_vis/install.json"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".github",
+]
+
+[tool.hatch.build.hooks.jupyter-builder]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = [
+    "net_vis/labextension/package.json",
+]
+skip-if-exists = [
+    "net_vis/labextension/package.json",
+]
+dependencies = [
+    "hatch-jupyter-builder>=0.8.3",
+]
+
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+path = "."
+build_cmd = "build:prod"
+npm = ["yarn"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable pyupgrade (UP) rules and other moderate rules
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade - modernize Python code
+    "I",    # isort - import sorting
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.ruff.format]
+indent-style = "space"
+
+[tool.pyright]
+include = ["net_vis"]
+exclude = [
+    "**/__pycache__",
+    "**/node_modules",
+    ".venv",
+    "venv",
+    "venv-docker",
+    "net_vis/tests",
+]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
