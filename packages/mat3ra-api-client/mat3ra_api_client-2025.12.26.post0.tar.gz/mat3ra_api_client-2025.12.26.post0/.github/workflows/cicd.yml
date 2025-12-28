@@ -1,0 +1,95 @@
+name: Continuous Testing and Publication from the default branch
+
+on: [push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  run-linter:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10.13]
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Checkout actions repository
+        uses: actions/checkout@v3
+        with:
+          repository: Exabyte-io/actions
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          path: actions
+
+      - name: Run ruff linter
+        uses: ./actions/py/lint
+        with:
+          python-version: ${{ matrix.python-version }}
+
+  run-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10.13]
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v2
+        with:
+          lfs: true
+
+      - name: Checkout actions repository
+        uses: actions/checkout@v2
+        with:
+          repository: Exabyte-io/actions
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          path: actions
+
+      - name: Run unit tests
+        uses: ./actions/py/test
+        with:
+          python-version: ${{ matrix.python-version }}
+          unit-test-directory: tests/py/unit
+      # TMP disabled to allow publishing to PyPi 
+      # - name: Run integration tests
+      #   uses: ./actions/py/test
+      #   with:
+      #     integration-test-directory: tests/py/integration
+      #   env:
+      #     TEST_HOST: platform.mat3ra.com
+      #     TEST_PORT: 443
+      #     TEST_ACCOUNT_ID: ${{ secrets.DEMO_ACCOUNT_ID }}
+      #     TEST_AUTH_TOKEN: ${{ secrets.DEMO_AUTH_TOKEN }}
+      #     TEST_SECURE: true
+
+
+  publish:
+    needs: [run-linter, run-tests]
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v2
+        with:
+          lfs: true
+
+      - name: Checkout actions repository
+        uses: actions/checkout@v2
+        with:
+          repository: Exabyte-io/actions
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          path: actions
+
+      - name: Publish release
+        uses: ./actions/py/publish
+        with:
+          python-version: 3.10.13
+          github-token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          pypi-api-token: ${{ secrets.PYPI_API_TOKEN }}
