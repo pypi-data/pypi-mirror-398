@@ -1,0 +1,56 @@
+name: lint-and-test
+
+on: push
+
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: Check (on Python3.9)
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - uses: actions/checkout@v3
+      - uses: pre-commit/action@v3.0.0
+
+  test:
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        py_version: [ '3.8', '3.9', '3.10', '3.11', '3.12' ]
+    name: "Test (on Python ${{ matrix.py_version }})"
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.py_version }}
+      - uses: actions/checkout@v3
+      - name: Run main tests
+        run: make test
+      - name: Run forecast tests
+        run: make test-forecast
+      - name: Run viz tests
+        if: ${{ ! matrix.skip-viz }}
+        run: make test-viz
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: tbtest
+      PGDB: tbtest
+      PGPASSWORD: tbtest
+
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres:12.5 
+        env:
+          POSTGRES_USER: tbtest
+          POSTGRES_PASSWORD: tbtest
+          POSTGRES_DB: tbtest
+        ports:
+          - 5432:5432
+        # needed because the postgres container does not provide a healthcheck
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
