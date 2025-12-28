@@ -1,0 +1,197 @@
+Metadata-Version: 2.4
+Name: pancakekit
+Version: 0.3.0
+Summary: Handy graphical user interface library for daily use
+Home-page: https://github.com/chocolate-icecream/pancakekit
+Author: chocolate-icecream
+License: MIT
+Project-URL: Bug Tracker, https://github.com/chocolate-icecream/pancakekit/issues
+Keywords: gui
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Topic :: Software Development :: User Interfaces
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.110
+Requires-Dist: uvicorn>=0.23
+Requires-Dist: jinja2>=3.0
+Requires-Dist: pillow>=8.1
+
+# PancakeKit
+
+PancakeKit is a lightweight browser UI for Python scripts. Add small UI components (“toppings”) to a page (`Pancake`), then serve it locally.
+
+<img src="https://raw.githubusercontent.com/chocolate-icecream/pancakekit/main/images/pancakekit_figure_at_glance.png" width="50%"/>
+
+## Installation
+
+```shell
+pip install pancakekit
+```
+
+## Quick start
+
+```python
+from pancakekit import Pancake
+
+def fibonacci(n=10):
+    return (fibonacci(n - 1) + fibonacci(n - 2)) if n >= 2 else n
+
+cake = Pancake()     # 1) create a page
+cake.add(fibonacci)  # 2) add a function (auto UI)
+cake.serve()         # 3) start the server
+```
+
+Open `http://127.0.0.1:8000/`.
+
+## Interactive mode
+
+In interactive environments (REPL/IPython), `Pancake()` starts the server automatically by default.
+
+```python
+from pancakekit import *
+
+cake = Pancake()  # auto-serve in interactive mode
+
+# To opt out:
+# cake = Pancake(auto_serve_in_interactive_mode=False)
+# cake.serve()
+```
+
+You can also start a ready-to-use interactive session from the command line:
+
+```shell
+python -m pancakekit
+```
+
+Or load an existing script and auto-register callables:
+
+```shell
+python -m pancakekit path/to/your_script.py
+```
+
+## Values and events
+
+Most toppings expose their state through `.value`.
+
+```python
+from pancakekit import *
+
+cake = Pancake()
+age = cake.add(Input("Age", default=20), name="age")
+age.value_changed = lambda v: cake.show_message({"age": v})
+```
+
+You can access toppings by name:
+
+```python
+from pancakekit import *
+
+cake = Pancake()
+cake.add(Input("Count", default=0), name="count")
+cake["count"].value += 1
+```
+
+## Buttons: `clicked` and long-press `pressed`
+
+```python
+from pancakekit import *
+
+cake = Pancake()
+btn = cake.add(Button("Hold me"))
+
+btn.clicked = lambda _v: cake.show_message("clicked")
+btn.pressed = lambda _v: cake.show_message("pressed")
+```
+
+Long-press behavior:
+
+- `pressed` starts after ~0.5s hold, then repeats while held down
+- repeats after the previous handler finishes, with ~0.1s delay
+- if `clicked` is not set but `pressed` is set, `pressed` fires immediately on pointer down
+
+## Honeycomb (script editor)
+
+Each `Pancake` has a built-in Honeycomb card.
+
+- Toggle: `Shift + Enter`
+- Run: `Cmd/Ctrl + Enter`
+- Recall saved scripts: `Cmd/Ctrl + ↑ / ↓` (when Honeycomb is open)
+
+Inside Honeycomb, the current page is available as the reserved name `cake`.
+
+## Built-in toppings
+
+### Inputs
+
+- `Input(label, default=None, placeholder=None)`
+- `DictInput(default: dict, horizontal: bool = False)`
+- `Slider(label, range_min, range_max, value=None, step=1.0)`
+- `Select(label, options, value=None, placeholder=None, with_clear=False, allow_none=None, disabled=False)`
+- `Switch(label="", value=False, disabled=False)`
+- `RadioGroup(label, options, value=None, orientation="vertical", appearance=None, allow_none=False, disabled=False)`
+
+### Display
+
+- `Label(text="")`, `Text(text="")`, `Paragraph(text="")`
+- `ImageView(image: PIL.Image | str)`, `ImageCard(image: PIL.Image | str)`
+- `Table(df: pandas.DataFrame | dict)`
+- `ProgressBar(value=0, label=None, max_value=100, show_value=True)`
+
+### Layout / containers
+
+- `Row()`, `Column()`, `Group(...)`
+- `Card(...)`, `FloatingCard(...)` (floating draggable cards)
+- `GridPanel(size=(rows, cols), status_dict=None, style=None)`
+
+## Multiple pages with `Plate`
+
+```python
+from pancakekit import *
+
+plate = Plate()
+
+class Crape(Pancake):
+    def decorate(self):
+        b = self.add(Button("Go to Waffle"))
+        b.clicked = lambda _v: plate.go_to("Waffle")
+
+class Waffle(Pancake):
+    def decorate(self):
+        b = self.add(Button("Go to Crape"))
+        b.clicked = lambda _v: plate.go_to("Crape")
+
+Crape(plate)
+Waffle(plate)
+plate.serve()
+```
+
+## Making a custom topping
+
+```python
+from pancakekit import Topping, Tag
+
+class MyLabel(Topping):
+    def prepare(self, text):
+        self.value = text
+        self.label = Tag("label", style={"text-shadow": "1px 1px 1px #bbb"}, value_ref=self)
+
+    def html(self):
+        return self.label.render()
+```
+
+Useful hooks:
+
+- `prepare(self, *args, **kwargs)` (one-time setup)
+- `html(self)` (render HTML)
+- `value_getter(self)` / `value_preprocessor(self, value)` / `web_value_proprocessor(self, tag, value)`
+- `event_preprocessor(self, event)`
