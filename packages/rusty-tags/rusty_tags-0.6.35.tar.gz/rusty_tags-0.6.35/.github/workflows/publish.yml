@@ -1,0 +1,120 @@
+name: Publish Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.0)'
+        required: true
+        type: string
+      publish_to_pypi:
+        description: 'Publish to PyPI'
+        required: false
+        type: boolean
+        default: true
+      create_github_release:
+        description: 'Create GitHub Release'
+        required: false
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      - name: Download Linux wheels
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: CI.yml
+          workflow_conclusion: success
+          name: wheels-linux-x86_64
+          path: artifacts/linux-x86_64
+
+      - name: Download musllinux wheels
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: CI.yml
+          workflow_conclusion: success
+          name: wheels-musllinux-x86_64
+          path: artifacts/musllinux-x86_64
+
+      - name: Download Windows wheels
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: CI.yml
+          workflow_conclusion: success
+          name: wheels-windows-x64
+          path: artifacts/windows-x64
+
+      - name: Download macOS wheels
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: CI.yml
+          workflow_conclusion: success
+          name: wheels-macos-aarch64
+          path: artifacts/macos-aarch64
+
+      - name: Download sdist
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: CI.yml
+          workflow_conclusion: success
+          name: wheels-sdist
+          path: artifacts/sdist
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'artifacts/*'
+
+      - name: Publish to PyPI
+        if: ${{ github.event.inputs.publish_to_pypi != 'false' && (startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_to_pypi == 'true') }}
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --non-interactive --skip-existing artifacts/*/*
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.create_github_release != 'false' && (startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_github_release == 'true') }}
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/*/*.whl
+            artifacts/wheels-sdist/*.tar.gz
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output summary
+        run: |
+          echo "## Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ github.event.inputs.version || github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PyPI Published**: ${{ github.event.inputs.publish_to_pypi != 'false' && (startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_to_pypi == 'true') }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: ${{ github.event.inputs.create_github_release != 'false' && (startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_github_release == 'true') }}" >> $GITHUB_STEP_SUMMARY
