@@ -1,0 +1,17 @@
+ACHIEVEMENTS = {
+    "log": ("Not real trees", "Did you except to chop down big trees with those hands?"),
+    "flint axe": ("Tree-chopper 3000", "Now, go wreck some trees"),
+    "rabbit fur": ("You monster", "Was that really necessary?"),
+    "gift": ("Present from Santa", "You naughty rascal"),
+    "wooden bed": ("Go get some sleep", "zzzzZzzZzZzzzZzzzzz"),
+    "life crystal": ("Increasing love", "That's what lv stands for"),
+    "slife crystal": ("Slime slayer", "Not a ninja in sight"),
+    "obelisk piece": ("What hast thou done?", "Unleashed the Ancient one"),
+    "quartz child": ("Cuteness overload", "DO NOT KILL. Relax don't do it"),
+    "citrine": ("Final quartz variant", "At least for now"),
+    "copper ingot": ("Shiny things", "Need a lot of them you will"),
+    "small backpack": ("Inventory upgrade", "Don't craft multiple tho"),
+    "amethyst boiler": ("Magic steam age", "Automation time?"),
+    "copper boiler": ("Mechanical steam age", "Automation time?"),
+    "tree constructor": ("Welcome to skyblock", "Hope you brought extra saplings"),
+}
