@@ -1,0 +1,31 @@
+from . import (
+    test_cross,
+    test_expansion,
+    test_factories,
+    test_finite_differences,
+    test_hdaf,
+    test_integration,
+    test_interpolation,
+    test_lagrange,
+    test_mesh,
+    test_operators,
+    test_optimization,
+    test_polynomials,
+    test_space,
+)
+
+__all__ = [
+    "test_expansion",
+    "test_cross",
+    "test_factories",
+    "test_finite_differences",
+    "test_hdaf",
+    "test_integration",
+    "test_interpolation",
+    "test_lagrange",
+    "test_mesh",
+    "test_operators",
+    "test_optimization",
+    "test_polynomials",
+    "test_space",
+]
