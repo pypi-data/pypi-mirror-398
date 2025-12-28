@@ -1,0 +1,192 @@
+# This workflow builds and deploys documentation for the project.
+#
+# Steps overview:
+#  Job 1: build-docs
+#   - Builds documentation (including running Jupyter notebooks to generate output cells).
+#   - Uploads the built site as a Pages artifact.
+#  Job 2: deploy-dev
+#   - Deploys the built site to GitHub Pages for development (pushes to develop/master).
+#  Job 3: deploy-prod
+#   - Deploys the built site to gh-pages branch for production (release tags starting with v*).
+#   - This triggers deployment to a custom domain via webhook.
+#
+# The action summary page will contain links to the built artifact for downloading
+# and inspecting, as well as links to both the development and production versions of
+# the deployed documentation site.
+
+name: Docs build and deployment
+
+on:
+  # Trigger the workflow on pull request
+  pull_request:
+    # Selected branches
+    branches: [master, main, develop]
+  # Trigger the workflow on push
+  push:
+    # Selected branches
+    branches: [master, main, develop]
+    # Runs on creating a new tag starting with 'v', e.g. 'v1.0.3'
+    tags: ['v*']
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Allow only one concurrent workflow, skipping runs queued between the run
+# in-progress and latest queued. And cancel in-progress runs.
+concurrency:
+  group:
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Set the environment variables to be used in all jobs defined in this workflow
+env:
+  # CI_BRANCH - the branch name (used in mkdocs.yml)
+  # For PRs: github.head_ref is the source branch
+  # For pushes: github.ref_name is the branch
+  # For tags: github.ref_name is the tag name
+  # GITHUB_REPOSITORY - the repository name (used in mkdocs.yml)
+  # NOTEBOOKS_DIR - the directory containing the Jupyter notebooks (used in mkdocs.yml)
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  DEVELOP_BRANCH: develop
+  CI_BRANCH: ${{ github.head_ref || github.ref_name }}
+  IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+  GITHUB_REPOSITORY: ${{ github.repository }}
+  NOTEBOOKS_DIR: tutorials
+
+jobs:
+  # Job 1: Build the static files for the documentation site
+  build-deploy-docs:
+    strategy:
+      matrix:
+        os: [macos-14] # Use macOS to switch to dark mode for Plotly charts
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: write # required for pushing to gh-pages branch
+
+    steps:
+      # Setting DOCS_VERSION to be used in mkdocs.yml, and then in the
+      # main.html template. It defines the versioned docs subfolder name
+      # in the gh-pages branch. If it's a release tag, use the version
+      # number without the 'v' prefix, otherwise use 'dev'.
+      # Setting RELEASE_VERSION to be used in mkdocs.yml to show
+      # the latest release version in the index.md file. If it's a
+      # release tag, use the tag name, otherwise use the branch name
+      # for development builds.
+      - name: Set extra env variables
+        shell: bash
+        run: |
+          if [[ "${IS_RELEASE_TAG}" == "true" ]]; then
+            RELEASE_VERSION="${GITHUB_REF_NAME}"
+            DOCS_VERSION="${RELEASE_VERSION#v}"
+          else
+            RELEASE_VERSION="${CI_BRANCH}"
+            DOCS_VERSION="dev"
+          fi
+          echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "$GITHUB_ENV"
+          echo "DOCS_VERSION=${DOCS_VERSION}" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_URL=https://easyscience.github.io/${{ github.event.repository.name }}/${DOCS_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Check-out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history with tags; needed for mike to push/deploy docs
+
+      # Activate dark mode to create documentation with Plotly charts in dark mode
+      # Need a better solution to automatically switch the chart colour theme based on the mkdocs material switcher
+      # Something similar to mkdocs_plotly_plugin https://haoda-li.github.io/mkdocs-plotly-plugin/,
+      # but for generating documentation from notepads
+      #- name: Activate dark mode
+      #  run: |
+      #    brew install dark-mode
+      #    dark-mode status
+      #    dark-mode on
+      #    dark-mode status
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          environments: default
+          activate-environment: default
+          run-install: true
+          frozen: true
+          cache: false
+          post-cleanup: false
+
+      - name: Install and setup development dependencies
+        shell: bash
+        run: pixi run dev
+
+      - name: Clone easyscience/assets-docs and easyscience/assets-branding
+        run: |
+          cd ..
+          git clone https://github.com/easyscience/assets-docs.git
+          git clone https://github.com/easyscience/assets-branding.git
+
+      - name: Add files from cloned repositories
+        run: pixi run docs-assets
+
+      # Convert python scripts in the notebooks directory to Jupyter notebooks
+      # Strip output from the notebooks
+      # Prepare the notebooks for documentation (add colab cell, etc.)
+      # Run the notebooks to generate the output cells using multiple cores
+      # The notebooks are then used to build the documentation site
+      - name: Convert tutorial scripts to notebooks
+        run: pixi run notebook-prepare
+
+      # The following step is needed to avoid the following message during the build:
+      # "Matplotlib is building the font cache; this may take a moment"
+      - name: Pre-build site step
+        run: pixi run python -c "import easydiffraction"
+
+      # Run the notebooks to generate the output cells using multiple cores
+      - name: Run notebooks
+        #  if: false # Temporarily disabled to speed up the docs build
+        run: pixi run notebook-exec
+
+      - name: Move notebooks to docs/tutorials
+        run: pixi run docs-notebooks
+
+      # Create the mkdocs.yml configuration file
+      # The file is created by merging two files:
+      # - assets-docs/mkdocs.yml - the common configuration (theme, plugins, etc.)
+      # - docs/mkdocs.yml - the project-specific configuration (project name, TOC, etc.)
+      - name: Create mkdocs.yml file
+        run: pixi run docs-config
+
+      # Build the static files for the documentation site for local inspection
+      # Input: docs/ directory containing the Markdown files
+      # Output: site/ directory containing the generated HTML files
+      - name: Build site for local check
+        run: pixi run docs-local
+
+      # Upload the static files from the site/ directory to be used for
+      # local check
+      - name: Upload built site as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-local_edl-${{ env.RELEASE_VERSION }}
+          path: site/
+          if-no-files-found: 'error'
+          compression-level: 0
+
+      # Publish versioned docs with Mike (dev on branches, prod on tags)
+      # Configure git for pushing to gh-pages branch
+      - name: Configure git for pushing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Publish versioned docs with Mike. The tagged release docs go to
+      # the versioned prefix, e.g. /v1.2.3/, and also to /latest/.
+      # All other branches go to /dev/.
+      # "${RELEASE_VERSION#v}" for v0.8.3.post1 -> 0.8.3.post1
+      - name: Rebuild and deploy docs with mike
+        run: |
+          if [[ "${IS_RELEASE_TAG}" == "true" ]]; then
+            pixi run docs-deploy "${RELEASE_VERSION#v}" latest
+          else
+            pixi run docs-deploy dev
+          fi
+          pixi run docs-set-default latest
+          echo "🔗 deployment url [${{ env.DEPLOYMENT_URL }}](${{ env.DEPLOYMENT_URL }})" >> $GITHUB_STEP_SUMMARY

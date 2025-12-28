@@ -1,0 +1,147 @@
+name: Coverage checks
+
+on:
+  # Trigger the workflow on push
+  push:
+  # Trigger the workflow on pull request
+  pull_request:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Need permissions to trigger the dashboard build workflow
+permissions:
+  actions: write
+  contents: read
+
+# Allow only one concurrent workflow, skipping runs queued between the run
+# in-progress and latest queued. And cancel in-progress runs.
+concurrency:
+  group:
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Set the environment variables to be used in all jobs defined in this workflow
+env:
+  CI_BRANCH: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  # Job 1: Run docstring coverage
+  docstring-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          environments: default
+          activate-environment: default
+          run-install: true
+          frozen: true
+          cache: false
+          post-cleanup: false
+
+      - name: Install and setup development dependencies
+        shell: bash
+        run: pixi run dev
+
+      - name: Run docstring coverage
+        run: pixi run docstring-coverage
+
+  # Job 2: Run unit tests with coverage and upload to Codecov
+  unit-tests-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          environments: default
+          activate-environment: default
+          run-install: true
+          frozen: true
+          cache: false
+          post-cleanup: false
+
+      - name: Install and setup development dependencies
+        shell: bash
+        run: pixi run dev
+
+      - name: Run unit tests with coverage
+        run: pixi run unit-tests-coverage --cov-report=xml:coverage-unit.xml
+
+      - name: Upload unit tests coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          name: unit-tests-job
+          flags: unittests
+          files: ./coverage-unit.xml
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Job 2: Run integration tests with coverage and upload to Codecov
+  integration-tests-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          environments: default
+          activate-environment: default
+          run-install: true
+          frozen: true
+          cache: false
+          post-cleanup: false
+
+      - name: Install and setup development dependencies
+        shell: bash
+        run: pixi run dev
+
+      - name: Run integration tests with coverage
+        run:
+          pixi run integration-tests-coverage
+          --cov-report=xml:coverage-integration.xml
+
+      - name: Upload integration tests coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          name: integration-tests-job
+          flags: integration
+          files: ./coverage-integration.xml
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Job 4: Trigger dashboard build
+  dashboard-build-trigger:
+    needs: [docstring-coverage, unit-tests-coverage, integration-tests-coverage] # depend on the previous jobs
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v5
+
+      - name: Trigger dashboard build
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "dashboard.yaml",
+              ref: "${{ env.CI_BRANCH }}"
+            });

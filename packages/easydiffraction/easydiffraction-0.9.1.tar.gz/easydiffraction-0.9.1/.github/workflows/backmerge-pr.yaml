@@ -1,0 +1,81 @@
+# This workflow creates a backmerge PR into `develop` whenever a new version tag is pushed (v*).
+#
+# Key points:
+# - Creates a PR from `master` to `develop` when a new tag is pushed.
+# - The PR is auto-merged using a MERGE COMMIT (not squash) via a GitHub App token.
+#   The GitHub App must be added to the develop ruleset bypass list.
+#
+# Required repo config:
+# https://github.com/organizations/easyscience/settings/secrets/actions
+# https://github.com/organizations/easyscience/settings/variables/actions
+# - Actions secret:   ES_BACKMERGE_PRIVATE_KEY  (GitHub App private key PEM)
+# - Actions variable: ES_BACKMERGE_APP_ID       (GitHub App ID)
+
+name: Backmerge PR (master -> develop)
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-backmerge-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.BACKMERGE_APP_ID }}
+          private-key: ${{ secrets.BACKMERGE_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Create PR from master to develop (or reuse if exists)
+        id: pr
+        run: |
+          set -euo pipefail
+
+          TAG='${{ github.ref_name }}'
+
+          TITLE="Backmerge: ${TAG} from master into develop"
+
+          BODY="⚠️ This PR is created automatically for backmerge of the release tag \`${TAG}\` from \`master\` into \`develop\`.
+
+          It is labeled \`[maintainer] auto-pull-request\` and is excluded from release notes and version bump logic."
+
+          # Check if a PR from master to develop already exists
+          EXISTING_PR=$(gh pr list --repo "${{ github.repository }}" --base develop --head master --state open --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for master -> develop"
+            echo "pr_number=${EXISTING_PR}" >> "$GITHUB_OUTPUT"
+          else
+            PR_URL=$(gh pr create \
+              --repo "${{ github.repository }}" \
+              --base develop \
+              --head master \
+              --title "$TITLE" \
+              --label "[maintainer] auto-pull-request" \
+              --body "$BODY")
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            echo "Created PR #${PR_NUMBER}"
+            echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Enable auto-merge using MERGE COMMIT
+        run: |
+          set -euo pipefail
+          gh pr merge --repo "${{ github.repository }}" --merge --auto "${{ steps.pr.outputs.pr_number }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
