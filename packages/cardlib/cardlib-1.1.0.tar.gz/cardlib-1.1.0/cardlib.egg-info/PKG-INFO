@@ -1,0 +1,284 @@
+Metadata-Version: 2.4
+Name: cardlib
+Version: 1.1.0
+Summary: Reusable card and dice library for text-based games
+Author-email: Jeffrey Ray <jeffrey.ray@bell.net>
+License: MIT
+Project-URL: Homepage, https://github.com/jray-8/cardlib
+Project-URL: Repository, https://github.com/jray-8/cardlib
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Games/Entertainment
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# ♥️♠️ cardlib ♦️♣️
+
+A lightweight, extensible Python library for __cards and dice__,  
+built for text-based games, simulations, and custom card systems. 
+
+## Features 🎯
+
+### 🃏 Cards
+- `Card` __(abstract)__ — base interface for all card types
+- `SimpleCard` — freeform rank/suit card for rapid prototyping
+- `PlayingCard` — immutable standard 52-card card (with jokers)
+	- Subclass to make custom cards with mutable attributes
+- `Rank` / `Suit` enums with Unicode symbols
+- `StandardPlayingCards` — predefined constants (e.g., `ACE_SPADES`)
+
+### 📇 Decks
+- `Deck` __(base class)__ — generic, expandable deck container
+	- Rich API with clear docstrings
+	- Enforces card type via `CARD_TYPE`
+	- Full Python container protocol (`len()`, `in`, indexing, slicing, iteration)
+	- Provides shuffling, dealing, copying, splitting, rotating, adding/removing
+	- Fast filtering and functional-style methods (`filter`, `remove_if`, `count`)
+	- Arithmetic operations (`+`, `-`, `*`, `/`, `//`, `<<`, `>>`)
+	- Internal helpers streamline subclassing
+
+- `PlayingCardDeck` — standard 52-card deck implementation
+	- Only accepts `PlayingCard`
+	- Optional jokers
+	- Customizable suit/rank order
+	- Built-in card comparison and sorting based on deck rules
+
+### 🎲 Dice
+
+- `Die` — standard N-sided die
+- `Dice` — collection of dice
+- `WeightedDie` — rolls with custom side probabilities
+- `ExplodingDie` — rerolls on max side, sums total
+
+## 📦 Installation
+
+```bash
+pip install cardlib
+```
+
+- Installs the library into `site-packages`
+- Ready to import from anywhere
+
+## 🃏 Deck Example
+
+```python
+from cardlib import PlayingCardDeck, Suit, Rank
+
+# Create a standard shuffled deck (include jokers if desired)
+deck = PlayingCardDeck(include_jokers=True)
+
+# Draw cards
+hand = deck.draw(5)
+print('Dealt hand:', hand)
+
+# Add cards back
+deck.add(hand, position='bottom')
+
+# Split loosely into 3 piles
+p1, p2, p3 = deck / 3
+
+# Rotate (cut)
+deck << 10 # move top 10 cards to bottom
+
+# Filter only hearts
+deck.filter(lambda c: c.suit == Suit.HEARTS)
+
+# Sort using this deck's rank/suit ordering
+deck.sort(descending=True)
+```
+
+## 🎲 Dice Example
+
+```python
+from cardlib import Die, Dice, ExplodingDie
+
+# Roll a single d6
+d6 = Die(6)
+print('d6:', d6.roll())
+
+# Roll a dice pool
+dice_pool = Dice(6, 6, 8)
+print('Pool total:', dice_pool.roll())
+
+# Exploding die (re-roll on max)
+xd6 = ExplodingDie(6)
+print('Exploding roll:', xd6.roll(), 'explosions:', xd6.explosions)
+```
+
+## 📐 Advanced Deck Operations
+
+| Operation | Description |
+| --------- | ----------- |
+| `deck.copy(deep=True)` | Clone deck (optionally deep copy cards) |
+| `deck.reset(shuffle=True)` | Restore to new-deck order |
+| `deck.deal(num_hands, cards_each)` | Deal cards into hands |
+| `deck.add(*cards, position='top/bottom/random')` | Add cards dynamically |
+| `deck.remove_if(lambda c: c.rank == Rank.ACE)` | Remove all Aces |
+| `deck.compare(a, b)` | Compare two cards using this deck's rules |
+| `deck / 3` | Split loosely into 3 piles |
+| `deck // 2` | Split strictly into 2 even halves |
+| `deck << n` / `deck >> n` | Rotate (in-place) |
+| `deck1 + deck2` | Merge decks |
+| `deck - Suit.HEARTS` | Remove all hearts |
+
+- Use `help(Deck)` for the full docs.
+
+## 📎 Deck Notes
+
+- Internally uses `collections.deque` for __O(1)__ top/bottom operations.
+- Slicing and arbitrary indexing are less efficient __O(n)__.
+- `deck[0]` is the "top" for card insertion.
+- Fully subclassable — build any card system you want.
+
+---
+
+## 🛠️ Extending `cardlib`: Build Your Own Cards & Decks!
+
+```python
+from collections import deque
+from cardlib import Card, Deck
+
+# Let's create our own monster cards
+class MonsterCard(Card):
+	def __init__(self, name, level, element):
+		self.name = name
+		self.level = level
+		self.element = element
+
+	def __str__(self):
+		return f'Lvl.{self.level} {self.element} {self.name}'
+```
+
+### Deck Subclass Quick Guide
+
+- There are 7 key deck methods to override.
+
+| Method or Attribute | Description | Frequency |
+| ------ | ----------- | :-------: |
+| `CARD_TYPE` | A type (or tuple of types) that the deck will accept. <br> Dictates type checking for methods that add cards. | Common |
+| `_build_deck()` | Change how new decks are generated. <br>Return a `collections.deque` filled with cards. | Common |
+| `__init__(self, *, **kwargs)` | Add instance attributes like custom rules or counters. | Uncommon |
+| `_empty_clone()` | Return a copy of this deck with no `._cards` set. <br>Used by methods that create a deck from `self` (e.g., `copy`, `split`, `+`, `-`, `*`) <br>All attributes of self are copied by default. <br><br>Override to control which instance attributes are __NOT__ copied, and how the other ones are. For instance, deep copy lists or reset counters. | Rare |
+| `value(card)` | Return the numeric value of a card. Not used internally. | Uncommon |
+| `_cmp_key(card)` | Return a comparable object to represent this card's sort value. <br>Used internally by `sort()` and `compare()`. | Common |
+| `compare(a, b)` | Return -1, 0, or 1 if card `a` is less than, equal to, or greater than card `b`. <br>Uses `_cmp_key` if not overridden. <br>Useful when you want different behavior for sorting and comparing cards. | Uncommon |
+
+```python
+# Next, we will create a custom deck
+class MonsterDeck(Deck):
+	
+	CARD_TYPE = MonsterCard # We will enforce type checking when adding cards
+
+	# Let's define all monsters with their base strength
+	# This applies for all instances
+	MONSTERS = {
+		'Wolf': 0,
+		'Skeleton': 1,
+		'Pirate': 2,
+		'Giant': 3,
+		'Vampire': 5,
+		'Dragon': 7,
+	}
+
+	# We also define some elemental types
+	ELEMENTS = ('Ancient', 'Fire', 'Nightmare', 'Holy')
+
+	def _build_deck(self):
+		cards = deque()
+		for monster in self.MONSTERS.keys(): # 6 monsters
+			for element in self.ELEMENTS: # 4 elements
+				for level in range(1, 7): # 6 levels
+					cards.append(MonsterCard(monster, level, element))
+		return cards # 6*4*6 = 144-card deck
+
+	# Let's say we wanted a deck instance attribute
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.fights = 0 # Here, we track how many times `compare()` is called
+
+	def _empty_clone(self):
+		clone = super()._empty_clone() # Copy all attributes from self
+
+		# Now, we can choose how instance attributes are handled when deck is copied
+		clone.fights = 0 # Reset for clones
+		return clone
+
+	def value(self, card):
+		# Base strength + level
+		return self.MONSTERS[card.name] + card.level
+
+	def _cmp_key(self, card):
+		# Sort cards first by level, then element, then name
+		return (card.level, card.element, card.name)
+
+	def compare(self, c1, c2):
+		self.fights += 1
+		strength_1 = self.value(c1)
+		strength_2 = self.value(c2)
+
+		'''
+		Let's implement a type-advantage cycle:
+			Ancient -> Fire -> Nightmare -> Holy -> Ancient
+		for a +3 strength bonus.
+		'''
+		element_i1 = self.ELEMENTS.index(c1.element)
+		element_i2 = self.ELEMENTS.index(c2.element)
+		# If the index of the enemy is 1 greater than mine (wrapped), gain 3 strength
+		if (element_i1 + 1) % 4 == element_i2:
+			strength_1 += 3
+		elif (element_i2 + 1) % 4 == element_i1:
+			strength_2 += 3
+
+		# The card with the greater total strength is the greater card
+		# Return positive if c1 > c2, 0 if c1 = c2, or negative if c1 < c2
+		return strength_1 - strength_2
+```
+
+### Now we can do interesting things like:
+
+```python
+deck = MonsterDeck(shuffle=True)
+
+# Deal 2 hands of 5 cards
+hand_1, hand_2 = deck.deal(2, 5)
+
+# Sort the hands based on deck ordering: (level, element, name)
+deck.sort_cards(hand_1)
+deck.sort_cards(hand_2)
+
+# Let the highest level monster from each hand FIGHT!
+x = hand_1[-1]
+y = hand_2[-1]
+outcome = deck.compare(x, y) # deck.fights == 1
+
+if outcome > 0:
+	print('x is the winner!')
+elif outcome < 0:
+	print('y has defeated x!')
+else:
+	print('The monsters have tied!')
+
+# Split the remaining deck into 2 new decks
+p1, p2 = deck / 2 # p1.fights == 0, since we overrode _empty_clone()
+
+# Print the first 10 cards of pile 1
+p1.show(10, sep='\n')
+
+# Send those cards to the bottom of the pile
+p1 << 10
+```
+
+### 🏆 You can continue to:
+- Add more card types
+- Expand your deck rules and behaviors
+- Construct game logic to make a unique card game
+
+<br>
+
+## 📄 License
+
+MIT License © Jeffrey Ray
