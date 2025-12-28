@@ -1,0 +1,73 @@
+"""List project's batch types subcommand."""
+
+import backoff
+
+# pylint: disable=wrong-import-order
+from gencove import client  # noqa: I100
+from gencove.command.base import Command
+
+from .utils import get_line
+
+
+class ListBatchTypes(Command):
+    """List batch types command executor."""
+
+    def __init__(self, project_id, credentials, options):
+        super().__init__(credentials, options)
+        self.project_id = project_id
+
+    def initialize(self):
+        """Initialize list subcommand."""
+        self.login()
+
+    def validate(self):
+        """Validate command input."""
+
+    def execute(self):
+        self.echo_debug("Retrieving project's batch types:")
+
+        try:
+            for batch_types in self.get_paginated_batch_types():
+                if not batch_types:
+                    self.echo_debug("No matching batch types were found.")
+                    return
+
+                for batch_type in batch_types:
+                    self.echo_data(get_line(batch_type))
+
+        except client.APIClientError as err:
+            self.echo_debug(err)
+            if err.status_code == 400:
+                self.echo_warning("There was an error listing project batch types.")
+                self.echo_info("The following error was returned:")
+                self.echo_info(err.message)
+            elif err.status_code == 404:
+                self.echo_warning(f"Project {self.project_id} does not exist.")
+            raise
+
+    def get_paginated_batch_types(self):
+        """Paginate over all batch types for the destination.
+
+        Yields:
+            paginated lists of batch types
+        """
+        more = True
+        next_link = None
+        while more:
+            self.echo_debug("Get batch types page")
+            resp = self.get_batch_types(next_link)
+            yield resp.results
+            next_link = resp.meta.next
+            more = next_link is not None
+
+    @backoff.on_exception(
+        backoff.expo,
+        (client.APIClientTimeout),
+        max_tries=2,
+        max_time=30,
+    )
+    def get_batch_types(self, next_link=None):
+        """Get batch types page."""
+        return self.api_client.get_project_batch_types(
+            project_id=self.project_id, next_link=next_link
+        )
