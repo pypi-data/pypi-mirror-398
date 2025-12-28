@@ -1,0 +1,203 @@
+# nsefeed
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/src/nsefeed-logo-dark.jpg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/src/nsefeed-logo-light.jpg">
+  <img alt="nsefeed logo" src="assets/src/nsefeed-logo-light.jpg" width="600">
+</picture>
+
+**Minimal python library for ingesting historical NSE India data historical data**
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+A reliable NSE India API wrapper focused on historical data, inspired by [yfinance](https://github.com/ranaroussi/yfinance)'s intuitive API design.
+
+---
+
+## ✨ Features
+
+- **yfinance-style Ticker API** - Familiar, intuitive interface
+- **Reliable CSV-based data** - Historical data from NSE archives (95%+ uptime)
+- **Clean modular structure** - Following nselib's proven pattern
+- **Comprehensive coverage** - Indices, Equity, and Derivatives historical data
+- **Production-ready** - Caching, rate limiting, proper error handling
+- **Type hints** - Full IDE support with type annotations
+
+## 📦 Installation
+
+```bash
+pip install nsefeed
+```
+
+## 🚀 Quick Start
+
+### Ticker API (yfinance-style)
+
+```python
+import nsefeed as nf
+
+# Fetch historical data for a stock
+ticker = nf.Ticker("RELIANCE")
+df = ticker.history(period="1M")
+print(df.head())
+
+# Download multiple tickers
+data = nf.download(["RELIANCE", "TCS", "INFY"], period="1M")
+```
+
+### Indices Module
+
+```python
+import nsefeed as nf
+
+# Get index constituent stocks (WORKING)
+stocks = nf.indices.constituent_stock_list("BroadMarketIndices", "Nifty 50")
+
+# Get list of all indices in a category (WORKING)
+indices = nf.indices.index_list("SectoralIndices")
+
+# Historical index OHLC data (UNDER DEVELOPMENT - see limitations below)
+# df = nf.indices.index_data("NIFTY 50", period="1M")  # Currently unavailable
+# vix = nf.indices.india_vix_data(period="1M")  # Currently unavailable
+```
+
+### Equity Module
+
+```python
+import nsefeed as nf
+
+# Get price, volume, and deliverable position data
+df = nf.equity.get_price_volume_and_deliverable_position_data(
+    "RELIANCE", period="1M"
+)
+
+# Get bulk deals
+bulk = nf.equity.get_bulk_deal_data(period="1D")
+
+# Get block deals
+block = nf.equity.get_block_deals_data(period="1D")
+
+# Get short selling data
+short = nf.equity.get_short_selling_data(period="1D")
+```
+
+### Derivatives Module
+
+```python
+import nsefeed as nf
+
+# Get futures data
+futures = nf.derivatives.get_future_price_volume_data(
+    "NIFTY", "FUTIDX", period="1M"
+)
+
+# Get options data
+options = nf.derivatives.get_option_price_volume_data(
+    "NIFTY", "OPTIDX", "CE", period="1M"
+)
+
+# Get F&O bhav copy
+bhav = nf.derivatives.get_fno_bhav_copy("01-12-2024")
+```
+
+## 📊 Module Structure
+
+```
+nsefeed/
+├── indices/          # Index data (NIFTY, sectoral, thematic indices)
+├── equity/           # Equity historical data, bulk/block deals
+├── derivatives/      # F&O historical data, bhav copy
+├── ticker.py         # yfinance-style Ticker class
+├── cache.py          # SQLite caching
+├── session.py        # NSE session management
+└── utils.py          # Utility functions
+```
+
+## 🎯 Design Philosophy
+
+nsefeed focuses on **reliable historical data** using CSV-based NSE endpoints:
+
+- **Not a live market data library** - We focus on historical data from NSE archives
+- **CSV over JSON APIs** - More reliable and less prone to breaking changes
+- **Quality over quantity** - Only functions that work reliably
+- **Clean and minimal** - Following nselib's proven modular structure
+- **Familiar API** - yfinance-style interface for ease of use
+
+## 📝 Available Data
+
+### Indices
+- ✅ Index constituent lists
+- ✅ Sectoral, thematic, and strategy indices listing
+- ⚠️ Historical OHLCV for indices (under development - NSE API deprecated)
+- ⚠️ India VIX historical data (under development - NSE API deprecated)
+
+### Equity
+- Historical price, volume, and deliverable position data
+- Bulk deals and block deals
+- Short selling data
+
+### Derivatives
+- Futures price and volume data
+- Options price and volume data (CE/PE)
+- F&O bhav copy (end-of-day snapshots)
+
+## ⚠️ Known Limitations
+
+### Historical Index Data (Under Development)
+
+**Functions affected:**
+- `nf.indices.index_data()` - Returns `NotImplementedError`
+- `nf.indices.india_vix_data()` - Returns `NotImplementedError`
+
+**Reason:** NSE India has deprecated their historical index data API endpoints. These functions are under development as we work on alternative data sources.
+
+**Workaround:** Use constituent stocks to track index movement:
+
+```python
+import nsefeed as nf
+
+# Get NIFTY 50 constituent stocks
+stocks = nf.indices.constituent_stock_list("BroadMarketIndices", "Nifty 50")
+
+# Fetch data for individual stocks
+for symbol in stocks['Symbol'][:10]:
+    df = nf.Ticker(symbol).history(period="1M")
+    print(f"{symbol}: {len(df)} days of data")
+```
+
+**Working functions:**
+- ✅ `nf.Ticker().history()` - Equity historical data (fully functional)
+- ✅ `nf.equity.*` - All equity functions (fully functional)
+- ✅ `nf.derivatives.*` - All derivatives functions (fully functional)
+- ✅ `nf.indices.constituent_stock_list()` - Index constituents (fully functional)
+- ✅ `nf.indices.index_list()` - List of indices (fully functional)
+
+---
+
+## 📖 Documentation
+
+For detailed documentation, see:
+- [RESTRUCTURE_PLAN.md](RESTRUCTURE_PLAN.md) - Architecture and design decisions
+- API documentation (coming soon)
+
+## 🤝 Contributing
+
+Contributions are welcome! This library is designed to be minimal and focused on reliable historical data from NSE.
+
+## 📄 License
+
+Apache License 2.0 - See [LICENSE](LICENSE) for details
+
+## 🙏 Acknowledgments
+
+- Inspired by [yfinance](https://github.com/ranaroussi/yfinance) for API design
+- Data sourced from [NSE India](https://www.nseindia.com)
+
+## ⚠️ Disclaimer
+
+This is an unofficial library. NSE India does not provide official APIs. This library uses publicly available data from NSE website and archives. Use at your own risk.
+
+---
+
+**Made with ❤️ for the Indian financial data community**
