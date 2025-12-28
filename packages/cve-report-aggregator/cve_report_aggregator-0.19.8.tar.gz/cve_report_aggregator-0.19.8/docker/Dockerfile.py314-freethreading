@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1.7
+# Python 3.14 with Free-Threading (GIL disabled)
+
+FROM debian:bookworm-slim AS python-builder
+
+# Install build dependencies and CA certificates
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libncursesw5-dev \
+    libgdbm-dev \
+    libc6-dev \
+    libffi-dev \
+    libexpat1-dev \
+    liblzma-dev \
+    uuid-dev \
+    git \
+    wget && \
+    rm -rf /var/lib/apt/lists/*
+
+# Define Python version
+# Official release: 3.14.0 (January 2025)
+ENV PYTHON_VERSION=3.14.0
+
+# Download and extract Python source
+RUN wget --no-check-certificate https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar -xf Python-${PYTHON_VERSION}.tgz && \
+    rm Python-${PYTHON_VERSION}.tgz
+
+# Build and install Python with --disable-gil
+WORKDIR /Python-${PYTHON_VERSION}
+RUN ./configure \
+    --enable-optimizations \
+    --disable-gil \
+    --with-lto \
+    --prefix=/opt/python314 && \
+    make -j$(nproc) && \
+    make altinstall
+
+# Verify GIL is disabled
+RUN /opt/python314/bin/python3.14 -c "import sys; print(f'Python {sys.version}'); import sysconfig; print(f'GIL Disabled: {sysconfig.get_config_var(\"Py_GIL_DISABLED\")}')"
+
+# Runtime stage - minimal image
+FROM debian:bookworm-slim
+
+# Install runtime dependencies only
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libexpat1 \
+    libffi8 \
+    libreadline8 \
+    libsqlite3-0 \
+    libssl3 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy Python from builder
+COPY --from=python-builder /opt/python314 /opt/python314
+
+# Set environment
+ENV PATH="/opt/python314/bin:$PATH" \
+    PYTHON_GIL=0 \
+    PYTHONUNBUFFERED=1
+
+# Verify installation
+RUN python3.14 --version && \
+    python3.14 -c "import sys; print(f'GIL Disabled: {sys.flags.gil == 0}')"
+
+# Install pip packages
+RUN python3.14 -m ensurepip && \
+    python3.14 -m pip install --no-cache-dir --upgrade pip
+
+WORKDIR /workspace
+
+ENV PYTHON_GIL=0
+
+CMD ["python3.14"]
