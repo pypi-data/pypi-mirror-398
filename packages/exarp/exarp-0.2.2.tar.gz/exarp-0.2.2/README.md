@@ -1,0 +1,193 @@
+# Exarp
+
+**MCP Server for Project Management Automation**
+
+[![PyPI version](https://badge.fury.io/py/exarp.svg)](https://pypi.org/project/exarp/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## Install
+
+**🚨 For Development: This project uses `uv` for all package management. See `.cursorrules` for details.**
+
+**Using `uv` (Recommended - Faster):**
+```bash
+# For end users installing from PyPI
+uv pip install exarp
+
+# For developers working on this repo
+uv sync
+```
+
+**Using `pip` (Fallback - Not recommended for development):**
+```bash
+pip install exarp
+```
+
+## Quick Start
+
+```bash
+# Run the MCP server
+exarp
+
+# Or use aliases
+pma
+python -m project_management_automation.server
+```
+
+## MCP Client Configuration
+
+Add to your MCP client config (Cursor, Claude Desktop, VS Code):
+
+```json
+{
+  "mcpServers": {
+    "exarp": {
+      "command": "/path/to/project-management-automation/exarp-uvx-wrapper.sh",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+**Recommended**: Use `exarp-uvx-wrapper.sh` which automatically detects `uvx` location across platforms (Ubuntu, macOS Intel/Apple Silicon).
+
+**Alternative**: If `uvx` is in your PATH, use directly:
+```json
+{
+  "mcpServers": {
+    "exarp": {
+      "command": "uvx",
+      "args": ["exarp", "--mcp"]
+    }
+  }
+}
+```
+
+See [UVX Location Guide](docs/UVX_LOCATION_GUIDE.md) for detailed platform-specific instructions.
+
+## Development
+
+### Keeping MCP Features in Sync
+
+This project supports both FastMCP and stdio server interfaces. When adding tools, resources, or prompts, you must register them in **both** systems.
+
+**📖 See [MCP Sync Guide](docs/MCP_SYNC_GUIDE.md) for complete instructions.**
+
+**Quick check:**
+```bash
+uv run python scripts/verify_mcp_sync.py
+```
+
+## Features
+
+### 🏥 Project Health
+| Tool | Description |
+|------|-------------|
+| `server_status` | Server status, version, tools count |
+| `project_scorecard` | Comprehensive health metrics (codebase, tests, tasks, docs, security) |
+| `project_overview` | One-page summary (text, markdown, HTML, slides) |
+
+### 📚 Documentation
+| Tool | Description |
+|------|-------------|
+| `check_documentation_health` | Analyze docs, find broken links, validate formatting |
+| `add_external_tool_hints` | Add Context7 hints to documentation |
+
+### ✅ Task Management
+| Tool | Description |
+|------|-------------|
+| `analyze_todo2_alignment` | Check task alignment with PROJECT_GOALS.md |
+| `detect_duplicate_tasks` | Find and merge duplicate tasks |
+| `consolidate_tags` | Standardize task tags |
+| `task_hierarchy_analyzer` | Recommend task hierarchies |
+| `batch_approve_tasks` | Batch approve tasks without clarification needed |
+| `sync_todo_tasks` | Sync between TODO table and Todo2 |
+
+### 🔒 Security
+| Tool | Description |
+|------|-------------|
+| `scan_dependency_security` | Scan Python/Rust/npm for vulnerabilities |
+
+### 🤖 Automation
+| Tool | Description |
+|------|-------------|
+| `run_daily_automation` | Daily maintenance (docs, alignment, duplicates) |
+| `run_nightly_task_automation` | Execute background tasks in parallel |
+| `sprint_automation` | Full sprint with subtask extraction |
+| `find_automation_opportunities` | Discover automation candidates |
+
+### 🔧 CI/CD & Git
+| Tool | Description |
+|------|-------------|
+| `validate_ci_cd_workflow` | Validate GitHub Actions workflows |
+| `setup_git_hooks` | Configure pre-commit/pre-push hooks |
+| `setup_pattern_triggers` | File/git/task pattern automation |
+| `check_working_copy_health` | Git status across agents |
+
+### 🧪 Testing
+| Tool | Description |
+|------|-------------|
+| `run_tests` | Execute pytest/unittest/ctest |
+| `analyze_test_coverage` | Coverage reports and gap analysis |
+
+## ZSH Plugin
+
+For shell integration with context-aware project health:
+
+```bash
+# Add to ~/.zshrc
+source /path/to/exarp.plugin.zsh
+
+# Commands
+xl   # Quick context (no Python needed)
+xc   # Full context with score
+xs   # Project scorecard
+xo   # Project overview
+xt   # List pending tasks
+xp   # Scan for projects
+motd # Daily wisdom
+```
+
+See `shell/exarp.plugin.zsh` for full documentation.
+
+## Daily Wisdom
+
+Exarp includes optional daily wisdom quotes based on project health:
+
+```bash
+# Configure source
+export EXARP_WISDOM_SOURCE=stoic  # or: bofh, tao, bible, murphy, shakespeare, sefaria
+
+# Disable
+export EXARP_WISDOM_DISABLED=1
+```
+
+## Man Pages
+
+```bash
+man exarp       # MCP server documentation
+man exarp-zsh   # ZSH plugin documentation
+```
+
+## Requirements
+
+- Python 3.9+
+- FastMCP 2.0+
+- Pydantic 2.0+
+
+## Links
+
+- **PyPI**: https://pypi.org/project/exarp/
+- **GitHub**: https://github.com/davidl71/project-management-automation
+- **Issues**: https://github.com/davidl71/project-management-automation/issues
+
+## License
+
+MIT License - see [LICENSE](LICENSE)
+
+## Attributions
+
+This project includes features inspired by third-party projects:
+- **Git-Inspired Task Management**: Concepts inspired by [GitTask](https://github.com/Bengerthelorf/gittask) (GPL-3.0). See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for details.
+
+All implementations are original code. No third-party code was copied.

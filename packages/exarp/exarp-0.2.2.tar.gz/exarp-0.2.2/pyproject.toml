@@ -1,0 +1,173 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exarp"
+dynamic = ["version"]
+description = "MCP server for project management automation - health scores, task alignment, security scanning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "David Lowes", email = "lindog1@users.noreply.github.com" }
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "project-management",
+    "automation",
+    "ai-tools",
+    "fastmcp",
+    "task-management",
+    "code-health",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "fastmcp>=2.0.0",
+    "pydantic>=2.0.0",
+    "mcp>=1.0.0",
+    "ollama>=0.1.0",
+    "mlx>=0.20.0",
+    "mlx-lm>=0.19.0",
+    "huggingface-hub>=0.20.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/davidl71/project-management-automation"
+Repository = "https://github.com/davidl71/project-management-automation"
+Documentation = "https://github.com/davidl71/project-management-automation#readme"
+Issues = "https://github.com/davidl71/project-management-automation/issues"
+
+[project.entry-points."mcp.servers"]
+project-management-automation = "project_management_automation.server:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-asyncio>=0.21.0",
+    "coverage>=7.0.0",
+    "black>=23.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["project_management_automation"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "if TYPE_CHECKING:",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "coverage-report"
+
+[project.scripts]
+project-management-automation = "project_management_automation.server:main"
+exarp = "project_management_automation.server:main"
+pma = "project_management_automation.server:main"
+
+[tool.setuptools.packages.find]
+include = ["project_management_automation*"]
+exclude = [
+    "tests*",
+    "*test*", 
+    "test_*",
+    "*.todo2*",
+    "*__pycache__*",
+]
+
+# Include prompts.py and error_handler.py as modules (exclude root server.py and __init__.py)
+[tool.setuptools]
+py-modules = ["prompts", "error_handler"]
+
+# Exclude package data that shouldn't be in the wheel
+[tool.setuptools.package-data]
+"*" = []  # Don't include any package data by default
+
+[tool.setuptools.exclude-package-data]
+"*" = [
+    "*.todo2.json*",
+    "*.bak",
+    "*.log",
+    "*.pyc",
+    "__pycache__/*",
+    ".DS_Store",
+]
+
+# Dynamic versioning from version.py
+[tool.setuptools.dynamic]
+version = {attr = "project_management_automation.version.BASE_VERSION"}
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+exclude = [
+    ".venv",
+    "venv",
+    ".build-env",
+    "build",
+    "dist",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP"]
+ignore = ["E501", "B008", "B904"]
+
+[tool.black]
+target-version = ["py39"]
+line-length = 120
+exclude = '''
+/(
+    \.venv
+    | venv
+    | \.build-env
+    | build
+    | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_ignores = true
