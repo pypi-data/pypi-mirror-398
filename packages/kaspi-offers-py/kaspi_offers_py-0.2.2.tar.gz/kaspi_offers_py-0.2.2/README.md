@@ -1,0 +1,301 @@
+# Kaspi Offers API
+
+Python client for Kaspi.kz offers API
+
+## Installation
+```bash
+pip install kaspi-offers-py
+```
+
+## Usage
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    client = KaspiClient()
+
+    # Get offers for a product
+    response = await client.get_offers("123728177")
+
+    print(f"Found {response.total} offers")
+
+    # Iterate through offers
+    for offer in response.offers:
+        print(f"{offer.merchantName}: {offer.price} ₸")
+        print(f"Rating: {offer.merchantRating} ({offer.merchantReviewsQuantity} reviews)")
+        print(f"Delivery: {offer.deliveryType}")
+        print("---")
+
+asyncio.run(main())
+```
+
+## Retry Behavior
+
+By default, the client automatically retries failed requests up to 3 times for:
+- **5xx Server Errors:** 500 (Internal Server Error), 502 (Bad Gateway), 503 (Service Unavailable), 504 (Gateway Timeout)
+- **Rate Limiting:** 429 (Too Many Requests)
+- **Network Errors:** Connection timeouts, network failures
+
+The retry logic uses **exponential backoff with jitter** to avoid overwhelming servers.
+
+### Default Retry (Enabled Automatically)
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    # Retry is enabled by default with 3 attempts
+    client = KaspiClient()
+
+    # Automatically retries on 5xx errors, 429, timeouts, etc.
+    response = await client.get_offers("123728177")
+    print(f"Found {response.total} offers")
+
+asyncio.run(main())
+```
+
+### Custom Retry Configuration
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    # Custom retry configuration
+    client = KaspiClient(
+        max_retries=5,                    # Retry up to 5 times
+        retry_status_codes=[429, 500, 502, 503, 504],  # Also retry on 500
+        backoff_factor=1.0,               # More aggressive backoff
+        max_backoff_wait=120.0,           # Wait up to 2 minutes
+    )
+
+    response = await client.get_offers("123728177")
+    print(f"Found {response.total} offers")
+
+asyncio.run(main())
+```
+
+### Disable Retry
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    # Disable retry for faster failures
+    client = KaspiClient(max_retries=0)
+
+    # OR
+    # client = KaspiClient(max_retries=None)
+
+    response = await client.get_offers("123728177")
+
+asyncio.run(main())
+```
+
+### Retry with Verbose Logging
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    # See detailed retry information in logs
+    client = KaspiClient(verbose=True, max_retries=5)
+
+    response = await client.get_offers("123728177")
+
+asyncio.run(main())
+```
+
+When verbose mode is enabled with retry, you'll see logs like:
+```
+2025-12-17 10:30:45 - kaspi_offers_py.client - DEBUG - KaspiClient initialized with timeout=30, proxy=None
+2025-12-17 10:30:45 - kaspi_offers_py.client - DEBUG - Retry enabled: max_retries=5, backoff_factor=0.5, retry_status_codes=[429, 500, 502, 503, 504]
+2025-12-17 10:30:45 - kaspi_offers_py.client - DEBUG - Requesting offers for product_id=123728177
+2025-12-17 10:30:46 - kaspi_offers_py.client - DEBUG - Response status: 200
+2025-12-17 10:30:46 - kaspi_offers_py.client - DEBUG - Successfully retrieved 64 offers
+```
+
+### Using a Proxy
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    # HTTP proxy
+    client = KaspiClient(proxy="http://proxy.example.com:8080")
+
+    # HTTPS proxy
+    # client = KaspiClient(proxy="https://proxy.example.com:8080")
+
+    # SOCKS proxy
+    # client = KaspiClient(proxy="socks5://proxy.example.com:1080")
+
+    # Proxy with authentication
+    # client = KaspiClient(proxy="http://username:password@proxy.example.com:8080")
+
+    response = await client.get_offers("123728177")
+    print(f"Found {response.total} offers")
+
+asyncio.run(main())
+```
+
+### Testing Proxy Connection
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    client = KaspiClient(proxy="http://proxy.example.com:8080")
+
+    try:
+        # Test the connection and proxy configuration
+        result = await client.test_connection()
+        print(f"Connection test successful!")
+        print(f"Origin IP: {result['origin_ip']}")
+        print(f"Using proxy: {result['proxy']}")
+        print(f"Status code: {result['status_code']}")
+    except Exception as e:
+        print(f"Connection test failed: {e}")
+
+asyncio.run(main())
+```
+
+### Debug/Verbose Mode
+```python
+import asyncio
+from kaspi_offers_py import KaspiClient
+
+async def main():
+    # Enable verbose logging to see detailed debug information
+    client = KaspiClient(verbose=True, proxy="http://proxy.example.com:8080")
+
+    # Test connection first
+    try:
+        result = await client.test_connection()
+        print(f"✓ Proxy is working! Origin IP: {result['origin_ip']}")
+    except Exception as e:
+        print(f"✗ Proxy connection failed: {e}")
+        return
+
+    # Get offers with detailed logging
+    response = await client.get_offers("123728177")
+    print(f"Found {response.total} offers")
+
+asyncio.run(main())
+```
+
+When verbose mode is enabled, you'll see detailed logs like:
+```
+2025-12-17 10:30:45 - kaspi_offers_py.client - DEBUG - KaspiClient initialized with timeout=30, proxy=http://proxy.example.com:8080
+2025-12-17 10:30:45 - kaspi_offers_py.client - DEBUG - Testing connection to https://httpbin.org/get
+2025-12-17 10:30:45 - kaspi_offers_py.client - DEBUG - Using proxy: http://proxy.example.com:8080
+2025-12-17 10:30:46 - kaspi_offers_py.client - DEBUG - Connection test successful: {...}
+2025-12-17 10:30:46 - kaspi_offers_py.client - DEBUG - Requesting offers for product_id=123728177
+2025-12-17 10:30:46 - kaspi_offers_py.client - DEBUG - Using proxy: http://proxy.example.com:8080
+2025-12-17 10:30:47 - kaspi_offers_py.client - DEBUG - Response status: 200
+2025-12-17 10:30:47 - kaspi_offers_py.client - DEBUG - Successfully retrieved 64 offers
+```
+
+## Parameters
+
+### Client Initialization
+```python
+client = KaspiClient(
+    timeout=30,              # Request timeout in seconds (default: 30)
+    proxy=None,              # Optional proxy URL (default: None)
+    verbose=False,           # Enable debug logging (default: False)
+    max_retries=3,           # Max retry attempts (default: 3, None/0 to disable)
+    retry_status_codes=None, # Status codes to retry (default: [429, 502, 503, 504])
+    backoff_factor=0.5,      # Exponential backoff multiplier (default: 0.5)
+    max_backoff_wait=60.0,   # Max seconds between retries (default: 60.0)
+)
+```
+
+**Parameters:**
+- `timeout`: Request timeout in seconds
+- `proxy`: Optional proxy URL for requests (supports HTTP, HTTPS, SOCKS5)
+- `verbose`: Enable detailed debug logging
+- `max_retries`: Number of retry attempts for failed requests. Set to `None` or `0` to disable retry
+- `retry_status_codes`: List of HTTP status codes that trigger retry. Defaults to `[429, 500, 502, 503, 504]`
+- `backoff_factor`: Multiplier for exponential backoff between retries. Wait time = `backoff_factor * (2 ** attempts_made)` with jitter
+- `max_backoff_wait`: Maximum seconds to wait between retry attempts
+
+### Getting Offers
+```python
+response = await client.get_offers(
+    product_id="123728177",
+    city_id="750000000",  # Almaty by default
+    limit=64,
+    page=0
+)
+```
+
+## Data Models
+
+### Offer
+- `merchantName` - merchant name
+- `price` - price
+- `merchantRating` - merchant rating
+- `merchantReviewsQuantity` - number of reviews
+- `deliveryType` - delivery type (EXPRESS, TO_DOOR, PICKUP, POSTOMAT)
+- `kaspiDelivery` - Kaspi delivery available
+- `delivery` - delivery date
+- `pickup` - pickup date
+
+### OffersResponse
+- `offers` - list of offers
+- `total` - total count
+- `offersCount` - count in response
+
+## Requirements
+
+- Python >= 3.9
+- httpx >= 0.27.0
+- httpx-retries >= 0.4.0
+
+## Development
+
+### Install development dependencies
+
+**Using uv (recommended):**
+```bash
+# Automatically installs dev dependencies
+uv sync
+```
+
+**Using pip:**
+```bash
+pip install -e ".[dev]"
+```
+
+### Running tests
+
+**Using uv:**
+```bash
+# Unit tests only (default - fast, no network)
+uv run pytest
+
+# Integration tests (real API calls, requires network)
+uv run pytest -m integration
+
+# All tests (unit + integration)
+uv run pytest -m ""
+
+# With coverage
+uv run pytest --cov=kaspi_offers_py --cov-report=html
+```
+
+**Using pip/pytest directly:**
+```bash
+# Unit tests only (default - fast, no network)
+pytest
+
+# Integration tests (real API calls, requires network)
+pytest -m integration
+
+# All tests (unit + integration)
+pytest -m ""
+
+# With coverage
+pytest --cov=kaspi_offers_py --cov-report=html
+```
