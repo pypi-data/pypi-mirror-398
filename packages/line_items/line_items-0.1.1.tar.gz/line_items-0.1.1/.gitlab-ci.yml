@@ -1,0 +1,83 @@
+stages:
+  - quality
+  - test
+  - build
+  - publish
+
+lint:
+  stage: quality
+  image: rust:alpine
+  variables:
+    RUSTFLAGS: "-Dwarnings"
+  script:
+    - rustup component add clippy
+    - cargo clippy
+
+formatting:
+  stage: quality
+  image: rust:alpine
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --check
+
+build python package:
+  stage: build
+  image: rust:alpine
+  script:
+    - apk add curl
+    # TODO: Replace this with an apk add once uv is at a higher version
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH=$PATH:$HOME/.local/bin
+    - uv build
+  artifacts:
+    paths:
+      # Should only ever be one file, but will change filename depending on the version.
+      - target/wheels/line_items*.tar.gz
+
+build js package:
+  stage: build
+  image: rust:alpine
+  script:
+    - apk add npm
+    - npm install -g wasm-pack
+    - wasm-pack build . --features=wasm
+  artifacts:
+    paths:
+      # Should only ever be one file, but will change filename depending on the version.
+      - pkg/line_items*.tar.gz
+
+publish python package:
+  stage: publish
+  image: rust:alpine
+  script:
+    - apk add curl
+    # TODO: Replace this with an apk add once uv is at a higher version
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH=$PATH:$HOME/.local/bin
+    - uv publish
+  artifacts:
+    
+#  rules:
+#      - if: $CI_COMMIT_TAG
+#        when: never
+#      - if: $CI_COMMIT_BRANCH == 'main'
+
+publish js package:
+  stage: publish
+  image: rust:alpine
+  script:
+    - apk add npm jq
+    - npm install -g wasm-pack
+    - wasm-pack build . --features=wasm
+    - jq 'setpath(["name"]; "@artconomy/line_items")' pkg/package.json > pkg/package.json.new
+    - mv pkg/package.json.new pkg/package.json
+    - wasm-pack pack
+    - wasm-pack publish --access=public
+  artifacts:
+    paths:
+      # Should only ever be one file, but will change filename depending on the version.
+      - pkg/line_items*.tar.gz
+#  rules:
+#    - if: $CI_COMMIT_TAG
+#      when: never
+#    - if: $CI_COMMIT_BRANCH == 'main'
