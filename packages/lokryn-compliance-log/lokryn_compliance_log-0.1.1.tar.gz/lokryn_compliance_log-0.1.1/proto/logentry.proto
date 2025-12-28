@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package lokryn.compliancelog.v1;
+
+// ---------- Severity ----------
+// Follows syslog severity levels (RFC 5424)
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_DEBUG       = 1;
+  SEVERITY_INFO        = 2;
+  SEVERITY_NOTICE      = 3;
+  SEVERITY_WARNING     = 4;
+  SEVERITY_ERROR       = 5;
+  SEVERITY_CRITICAL    = 6;
+  SEVERITY_ALERT       = 7;
+  SEVERITY_EMERGENCY   = 8;
+}
+
+// ---------- Outcome ----------
+enum Outcome {
+  OUTCOME_UNSPECIFIED          = 0;
+  OUTCOME_SUCCESS              = 1;
+  OUTCOME_FAILURE_UNAUTHORIZED = 2;
+  OUTCOME_FAILURE_DENIED       = 3;
+  OUTCOME_FAILURE_ERROR        = 4;
+  OUTCOME_PARTIAL              = 5;
+}
+
+// ---------- EventType ----------
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED   = 0;
+  EVENT_LOGIN              = 1;
+  EVENT_LOGOUT             = 2;
+  EVENT_FILE_ACCESS        = 3;
+  EVENT_POLICY_CHANGE      = 4;
+  EVENT_PRIVILEGE_USE      = 5;
+  EVENT_CONFIG_CHANGE      = 6;
+  EVENT_DATA_EXPORT        = 7;
+  EVENT_NETWORK_CONNECTION = 8;
+  EVENT_PROCESS_START      = 9;
+  EVENT_PROCESS_STOP       = 10;
+  EVENT_USER_MANAGEMENT    = 11;
+  EVENT_RESOURCE_ACCESS    = 12;
+  // AI/Agent-specific events
+  EVENT_TOOL_INVOCATION    = 13;  // MCP tool call, function call, API invocation
+  EVENT_MODEL_INFERENCE    = 14;  // LLM API call (completion, embedding, etc.)
+  EVENT_AGENT_DECISION     = 15;  // Autonomous decision point
+  EVENT_DELEGATION         = 16;  // Agent delegating to sub-agent
+  EVENT_CONTEXT_ACCESS     = 17;  // Context window, memory, RAG retrieval
+  EVENT_PROMPT_EXECUTION   = 18;  // Prompt template execution
+  EVENT_GUARDRAIL_CHECK    = 19;  // Safety/guardrail evaluation
+}
+
+// ---------- Sensitivity ----------
+enum Sensitivity {
+  SENSITIVITY_UNSPECIFIED      = 0;
+  SENSITIVITY_PUBLIC           = 1;
+  SENSITIVITY_INTERNAL         = 2;
+  SENSITIVITY_CONFIDENTIAL     = 3;
+  SENSITIVITY_RESTRICTED       = 4;
+  SENSITIVITY_HIGHLY_RESTRICTED = 5;
+}
+
+// ---------- LogEntry ----------
+message LogEntry {
+  EventType event_type          = 1;
+  Outcome outcome               = 2;
+  Severity severity             = 3;
+  string actor_id               = 4;   // Who performed the action
+  string component              = 5;   // System component (e.g., "auth-service")
+  string environment            = 6;   // Environment (e.g., "production")
+  string resource               = 7;   // Resource being accessed
+  string message                = 8;   // Human-readable description
+  bytes payload                 = 9;   // Opaque JSON/CBOR blob for structured data
+  repeated string policy_tags   = 10;  // Compliance tags (e.g., "PCI", "HIPAA")
+  Sensitivity sensitivity       = 11;  // Data classification level
+}
