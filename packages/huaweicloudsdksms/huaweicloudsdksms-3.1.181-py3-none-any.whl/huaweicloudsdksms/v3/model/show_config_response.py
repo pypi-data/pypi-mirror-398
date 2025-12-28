@@ -1,0 +1,141 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowConfigResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'config': 'dict(str, str)',
+        'regions': 'list[dict(str, str)]'
+    }
+
+    attribute_map = {
+        'config': 'config',
+        'regions': 'regions'
+    }
+
+    def __init__(self, config=None, regions=None):
+        r"""ShowConfigResponse
+
+        The model defined in huaweicloud sdk
+
+        :param config: mainRegion,obs_domain,disktype,process_and_it及以后增加的信息
+        :type config: dict(str, str)
+        :param regions: region数组
+        :type regions: list[dict(str, str)]
+        """
+        
+        super().__init__()
+
+        self._config = None
+        self._regions = None
+        self.discriminator = None
+
+        if config is not None:
+            self.config = config
+        if regions is not None:
+            self.regions = regions
+
+    @property
+    def config(self):
+        r"""Gets the config of this ShowConfigResponse.
+
+        mainRegion,obs_domain,disktype,process_and_it及以后增加的信息
+
+        :return: The config of this ShowConfigResponse.
+        :rtype: dict(str, str)
+        """
+        return self._config
+
+    @config.setter
+    def config(self, config):
+        r"""Sets the config of this ShowConfigResponse.
+
+        mainRegion,obs_domain,disktype,process_and_it及以后增加的信息
+
+        :param config: The config of this ShowConfigResponse.
+        :type config: dict(str, str)
+        """
+        self._config = config
+
+    @property
+    def regions(self):
+        r"""Gets the regions of this ShowConfigResponse.
+
+        region数组
+
+        :return: The regions of this ShowConfigResponse.
+        :rtype: list[dict(str, str)]
+        """
+        return self._regions
+
+    @regions.setter
+    def regions(self, regions):
+        r"""Sets the regions of this ShowConfigResponse.
+
+        region数组
+
+        :param regions: The regions of this ShowConfigResponse.
+        :type regions: list[dict(str, str)]
+        """
+        self._regions = regions
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ShowConfigResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowConfigResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
