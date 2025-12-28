@@ -1,0 +1,1306 @@
+<!doctype html>
+<html>
+  <head>
+    <!-- avoid text rendering issues on various platforms -->
+    <meta charset="utf-8" />
+
+    <!-- prevent auto-zooming on mobile browsers -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Bootstrap -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Lodash -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Pug HTML template compiler -->
+    <script src="https://pugjs.org/js/pug.js"></script>
+    <script>
+      window.pug = require("pug");
+
+      function renderHtmlFromPug(str) {
+        const lines = str.replace(/^\n/, "").split("\n");
+        const minIndent = Math.min(
+          ...lines
+            .filter((l) => l.trim())
+            .map((l) => l.match(/^\s*/)[0].length),
+        );
+        return pug.render(lines.map((l) => l.slice(minIndent)).join("\n"));
+      }
+    </script>
+
+    <!-- Ky -->
+    <script type="module">
+      import ky from "https://unpkg.com/ky/distribution/index.js";
+
+      window.ky = ky;
+    </script>
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+    <!-- Custom styles -->
+    <style>
+      body {
+        overflow-y: hidden;
+      }
+      .scrollable-column {
+        height: calc(100vh - 140px);
+        overflow-y: auto;
+      }
+
+      .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1100;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app"></div>
+  </body>
+
+  <script>
+    // language=pug
+    const template = renderHtmlFromPug(`
+    .container-fluid.h-100
+
+      .toast-container
+        .toast.align-items-center.text-white.border-0(
+          v-for="(notification, index) in notifications"
+          :key="notification.id"
+          :data-toast-id="notification.id"
+          :class="[notification.bgClass]"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          data-bs-autohide="true"
+          :data-bs-delay="notification.timeout"
+        )
+          .d-flex
+            .toast-body {{ notification.message }}
+            button.btn-close.btn-close-white.me-2.m-auto(
+              type="button"
+              data-bs-dismiss="toast"
+              aria-label="Close"
+            )
+
+      .row.h-100
+        .col-12
+
+          // Title
+          .d-flex.justify-content-between.align-items-center.mt-3
+            h2.fw-bold.mx-3.my-2 
+              | microeval
+              span.text-muted.ms-3(v-if="defaults.evalsDir") [{{ defaults.evalsDir }}]
+
+          // Tab navigation
+          ul.nav.nav-tabs.mt-3
+            li.nav-item
+              a.nav-link.active(data-bs-toggle="tab" href="#runs-tab")
+                | Runs
+            li.nav-item
+              a.nav-link(data-bs-toggle="tab" href="#queries-tab")
+                | Queries
+            li.nav-item
+              a.nav-link(data-bs-toggle="tab" href="#prompts-tab")
+                | Prompts
+            li.nav-item
+              a.nav-link(data-bs-toggle="tab" href="#graph-tab")
+                | Graph
+
+          // Tab content
+          .tab-content.h-100
+
+            /// Run tab
+            #runs-tab.tab-pane.fade.show.active.h-100
+              .d-flex.flex-row
+
+                //// Run tab - left column
+                .d-flex.flex-column.scrollable-column.border-end(style="flex: 0 0 400px;")
+                  .px-3.pt-4
+
+                    .d-flex.gap-2.mb-2
+                      button.btn.btn-success(
+                        @click="openCreateModal('Create New Eval', 'Eval Name', 'eval-name', createRun)"
+                      ) + new
+                      button.btn.btn-primary(
+                        @click="runAllEvaluations"
+                        :disabled="isRunningAll"
+                        title="Run all evaluations"
+                      )
+                        span.spinner-border.spinner-border-sm.me-1(
+                          v-if="isRunningAll"
+                          role="status"
+                          aria-hidden="true"
+                        )
+                        i.fas.fa-play-circle.me-1(v-else)
+                        | {{ isRunningAll ? 'running...' : 'run all' }}
+
+                    ul.list-group
+                      li.list-group-item.d-flex.justify-content-between.align-items-center(
+                        v-for="f in runNames" :key="f"
+                        :class="{ 'list-group-item-info': selectedRunName == f }"
+                      )
+                        .flex-grow-1(@click="chooseRun(f)" role="button")
+                          | {{f}}
+                        button.btn.btn-sm.btn-link.text-success(
+                          @click.stop="runEvaluationForRun(f)"
+                          :disabled="isEvaluatingByRun[f]"
+                          title="Run evaluation"
+                          style="text-decoration: none;"
+                        )
+                          span.spinner-border.spinner-border-sm(
+                            v-if="isEvaluatingByRun[f]"
+                            role="status"
+                            aria-hidden="true"
+                          )
+                          i.fas.fa-play(v-else)
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openCreateModal('Duplicate Run', 'New Name', 'new-name', (name) => duplicateRun(f, name), getNextCopyName(f, runNames))"
+                          title="Duplicate run"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-copy
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openRenameDialog('run', f)"
+                          title="Rename run"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-edit
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openDeleteConfirm('run', f)"
+                          title="Delete run"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-trash
+
+                  //// Run tab - central column
+                .d-flex.flex-column.scrollable-column.border.flex-grow-1
+                  .px-3.pt-4
+
+                    .d-flex.align-items-center
+                      h3.mb-0 Run [{{selectedRunName}}]
+                      button.btn.btn-success.ms-3(@click="saveRunConfig" :disabled="isSavingRunConfig")
+                        span.spinner-border.spinner-border-sm(
+                          v-if="isSavingRunConfig"
+                          role="status"
+                          aria-hidden="true"
+                        )
+                        | {{ isSavingRunConfig ? ' saving...' : 'save' }}
+
+                    h5.mt-4 Repeat
+                    .form-group
+                      input#repeat.form-control(
+                        type="number"
+                        v-model="runConfig.repeat"
+                        placeholder="1"
+                        min="1"
+                      )
+
+                    h5.mt-3 Temperature
+                    .form-group
+                      input#temperature.form-control(
+                        type="number"
+                        v-model="runConfig.temperature"
+                        placeholder="0.0"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                      )
+
+                    h5.mt-3 Service
+                    .form-group
+                      select.form-select(v-model="runConfig.service")
+                        option(value="" disabled)
+                          | Select a service
+                        option(v-for="(models, serviceName) in defaults.models" :key="serviceName" :value="serviceName")
+                          | {{ serviceName }}
+
+                      h5.mt-3 Model
+                    .form-group
+                      select.form-select(v-model="runConfig.model")
+                        option(value="" disabled)
+                          | Select a model
+                        option(v-for="m in filteredModels" :key="m" :value="m")
+                          | {{ m }}
+
+                    h5.mt-4 Evaluators
+                    .form-group
+                      div(v-for="evaluator in defaults.evaluators" :key="evaluator")
+                        .form-check
+                          input.form-check-input(
+                            type="checkbox"
+                            :id="'evaluator-' + evaluator"
+                            :value="evaluator"
+                            v-model="runConfig.evaluators"
+                          )
+                          label.form-check-label(:for="'evaluator-' + evaluator")
+                            | {{ evaluator }}
+
+                    .d-flex.flex-row.align-items-end.mt-4
+                      h5 Prompt:
+                      .ms-2.form-group
+                        select.form-select(v-model="runConfig.promptRef" @change="e => choosePromptOfRun(e.target.value)")
+                          option(value="" disabled)
+                            | Select a prompt
+                          option(v-for="promptName in promptRefs" :key="promptName" :value="promptName")
+                            | {{ promptName }}
+
+                    .form-group
+                      textarea.form-control(
+                        rows="8"
+                        v-model="runConfig.prompt"
+                        placeholder="Please summarize the skills of this candidate."
+                        readonly
+                      )
+
+                    .d-flex.flex-row.align-items-end
+                      h5.mt-4 Query:
+                      .ms-2.form-group
+                      select.form-select(v-model="runConfig.queryRef" @change="e => chooseQueryOfRun(e.target.value)")
+                        option(value="" disabled)
+                          | Select a query
+                        option(v-for="queryName in queryRefs" :key="queryName" :value="queryName")
+                          | {{ queryName }}
+
+                    h6.mt-3 Input:
+                    .form-group
+                      textarea#input.form-control(
+                        rows="8"
+                        v-model="runConfig.input"
+                        placeholder="A humble query"
+                        readonly
+                      )
+
+                    h6.mt-4 Output:
+                    .form-group
+                      textarea#expected.form-control(
+                        rows="8"
+                        v-model="runConfig.output"
+                        placeholder="expected"
+                        readonly
+                      )
+
+                //// Run tab - right column
+                .d-flex.flex-column.scrollable-column.border-end.flex-grow-1
+                  .px-3.pt-4
+
+                    h3 Results
+
+                    .mt-4
+                    template(v-if="runResult && runResult.length")
+                      .table-responsive
+                        table.table.table-striped
+                          thead
+                            tr
+                              th Metric
+                              th Value
+                          tbody
+                            tr(v-for="(row, index) in runResult" :key="index")
+                              td {{ row.name }}
+                              td
+                                | {{ parseFloat(row.average).toFixed(1) }}
+                                | ± {{ parseFloat(row.standardDeviation).toFixed(1) }}
+                    template(v-else)
+                      .alert.alert-info(role="alert")
+                        | No results found. Click "evaluate" to run this configuration.
+
+                    .form-group(v-if="sampleOutput")
+                      h5.mt-3 Sample Model Response
+                      textarea.form-control(rows="8" v-model="sampleOutput" readonly)
+
+                    .pb-5
+                    .pb-5
+
+            /// Queries tab
+            #queries-tab.tab-pane.fade.h-100
+              .d-flex.flex-row.h-100
+
+                //// Queries tab - left column
+                .d-flex.flex-column.scrollable-column.border-end(style="flex: 0 0 300px;")
+                  .px-3.pt-4
+
+                    h3 Queries
+
+                    button.btn.btn-success(
+                      @click="openCreateModal('Create New Query', 'Query Name', 'query-name', createQuery)"
+                    ) + new
+
+                    ul.list-group
+                      li.list-group-item.d-flex.justify-content-between.align-items-center(
+                        v-for="query in queryRefs"
+                        :key="query"
+                        :class="{ 'list-group-item-info': selectedQueryRef == query }"
+                      )
+                        .flex-grow-1(@click="chooseSelectedQuery(query)" role="button")
+                          | {{query}}
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openCreateModal('Duplicate Query', 'New Name', 'new-name', (name) => duplicateQuery(query, name), getNextCopyName(query, queryRefs))"
+                          title="Duplicate query"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-copy
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openRenameDialog('query', query)"
+                          title="Rename query"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-edit
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openDeleteConfirm('query', query)"
+                          title="Delete query"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-trash
+
+                //// Queries tab - right section (input and output columns)
+                .d-flex.flex-column.scrollable-column.flex-grow-1
+                  .px-3.pt-4
+                    .d-flex.align-items-center
+                      h3.mb-0 Query [{{selectedQueryRef}}]
+                      button.btn.btn-success.ms-3(
+                        @click="saveQuery" :disabled="isSavingPrompt"
+                      )
+                        span.spinner-border.spinner-border-sm(
+                          v-if="isSavingPrompt" role="status" aria-hidden="true"
+                        )
+                        | {{ isSavingPrompt ? ' saving...' : 'save' }}
+
+                  .d-flex.flex-row.flex-grow-1.px-3.pb-3.gap-3
+                    .d-flex.flex-column.flex-grow-1
+                      h5 Input
+                      textarea.form-control.flex-grow-1(style="resize: none; min-height: 200px;" v-model="selectedQuery.input")
+                    .d-flex.flex-column.flex-grow-1
+                      h5 Output
+                      textarea.form-control.flex-grow-1(style="resize: none; min-height: 200px;" v-model="selectedQuery.output")
+
+            /// Prompts tab
+            #prompts-tab.tab-pane.fade.h-100
+              .d-flex.flex-row.h-100
+
+                //// Prompts tab - left column
+                .d-flex.flex-column.scrollable-column.border-end(style="flex: 0 0 300px;")
+                  .px-3.pt-4
+
+                    h3 Prompts
+
+                    button.btn.btn-success(
+                      @click="openCreateModal('Create New System Prompt', 'System Prompt Name', 'prompt-name', createPrompt)"
+                    ) + new
+
+                    ul.list-group
+                      li.list-group-item.d-flex.justify-content-between.align-items-center(
+                        v-for="promptName in promptRefs"
+                        :key="promptName"
+                        :class="{ 'list-group-item-info': selectedPromptRef == promptName }"
+                      )
+                        .flex-grow-1(@click="chooseSelectedPrompt(promptName)" role="button")
+                          | {{promptName}}
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openCreateModal('Duplicate Prompt', 'New Name', 'new-name', (name) => duplicatePrompt(promptName, name), getNextCopyName(promptName, promptRefs))"
+                          title="Duplicate prompt"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-copy
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openRenameDialog('prompt', promptName)"
+                          title="Rename prompt"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-edit
+                        button.btn.btn-sm.btn-link.text-dark(
+                          @click.stop="openDeleteConfirm('prompt', promptName)"
+                          title="Delete prompt"
+                          style="text-decoration: none;"
+                        )
+                          i.fas.fa-trash
+
+                //// Prompts tab - right column
+                .d-flex.flex-column.scrollable-column.flex-grow-1
+                  .d-flex.flex-column.h-100.px-3.pt-4.pb-3
+
+                    .d-flex.align-items-center
+                      h3.mb-0 Prompt [{{selectedPromptRef}}]
+                      button.btn.btn-success.ms-3(
+                        @click="savePrompt" :disabled="isSavingPrompt"
+                      )
+                        span.spinner-border.spinner-border-sm(
+                          v-if="isSavingPrompt" role="status" aria-hidden="true"
+                        )
+                        | {{ isSavingPrompt ? ' saving...' : 'save' }}
+
+                    textarea.form-control.flex-grow-1.mt-3(style="resize: none; min-height: 200px;" v-model="selectedPrompt")
+
+            /// Graph tab
+            #graph-tab.tab-pane.fade.h-100
+              .scrollable-column
+                .container-fluid.p-3
+                  template(v-for="graph in performanceGraphs" :key="graph.id")
+                    .w-100.mb-5
+                      div(:id="graph.id")
+
+        // Modals
+
+        // Generic Create Modal
+        .modal.fade(id="create-modal" tabindex="-1")
+          .modal-dialog
+            .modal-content
+              .modal-header
+                h5.modal-title {{ createModalTitle }}
+                button.btn-close(data-bs-dismiss="modal" aria-label="Close")
+              .modal-body
+                .form-group.mb-3
+                  label.form-label {{ createModalLabel }}
+                  input.form-control(
+                    type="text"
+                    v-model="createModalValue"
+                    :placeholder="createModalPlaceholder"
+                    @keyup.enter="submitCreate"
+                    autofocus
+                  )
+              .modal-footer
+                button.btn.btn-secondary(data-bs-dismiss="modal") Cancel
+                button.btn.btn-primary(@click="submitCreate" :disabled="!createModalValue") Create
+
+        // Delete Confirmation Modal
+        .modal.fade(id="delete-confirm-modal" tabindex="-1")
+          .modal-dialog
+            .modal-content
+              .modal-header
+                h5.modal-title Confirm Delete
+                button.btn-close(data-bs-dismiss="modal" aria-label="Close")
+              .modal-body
+                p Are you sure you want to delete {{ deleteItemType }} "{{ deleteItemName }}"?
+                p.text-muted This action cannot be undone.
+              .modal-footer
+                button.btn.btn-secondary(data-bs-dismiss="modal") Cancel
+                button.btn.btn-danger(@click="confirmDelete") Delete
+
+        // Rename Modal
+        .modal.fade(id="rename-modal" tabindex="-1")
+          .modal-dialog
+            .modal-content
+              .modal-header
+                h5.modal-title Rename {{ renameItemType }}
+                button.btn-close(data-bs-dismiss="modal" aria-label="Close")
+              .modal-body
+                .form-group.mb-3
+                  label.form-label New Name
+                  input.form-control(
+                    type="text"
+                    v-model="renameNewName"
+                    placeholder="new-name"
+                    @keyup.enter="confirmRename"
+                    autofocus
+                  )
+              .modal-footer
+                button.btn.btn-secondary(data-bs-dismiss="modal") Cancel
+                button.btn.btn-primary(@click="confirmRename" :disabled="!renameNewName") Rename
+    `);
+
+    function deepCamelCaseKeys(value) {
+      if (_.isArray(value)) {
+        return value.map(deepCamelCaseKeys);
+      }
+      if (_.isPlainObject(value)) {
+        const camelKeyed = _.mapKeys(value, (v, k) => _.camelCase(k));
+        return _.mapValues(camelKeyed, deepCamelCaseKeys);
+      }
+      return value;
+    }
+
+    function deepSnakeCaseKeys(value) {
+      if (_.isArray(value)) {
+        return value.map(deepSnakeCaseKeys);
+      }
+      if (_.isPlainObject(value)) {
+        const snakeKeyed = _.mapKeys(value, (v, k) => _.snakeCase(k));
+        return _.mapValues(snakeKeyed, deepSnakeCaseKeys);
+      }
+      return value;
+    }
+
+    async function getJson(url) {
+      let result = await ky.get(url).json();
+      result = deepCamelCaseKeys(result);
+      const content = result.content;
+      console.log(`getJson ${url}`, _.cloneDeep(content));
+      return content;
+    }
+
+    async function fetchObject(table, basename) {
+      let result = await ky
+        .post(`/fetch`, {
+          json: {
+            table,
+            basename,
+          },
+        })
+        .json();
+      result = deepCamelCaseKeys(result);
+      const content = result.content;
+      console.log(`fetchObject`, _.cloneDeep(content));
+      return content;
+    }
+
+    async function saveObject(table, basename, content) {
+      let result = await ky
+        .post(`/save`, {
+          json: {
+            table,
+            basename,
+            content,
+          },
+        })
+        .json();
+      result = deepCamelCaseKeys(result);
+      const message = result.message;
+      console.log(`saveObject`, _.cloneDeep(message));
+      return message;
+    }
+
+    const { createApp, ref, onMounted, computed, watch } = Vue;
+
+    function setup() {
+      // State
+      const defaults = ref({});
+
+      const runNames = ref([]);
+      const runConfig = ref({});
+      const runResult = ref({});
+      const selectedRunName = ref("");
+      const newRunName = ref("");
+      const isEvaluatingByRun = ref({});
+      const isRunningAll = ref(false);
+      const isSavingRunConfig = ref(false);
+      const sampleOutput = ref("");
+
+      const promptRefs = ref([]);
+      const selectedPromptRef = ref("");
+      const selectedPrompt = ref("");
+      const newPromptRef = ref("");
+      const isSavingPrompt = ref(false);
+
+      const queryRefs = ref([]);
+      const selectedQueryRef = ref("");
+      const selectedQuery = ref({ input: "", output: "" });
+      const newQueryRef = ref("");
+      const isSavingQuery = ref(false);
+
+      const notifications = ref([]);
+      
+      const deleteItemType = ref("");
+      const deleteItemName = ref("");
+      
+      const renameItemType = ref("");
+      const renameOldName = ref("");
+      const renameNewName = ref("");
+      
+      const createModalTitle = ref("");
+      const createModalLabel = ref("");
+      const createModalPlaceholder = ref("");
+      const createModalValue = ref("");
+      const createModalCallback = ref(null);
+      
+      const performanceGraphs = ref([]);
+
+      // Derived values
+      const filteredModels = computed(() => {
+        const svc = _.get(runConfig, "value.service");
+        const modelsMap = _.get(defaults, "value.models", {}) || {};
+        return svc && modelsMap[svc] ? modelsMap[svc] : [];
+      });
+
+      const isEvaluating = computed(() => {
+        return isEvaluatingByRun.value[selectedRunName.value] || false;
+      });
+
+      // Keep model consistent with selected service
+      watch(
+        () => _.get(runConfig, "value.service"),
+        () => {
+          const current = _.get(runConfig, "value.model");
+          if (!filteredModels.value.includes(current)) {
+            runConfig.value.model = filteredModels.value[0] || "";
+          }
+        },
+      );
+
+      // Graph rendering
+      async function loadGraphData() {
+        try {
+          if (!window.ky) {
+            throw new Error("Ky module not loaded yet");
+          }
+          const data = await window.ky.get("/api/graph-data").json();
+          console.log("Loaded graph data:", data);
+          performanceGraphs.value = data.graphs || [];
+          return true;
+        } catch (error) {
+          console.error("Failed to load graph data:", error);
+          let errorMsg = "Failed to load graph data";
+          if (error.message) {
+            errorMsg += `: ${error.message}`;
+          }
+          showNotification(errorMsg, "danger");
+          return false;
+        }
+      }
+
+      function plotGraphs() {
+        if (!performanceGraphs.value || performanceGraphs.value.length === 0) {
+          console.warn("No graphs to plot");
+          return;
+        }
+        for (let graph of performanceGraphs.value) {
+          const element = document.getElementById(graph.id);
+          if (element) {
+            Plotly.newPlot(element, graph);
+          }
+        }
+      }
+
+      // Lifecycle hooks
+      // Initialize toast when a new notification is added
+      function initializeToast(toastEl) {
+        const toast = new bootstrap.Toast(toastEl, { autohide: true });
+        toast.show();
+
+        // Auto-hide after timeout
+        toastEl.addEventListener("hidden.bs.toast", () => {
+          const id = parseInt(toastEl.getAttribute("data-toast-id"));
+          removeNotification(id);
+        });
+      }
+
+      onMounted(async () => {
+        await loadRunNames();
+        await loadPromptRefs();
+        await loadQueryRefs();
+        defaults.value = await getJson("/defaults");
+        await chooseRun(runNames.value[0]);
+        
+        // Load and plot graphs when Graph tab is shown
+        const graphTab = document.querySelector('a[href="#graph-tab"]');
+        if (graphTab) {
+          graphTab.addEventListener('shown.bs.tab', async () => {
+            await loadGraphData();
+            setTimeout(() => plotGraphs(), 100);
+          });
+        }
+      });
+
+      // Methods
+      async function loadRunNames() {
+        runNames.value = await getJson("/list/run");
+      }
+
+      async function loadPromptRefs() {
+        promptRefs.value = await getJson("/list/prompt");
+      }
+
+      async function loadQueryRefs() {
+        queryRefs.value = await getJson("/list/query");
+      }
+
+      async function chooseRun(runName) {
+        selectedRunName.value = runName;
+        selectedPrompt.value = "";
+        await loadRunConfig(runName);
+        await loadRunResult(runName);
+      }
+
+      async function loadRunConfig(runName) {
+        runConfig.value = await fetchObject("run", runName);
+        await choosePromptOfRun(runConfig.value.promptRef);
+        if (runConfig.value.queryRef) {
+          await chooseQueryOfRun(runConfig.value.queryRef);
+        }
+      }
+
+      async function choosePromptOfRun(promptRef) {
+        if (!promptRef) {
+          runConfig.value.promptRef = "";
+          runConfig.value.prompt = "";
+        } else {
+          runConfig.value.promptRef = promptRef;
+          runConfig.value.prompt = await fetchObject(
+            "prompt",
+            runConfig.value.promptRef,
+          );
+          await chooseSelectedPrompt(promptRef);
+        }
+      }
+
+      async function chooseQueryOfRun(queryRef) {
+        if (!queryRef) {
+          runConfig.value.queryRef = "";
+          runConfig.value.input = "";
+          runConfig.value.output = "";
+        } else {
+          runConfig.value.queryRef = queryRef;
+          const content = await fetchObject("query", runConfig.value.queryRef);
+          runConfig.value.input = _.get(content, "input");
+          runConfig.value.output = _.get(content, "output");
+          await chooseSelectedQuery(queryRef);
+        }
+      }
+
+      async function loadRunResult(runName) {
+        runResult.value = {};
+        sampleOutput.value = "";
+        try {
+          const content = await fetchObject("result", runName);
+          runResult.value = content.evaluations || [];
+          const responseTexts = content.texts || [];
+          sampleOutput.value = responseTexts[0] || "";
+        } catch (error) {
+          console.error("Failed to load run result:", error);
+        }
+      }
+
+      async function runEvaluation() {
+        if (!selectedRunName.value) return;
+        await runEvaluationForRun(selectedRunName.value);
+      }
+
+      async function runEvaluationForRun(runName) {
+        if (!runName) return;
+
+        isEvaluatingByRun.value[runName] = true;
+        
+        if (selectedRunName.value === runName) {
+          runResult.value = {};
+          sampleOutput.value = "";
+        }
+        
+        showNotification(`Starting evaluation for ${runName}...`, "info");
+
+        try {
+          const config = await fetchObject("run", runName);
+          console.log("Running evaluation with config:", config);
+          await ky.post(`/evaluate`, {
+            json: {
+              basename: runName,
+              content: deepSnakeCaseKeys(config),
+            },
+            timeout: 600000,
+          });
+          
+          if (selectedRunName.value === runName) {
+            await loadRunResult(runName);
+          }
+          
+          // Reload graph data after successful evaluation
+          try {
+            await loadGraphData();
+            setTimeout(() => plotGraphs(), 100);
+          } catch (graphError) {
+            console.warn("Could not reload graphs:", graphError);
+          }
+          
+          showNotification(`Evaluation for ${runName} completed successfully!`, "success");
+        } catch (error) {
+          console.error("Failed to run evaluation:", error);
+          let errorMessage = `Evaluation for ${runName} failed. Check console for details`;
+          
+          try {
+            if (error.response) {
+              const errorData = await error.response.json();
+              if (errorData.detail) {
+                errorMessage = `Evaluation for ${runName} failed: ${errorData.detail}`;
+              }
+            }
+          } catch (parseError) {
+            console.error("Could not parse error response:", parseError);
+          }
+          
+          showNotification(errorMessage, "danger");
+        } finally {
+          isEvaluatingByRun.value[runName] = false;
+        }
+      }
+
+      async function runAllEvaluations() {
+        if (!runNames.value || runNames.value.length === 0) {
+          showNotification("No runs to evaluate", "warning");
+          return;
+        }
+
+        isRunningAll.value = true;
+        showNotification(`Starting evaluation for all ${runNames.value.length} runs...`, "info");
+
+        const evaluationPromises = runNames.value.map(runName => runEvaluationForRun(runName));
+        
+        try {
+          await Promise.all(evaluationPromises);
+          showNotification("All evaluations completed!", "success");
+        } catch (error) {
+          console.error("Error in batch evaluation:", error);
+          showNotification("Some evaluations failed. Check individual notifications.", "warning");
+        } finally {
+          isRunningAll.value = false;
+        }
+      }
+
+      async function saveRunConfig() {
+        if (!selectedRunName.value) return;
+
+        isSavingRunConfig.value = true;
+
+        try {
+          await saveObject("run", selectedRunName.value, runConfig.value);
+          showNotification("Run config saved successfully!");
+        } catch (error) {
+          console.error("Failed to save run config:", error);
+          showNotification("Failed to save run config", "danger");
+        } finally {
+          isSavingRunConfig.value = false;
+        }
+      }
+
+      async function createRun(name) {
+        if (!name) return;
+
+        try {
+          await saveObject("run", name, defaults.value.runConfig);
+          await loadRunNames();
+          await chooseRun(name);
+          showNotification("Evaluation created successfully!");
+        } catch (error) {
+          console.error("Failed to create evaluation:", error);
+          showNotification("Failed to create evaluation", "danger");
+        }
+      }
+
+      async function createPrompt(name) {
+        if (!name) return;
+
+        try {
+          await saveObject(
+            "prompt",
+            name,
+            "A sample prompt to deal with input",
+          );
+          await loadPromptRefs();
+          await chooseSelectedPrompt(name);
+          showNotification("Prompt created successfully!");
+        } catch (error) {
+          console.error("Failed to create prompt:", error);
+          showNotification("Failed to create prompt", "danger");
+        }
+      }
+
+      async function createQuery(name) {
+        if (!name) return;
+        try {
+          await saveObject("query", name, {
+            input: "Sample input",
+            output: "Expected output",
+          });
+          await loadQueryRefs();
+          await chooseSelectedQuery(name);
+          showNotification("Query created successfully!");
+        } catch (error) {
+          console.error("Failed to create query:", error);
+          showNotification("Failed to create query", "danger");
+        }
+      }
+
+      async function chooseSelectedPrompt(promptName) {
+        selectedPromptRef.value = promptName;
+        selectedPrompt.value = "";
+        selectedPrompt.value = await fetchObject("prompt", promptName);
+      }
+
+      async function chooseSelectedQuery(queryName) {
+        selectedQueryRef.value = queryName;
+        selectedQuery.value = "";
+        selectedQuery.value = await fetchObject("query", queryName);
+      }
+
+      async function saveQuery() {
+        if (!selectedQueryRef.value) return;
+
+        isSavingQuery.value = true;
+
+        try {
+          await saveObject(
+            "query",
+            selectedQueryRef.value,
+            selectedQuery.value,
+          );
+          await loadQueryRefs();
+          showNotification("Query saved successfully!");
+        } catch (error) {
+          console.error("Failed to save query:", error);
+          showNotification("Failed to save query", "danger");
+        } finally {
+          isSavingQuery.value = false;
+        }
+      }
+
+      async function savePrompt() {
+        if (!selectedPromptRef.value) return;
+
+        isSavingPrompt.value = true;
+
+        try {
+          await saveObject(
+            "prompt",
+            selectedPromptRef.value,
+            selectedPrompt.value,
+          );
+          await loadPromptRefs();
+          showNotification("System prompt saved successfully!");
+        } catch (error) {
+          showNotification("Failed to save system prompt", "danger");
+        } finally {
+          isSavingPrompt.value = false;
+        }
+      }
+
+      function closeBootstrapModal(modalId) {
+        const modal = bootstrap.Modal.getInstance(
+          document.getElementById(modalId),
+        );
+        if (modal) modal.hide();
+      }
+
+      function showNotification(message, type = "success") {
+        const id = Date.now();
+        const bgClass =
+          {
+            success: "bg-success",
+            danger: "bg-danger",
+            info: "bg-info",
+            warning: "bg-warning",
+          }[type] || "bg-success";
+
+        const notification = {
+          id,
+          message,
+          type,
+          bgClass,
+          timeout: type === "info" ? 3000 : 5000, // 3 seconds for info, 5 for others
+        };
+
+        notifications.value.push(notification);
+
+        // Initialize toast after Vue has updated the DOM
+        Vue.nextTick(() => {
+          const toastEl = document.querySelector(`[data-toast-id="${id}"]`);
+          if (toastEl) {
+            initializeToast(toastEl);
+          }
+        });
+      }
+
+      function removeNotification(id) {
+        const index = notifications.value.findIndex((n) => n.id === id);
+        if (index !== -1) {
+          notifications.value.splice(index, 1);
+        }
+      }
+
+      function openDeleteConfirm(type, name) {
+        deleteItemType.value = type;
+        deleteItemName.value = name;
+        const modal = new bootstrap.Modal(
+          document.getElementById("delete-confirm-modal")
+        );
+        modal.show();
+      }
+
+      async function confirmDelete() {
+        const type = deleteItemType.value;
+        const name = deleteItemName.value;
+        
+        if (!type || !name) return;
+
+        try {
+          await ky.post(`/delete`, {
+            json: {
+              table: type,
+              basename: name,
+            },
+          });
+
+          // Remove from local lists
+          if (type === "run") {
+            const idx = runNames.value.indexOf(name);
+            if (idx > -1) runNames.value.splice(idx, 1);
+            // If deleted item was selected, choose another
+            if (selectedRunName.value === name) {
+              await chooseRun(runNames.value[0] || "");
+            }
+          } else if (type === "query") {
+            const idx = queryRefs.value.indexOf(name);
+            if (idx > -1) queryRefs.value.splice(idx, 1);
+            if (selectedQueryRef.value === name) {
+              selectedQueryRef.value = "";
+              selectedQuery.value = { input: "", output: "" };
+            }
+          } else if (type === "prompt") {
+            const idx = promptRefs.value.indexOf(name);
+            if (idx > -1) promptRefs.value.splice(idx, 1);
+            if (selectedPromptRef.value === name) {
+              selectedPromptRef.value = "";
+              selectedPrompt.value = "";
+            }
+          }
+
+          showNotification(`${type} "${name}" deleted successfully!`);
+          closeBootstrapModal("delete-confirm-modal");
+        } catch (error) {
+          console.error(`Failed to delete ${type}:`, error);
+          showNotification(`Failed to delete ${type}`, "danger");
+        }
+      }
+
+      function openRenameDialog(type, name) {
+        renameItemType.value = type;
+        renameOldName.value = name;
+        renameNewName.value = name;
+        const modal = new bootstrap.Modal(
+          document.getElementById("rename-modal")
+        );
+        modal.show();
+      }
+
+      async function confirmRename() {
+        const type = renameItemType.value;
+        const oldName = renameOldName.value;
+        const newName = renameNewName.value;
+        
+        if (!type || !oldName || !newName || oldName === newName) {
+          showNotification("Please provide a different name", "warning");
+          return;
+        }
+
+        try {
+          await ky.post(`/rename`, {
+            json: {
+              table: type,
+              basename: oldName,
+              newBasename: newName,
+            },
+          });
+
+          // Update local lists
+          if (type === "run") {
+            const idx = runNames.value.indexOf(oldName);
+            if (idx > -1) runNames.value[idx] = newName;
+            if (selectedRunName.value === oldName) {
+              selectedRunName.value = newName;
+              await loadRunConfig(newName);
+            }
+          } else if (type === "query") {
+            const idx = queryRefs.value.indexOf(oldName);
+            if (idx > -1) queryRefs.value[idx] = newName;
+            if (selectedQueryRef.value === oldName) {
+              selectedQueryRef.value = newName;
+              await chooseSelectedQuery(newName);
+            }
+          } else if (type === "prompt") {
+            const idx = promptRefs.value.indexOf(oldName);
+            if (idx > -1) promptRefs.value[idx] = newName;
+            if (selectedPromptRef.value === oldName) {
+              selectedPromptRef.value = newName;
+              await chooseSelectedPrompt(newName);
+            }
+          }
+
+          showNotification(`${type} renamed to "${newName}" successfully!`);
+          closeBootstrapModal("rename-modal");
+        } catch (error) {
+          console.error(`Failed to rename ${type}:`, error);
+          showNotification(`Failed to rename ${type}`, "danger");
+        }
+      }
+
+      function getNextCopyName(baseName, existingNames) {
+        // Remove existing "(digit)" suffix if present
+        const baseNameClean = baseName.replace(/\s*\(\d+\)$/, '');
+        
+        // Find all existing copies
+        const pattern = new RegExp(`^${baseNameClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\((\\d+)\\)$`);
+        let maxNum = 0;
+        
+        for (const name of existingNames) {
+          const match = name.match(pattern);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        
+        // Also check if base name exists without suffix
+        if (existingNames.includes(baseNameClean)) {
+          maxNum = Math.max(maxNum, 0);
+        }
+        
+        // Keep incrementing until we find an available name
+        let candidateName;
+        let num = maxNum + 1;
+        do {
+          candidateName = `${baseNameClean} (${num})`;
+          num++;
+        } while (existingNames.includes(candidateName));
+        
+        return candidateName;
+      }
+
+      async function duplicateRun(oldName, newName) {
+        if (!newName) return;
+        try {
+          const data = await fetchObject("run", oldName);
+          await saveObject("run", newName, data);
+          await loadRunNames();
+          selectedRunName.value = newName;
+          await loadRunConfig(newName);
+          showNotification("Run duplicated successfully!");
+        } catch (error) {
+          console.error("Failed to duplicate run:", error);
+          showNotification("Failed to duplicate run", "danger");
+        }
+      }
+
+      async function duplicateQuery(oldName, newName) {
+        if (!newName) return;
+        try {
+          const data = await fetchObject("query", oldName);
+          await saveObject("query", newName, data);
+          await loadQueryRefs();
+          selectedQueryRef.value = newName;
+          await chooseSelectedQuery(newName);
+          showNotification("Query duplicated successfully!");
+        } catch (error) {
+          console.error("Failed to duplicate query:", error);
+          showNotification("Failed to duplicate query", "danger");
+        }
+      }
+
+      async function duplicatePrompt(oldName, newName) {
+        if (!newName) return;
+        try {
+          const data = await fetchObject("prompt", oldName);
+          await saveObject("prompt", newName, data);
+          await loadPromptRefs();
+          selectedPromptRef.value = newName;
+          await chooseSelectedPrompt(newName);
+          showNotification("Prompt duplicated successfully!");
+        } catch (error) {
+          console.error("Failed to duplicate prompt:", error);
+          showNotification("Failed to duplicate prompt", "danger");
+        }
+      }
+
+      function openCreateModal(title, label, placeholder, callback, defaultValue = "") {
+        createModalTitle.value = title;
+        createModalLabel.value = label;
+        createModalPlaceholder.value = placeholder;
+        createModalValue.value = defaultValue;
+        createModalCallback.value = callback;
+        
+        const modal = new bootstrap.Modal(
+          document.getElementById("create-modal")
+        );
+        modal.show();
+      }
+
+      async function submitCreate() {
+        if (!createModalValue.value || !createModalCallback.value) return;
+        await createModalCallback.value(createModalValue.value);
+        createModalValue.value = "";
+        closeBootstrapModal("create-modal");
+      }
+
+      // Expose methods and state to template
+      return {
+        // State
+        runNames,
+        defaults,
+        selectedRunName,
+        runConfig,
+        runResult,
+        isEvaluating,
+        sampleOutput,
+        promptRefs,
+        selectedPromptRef,
+        selectedPrompt,
+        isSavingPrompt,
+        queryRefs,
+        selectedQueryRef,
+        selectedQuery,
+        notifications,
+        filteredModels,
+        deleteItemType,
+        deleteItemName,
+        renameItemType,
+        renameOldName,
+        renameNewName,
+        createModalTitle,
+        createModalLabel,
+        createModalPlaceholder,
+        createModalValue,
+        performanceGraphs,
+        isEvaluatingByRun,
+        isRunningAll,
+        isSavingRunConfig,
+
+        // Methods
+        chooseRun,
+        createRun,
+        runEvaluation,
+        runEvaluationForRun,
+        runAllEvaluations,
+        saveRunConfig,
+        chooseQueryOfRun,
+        choosePromptOfRun,
+        chooseSelectedPrompt,
+        savePrompt,
+        createPrompt,
+        chooseSelectedQuery,
+        saveQuery,
+        createQuery,
+        closeBootstrapModal,
+        openDeleteConfirm,
+        confirmDelete,
+        openRenameDialog,
+        confirmRename,
+        getNextCopyName,
+        duplicateRun,
+        duplicateQuery,
+        duplicatePrompt,
+        openCreateModal,
+        submitCreate,
+      };
+    }
+
+    // Initialize the app
+    document.addEventListener("DOMContentLoaded", () => {
+      const app = createApp({
+        template,
+        setup,
+      });
+      app.mount("#app");
+    });
+  </script>
+</html>
