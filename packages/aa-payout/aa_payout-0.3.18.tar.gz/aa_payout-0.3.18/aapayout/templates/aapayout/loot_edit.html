@@ -1,0 +1,150 @@
+{% extends 'aapayout/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>{% translate "Edit Loot for" %} {{ fleet.name }}</h2>
+            <p class="text-muted">
+                {% translate "Update loot text, pricing method, or scout shares. Loot will be re-appraised automatically." %}
+            </p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>{% translate "Loot Information" %}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.pricing_method.id_for_label }}" class="form-label">
+                                {{ form.pricing_method.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.pricing_method }}
+                            {% if form.pricing_method.errors %}
+                                <div class="text-danger">{{ form.pricing_method.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.scout_shares.id_for_label }}" class="form-label">
+                                <i class="fas fa-binoculars"></i> {{ form.scout_shares.label }}:
+                                <strong><span id="scout-bonus-value-edit">{{ loot_pool.scout_shares|floatformat:1 }}</span></strong>
+                            </label>
+                            {{ form.scout_shares }}
+                            <div class="d-flex justify-content-between text-muted small">
+                                <span>1</span>
+                                <span>3</span>
+                                <span>5</span>
+                            </div>
+                            {% if form.scout_shares.errors %}
+                                <div class="text-danger">{{ form.scout_shares.errors }}</div>
+                            {% endif %}
+                            {% if form.scout_shares.help_text %}
+                                <small class="form-text text-muted">{{ form.scout_shares.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.raw_loot_text.id_for_label }}" class="form-label">
+                                {{ form.raw_loot_text.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.raw_loot_text }}
+                            {% if form.raw_loot_text.errors %}
+                                <div class="text-danger">{{ form.raw_loot_text.errors }}</div>
+                            {% endif %}
+                            {% if form.raw_loot_text.help_text %}
+                                <small class="form-text text-muted">{{ form.raw_loot_text.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'aapayout:loot_detail' loot_pool.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> {% translate "Cancel" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% translate "Save & Reappraise" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5>{% translate "Instructions" %}</h5>
+                </div>
+                <div class="card-body">
+                    <h6>{% translate "Editing Loot" %}</h6>
+                    <ul class="small">
+                        <li>{% translate "Update the loot text to add or remove items" %}</li>
+                        <li>{% translate "Adjust pricing method or scout shares as needed" %}</li>
+                        <li>{% translate "Click 'Save & Reappraise' to update" %}</li>
+                    </ul>
+                    <hr>
+                    <h6>{% translate "Pasting Loot from EVE" %}</h6>
+                    <ol class="small">
+                        <li>{% translate "Open your EVE inventory" %}</li>
+                        <li>{% translate "Select the items you want to value" %}</li>
+                        <li>{% translate "Press Ctrl+C (or Cmd+C on Mac)" %}</li>
+                        <li>{% translate "Paste into the loot text area" %}</li>
+                    </ol>
+                    <hr>
+                    <h6>{% translate "What Happens Next" %}</h6>
+                    <ul class="small">
+                        <li>{% translate "If loot text changed: Items will be re-appraised via Janice API" %}</li>
+                        <li>{% translate "If settings changed: Payouts will be recalculated" %}</li>
+                        <li>{% translate "You'll be redirected to the fleet detail page" %}</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card border-warning mt-3">
+                <div class="card-header bg-warning text-dark">
+                    <h5>{% translate "Current Status" %}</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row small mb-0">
+                        <dt class="col-sm-5">{% translate "Total Items" %}:</dt>
+                        <dd class="col-sm-7">{{ loot_pool.items.count }}</dd>
+
+                        <dt class="col-sm-5">{% translate "Total Value" %}:</dt>
+                        <dd class="col-sm-7">{{ loot_pool.total_value|floatformat:2 }} ISK</dd>
+
+                        <dt class="col-sm-5">{% translate "Status" %}:</dt>
+                        <dd class="col-sm-7">{{ loot_pool.get_status_display }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Update slider display for loot edit page
+document.addEventListener('DOMContentLoaded', function() {
+    const sliderEdit = document.getElementById('scout-bonus-slider-edit');
+    const valueDisplayEdit = document.getElementById('scout-bonus-value-edit');
+
+    if (sliderEdit && valueDisplayEdit) {
+        sliderEdit.addEventListener('input', function() {
+            valueDisplayEdit.textContent = this.value;
+        });
+    }
+});
+</script>
+{% endblock %}
