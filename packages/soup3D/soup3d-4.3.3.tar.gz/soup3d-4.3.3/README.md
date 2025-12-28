@@ -1,0 +1,94 @@
+# soup3D
+
+[English](README.md) | [简体中文](README_zh.md)
+
+A 3D engine based on `OpenGL` and `pygame` that is easy for beginners to learn, and can be used for 3D game development, data visualization, 3D graphics rendering, and other development tasks.
+
+## Installation
+
+If your `python` environment includes `pip`, you can install it using the following command:
+
+```bash
+pip install soup3D
+```
+
+## Quick Start
+
+After installation, you can try this code:
+
+```python
+import soup3D  # 3D rendering library
+import pygame  # pygame window library for displaying soup3D rendered images
+
+if __name__ == '__main__':
+    pygame.init()                                                            # Initialize pygame
+    pygame.display.set_caption("soup3D")                                     # Set pygame window title
+    pygame.display.set_mode((1920, 1080), pygame.DOUBLEBUF | pygame.OPENGL)  # Configure window mode
+    soup3D.init(bg_color=(1, 1, 1), width=1920, height=1080)                 # Initialize soup3D
+
+    soup3D.light.ambient(1, 1, 1)  # Set ambient light to maximum
+
+    surface = soup3D.shader.AutoSP(soup3D.shader.MixChannel((1, 1), 1, 0.5, 0))  # Create orange surface shader
+    face = soup3D.Face(  # Create a right triangle
+        soup3D.TRIANGLE_L,
+        surface,
+        (
+            (0, 0, 0, 0, 0),  # (x, y, z, u, v)
+            (1, 0, 0, 0, 0),
+            (0, 1, 0, 0, 0)
+        )
+    )
+    model = soup3D.Model(0, 0, -5, face)  # Add triangle to model
+    model.show()  # Display model
+
+    running = True  # Running status
+    while running:  # Main loop
+        soup3D.update()  # Update soup3D
+        pygame.display.flip()  # Refresh pygame screen
+        for event in pygame.event.get():  # Iterate through all events
+            if event.type == pygame.QUIT:  # Detect window closing event
+                pygame.quit()  # Close window
+                running = False  # End loop
+
+```
+
+If the environment is properly configured, you will see an orange triangle in the window after running this code.
+
+## Contributing
+
+Due to limited individual development capabilities, we welcome like-minded people to develop this project together. But for better code management, please first understand our development goals and code standards.
+
+- **Development Goals**
+  
+  The purpose of developing this project is to create a 3D rendering engine that is easy to use while also having professional capabilities. We want Python developers to be able to develop 3D applications in a way that suits their habits.
+  
+- **Code Standards**
+  
+  Following these standards will increase the likelihood of your code being accepted:
+  
+  1. All functions, classes, and class methods must have `Google` style `docstring` format comments
+    
+  2. Test your code before submitting a PR. Please refer to the `Function Testing` section below for testing methods
+    
+  3. Confirm requirements with the author before developing any module
+  
+  4. New features should尽量 not affect the calling methods of existing features
+    
+- **Function Testing**
+  
+  After development, you can test functionality in the following way:
+  
+  1. Create a test environment with the following structure   
+     ![Directory Structure](readmepic0.png)
+  
+  2. Edit test code in `.../project/test.py` to test the functions you've written
+  
+  3. Run `.../project/test.py`. If it runs successfully, the test is successful
+
+## More Information
+
+This library has many more methods for you to use. For more information, please refer to the [Help Document](help.md)
+
+## License
+
+This project is licensed under the **MIT License**, see the [LICENSE file](LICENSE) for details.
