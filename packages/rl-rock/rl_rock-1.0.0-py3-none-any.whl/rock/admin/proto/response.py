@@ -1,0 +1,21 @@
+from pydantic import BaseModel
+
+
+class SandboxStartResponse(BaseModel):
+    sandbox_id: str | None = None
+    host_name: str | None = None
+    host_ip: str | None = None
+
+
+class SandboxStatusResponse(BaseModel):
+    sandbox_id: str = None
+    status: dict = None
+    port_mapping: dict = None
+    host_name: str | None = None
+    host_ip: str | None = None
+    is_alive: bool = True
+    image: str | None = None
+    gateway_version: str | None = None
+    swe_rex_version: str | None = None
+    user_id: str | None = None
+    experiment_id: str | None = None
