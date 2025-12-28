@@ -1,0 +1,282 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class InstanceStatusView:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'status': 'str',
+        'available_replica': 'int',
+        'replica': 'int',
+        'fail_detail': 'str',
+        'last_job_id': 'str',
+        'last_job_status': 'str',
+        'enterprise_project_id': 'str'
+    }
+
+    attribute_map = {
+        'status': 'status',
+        'available_replica': 'available_replica',
+        'replica': 'replica',
+        'fail_detail': 'fail_detail',
+        'last_job_id': 'last_job_id',
+        'last_job_status': 'last_job_status',
+        'enterprise_project_id': 'enterprise_project_id'
+    }
+
+    def __init__(self, status=None, available_replica=None, replica=None, fail_detail=None, last_job_id=None, last_job_status=None, enterprise_project_id=None):
+        r"""InstanceStatusView
+
+        The model defined in huaweicloud sdk
+
+        :param status: 实例状态。
+        :type status: str
+        :param available_replica: 正常实例副本数。
+        :type available_replica: int
+        :param replica: 实例副本数。
+        :type replica: int
+        :param fail_detail: 失败描述。  cluster_deleted,        // 集群被删除  cluster_unavailable,    // 集群不可用  cluster_inaccessible,   // 集群无法访问  namespace_deleted,      // 命名空间被删除  namespace_unavailable,  // 命名空间不可用  namespace_inaccessible, // 命名空间无法访问  resource_deleted,       // 资源已删除 
+        :type fail_detail: str
+        :param last_job_id: 最近Job ID。
+        :type last_job_id: str
+        :param last_job_status: 最近Job的状态
+        :type last_job_status: str
+        :param enterprise_project_id: 企业项目ID。
+        :type enterprise_project_id: str
+        """
+        
+        
+
+        self._status = None
+        self._available_replica = None
+        self._replica = None
+        self._fail_detail = None
+        self._last_job_id = None
+        self._last_job_status = None
+        self._enterprise_project_id = None
+        self.discriminator = None
+
+        if status is not None:
+            self.status = status
+        if available_replica is not None:
+            self.available_replica = available_replica
+        if replica is not None:
+            self.replica = replica
+        if fail_detail is not None:
+            self.fail_detail = fail_detail
+        if last_job_id is not None:
+            self.last_job_id = last_job_id
+        if last_job_status is not None:
+            self.last_job_status = last_job_status
+        if enterprise_project_id is not None:
+            self.enterprise_project_id = enterprise_project_id
+
+    @property
+    def status(self):
+        r"""Gets the status of this InstanceStatusView.
+
+        实例状态。
+
+        :return: The status of this InstanceStatusView.
+        :rtype: str
+        """
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        r"""Sets the status of this InstanceStatusView.
+
+        实例状态。
+
+        :param status: The status of this InstanceStatusView.
+        :type status: str
+        """
+        self._status = status
+
+    @property
+    def available_replica(self):
+        r"""Gets the available_replica of this InstanceStatusView.
+
+        正常实例副本数。
+
+        :return: The available_replica of this InstanceStatusView.
+        :rtype: int
+        """
+        return self._available_replica
+
+    @available_replica.setter
+    def available_replica(self, available_replica):
+        r"""Sets the available_replica of this InstanceStatusView.
+
+        正常实例副本数。
+
+        :param available_replica: The available_replica of this InstanceStatusView.
+        :type available_replica: int
+        """
+        self._available_replica = available_replica
+
+    @property
+    def replica(self):
+        r"""Gets the replica of this InstanceStatusView.
+
+        实例副本数。
+
+        :return: The replica of this InstanceStatusView.
+        :rtype: int
+        """
+        return self._replica
+
+    @replica.setter
+    def replica(self, replica):
+        r"""Sets the replica of this InstanceStatusView.
+
+        实例副本数。
+
+        :param replica: The replica of this InstanceStatusView.
+        :type replica: int
+        """
+        self._replica = replica
+
+    @property
+    def fail_detail(self):
+        r"""Gets the fail_detail of this InstanceStatusView.
+
+        失败描述。  cluster_deleted,        // 集群被删除  cluster_unavailable,    // 集群不可用  cluster_inaccessible,   // 集群无法访问  namespace_deleted,      // 命名空间被删除  namespace_unavailable,  // 命名空间不可用  namespace_inaccessible, // 命名空间无法访问  resource_deleted,       // 资源已删除 
+
+        :return: The fail_detail of this InstanceStatusView.
+        :rtype: str
+        """
+        return self._fail_detail
+
+    @fail_detail.setter
+    def fail_detail(self, fail_detail):
+        r"""Sets the fail_detail of this InstanceStatusView.
+
+        失败描述。  cluster_deleted,        // 集群被删除  cluster_unavailable,    // 集群不可用  cluster_inaccessible,   // 集群无法访问  namespace_deleted,      // 命名空间被删除  namespace_unavailable,  // 命名空间不可用  namespace_inaccessible, // 命名空间无法访问  resource_deleted,       // 资源已删除 
+
+        :param fail_detail: The fail_detail of this InstanceStatusView.
+        :type fail_detail: str
+        """
+        self._fail_detail = fail_detail
+
+    @property
+    def last_job_id(self):
+        r"""Gets the last_job_id of this InstanceStatusView.
+
+        最近Job ID。
+
+        :return: The last_job_id of this InstanceStatusView.
+        :rtype: str
+        """
+        return self._last_job_id
+
+    @last_job_id.setter
+    def last_job_id(self, last_job_id):
+        r"""Sets the last_job_id of this InstanceStatusView.
+
+        最近Job ID。
+
+        :param last_job_id: The last_job_id of this InstanceStatusView.
+        :type last_job_id: str
+        """
+        self._last_job_id = last_job_id
+
+    @property
+    def last_job_status(self):
+        r"""Gets the last_job_status of this InstanceStatusView.
+
+        最近Job的状态
+
+        :return: The last_job_status of this InstanceStatusView.
+        :rtype: str
+        """
+        return self._last_job_status
+
+    @last_job_status.setter
+    def last_job_status(self, last_job_status):
+        r"""Sets the last_job_status of this InstanceStatusView.
+
+        最近Job的状态
+
+        :param last_job_status: The last_job_status of this InstanceStatusView.
+        :type last_job_status: str
+        """
+        self._last_job_status = last_job_status
+
+    @property
+    def enterprise_project_id(self):
+        r"""Gets the enterprise_project_id of this InstanceStatusView.
+
+        企业项目ID。
+
+        :return: The enterprise_project_id of this InstanceStatusView.
+        :rtype: str
+        """
+        return self._enterprise_project_id
+
+    @enterprise_project_id.setter
+    def enterprise_project_id(self, enterprise_project_id):
+        r"""Sets the enterprise_project_id of this InstanceStatusView.
+
+        企业项目ID。
+
+        :param enterprise_project_id: The enterprise_project_id of this InstanceStatusView.
+        :type enterprise_project_id: str
+        """
+        self._enterprise_project_id = enterprise_project_id
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, InstanceStatusView):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
