@@ -1,0 +1,75 @@
+# Sugar MCP Server
+
+This is an **MCP (Model Context Protocol)** server to interact with [Sugar](https://github.com/velodrome-finance/sugar-sdk)
+Sugar makes Velodrome and Aerodrome devs life sweeter 🍭
+
+## Components
+
+### Environment Variables
+
+- `SUGAR_PK`: Private key for the SUGAR service (required for all operations).
+- `SUGAR_RPC_URI_8453`: RPC URI for Base chain (required for blockchain interactions).
+- `SKIP_CACHE_INIT`: Set to "true" to skip cache initialization during development (optional, default: false).
+
+### Tools
+
+- get_all_tokens: Retrieve all tokens supported by the protocol.
+- get_prices: Retrieve prices for a list of tokens in terms of the stable token.
+- get_pools: Retrieve all liquidity pools or swap pools depending on the flag.
+- get_pool_by_address: Retrieve detailed pool information by contract address.
+- get_pools_for_swaps: Retrieve all pools suitable for swaps and path finding.
+- get_latest_pool_epochs: Retrieve the latest epoch data for all pools.
+- get_pool_epochs: Retrieve historical epoch data for a given liquidity pool.
+- get_quote: Retrieve the best quote for swapping a given amount from one token to another.
+- swap: Execute a token swap transaction.
+- get_pools_by_token: Retrieve liquidity pools that contain a specific token.
+- get_pools_by_pair: Retrieve liquidity pools that contain a specific token pair.
+- get_pool_list: Retrieve liquidity pools based on specified criteria.
+
+## Usage
+
+```json
+{
+  "mcpServers": {
+    "sugar-mcp": {
+      "env": {
+        "SUGAR_PK": "your_private_key_here",
+        "SUGAR_RPC_URI_8453": "https://your-base-rpc-endpoint"
+      },
+      "command": "uvx",
+      "args": [
+        "sugar-mcp"
+      ]
+    }
+  }
+}
+```
+
+## Building and Publishing to PyPI
+
+To build and publish this package to PyPI:
+
+1. Install build dependencies:
+
+   ```bash
+   pip install build twine
+   ```
+
+2. Build the package:
+
+   ```bash
+   python -m build
+   ```
+
+3. Upload to PyPI:
+
+   ```bash
+   twine upload dist/*
+   ```
+
+Or if using Poetry (as specified in pyproject.toml):
+
+```bash
+poetry build
+poetry publish
+```
