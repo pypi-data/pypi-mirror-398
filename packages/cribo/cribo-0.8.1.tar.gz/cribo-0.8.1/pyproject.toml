@@ -1,0 +1,98 @@
+[build-system]
+requires      = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "cribo"
+dynamic = ["version"]
+description = "Python source bundler that produces a single .py file from multi-module projects"
+authors = [{ name = "Konstantin Vyatkin", email = "tino@vtkn.io" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["bundler", "python", "deployment", "pyspark", "lambda"]
+
+[project.urls]
+Homepage      = "https://github.com/ophidiarium/cribo"
+Repository    = "https://github.com/ophidiarium/cribo"
+Documentation = "https://github.com/ophidiarium/cribo#readme"
+Issues        = "https://github.com/ophidiarium/cribo/issues"
+
+[dependency-groups]
+dev = [
+    "lefthook>=1.11.13",
+    "maturin",
+    "pyrefly>=0.21.0",
+    "pytest>=8.3.5",
+    "vale>=3.11.2.0",
+]
+# dependencies used for fixtures testing
+fixtures = [
+    "pandera[io,polars,pyspark]>=0.22.1",
+    "pyarrow~=17.0.0",
+    "pydantic[email,timezone]>=2.5.3",
+]
+# dependencies for ecosystem testing
+ecosystem = [
+    "httpx[http2]>=0.28.1",
+    "idna>=3.10",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.0",
+    "rich>=14.1.0",
+]
+
+[tool.maturin]
+bindings      = "bin"
+python-source = "python"
+manifest-path = "crates/cribo/Cargo.toml"
+
+[tool.uv]
+link-mode = "symlink"
+prerelease = "if-necessary-or-explicit"
+default-groups = ["dev", "fixtures", "ecosystem"]
+required-environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'win32'",
+    "sys_platform == 'darwin'",
+]
+workspace = { exclude = ["ecosystem"] }
+
+[tool.ruff]
+exclude        = [".venv", "references", "ecosystem/packages"]
+force-exclude  = true
+target-version = "py312"
+
+[tool.pytest.ini_options]
+# Pytest configuration for ecosystem tests
+minversion = "7.0"
+# Test paths - only look in ecosystem/scenarios directory
+testpaths = ["ecosystem/scenarios"]
+# Test discovery patterns
+python_files     = "test_*.py"
+python_classes   = "Test*"
+python_functions = "test_*"
+# Add options for better output
+addopts = [
+    "--tb=short",
+    "--strict-markers",
+    "-ra",
+]
+# Markers
+markers = [
+    "network: marks tests as requiring network access",
+    "slow: marks tests as slow running",
+    "xfail: marks tests as expected to fail",
+]
