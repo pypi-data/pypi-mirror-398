@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fivcplayground"
+dynamic = ["version"]
+description = "Personal Simple Generic Agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    { name = "Charlie ZHANG", email = "sunnypig2002@gmail.com" }
+]
+dependencies = [
+    "typer>=0.12.3",
+    "rich>=13.7.1",
+    "PyYAML>=6.0.1",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.7.0",
+    "streamlit>=1.49.1",
+    "chromadb>=1.1.0",
+    # LangChain 1.0 migration dependencies
+    "langchain>=1.2.0",
+    "langchain-core>=1.2.0",
+    "langchain-community>=0.4.1",
+    "langchain-openai>=1.0.0",
+    "langgraph>=1.0.5",
+    "langchain-mcp-adapters>=0.2.1",
+    "langchain-ollama>=1.0.0",
+    "nest-asyncio>=1.6.0",
+    # Strands framework dependencies (optional)
+    "strands-agents>=1.20.0",
+    # Text splitters for document loading
+    "langchain-text-splitters>=0.3.11",
+    # Transitive dependencies (required by other packages)
+    "httpx>=0.28.1", # Required by: chromadb, langgraph-sdk, langsmith, mcp, ollama, openai, python-fasthtml
+    "openai>=1.109.1", # Required by: langchain-openai
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=5.1.0",
+    "ruff>=0.4.0,<0.6",
+    "build>=1.0.0",
+    "twine>=4.0.0",
+]
+
+[project.scripts]
+fivcplayground = "fivcplayground.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "fivcplayground.__version__" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
+
+[tool.pytest.ini_options]
+# Suppress specific deprecated warnings from third-party libraries
+filterwarnings = [
+    # Suppress all deprecation warnings (broad approach for cleaner test output)
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::RuntimeWarning",
+    # Keep important warnings but suppress noisy third-party ones
+    "default::UserWarning",
+    "default::FutureWarning",
+]
+
+# Test discovery settings
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Additional pytest options
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+#    "-p", "no:warnings", # Disable warnings plugin
+]
+
+# Markers for test categorization
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+]
