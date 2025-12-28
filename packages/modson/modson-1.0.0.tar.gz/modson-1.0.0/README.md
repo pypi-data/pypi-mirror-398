@@ -1,0 +1,123 @@
+# Modson
+
+Modson is a lightweight Python wrapper around Meson that enables dynamic loading of custom Meson modules via Python entry points.
+
+It is designed for advanced and complex build systems where extending Meson with external modules is required.
+
+## Installation
+
+**From PyPI:**
+
+```bash
+pip install modson
+```
+
+**From Source:**
+
+```bash
+git clone https://github.com/alex-bouget/modson.git
+cd modson
+pip install .
+```
+
+## Usage
+
+After installation, you can use `modson` as a drop-in replacement for the `meson` command. It will automatically load any custom Meson modules registered via Python entry points.
+
+```bash
+meson setup builddir
+# replaced by
+modson setup builddir
+```
+
+## How it works
+
+Modson scans for Python packages that declare Meson modules in their `setup.py` or `pyproject.toml` files using the `modson.modules` entry point group. When you run a Meson command via Modson, and the Meson build system attempts to import a module, Modson intercepts the import call and checks if the requested module is available in the registered entry points. If found, it loads the module dynamically.
+
+For this to work, modson overrides the `importlib.import_module` function at runtime to redirect module import requests to its custom loader. This allows for seamless integration of external modules into the Meson build process.
+
+# Create a custom Meson module
+
+To create a custom Meson module, you need to define a Python package that includes your module and registers it under the `modson.modules` entry point group. This typically involves creating a `setup.py` file that specifies the entry points and the module's location.
+
+
+```py
+# example_module/__init__.py
+
+# This code is just an example of a Meson module definition.
+# It may not be functional as-is.
+# for more examples, refer to the folder mesonbuild/modules on the Meson repository.
+
+from mesonbuild import mesonlib
+from mesonbuild.modules import ModuleReturnValue, NewExtensionModule, ModuleInfo, ModuleState
+from mesonbuild.interpreterbase.decorators import KwargInfo, typed_pos_args, typed_kwargs
+
+class ExampleModule(NewExtensionModule):
+    INFO = ModuleInfo('example', '0.1.0', 'Example module', unstable=True)
+
+    def __init__(self):
+        super().__init__(self.INFO)
+        self.methods.update({
+            'example_method': self.example_method,
+        })
+    
+     @typed_pos_args(
+        'example.example_method',
+        varargs=(str, mesonlib.File),
+        min_varargs=2,
+    )
+    @typed_kwargs(
+        'example.example_method',
+        # KwargInfo('files', ContainerTypeInfo(list, (str, mesonlib.File)), default=[], listify=True, required=True),
+        KwargInfo('source', (str, int, NoneType), default=None),
+        KwargInfo('target', (str, int, NoneType), default=None),
+        KwargInfo('bootclasspath', (str, NoneType), default=None),
+    )
+    def example_method(self, state: ModuleState, args: Tuple[List[mesonlib.FileOrString]],
+                       kwargs: Dict[str, Optional[str]]) -> ModuleReturnValue:
+        return ModuleReturnValue(None, [])
+
+def initialize(*args: Any, **kwargs: Any) -> JavaModule:
+    return ExampleModule(*args, **kwargs)
+```
+
+```py
+from setuptools import setup
+from pathlib import Path
+
+
+setup(
+    name="modson-example-module",
+    version="0.1.0",
+    packages=["example_module"],
+    entry_points={
+        "modson.modules": [
+            "example = example_module",
+        ],
+    },
+)
+```
+
+
+# Usage out of the box
+
+The runtime can be used as a standalone library to embed modson capabilities into other Python applications (fake a file with an entry group in a package for example).
+
+```py
+from modson import ModsonRuntime
+
+runtime = ModsonRuntime(
+    group_name="modson.modules"  # Optional, defaults to "modson.modules"
+    regex_pattern=r"^mesonbuild\.modules\.(.+)"  # Optional, defaults to "^mesonbuild\.modules\.(.+)"
+    # the first capturing group should match the module name from an entry point
+)
+runtime.initialized_runtime()
+
+# Do whatever you need with the modson runtime active
+
+runtime.stop_runtime()  # Is also called automatically when the runtime is destructed (Some bad things may happen if multiple runtimes are active simultaneously, check the source code for more details and feel free to modify it to suit your needs)
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to open issues or submit pull requests on the [GitHub repository](https://github.com/alex-bouget/modson).
