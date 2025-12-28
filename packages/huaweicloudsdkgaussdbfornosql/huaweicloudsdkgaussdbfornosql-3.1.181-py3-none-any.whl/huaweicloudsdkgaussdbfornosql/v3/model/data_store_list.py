@@ -1,0 +1,163 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class DataStoreList:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'datastore_name': 'str',
+        'version': 'str',
+        'mode': 'str'
+    }
+
+    attribute_map = {
+        'datastore_name': 'datastore_name',
+        'version': 'version',
+        'mode': 'mode'
+    }
+
+    def __init__(self, datastore_name=None, version=None, mode=None):
+        r"""DataStoreList
+
+        The model defined in huaweicloud sdk
+
+        :param datastore_name: 数据库引擎。
+        :type datastore_name: str
+        :param version: 数据库引擎版本。
+        :type version: str
+        :param mode: 数据库实例类型。 取值范围： 取值为“Cluster”，表示GeminiDB Cassandra经典部署模式集群、GeminiDB Influx经典部署模式集群、GeminiDB Redis Proxy集群经典部署模式集群实例类型。 取值为“CloudNativeCluster”, 表示GeminiDB Cassandra云原生部署模式实例类型。 取值为“InfluxdbSingle”，表示GeminiDB Influx经典部署模式单节点类型实例类型。 取值为“ReplicaSet”，表示GeminiDB Mongo副本集实例类型。
+        :type mode: str
+        """
+        
+        
+
+        self._datastore_name = None
+        self._version = None
+        self._mode = None
+        self.discriminator = None
+
+        self.datastore_name = datastore_name
+        self.version = version
+        self.mode = mode
+
+    @property
+    def datastore_name(self):
+        r"""Gets the datastore_name of this DataStoreList.
+
+        数据库引擎。
+
+        :return: The datastore_name of this DataStoreList.
+        :rtype: str
+        """
+        return self._datastore_name
+
+    @datastore_name.setter
+    def datastore_name(self, datastore_name):
+        r"""Sets the datastore_name of this DataStoreList.
+
+        数据库引擎。
+
+        :param datastore_name: The datastore_name of this DataStoreList.
+        :type datastore_name: str
+        """
+        self._datastore_name = datastore_name
+
+    @property
+    def version(self):
+        r"""Gets the version of this DataStoreList.
+
+        数据库引擎版本。
+
+        :return: The version of this DataStoreList.
+        :rtype: str
+        """
+        return self._version
+
+    @version.setter
+    def version(self, version):
+        r"""Sets the version of this DataStoreList.
+
+        数据库引擎版本。
+
+        :param version: The version of this DataStoreList.
+        :type version: str
+        """
+        self._version = version
+
+    @property
+    def mode(self):
+        r"""Gets the mode of this DataStoreList.
+
+        数据库实例类型。 取值范围： 取值为“Cluster”，表示GeminiDB Cassandra经典部署模式集群、GeminiDB Influx经典部署模式集群、GeminiDB Redis Proxy集群经典部署模式集群实例类型。 取值为“CloudNativeCluster”, 表示GeminiDB Cassandra云原生部署模式实例类型。 取值为“InfluxdbSingle”，表示GeminiDB Influx经典部署模式单节点类型实例类型。 取值为“ReplicaSet”，表示GeminiDB Mongo副本集实例类型。
+
+        :return: The mode of this DataStoreList.
+        :rtype: str
+        """
+        return self._mode
+
+    @mode.setter
+    def mode(self, mode):
+        r"""Sets the mode of this DataStoreList.
+
+        数据库实例类型。 取值范围： 取值为“Cluster”，表示GeminiDB Cassandra经典部署模式集群、GeminiDB Influx经典部署模式集群、GeminiDB Redis Proxy集群经典部署模式集群实例类型。 取值为“CloudNativeCluster”, 表示GeminiDB Cassandra云原生部署模式实例类型。 取值为“InfluxdbSingle”，表示GeminiDB Influx经典部署模式单节点类型实例类型。 取值为“ReplicaSet”，表示GeminiDB Mongo副本集实例类型。
+
+        :param mode: The mode of this DataStoreList.
+        :type mode: str
+        """
+        self._mode = mode
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, DataStoreList):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
