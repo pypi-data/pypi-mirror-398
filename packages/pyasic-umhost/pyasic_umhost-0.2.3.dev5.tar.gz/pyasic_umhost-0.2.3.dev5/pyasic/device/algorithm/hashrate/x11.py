@@ -1,0 +1,11 @@
+from __future__ import annotations
+from typing_extensions import Self
+
+from pyasic.device.algorithm.hashrate.base import AlgoHashRateType
+
+
+class X11HashRate(AlgoHashRateType):
+    rate: float
+
+    def into(self, _other=None) -> Self:
+        return self.__class__(rate=self.rate)
