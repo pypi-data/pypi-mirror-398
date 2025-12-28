@@ -1,0 +1,197 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm>=8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "n8n-deploy"
+dynamic = ["version"]
+description = "n8n-deploy - a simple N8N Workflow Manager with SQLite metadata store"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Lehcode", email = "53556648+lehcode@users.noreply.github.com" },
+]
+maintainers = [
+    { name = "Lehcode", email = "53556648+lehcode@users.noreply.github.com" },
+]
+keywords = ["n8n", "wf", "automation", "cli", "sqlite", "deployment"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Database",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Environment :: Console",
+    "Natural Language :: English",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "click>=8.0.0",
+    "requests>=2.28.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",
+    "python-dateutil>=2.8.0",
+    "tabulate>=0.9.0",
+    "colorama>=0.4.0",
+    "gitpython>=3.1.0",
+    "paramiko>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=2.20.0",
+    "types-requests>=2.31.0",
+    "types-click>=7.1.8",
+    "python-dotenv>=1.0.0",
+    "radon>=6.0.0",
+    "vulture>=2.10",
+    "rope>=1.12.0",
+    "types-paramiko>=3.0.0",
+    "types-assertpy>=1.1.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-order>=1.0.0",
+    "pytest-testmon>=2.1.0", # Affected test selection
+    "assertpy>=1.1",
+    "hypothesis>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lehcode/n8n-deploy"
+Documentation = "https://lehcode.github.io/n8n-deploy"
+Repository = "https://github.com/lehcode/n8n-deploy.git"
+"Bug Tracker" = "https://github.com/lehcode/n8n-deploy/issues"
+Changelog = "https://github.com/lehcode/n8n-deploy/releases"
+
+[project.scripts]
+n8n-deploy = "api.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["api", "api.*"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+api = ["*.json", "*.sql"]
+"*" = ["n8n-deploy"]
+
+[tool.black]
+line-length = 127
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -v -x --strict-markers --tb=short"
+testpaths = [
+    # Unit tests first (fast, foundational)
+    "tests/unit/test_models.py",
+    "tests/unit/test_config.py",
+    "tests/unit/test_api_keys.py",
+    "tests/unit/test_database_search.py",
+    "tests/unit/test_manager.py",
+    "tests/unit/test_cli.py",
+    "tests/unit/cli",
+    # E2E tests (full system)
+    "tests/integration/test_e2e_database.py",
+    "tests/integration/test_e2e_cli.py",
+    "tests/integration/test_e2e_apikeys.py",
+    "tests/integration/test_e2e_workflows.py",
+    "tests/integration/test_e2e_server.py",
+    "tests/integration/test_end_to_end_scenarios.py",
+    "tests/integration/test_discovered_issues.py",
+    # Utility tests
+    "tests/test_utils.py",
+]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore:datetime.datetime.utcnow.*:DeprecationWarning",
+    "ignore:The default datetime adapter.*:DeprecationWarning",
+    "ignore:`json_encoders` is deprecated.*:pydantic.warnings.PydanticDeprecatedSince20",
+    "ignore:Support for class-based.*:pydantic.warnings.PydanticDeprecatedSince20",
+]
+
+[tool.coverage.run]
+source = ["api"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = "E203"
+ignore = "E501"
+
+[tool.setuptools_scm]
+# Version from git tags: v0.1.4 -> 0.1.4, v0.1.4rc1 -> 0.1.4rc1 (PEP 440)
+# Default version scheme produces stable versions for exact tags
+local_scheme = "no-local-version"

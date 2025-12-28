@@ -1,0 +1,242 @@
+Metadata-Version: 2.4
+Name: n8n-deploy
+Version: 0.6.0
+Summary: n8n-deploy - a simple N8N Workflow Manager with SQLite metadata store
+Author-email: Lehcode <53556648+lehcode@users.noreply.github.com>
+Maintainer-email: Lehcode <53556648+lehcode@users.noreply.github.com>
+License: MIT
+Project-URL: Homepage, https://github.com/lehcode/n8n-deploy
+Project-URL: Documentation, https://lehcode.github.io/n8n-deploy
+Project-URL: Repository, https://github.com/lehcode/n8n-deploy.git
+Project-URL: Bug Tracker, https://github.com/lehcode/n8n-deploy/issues
+Project-URL: Changelog, https://github.com/lehcode/n8n-deploy/releases
+Keywords: n8n,wf,automation,cli,sqlite,deployment
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Database
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Classifier: Environment :: Console
+Classifier: Natural Language :: English
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.0.0
+Requires-Dist: requests>=2.28.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: python-dateutil>=2.8.0
+Requires-Dist: tabulate>=0.9.0
+Requires-Dist: colorama>=0.4.0
+Requires-Dist: gitpython>=3.1.0
+Requires-Dist: paramiko>=3.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: flake8>=4.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: pre-commit>=2.20.0; extra == "dev"
+Requires-Dist: types-requests>=2.31.0; extra == "dev"
+Requires-Dist: types-click>=7.1.8; extra == "dev"
+Requires-Dist: python-dotenv>=1.0.0; extra == "dev"
+Requires-Dist: radon>=6.0.0; extra == "dev"
+Requires-Dist: vulture>=2.10; extra == "dev"
+Requires-Dist: rope>=1.12.0; extra == "dev"
+Requires-Dist: types-paramiko>=3.0.0; extra == "dev"
+Requires-Dist: types-assertpy>=1.1.0; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+Requires-Dist: pytest-cov>=4.0.0; extra == "test"
+Requires-Dist: pytest-mock>=3.10.0; extra == "test"
+Requires-Dist: pytest-order>=1.0.0; extra == "test"
+Requires-Dist: pytest-testmon>=2.1.0; extra == "test"
+Requires-Dist: assertpy>=1.1; extra == "test"
+Requires-Dist: hypothesis>=6.0.0; extra == "test"
+Dynamic: license-file
+
+# n8n-deploy: Database-First n8n Workflow Management CLI
+
+[![GitHub](https://img.shields.io/badge/GitHub-lehcode%2Fn8n--deploy-blue?style=flat-square&logo=github)](https://github.com/lehcode/n8n-deploy)
+[![CI/CD Pipeline](https://github.com/lehcode/n8n-deploy/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/lehcode/n8n-deploy/actions)
+[![GitHub stars](https://img.shields.io/github/stars/lehcode/n8n-deploy?style=flat-square&logo=github)](https://github.com/lehcode/n8n-deploy/stargazers)
+[![GitHub last commit](https://img.shields.io/github/last-commit/lehcode/n8n-deploy?style=flat-square&logo=github)](https://github.com/lehcode/n8n-deploy/commits/master)
+[![GitHub issues](https://img.shields.io/github/issues/lehcode/n8n-deploy?style=flat-square&logo=github)](https://github.com/lehcode/n8n-deploy/issues)
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue?style=flat-square&logo=python)](https://github.com/lehcode/n8n-deploy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://github.com/lehcode/n8n-deploy/blob/master/LICENSE)
+[![Project Status: Active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/psf/black)
+
+<!-- PyPI badges will be enabled after first release:
+[![PyPI](https://img.shields.io/pypi/v/n8n-deploy?style=flat-square&logo=pypi)](https://pypi.org/project/n8n-deploy/)
+[![Downloads](https://img.shields.io/pypi/dm/n8n-deploy?style=flat-square)](https://pypi.org/project/n8n-deploy/)
+-->
+
+## Overview
+
+`n8n-deploy` is a powerful Python CLI tool designed to simplify n8n workflow management through a database-first approach. It provides a flexible, efficient solution for managing n8n workflows, especially in environments without direct web UI access.
+
+### Key Features
+
+- 🗂️ **Database-Driven Workflow Management**
+  - SQLite metadata store for tracking workflows (schema v6)
+  - Support for new workflows without server ID (auto-generates draft ID)
+  - Flexible base folder configuration
+  - Plain text API key storage
+
+- 🚀 **Seamless n8n Server Integration**
+  - Push and pull workflows directly from remote n8n servers
+  - Workflow-server linking for automatic server resolution
+  - Priority-based server configuration (linked server → ENV → --remote)
+  - Support for multiple server configurations with API key management
+
+- 📁 **Folder Synchronization** (NEW in v0.2.0)
+  - Bidirectional folder sync between local and n8n server
+  - `folder` CLI command group for folder operations
+  - Automatic folder mapping and tracking
+
+- 📜 **Script Synchronization** (NEW)
+  - Sync external scripts (.js, .cjs, .py) referenced by Execute Command nodes
+  - Git-based change detection (only sync modified scripts)
+  - Extensible transport plugin system (SCP included)
+  - Automatic remote folder creation per workflow
+
+- 💻 **Versatile CLI Interface**
+  - Emoji-rich output for interactive use
+  - Script-friendly mode with `--no-emoji` flag
+  - Verbose logging with `-v` and `-vv` flags at any command level
+  - Comprehensive workflow operations
+
+### Installation
+
+```bash
+# Pip install
+pip install n8n-deploy
+
+# Use uv for faster setup and virtual environment
+uv venv --python /usr/bin/python3 .venv
+source .venv/bin/activate
+uv pip install n8n-deploy
+```
+
+### Quick Start
+
+```bash
+# Initialize database
+n8n-deploy db init --data-dir ~/.n8n-deploy
+
+# Create server and add API key
+n8n-deploy server create production https://n8n.example.com
+echo "your-n8n-api-key" | n8n-deploy apikey add - --name "prod-key"
+
+# Link workflow to server (automatic server resolution)
+n8n-deploy wf add workflow.json --link-remote production
+
+# Push/pull uses linked server automatically (no --remote needed!)
+n8n-deploy wf push workflow-name  # Uses production server
+n8n-deploy wf pull workflow-name  # Uses production server
+
+# Override with --remote for ad-hoc operations
+n8n-deploy wf push workflow-name --remote staging
+
+# Delete workflow from local database
+n8n-deploy wf delete workflow-name
+
+# List workflows from server
+n8n-deploy wf server --remote production
+
+# Folder synchronization (NEW in v0.2.0)
+n8n-deploy folder sync --remote production  # Sync folders with server
+
+# Script synchronization (sync .js, .cjs, .py files with workflow push)
+# Scripts upload to: <base-path>/<workflow-name>/ (e.g., /opt/n8n/scripts/My_Workflow/)
+n8n-deploy wf push workflow-name \
+  --scripts ./scripts \
+  --scripts-host n8n.example.com \
+  --scripts-user deploy \
+  --scripts-key ~/.ssh/id_rsa \
+  --scripts-base-path /opt/n8n/scripts  # Optional, this is the default
+
+# Dry run to see what scripts would sync
+n8n-deploy wf push workflow-name --scripts ./scripts --dry-run
+
+# Enable verbose logging for debugging
+n8n-deploy -v wf push workflow-name   # Basic verbose
+n8n-deploy -vv wf push workflow-name  # Extended verbose
+```
+
+### Community & Support
+
+💬 **Get Help & Connect**:
+- **[Discussions](https://github.com/lehcode/n8n-deploy/discussions)** - Ask questions, share ideas, showcase workflows
+- **[Issues](https://github.com/lehcode/n8n-deploy/issues)** - Report bugs or request features
+- **[Documentation](https://lehcode.github.io/n8n-deploy)** - Complete guides and API reference
+
+**Discussion Categories**:
+- 📣 **Announcements** - Project updates and releases
+- 🙏 **Q&A** - Get help from the community
+- 💡 **Ideas** - Suggest new features
+- 🎯 **Show and Tell** - Share your workflows
+- #️⃣ **General** - Everything else
+
+### Configuration
+
+`n8n-deploy` supports multiple configuration methods:
+
+1. CLI Flags
+2. Environment Variables
+3. `.env` Files (in development mode)
+
+#### Environment Variables
+
+- `N8N_DEPLOY_FLOWS_DIR`: Workflow files directory
+- `N8N_DEPLOY_DATA_DIR`: Application data directory
+- `N8N_SERVER_URL`: n8n server URL for remote operations
+- `N8N_SCRIPTS_HOST`: Remote host for script sync
+- `N8N_SCRIPTS_USER`: Remote username for script sync
+- `N8N_SCRIPTS_PORT`: SSH port for script sync (default: 22)
+- `N8N_SCRIPTS_KEY`: SSH key file path for script sync
+- `N8N_SCRIPTS_BASE_PATH`: Remote base path for scripts (default: /opt/n8n/scripts)
+
+### Documentation
+
+📚 **[Read the full documentation](https://lehcode.github.io/n8n-deploy/)**
+
+Quick Links:
+- [Getting Started](https://lehcode.github.io/n8n-deploy/getting-started.html)
+- [Configuration Guide](https://lehcode.github.io/n8n-deploy/configuration.html)
+- [Workflow Management](https://lehcode.github.io/n8n-deploy/workflows.html)
+- [API Key Management](https://lehcode.github.io/n8n-deploy/apikeys.html)
+- [Troubleshooting](https://lehcode.github.io/n8n-deploy/troubleshooting.html)
+
+### Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+
+**Quick Links**:
+- [Developer Guide](https://lehcode.github.io/n8n-deploy/developers/)
+- [Architecture Overview](https://lehcode.github.io/n8n-deploy/developers/architecture.html)
+- [Testing Framework](https://lehcode.github.io/n8n-deploy/developers/testing.html)
+
+### License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Requirements
+
+- Python 3.9+
+- n8n server (local or remote)
+- Basic understanding of workflow management
+
+### Performance Note
+
+Designed for efficient workflow management with minimal overhead. Ideal for DevOps, automation engineers, and workflow enthusiasts.
