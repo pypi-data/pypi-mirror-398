@@ -1,0 +1,42 @@
+# csignum-fast
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Status](https://img.shields.io/badge/release-Christmas%20Edition-red.svg)
+![Tests](https://img.shields.io/badge/tests-51%20passed-brightgreen.svg)
+![PyPI Version](https://img.shields.io/pypi/v/csignum-fast.svg)
+
+**A robust, high-performance C++ implementation of the universal sign function for Python.**
+*Released on December 25, 2025 — The Christmas Edition.*
+
+## Key Features
+
+1.  **Uniform Results**: Always returns only `-1`, `0`, or `1` as an `int` for valid numeric comparisons.
+2.  **Correct Edge Case Handling**:
+    * `sign(+0.0)` and `sign(-0.0)` return `0`.
+    * `sign(inf)` returns `1`, `sign(-inf)` returns `-1`.
+    * For any **NaN** (float NaN, Decimal NaN, etc.), it returns `math.nan` (float).
+3.  **Comprehensive Duck Typing**: Delegates comparisons to the argument's class. Works seamlessly with:
+    * Built-in `int` (including arbitrary-precision), `bool`, and `float`.
+    * `fractions.Fraction` and `decimal.Decimal`.
+    * Any existing and future objects that support rich comparisons with numbers.
+4.  **Informative Error Handling for Easy Debugging**: Provides clear, descriptive `TypeError` messages when passed non-numeric, non-scalar, or incomparable arguments.
+5.  **High Performance**: Implemented in C++ using a branchless ternary logic approach (no `if-else` chains), ensuring maximum execution speed.
+6.  **Thoroughly Tested**: Tested on 51 cases including different types, edge cases, new custom class, and inappropriate arguments.
+
+## Installation
+
+```bash
+pip install csignum-fast
+```
+
+## Usage
+
+```python
+from signum import sign
+from decimal import Decimal
+
+print(sign(-10**100))       # -1
+print(sign(3.14))           #  1
+print(sign(Decimal("0.0"))) #  0
+print(sign(float('-nan')))  # nan
+```
