@@ -1,0 +1,90 @@
+name: Build and release package
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+      - name: Build a binary wheel and a source tarball
+        run: uv build --no-sources
+      - name: Install the built wheel
+        run: uv run --with `find dist -name "*.whl"` --refresh-package gwtransport --no-project -- python -c "import importlib.metadata as m;print(m.version('gwtransport'))"
+      - name: Install the built source tarball
+        run: uv run --with `find dist -name "*.tar.gz"` --refresh-package gwtransport --no-project -- python -c "import importlib.metadata as m;print(m.version('gwtransport'))"
+      - name: Compare release tag with pyproject.toml version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          echo "Git tag version: $TAG_VERSION"
+
+          PYPROJECT_VERSION=$(uv run --with `find dist -name "*.tar.gz"` --refresh-package gwtransport --no-project -- python -c "import importlib.metadata as m; print(m.version('gwtransport'))")
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+
+          # Compare versions
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "Version mismatch!"
+            echo "Git tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)"
+            exit 1
+          fi
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-pypi:
+    name: Publish Python distribution to PyPI
+    if: startsWith(github.ref, 'refs/tags/') # only publish to PyPI on tag pushes
+    needs: publish-to-testpypi
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/gwtransport
+    permissions:
+      id-token: write # IMPORTANT: mandatory for trusted publishing
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+
+  publish-to-testpypi:
+    name: Publish Python distribution to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/gwtransport
+    permissions:
+      id-token: write # IMPORTANT: mandatory for trusted publishing
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          verbose: true
+          skip-existing: true
