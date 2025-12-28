@@ -1,0 +1,33 @@
+#file: noinspection YAMLSchemaValidation
+name: Publish to PyPI
+on:
+  # 新規リリースの作成時に実行
+  release:
+    types: [ released, prereleased ]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: lint
+        run: make lint
+
+      - name: Build package
+        run: make build
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
