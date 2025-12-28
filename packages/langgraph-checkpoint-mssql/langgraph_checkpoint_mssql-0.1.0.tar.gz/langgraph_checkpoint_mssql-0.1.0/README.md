@@ -1,0 +1,72 @@
+# LangGraph Checkpoint MSSQL
+
+Implementation of LangGraph CheckpointSaver that uses Microsoft SQL Server.
+
+## Installation
+
+```bash
+pip install langgraph-checkpoint-mssql
+```
+
+## Dependencies
+
+Requires the Microsoft ODBC Driver for SQL Server. Install it from:
+- **Linux**: https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
+- **macOS**: https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/install-microsoft-odbc-driver-sql-server-macos
+- **Windows**: https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
+
+## Usage
+
+> [!IMPORTANT]
+> When using the MSSQL checkpointer for the first time, make sure to call `.setup()` method to create the required tables.
+
+```python
+from langgraph.checkpoint.mssql import MSSQLSaver
+
+write_config = {"configurable": {"thread_id": "1", "checkpoint_ns": ""}}
+read_config = {"configurable": {"thread_id": "1"}}
+
+DB_URI = "mssql+pyodbc://sa:password@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server"
+
+with MSSQLSaver.from_conn_string(DB_URI) as checkpointer:
+    # call .setup() the first time you're using the checkpointer
+    checkpointer.setup()
+
+    # store checkpoint
+    checkpointer.put(write_config, checkpoint, {}, {})
+
+    # load checkpoint
+    checkpointer.get(read_config)
+
+    # list checkpoints
+    list(checkpointer.list(read_config))
+```
+
+### Async
+
+```python
+from langgraph.checkpoint.mssql.aio import AsyncMSSQLSaver
+
+async with AsyncMSSQLSaver.from_conn_string(DB_URI) as checkpointer:
+    await checkpointer.setup()
+
+    # store checkpoint
+    await checkpointer.aput(write_config, checkpoint, {}, {})
+
+    # load checkpoint
+    await checkpointer.aget(read_config)
+
+    # list checkpoints
+    [c async for c in checkpointer.alist(read_config)]
+```
+
+## Connection String Format
+
+```
+mssql+pyodbc://USER:PASSWORD@HOST:PORT/DATABASE?driver=ODBC+Driver+18+for+SQL+Server
+```
+
+For connections requiring encryption:
+```
+mssql+pyodbc://USER:PASSWORD@HOST:PORT/DATABASE?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+```
