@@ -1,0 +1,217 @@
+# mcp-server-google-vision
+
+Serveur MCP [Model Context Protocol](https://modelcontextprotocol.io/introduction) permettant aux LLMs comme Claude de lire des documents scannés, du texte manuscrit et des images avec l'API Google Cloud Vision.
+
+## Description
+
+Ce projet implémente un serveur MCP qui donne des capacités de vision avancées aux modèles de langage. Développé par [Kohen Avocats](https://kohenavocats.com), un cabinet d'avocats parisien, cet outil est utilisé quotidiennement pour traiter des documents juridiques complexes : pièces scannées, courriers manuscrits, PDF mal orientés, etc.
+
+### Le problème résolu
+
+Les LLMs comme Claude excellent dans l'analyse de texte, mais ne peuvent pas nativement :
+- Lire des PDF scannés (images sans couche texte)
+- Déchiffrer l'écriture manuscrite
+- Traiter des documents mal orientés ou inversés
+- Extraire du texte de photos de documents
+
+Ce serveur MCP comble cette lacune en fournissant une interface standardisée vers Google Cloud Vision, permettant aux LLMs de "voir" et lire n'importe quel document.
+
+### Cas d'usage
+
+- **Cabinets d'avocats** : Lecture de pièces scannées, correspondances manuscrites, documents anciens
+- **Alimentation de RAG** : Extraction de texte pour indexation dans des bases vectorielles
+- **Traitement documentaire** : OCR de masse avec gestion automatique des PDFs multi-pages
+- **Accessibilité** : Transcription de documents pour personnes malvoyantes
+
+### Fonctionnalités clés
+
+- **OCR haute précision** : Reconnaissance de texte imprimé et manuscrit
+- **Support multi-pages** : Traitement parallèle des PDFs jusqu'à 2000 pages
+- **Détection d'orientation** : Lecture correcte même si le document est à l'envers
+- **9 features Vision API** : text, document, labels, faces, objects, logos, landmarks, web, safe_search
+- **Retry intelligent** : Backoff exponentiel avec jitter pour une fiabilité maximale
+- **Unicode robuste** : Gestion des noms de fichiers avec accents et caractères spéciaux
+
+## Prérequis
+
+- Python 3.11+
+- Une clé API Google Cloud Vision ([obtenir ici](https://console.cloud.google.com/apis/credentials))
+- Un LLM compatible MCP (Claude Desktop, etc.)
+
+## Installation
+
+### 1. Créer et activer un environnement virtuel
+
+```bash
+python -m venv venv
+source venv/bin/activate  # Sur Windows: venv\Scripts\activate
+```
+
+Ou avec uv :
+```bash
+uv venv .venv
+source .venv/bin/activate
+```
+
+### 2. Installer le package
+
+Via pip :
+```bash
+pip install git+https://github.com/kohen-avocats/mcp-server-google-vision.git
+```
+
+Via uv :
+```bash
+uv pip install git+https://github.com/kohen-avocats/mcp-server-google-vision.git
+```
+
+### 3. Configurer la clé API
+
+Créez un fichier `.env` :
+```
+GOOGLE_API_KEY=votre_clé_api_google
+```
+
+Ou exportez la variable :
+```bash
+export GOOGLE_API_KEY="votre_clé_api_google"
+```
+
+## Configuration avec Claude Desktop
+
+Modifiez le fichier de configuration de Claude Desktop (`Paramètres > Développeur > Modifier la configuration`) :
+
+```json
+{
+  "mcpServers": {
+    "google-vision": {
+      "command": "/chemin/vers/venv/bin/python",
+      "args": ["/chemin/vers/mcp-server-google-vision/src/server.py"],
+      "env": {
+        "GOOGLE_API_KEY": "votre_clé_api"
+      }
+    }
+  }
+}
+```
+
+## Outils disponibles
+
+### 1. analyze_image
+
+Analyse une image avec les capacités de Google Cloud Vision.
+
+**Paramètres :**
+- `image_path` : Chemin absolu vers l'image
+- `features` : Liste des analyses (défaut : ["text", "labels"])
+  - `text` : Détection de texte simple
+  - `document` : OCR avancé pour documents
+  - `labels` : Classification d'objets
+  - `faces` : Détection de visages
+  - `objects` : Localisation d'objets
+  - `logos` : Détection de logos
+  - `landmarks` : Reconnaissance de monuments
+  - `web` : Recherche d'images similaires
+  - `safe_search` : Détection de contenu sensible
+- `response_format` : "json" ou "markdown"
+
+**Exemple d'utilisation :**
+```
+Lis le texte manuscrit sur cette image : /Users/avocat/courrier.jpg
+```
+
+### 2. analyze_pdf
+
+Extrait le texte d'un PDF scanné avec traitement parallèle optimisé.
+
+**Paramètres :**
+- `pdf_path` : Chemin absolu vers le PDF
+- `extract_text_only` : Si True, extraction de texte uniquement (défaut : True)
+- `response_format` : "json" ou "markdown"
+
+**Caractéristiques :**
+- Support jusqu'à 2000 pages
+- Traitement parallèle par lots de 5 pages
+- Sauvegarde automatique si texte > 5000 caractères
+- Taille maximale : 20 MB
+
+**Exemple d'utilisation :**
+```
+Extrais le texte de ce document scanné : /Users/avocat/pieces/assignation.pdf
+```
+
+## Exemples de prompts
+
+### Lecture de document manuscrit
+```
+J'ai reçu un courrier manuscrit. Peux-tu le lire et me faire un résumé ?
+[Le LLM utilise analyze_image avec features=["document"]]
+```
+
+### Extraction pour RAG
+```
+Extrais le texte de tous les PDFs dans ce dossier pour alimenter notre base documentaire.
+[Le LLM utilise analyze_pdf en boucle et retourne le texte structuré]
+```
+
+### Analyse complète d'image
+```
+Analyse cette photo : identifie le texte, les objets et les logos visibles.
+[Le LLM utilise analyze_image avec features=["text", "labels", "objects", "logos"]]
+```
+
+## Architecture technique
+
+```
+mcp-server-google-vision/
+├── src/
+│   └── server.py       # Serveur MCP principal
+├── pyproject.toml      # Configuration du package
+├── README.md           # Documentation
+└── LICENSE             # Licence MIT
+```
+
+### Points techniques notables
+
+- **Session HTTP réutilisable** : Pool de 20 connexions pour performances optimales
+- **Retry avec backoff exponentiel** : Délai initial 1s, max 60s, multiplicateur 2x
+- **Gestion Unicode** : Support des caractères spéciaux français (accents, apostrophes typographiques)
+- **Traitement parallèle** : `asyncio.gather` pour les PDFs multi-pages
+
+## Limitations
+
+- Taille maximale des PDFs : 20 MB
+- Requêtes limitées par les quotas Google Cloud Vision
+- Connexion internet requise
+
+## Contribution
+
+Les contributions sont les bienvenues ! N'hésitez pas à :
+- Ouvrir une issue pour signaler un bug
+- Proposer une pull request pour une amélioration
+- Partager vos cas d'usage
+
+## Auteur
+
+Développé par [Maître Hassan KOHEN, avocat pénaliste à Paris](https://kohenavocats.com/avocat-hassan-kohen/), fondateur de [Kohen Avocats](https://kohenavocats.com).
+
+Ce serveur MCP est né d'un besoin concret : permettre à Claude d'analyser les pièces d'un dossier juridique, y compris les documents scannés et manuscrits. Il est aujourd'hui utilisé quotidiennement au cabinet pour :
+- La lecture de pièces adverses scannées
+- L'analyse de correspondances manuscrites
+- L'alimentation d'un RAG juridique interne
+
+## Liens utiles
+
+- [Kohen Avocats - Cabinet d'avocats Paris](https://kohenavocats.com)
+- [Maître Hassan KOHEN, avocat pénaliste à Paris](https://kohenavocats.com/avocat-hassan-kohen/)
+- [Model Context Protocol](https://modelcontextprotocol.io/introduction)
+- [Google Cloud Vision API](https://cloud.google.com/vision/docs)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+
+## Licence
+
+[MIT License](LICENSE)
+
+---
+
+*Ce projet est open source et peut être librement utilisé, modifié et redistribué sous licence MIT.*
