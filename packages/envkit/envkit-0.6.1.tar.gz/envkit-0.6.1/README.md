@@ -1,0 +1,49 @@
+# EnvKit
+
+[![PyPI - Version](https://img.shields.io/pypi/v/envkit)](https://pypi.org/project/envkit/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/envkit)](https://pypi.org/project/envkit/)
+[![pipeline status](https://gitlab.com/theo-guerin/envkit/badges/main/pipeline.svg)](https://gitlab.com/theo-guerin/envkit/-/commits/main)
+[![coverage report](https://gitlab.com/theo-guerin/envkit/badges/main/coverage.svg)](https://gitlab.com/theo-guerin/envkit/-/commits/main)
+
+A lightweight, strongly‑typed environment variable parser focused on explicit configuration and predictable behavior, inspired by [environs](https://github.com/sloria/environs).
+
+*This project is in an early development stage. Expect breaking changes and incomplete features.*
+
+## Installation
+
+```bash
+pip install envkit
+```
+
+## Usage
+
+```python
+from envkit import Env
+
+# Required string with minimum length
+api_key = Env.str("API_KEY", min_length=32)
+
+# Optional integer with default and range
+port = Env.int("PORT", required=False, default=8080, min_value=1, max_value=65535)
+
+# Boolean with default
+debug = Env.bool("DEBUG", required=False, default=False)
+
+# Enum parsing
+log_level = Env.enum("LOG_LEVEL", enum=LogLevel, required=False, default=LogLevel.INFO)
+```
+
+## Contributing
+
+Contributions are welcome!
+Whether you want to report an issue, suggest an improvement, or submit a pull
+request, your help is appreciated.
+
+If you’re new to open source, feel free to participate as well — the project is
+open to contributors of all experience levels.
+
+- Open an issue for bugs, ideas, or questions
+- Submit a pull request with changes or enhancements
+- Documentation and test improvements are also valuable
+
+Everyone is welcome to contribute.
