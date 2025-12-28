@@ -1,0 +1,153 @@
+import asyncio
+import dataclasses as dc
+from pydantic import BaseModel
+import pydantic.dataclasses as pdc
+import os
+import logging
+from typing import Dict, List, TYPE_CHECKING, Union
+from .task_data import TaskMarker, SeverityE, TaskMarkerLoc
+from .task_node_ctxt import TaskNodeCtxt
+
+class ExecInfo(BaseModel):
+    cmd : List[str] = pdc.Field(default_factory=list)
+    status : int = pdc.Field(default=0)
+
+if TYPE_CHECKING:
+    from .task_runner import TaskRunner
+
+@dc.dataclass
+class TaskRunCtxt(object):
+    runner : 'TaskRunner'
+    ctxt : TaskNodeCtxt
+    rundir : str
+
+    _markers : List[TaskMarker] = dc.field(default_factory=list)
+    _exec_info : List[ExecInfo] = dc.field(default_factory=list)
+    _log : logging.Logger = dc.field(default_factory=lambda: logging.getLogger("TaskRunCtxt"))
+
+    @property
+    def root_pkgdir(self):
+        return self.ctxt.root_pkgdir
+    
+    @property
+    def root_rundir(self):
+        return self.ctxt.root_rundir
+    
+    @property
+    def env(self):
+        return self.ctxt.env if self.ctxt is not None else os.environ
+    
+    def mkDataItem(self, type, **kwargs):
+        """
+        Create a data item in the task's rundir. The data item will be
+        created in the task's rundir, and will be available to the
+        task's implementation.
+        """
+        try:
+            item = self.runner.mkDataItem(
+                type=type,
+                **kwargs)
+        except Exception as e:
+            self.error("Failed to create data item: %s" % str(e))
+            raise e
+        return item
+    
+#    async def exec_group(self,
+#                         cmd_list : List[Union[]] )
+        
+
+    async def exec(self, 
+                   cmd : List[str],
+                   logfile=None,
+                   logfilter=None,
+                   cwd=None,
+                   env=None):
+        """
+        Executes a command as part of the task's implementation.
+        Output from the command will be saved to the specified logfile,
+        or to a default logfile if not specified. If the command
+        fails, an error marker will be added.
+
+        Example:
+        
+        .. code-block:: python
+
+            status |= await runner.exec(['ls', '-l'], logfile='ls.log')
+
+        """
+        if logfile is None:
+            logfile = "cmd_%d.log" % (self._exec_info.__len__() + 1)
+
+        if env is None:
+            env = self.env
+
+        # Log command and env differences
+        try:
+            base_env = self.env if self.ctxt is not None else os.environ
+            diff_items = []
+            for k, v in env.items():
+                bv = base_env.get(k)
+                if bv != v:
+                    diff_items.append(f"{k}={v}")
+            diff_str = ", ".join(diff_items)
+            # Log via logging system and include task name if available
+            # Task name comes from the active TaskNode; include it if available
+            task_name = getattr(getattr(self.runner, '_current_task', None), 'name', None)
+            prefix = f"[{task_name}] " if task_name else ""
+            self._log.info(prefix + f"exec: cmd={' '.join(cmd)}" + (f" env_diff: {diff_str}" if diff_items else ""))
+        except Exception:
+            pass
+
+        fp = open(os.path.join(self.rundir, logfile), "w")
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=fp,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=(cwd if cwd is not None else self.rundir),
+            env=env)
+        fp.close()
+        
+        status = await proc.wait()
+
+        self._exec_info.append(ExecInfo(cmd=cmd, status=status))
+
+        if status != 0:
+            self.error("Command failed: %s" % " ".join(cmd))
+
+        if logfilter is not None:
+            with open(os.path.join(self.rundir, logfile), "r") as fp:
+                for line in fp.readlines():
+                    if logfilter(line):
+                        self.info(line.strip())
+                logfilter("")
+
+        return status
+
+    def create(self, path, content):
+        """Create a file in the task's rundir"""
+        if not os.path.isabs(path):
+            path = os.path.join(self.rundir, path)
+        
+        if not os.path.isdir(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+
+        with open(path, "w") as fp:
+            fp.write(content)
+
+    def add_marker(self, marker : TaskMarker):
+        self._markers.append(marker)
+
+    def marker(self, msg : str, severity : SeverityE, loc : TaskMarkerLoc=None):
+        """Add a marker related to the task's execution"""
+        if loc is not None:
+            self._markers.append(TaskMarker(msg=msg, severity=severity, loc=loc))
+        else:
+            self._markers.append(TaskMarker(msg=msg, severity=severity))
+
+    def error(self, msg : str, loc : TaskMarkerLoc=None):
+        """Add an error marker related to the task's execution"""
+        self.marker(msg=msg, severity=SeverityE.Error, loc=loc)
+
+    def info(self, msg : str, loc : TaskMarkerLoc=None):
+        """Add an error marker related to the task's execution"""
+        self.marker(msg=msg, severity=SeverityE.Info, loc=loc)
