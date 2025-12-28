@@ -1,0 +1,1 @@
+Project for stream data from yfinance to Kafka stream.
