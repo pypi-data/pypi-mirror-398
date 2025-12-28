@@ -1,0 +1,176 @@
+# DevGenius MCP Client
+
+DevGenius MCP Client for AI IDEs (Cursor, Windsurf, Trae, etc.)
+
+## 🚀 Quick Start with uvx
+
+**无需安装，一条命令运行！**
+
+```bash
+uvx devgenius-mcp-client
+```
+
+## 📦 Installation Methods
+
+### Method 1: uvx (Recommended) ⭐
+
+**优点**:
+- ✅ 无需预安装依赖
+- ✅ 自动创建隔离环境
+- ✅ 一条命令运行
+
+```bash
+# 直接运行（uvx 会自动安装依赖）
+uvx devgenius-mcp-client
+```
+
+### Method 2: pip
+
+```bash
+pip install devgenius-mcp-client
+devgenius-mcp
+```
+
+### Method 3: pipx
+
+```bash
+pipx install devgenius-mcp-client
+devgenius-mcp
+```
+
+## 🔧 AI IDE Configuration
+
+### Trae IDE
+
+```json
+{
+  "mcpServers": {
+    "devgenius": {
+      "command": "uvx",
+      "args": ["devgenius-mcp-client"],
+      "env": {
+        "DEVGENIUS_MCP_TOKEN": "mcp_你的Token",
+        "DEVGENIUS_API_URL": "http://localhost:8000/api/v1/mcp"
+      }
+    }
+  }
+}
+```
+
+### Cursor IDE
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "devgenius": {
+        "command": "uvx",
+        "args": ["devgenius-mcp-client"],
+        "env": {
+          "DEVGENIUS_MCP_TOKEN": "mcp_你的Token",
+          "DEVGENIUS_API_URL": "http://localhost:8000/api/v1/mcp"
+        }
+      }
+    }
+  }
+}
+```
+
+### Windsurf IDE
+
+Same as Cursor.
+
+## 🌐 Environment Variables
+
+### Required
+- `DEVGENIUS_MCP_TOKEN` - Your MCP Token (required)
+- `DEVGENIUS_API_URL` - API URL (default: `http://localhost:8000/api/v1/mcp`)
+
+### Optional (Rules Auto-Write)
+- `DEVGENIUS_IDE_TYPE` - IDE type: `cursor`, `windsurf`, `vscode`, `trae` (auto-detect if not set)
+- `DEVGENIUS_PROJECT_PATH` - Project root path (auto-detect if not set)
+- `DEVGENIUS_AUTO_WRITE_RULES` - Auto-write rules file: `true` or `false` (default: `true`)
+
+## 📚 Available Tools
+
+### Project Context (1 tool)
+1. `get_project_context` - Get project context
+
+### Milestones (2 tools)
+2. `list_project_milestones` - Get project milestones list
+3. `get_milestone_detail` - Get milestone details with tasks
+
+### Tasks (6 tools)
+4. `get_task_detail` - Get complete task information
+5. `get_my_tasks` - Get my task list
+6. `claim_task` - Claim a task
+7. `update_task_status` - Update task status
+8. `release_task_lock` - Release task lock
+9. `split_task_into_subtasks` - Split task into subtasks
+
+### Subtasks (3 tools)
+10. `get_task_subtasks` - Get subtasks
+11. `update_subtask_status` - Update subtask status
+12. `delete_subtask` - Delete a subtask
+
+### Documents (9 tools)
+13. `get_document_categories` - Get available document categories
+14. `create_document_category` - Create a new document category
+15. `list_documents` - List documents
+16. `get_document_by_title` - Get document by title
+17. `search_documents` - Search documents
+18. `create_document` - Create a new document
+19. `update_document` - Update a document
+20. `delete_document` - Delete a document
+21. `get_document_versions` - Get document versions
+
+**Total: 21 MCP Tools**
+
+## ✨ Features
+
+### 🎯 Auto Rules Sync (v1.2.0)
+- **Auto-detect IDE type** (Cursor, Windsurf, VS Code, Trae)
+- **Auto-detect project root** (Git root or current directory)
+- **Auto-write rules file** on MCP initialization
+- **Backup existing files** before overwrite (with timestamp)
+- **Variable rendering** ({{project_name}}, {{member_name}}, etc.)
+
+### 📝 Rules Files
+- Cursor: `.cursorrules`
+- Windsurf: `.windsurfrules`
+- VS Code: `.vscode/cursor-rules.md`
+- Trae: `.trae/rules.md`
+
+## 🔍 Troubleshooting
+
+### uvx not found
+
+Install uv first:
+
+```bash
+# Windows (PowerShell)
+irm https://astral.sh/uv/install.ps1 | iex
+
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### Token not set
+
+Make sure `DEVGENIUS_MCP_TOKEN` is set in the AI IDE configuration.
+
+### Rules not auto-written
+
+Check the log file `devgenius_mcp_server.log`:
+- Is the project configured with Rules in DevGenius backend?
+- Is `DEVGENIUS_AUTO_WRITE_RULES` set to `true`?
+- Does the MCP have permission to write to the project directory?
+
+## 📖 Documentation
+
+- [MCP Rules Auto-Write Guide](../docs/MCP_RULES_AUTO_WRITE.md)
+- [Implementation Details](../docs/progress/mcp-rules-auto-write-implementation.md)
+
+## 📝 License
+
+MIT
