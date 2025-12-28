@@ -1,0 +1,111 @@
+workflows:
+  main_workflow:
+    - id: use_daytona_environment_tool
+      description: "Universal workflow for all Daytona environment operations with intelligent routing"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        - id: normalize_input
+          agent: input_normalizer
+          input: |
+            user_input: ${user_input}
+            user_query: ${user_query}
+          output:
+            to: classify_action
+
+        - id: classify_action
+          agent: action_classifier
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            
+            Classify this request as one of:
+            - create_environment: Create new development environment
+            - list_environments: Show available environments
+            - environment_status: Check environment status
+            - execute_code: Run code in environment
+            - file_operations: File management operations
+            - git_operations: Git repository operations
+            - environment_management: Start, stop, delete environments
+            
+            Return the classification and confidence level.
+          output:
+            to: extract_environment_details
+
+        - id: extract_environment_details
+          agent: environment_analyzer
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            Action type: ${context.step_outputs.classify_action}
+            
+            Extract relevant details for this ${context.step_outputs.classify_action.type} operation.
+          output:
+            to: validate_requirements
+
+        - id: validate_requirements
+          agent: requirements_validator
+          input: |
+            Action: ${context.step_outputs.classify_action.type}
+            Environment details: ${context.step_outputs.extract_environment_details}
+            
+            Validate that all required information is present and correct.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.validate_requirements.valid} == true"
+                  then: build_daytona_request
+                  else: request_clarification
+
+        - id: request_clarification
+          agent: clarification_agent
+          input: |
+            Validation issues: ${context.step_outputs.validate_requirements.issues}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Request clarification from the user about missing or invalid information.
+          output:
+            to: user
+
+        - id: build_daytona_request
+          agent: daytona_request_builder
+          input: |
+            Action: ${context.step_outputs.classify_action.type}
+            Validated params: ${context.step_outputs.validate_requirements}
+            
+            Build the appropriate Daytona API request parameters.
+          output:
+            to: execute_environment_operation
+
+        - id: execute_environment_operation
+          function: langswarm.core.utils.workflows.functions.mcp_call
+          args:
+            mcp_url: "local://daytona_environment"
+            payload: ${context.step_outputs.build_daytona_request}
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.execute_environment_operation.success} == true"
+                  then: format_response
+                  else: handle_daytona_error
+
+        - id: format_response
+          agent: daytona_response_formatter
+          input: |
+            Action performed: ${context.step_outputs.classify_action.type}
+            Operation result: ${context.step_outputs.execute_environment_operation}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Format the response in a user-friendly way.
+          output:
+            to: user
+
+        - id: handle_daytona_error
+          agent: daytona_error_handler
+          input: |
+            Error details: ${context.step_outputs.execute_environment_operation}
+            Action attempted: ${context.step_outputs.classify_action.type}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Provide helpful error guidance and suggest alternatives.
+          output:
+            to: user
