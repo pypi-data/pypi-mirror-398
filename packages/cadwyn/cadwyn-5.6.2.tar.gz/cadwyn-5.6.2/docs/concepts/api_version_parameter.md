@@ -1,0 +1,111 @@
+# API Version Parameter
+
+Cadwyn adds another routing layer to FastAPI by default: by version parameter. This means that before FastAPI tries to route us to the correct route, Cadwyn will first decide on which version of the route to use based on a version parameter. Feel free to look at the example app with URL path version prefixes and arbitrary strings as versions [here](../how_to/version_with_paths_and_numbers_instead_of_headers_and_dates.md).
+
+## API Version location
+
+The version parameter can be passed in two different ways:
+
+- As a custom header
+- As a URL path parameter
+
+Cadwyn will use the following defaults:
+
+```python
+from cadwyn import Cadwyn, Version, VersionBundle
+
+app = Cadwyn(
+    api_version_location="custom_header",
+    api_version_parameter_name="X-API-VERSION",
+    versions=VersionBundle(Version("2022-01-02")),
+)
+```
+
+but you can change the header name if you want to:
+
+```python
+from cadwyn import Cadwyn, Version, VersionBundle
+
+app = Cadwyn(
+    api_version_location="custom_header",
+    api_version_parameter_name="MY-GREAT-HEADER",
+    versions=VersionBundle(Version("2022-01-02")),
+)
+```
+
+or you can use a path parameter:
+
+```python
+from cadwyn import Cadwyn, Version, VersionBundle
+
+app = Cadwyn(
+    api_version_location="path",
+    api_version_parameter_name="api_version",
+    versions=VersionBundle(Version("2022-01-02")),
+)
+```
+
+## API Version format
+
+The version parameter can be formatted in two different ways:
+
+- As an ISO date
+- As an arbitrary string
+
+Cadwyn uses the following default:
+
+```python
+from cadwyn import Cadwyn, Version, VersionBundle
+
+app = Cadwyn(
+    api_version_format="date",
+    versions=VersionBundle(Version("2022-01-02")),
+)
+```
+
+In the example above only dates will be accepted as valid versions.
+
+You can also use an arbitrary string:
+
+```python
+from cadwyn import Cadwyn, Version, VersionBundle
+
+app = Cadwyn(
+    api_version_format="string",
+    versions=VersionBundle(
+        Version("v2"),
+        Version("anything_can_be_a_version"),
+        Version("v1"),
+    ),
+)
+```
+
+In the example above any string will be accepted as a valid version. Arbitrary strings can be used, Cadwyn will not sort them. Cadwyn will assume their actual order matches the order of the versions in the `VersionBundle`.
+
+### API Version waterfalling
+
+For historical reasons, date-based routing also supports waterfalling the requests to the closest earlier version of the API if the request date parameter doesn't match any of the versions exactly.
+
+If the app has two versions: 2022-01-02 and 2022-01-05, and the request date parameter is 2022-01-03, then the request will be routed to the 2022-01-02 version, as it is the closest version, but lower than the request date parameter.
+
+An exact match is always preferred to a partial match and a request will never be matched to the higher-versioned route.
+
+We implement routing like this because Cadwyn was born in a microservice architecture and it is extremely convenient to have waterfalling there. For example, imagine that you have two Cadwyn services: Payables and Receivables, each defining its own API versions. Payables service might contain 10 versions while Receivables service might contain only 2 versions because it didn't need as many breaking changes. If a client requests a version that does not exist in Receivables, we will waterfall to some earlier version, making Receivables behavior consistent even if API keeps getting new versions.
+
+## API Version Parameter Title and Description
+
+You can pass a title and/or a description to the `Cadwyn` constructor. It is equivalent to passing `title` and `description` to `fastapi.Path` or `fastapi.Header` constructors.
+
+```python
+app = Cadwyn(
+    ...,
+    api_version_title="My Great API version parameter",
+    api_version_description="Description of my great API version parameter",
+)
+```
+
+## API Version Context Variables
+
+Cadwyn automatically converts your data to a correct version and has "version checks" when dealing with side effects as described in [the section above](./version_changes.md#version-changes-with-side-effects). It can only do so using a special [context variable](https://docs.python.org/3/library/contextvars.html) that stores the current API version.
+
+You can also pass a different compatible contextvar to your `cadwyn.VersionBundle` constructor.
