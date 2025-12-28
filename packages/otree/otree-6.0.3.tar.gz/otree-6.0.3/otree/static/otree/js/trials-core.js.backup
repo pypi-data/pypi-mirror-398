@@ -1,0 +1,424 @@
+class BaseCycle {
+
+    constructor() {
+    }
+
+    onInput(name, value) {
+
+    }
+
+    /* note: this refers to text input onblur,
+    not triggering .commitInput(), which just happens to have the same name.
+    but that's not part of the public API.
+    if I add it to the public API, I should call it .triggerOnInput, etc.
+     */
+    onCommitInput(name, value) {
+
+    }
+
+    onStartPage() {
+    }
+
+    // call this directly from my code above
+    onStartTrial() {
+    }
+
+    onTimeline(name) {
+        // name means the name of the segment.
+    }
+
+    onMetronome(msecElapsed, name) {
+
+    }
+
+    onTimeout(name) {
+
+    }
+
+    // onTimer(name, count, elapsedTime) {
+    //
+    // }
+
+    onCompleteTrial() {
+    }
+
+    // do we need onFeedback? if we already set .feedback.
+    // but need to show/hide the feedback div.
+    // we could special-case that with vis.feedback = true & false.
+    // is there anything else you would do with feedback? maybe start a timer, etc.
+    // or have onFeedback, onFeedbackDeleted
+
+    // things the framework changes automatically:
+    // feedback, trial, numTrialsCompleted, etc.
+    // maybe best to just have onUpdate. the 'name' is the topmost thing that changed.
+    // so it won't fire in duplicate when vars.feedback is set (e.g. because vars.feedback.foo changed also)
+    onVars(name, value) {
+    }
+
+    // eventually will we need onStartTurn? right now we don't i guess,
+    // because we can set auto.startTurn = false, then put any code for the start of
+    // the turn in the same place as our ot.startTurn call.
+}
+
+/**
+ * @type {BaseCycle}
+ * @global
+ */
+let _cycle;
+
+
+let consoleLog = console.log;
+
+function makeTrialSocket() {
+    var $currentScript = $('#otree-trial');
+    var socketUrl = $currentScript.data('socketUrl');
+    return makeReconnectingWebSocket(socketUrl);
+}
+
+// it would be simpler if we
+let _trialSocket;
+
+function _onServerRecv(message) {
+    // this is guaranteed to be safe to run because at this point,
+    // otree-front.js has already loaded, so it has registered
+    let data = JSON.parse(message.data);
+    if (data.type === 'error') {
+        console.error("An error occurred processing a trial on the server.")
+        return;
+    }
+    if (data.completed_all_trials) {
+        // wait for server ok to ensure we don't submit the page prematurely due to a bug.
+        // this is the empty second form on the page, not the main #form.
+        let formEle = document.getElementById('_trials-submit-form');
+        formEle.submit();
+
+    } else if (_TRIALS_SSE) {
+        _onServerRecvSSE(data);
+    } else if (data.type === 'load') {
+        _onServerRecvCSE(data);
+    }
+}
+
+
+
+
+function _onServerRecvCSE({progress}) {
+    Object.assign(vars, progress);
+    startPage();
+}
+
+async function _onServerRecvSSE({is_page_load, feedback, trial, progress}) {
+    console.log({trial})
+    // if we use Object.assign,
+    // but this won't trigger onUpdate('progress')
+    // we overwrite progress, but what if the user is putting
+    // custom vars in there?
+    // there isn't really a need to do that. they can just define their
+    // own vars.
+    // maybe 'progress' shouldn't exist at all and it should just be
+    // top-level vars. because there's no need to delete it.
+    Object.assign(vars, progress);
+
+    if (trial) {
+        for (let field of ot.auto.preloadImageUrlFields) {
+            await otc.preloadImages([trial[field]]);
+        }
+
+        // users might use .nextTrial with some slightly different semantics,
+        // don't want to clash with that.
+        vars._nextTrial = trial;
+    }
+
+    if (is_page_load) {
+        await startPage();
+    } else {
+        vars.feedback = feedback;
+        //_cycle.onFeedback(feedback);
+        await completeTrial({});
+    }
+}
+
+
+
+async function submitTrialResponse(data) {
+    //otc.disableInputs();
+    if (ot.auto.cancelTimelinesOnSubmitTrialResponse) {
+        // FIXME: put this back in. right now cancelTimer is not defined.
+        // ot.cancelTimer(TIMELINE_NAME);
+    }
+    consoleLog(`submitTrialResponse(${JSON.stringify(data)})`);
+    let msg = {type: 'response', response: data, trial_id: vars.trial.id};
+    _trialSocket.send(JSON.stringify(msg));
+    if (!_TRIALS_SSE) {
+        vars.numTrialsCompleted++;
+        vars.numTrialsRemaining--;
+        await completeTrial({});
+    }
+}
+
+async function completeTrial() {
+    await _cycle.onCompleteTrial();
+    if (ot.auto.resetInputsOnStartTrial) {
+        ot.resetInputs();
+    }
+
+    if (ot.auto.startTurn) {
+        await otc.delay(ot.auto.postSubmitDelay);
+        await startTurn();
+    }
+}
+
+function getPlayableTrial() {
+    // in roundtrip mode, we determine whether we're finished by whether
+    // the trial received from the server is non-null.
+    // in non-roundrip mode, we look at the progress.completed attribute.
+
+    if (_TRIALS_SSE) {
+        return vars._nextTrial;
+    } else {
+        if (vars.numTrialsCompleted < TRIALS.length) {
+            return TRIALS[vars.numTrialsCompleted];
+        }
+    }
+}
+
+class FormInvalidError extends Error {
+}
+
+function assertFormValid() {
+    let form = document.getElementById('form');
+    let isValid = form.reportValidity();
+    if (!isValid) throw new FormInvalidError();
+}
+
+
+const TIMELINE_NAME = '__timeline__';
+const METRONOME_NAME = '__metronome__';
+const TIMEOUT_NAME = '__timeout__';
+
+/* a problem with Timeline is that people will misspell it as TimeLine */
+function startTimeline(segments) {
+    let durations = Object.values(segments);
+    otc.startTimerSequence(TIMELINE_NAME, durations, segments);
+}
+
+// function startTimeline(name, durations) {
+//
+// }
+
+function startTimeout(msec, name='') {
+    otc.startTimer(`${TIMEOUT_NAME}:${name}`, msec);
+}
+
+function startMetronome(period, max_count=0, name='') {
+    otc.startTimerPeriodic(`${METRONOME_NAME}:${name}`, period, max_count);
+}
+
+function cancelTimeout(name='') {
+    otc.cancelTimer(`${TIMEOUT_NAME}:${name}`);
+}
+
+function cancelMetronome(name='') {
+    otc.cancelTimer(`${METRONOME_NAME}:${name}`);
+}
+
+function cancelTimeline() {
+    otc.cancelTimer(`${TIMELINE_NAME}:${name}`);
+}
+
+
+class ot {
+    static BaseCycle = BaseCycle;
+    static auto = {
+        startTurn: true,
+        resetInputsOnStartTrial: true,
+        enableInputsOnStartTrial: true,
+        postSubmitDelay: 0,
+        cancelTimelinesOnSubmitTrialResponse: true,
+        preloadImageUrlFields: []
+    }
+    static render = otc.updatePage;
+    static submitTrialResponse = submitTrialResponse;
+    static startTimeMeasurement = otc.beginTimeMeasurement;
+    static getTimeMeasurement = otc.getTimeMeasurement;
+    static resetInputs = otc.resetInputs;
+    static resetInput = otc.resetInput;
+    static disableInput = otc.disableInput;
+    static disableInputs = otc.disableInputs;
+    static enableInput = otc.enableInput;
+    static enableInputs = otc.enableInputs;
+    static sleep = otc.delay;
+    static assertFormValid = assertFormValid;
+
+    static startTimeout = startTimeout;
+    static startMetronome = startMetronome;
+    static startTimeline = startTimeline;
+
+    static cancelTimeout = cancelTimeout;
+    static cancelMetronome = cancelMetronome;
+    static cancelTimeline = cancelTimeline;
+
+    static startTurn = startTurn;
+    static preloadImages = otc.preloadImages;
+}
+
+
+async function startPage() {
+    otc.onEvent('timer', async function (e) {
+        let {name, elapsed, customData, count} = e.detail;
+        let [type, nameSuffix] = name.split(':');
+        if (type === METRONOME_NAME) {
+            await _cycle.onMetronome(elapsed, nameSuffix);
+        } else if (type === TIMEOUT_NAME) {
+            await _cycle.onTimeout(nameSuffix);
+        } else if (type === TIMELINE_NAME) {
+            let segmentName = Object.keys(customData)[count];
+            await _cycle.onTimeline(segmentName);
+        }
+    });
+
+    // otc.onEvent('update', () => true, (e) => _cycle.onUpdate(e.))
+    otc.onEvent('update', () => true, async function (e) {
+        for (let [key, value] of e.detail.changes) {
+            await _cycle.onVars(key, value);
+        }
+    });
+
+
+    otc.disableInputs();
+    for (let field of ot.auto.preloadImageUrlFields) {
+        await otc.preloadImages(TRIALS.map(e => e[field]));
+    }
+    await _cycle.onStartPage();
+    if (ot.auto.startTurn) {
+        // call onIteration?
+        startTurn();
+    }
+
+
+}
+
+async function startTurn() {
+    vars.trial = null;
+    vars.feedback = null;
+    // should we automatically delete response? doesn't seem good
+    // to special-case this variable name.
+    // better to un-set all variables set via inputs.
+
+    let nextTrial = getPlayableTrial();
+    console.log({nextTrial})
+    if (nextTrial) {
+        vars.trial = nextTrial;
+        if (ot.auto.enableInputsOnStartTrial) {
+            otc.enableInputs();
+        }
+        // for now we pass the trial as an arg, but maybe omit it from docs,
+        // and from the official function signature.
+        await _cycle.onStartTrial(nextTrial);
+    }
+    otc.updatePage();
+    // submitting the page should happen when we receive an OK from the server,
+    // to make sure we don't submit prematurely. this makes iterative debugging easier
+}
+
+
+window.addEventListener("DOMContentLoaded", () => {
+    _cycle = new Cycle();
+    otc.onEvent('input', async (e) => await _cycle.onInput(e.detail.name, e.detail.value));
+    otc.onEvent('commit_input', async (e) => await _cycle.onCommitInput(e.detail.name, e.detail.value));
+    // better to init here after framework loaded so that there are no race conditions
+    // with JS loading vs websocket established.
+    _trialSocket = makeTrialSocket();
+    registerTrialSocketListeners();
+});
+
+let alreadySentLoadMessage = false;
+
+function registerTrialSocketListeners() {
+   _trialSocket.addEventListener('open', () => {
+       if (!alreadySentLoadMessage)
+            _trialSocket.send(JSON.stringify({type: 'load'}));
+       alreadySentLoadMessage = true;
+        },
+        // .open will get fired again if the websocket disconnects and reconnects.
+        // this option doesn't seem to work; i observed it getting fired twice.
+        {once: true}
+    );
+    _trialSocket.onmessage = _onServerRecv;
+}
+
+
+//otc.onEvent('loaded', startPage);
+
+
+// don't pass feedback to onCompleteTrial.
+// the user should set ot.page.feedback in onInput or somewhere else.
+// this makes it easier to handle both half-live and full-live mode.
+// ot.onComplete has access to feedback.
+// but feedback should be processed in onUpdate('feedback')
+
+let visMutexes = {};
+
+function setVisMutex(ids) {
+    // how will this work together with wildcards?
+    for (let id of ids) {
+        if (!visMutexes[id]) visMutexes[id] = new Set();
+        for (let id2 of ids) {
+            if (id2 !== id) {
+                visMutexes[id].add(id2);
+            }
+        }
+    }
+}
+
+window.vis = new Proxy({}, {
+    get: function (obj, id, receiver) {
+        if (id === 'makeMutuallyExclusive') {
+            return setVisMutex;
+        }
+        throw 'vis is write-only';
+    },
+    set: function (obj, id, value) {
+        // this doesn't work if it's based on IDs.
+        if (id === '*') {
+            throw Error("Can't use '*' wildcard with vis");
+            // if (value) ot.showDisplays();
+            // else ot.hideDisplays();
+        } else {
+            if (value) {
+                otc.showDisplays(id);
+                for (let id2 of visMutexes[id] || []) {
+                    otc.hideDisplays(id2);
+                }
+            } else {
+                otc.hideDisplays(id);
+            }
+        }
+        // proxy needs to return true
+        return true;
+    }
+});
+
+// eventually find a way to declare it as 'const' on the window namespace
+// because people might try to do 'inputsEnabled = false'
+window.inputsEnabled = new Proxy({}, {
+    get: function (obj, name, receiver) {
+        throw 'this object is write-only';
+    },
+    set: function (obj, name, value) {
+        if (name === '*') {
+            if (value) otc.enableInputs();
+            else otc.disableInputs();
+        } else {
+            // this works with wildcards
+            if (value) {
+                otc.enableInputs(name);
+            } else {
+                otc.disableInputs(name);
+            }
+        }
+        // proxy needs to return true
+        return true;
+    }
+});
+
