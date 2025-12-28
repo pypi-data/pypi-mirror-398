@@ -1,0 +1,57 @@
+# `yield-module-names-and-python-file-paths`
+
+Recursively traverses a source directory and yields tuples of Python module names as used in import statements and their corresponding file paths.
+
+## Features
+
+- Handles packages.
+- Skips hidden files and directories.
+- Useful for code analysis tools.
+
+## Installation
+
+```bash
+pip install yield-module-names-and-python-file-paths
+```
+
+## Usage
+
+Suppose your project has this structure:
+
+```
+src/
+├── foo.py
+├── bar.py
+├── subpkg/
+│   ├── __init__.py
+│   └── utils.py
+└── scripts/
+    └── tool.py
+```
+
+You can enumerate the modules:
+
+```python
+from yield_module_names_and_python_file_paths import yield_module_names_and_python_file_paths
+
+for module_name, python_file_path in yield_module_names_and_python_file_paths('src'):
+    print(module_name, '->', python_file_path)
+```
+
+Output:
+
+```
+foo -> myproject/foo.py
+bar -> myproject/bar.py
+subpkg -> myproject/subpkg/__init__.py
+subpkg.utils -> myproject/subpkg/utils.py
+scripts.tool -> myproject/scripts/tool.py
+```
+
+## Contributing
+
+Contributions are welcome! Please submit pull requests or open issues on the GitHub repository.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
