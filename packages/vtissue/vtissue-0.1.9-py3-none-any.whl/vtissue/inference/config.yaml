@@ -1,0 +1,84 @@
+data:
+  input_anndata: "examples/real_data/data_preprocessed.h5ad" #mel1_preprocessed orion_preprocessed
+  output_dir: "examples/real_data/output"
+  save_modified_anndata: true
+  group_by: "patch" #image patch
+
+columns:
+  image_id: "imageid"
+  x_centroid: "X_centroid"
+  y_centroid: "Y_centroid"
+  #phenotype: "phenotype"
+
+patching:
+  enabled: true
+  max_cells_per_patch: 1000
+  grid_size: null
+  overlap_fraction: 0
+
+spatial:
+  default_mpp: 0.32
+  algorithm: "auto"
+  n_jobs: -1
+
+model:
+  checkpoint_path: examples/real_data/output/checkpoint_best.pt
+  # The fields below are inferred from the checkpoint's model_meta.
+  # Uncomment to override when model_meta is missing or for custom runs.
+  # n_genes: 41451
+  # d_model: 128
+  # n_heads: 4
+  # n_layers: 2
+  # n_spatial_features: 40
+  # n_phenotypes: 0
+  # dropout: 0.1
+  # n_global_tokens: 8
+  # n_global_tokens_global: 2
+  # n_global_tokens_local: 6
+
+inference:
+  enabled: true
+  target_levels: ["node"] #["node", "token", "patch", "sample"]
+  aggregate_method: "mean"
+  batch_size: 1
+  device: "cuda"
+  precision: "fp32"
+  cache_dir: "examples/real_data/output/inference_cache/"
+  overwrite_input: true
+  allow_gene_mismatch: false
+
+# Gene usage analysis (model-derived per-gene usage scores)
+gene_usage:
+  enabled: false
+  modes: ["grad"] # ["grad", "perturb"] to run both
+  target: "local"   # "local" (z_local), "global" (z_global), or "token" (z_global_tokens)
+  aggregate_scope: "per_image" # "global" or "per_image"
+  normalization: "count" # "none", "count", "minmax", "zscore"
+  combine: "none"   # when modes has multiple: "none", "mean", "median", "weighted"
+  # weights: { grad: 0.5, perturb: 0.5 }
+  k_embed: 15       # k for kNN overlap (perturb mode)
+  n_permutations: 1 # number of permutations per gene (perturb mode)
+  metric: "euclidean" # kNN distance: "euclidean" or "cosine"
+  sample_frac: 1.0  # downsample nodes for kNN [0,1]
+  layer_name: "vt_gene_usage" # output var key name
+  uns_key: "vt_gene_usage"    # base key for storing per-image vectors
+  precision: "fp32"            # force fp32 inside usage step
+  overwrite_input: null        # null -> inherit from inference.overwrite_input
+  gene_filter:
+    mode: "observed_only"      # "observed_only", "all", "custom"
+    min_occurrences: 1         # skip genes with < N observations
+    custom_list: []            # gene names or indices if mode==custom
+  percent_enabled: true        # also write percent contribution vectors
+  percent_layer_name: "vt_gene_usage_pct" # adata.var key for percent
+  percent_uns_key: "vt_gene_usage_pct"    # base key for per-image percent vectors
+
+prediction:
+  enabled: false
+  cell_type_column: "vt_pred_celltype"
+  min_confidence: 0
+  unknown_label: "UK"
+
+expression:
+  enabled: true
+  markers: ['SOX10','KRT18','CD3D','ITGAX'] #CDH1 SOX10
+  layer_name: "vt_expr_pred"
