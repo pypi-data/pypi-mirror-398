@@ -1,0 +1,234 @@
+Metadata-Version: 2.4
+Name: ekta_chalk
+Version: 0.1.0
+Summary: A simple command-line argument parser inspired by Commander.js
+Project-URL: Homepage, https://github.com/AdityaPatange1/ekta_chalk
+Project-URL: Documentation, https://github.com/AdityaPatange1/ekta_chalk#readme
+Project-URL: Repository, https://github.com/AdityaPatange1/ekta_chalk
+Project-URL: Issues, https://github.com/AdityaPatange1/ekta_chalk/issues
+Author-email: Your Name <your.email@example.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: argparse,argument-parser,cli,command-line,commander
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Provides-Extra: dev
+Requires-Dist: build>=1.0; extra == 'dev'
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Requires-Dist: twine>=4.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# ekta_chalk
+
+A simple, elegant command-line argument parser for Python inspired by [Commander.js](https://github.com/tj/commander.js).
+
+## Installation
+
+```bash
+pip install ekta_chalk
+```
+
+## Quick Start
+
+```python
+from ekta_chalk import Program
+
+program = Program()
+program.name("greet")
+program.version("1.0.0")
+program.description("A friendly greeting CLI")
+
+program.option("-n, --name <name>", "Name to greet", "World")
+program.option("-l, --loud", "Greet loudly")
+
+@program.action
+def main(options):
+    greeting = f"Hello, {options.name}!"
+    if options.loud:
+        greeting = greeting.upper()
+    print(greeting)
+
+program.parse()
+```
+
+```bash
+$ python greet.py --name Alice --loud
+HELLO, ALICE!
+
+$ python greet.py --help
+Usage: greet [options]
+
+A friendly greeting CLI
+
+Options:
+  -n, --name <name>       Name to greet (default: World)
+  -l, --loud              Greet loudly
+  -h, --help              Display help for command
+  -V, --version           Output the version number
+```
+
+## Features
+
+- Fluent, chainable API
+- Automatic help generation
+- Options with short and long flags
+- Required and optional arguments
+- Subcommands
+- Variadic arguments
+- Type hints included
+
+## API
+
+### Options
+
+Add options with short (`-s`) and/or long (`--long`) flags:
+
+```python
+program.option("-d, --debug", "Enable debug mode")
+program.option("-c, --config <path>", "Path to config file")
+program.option("-o, --output <file>", "Output file", "out.txt")  # with default
+program.required_option("-k, --key <key>", "API key (required)")
+```
+
+Options that take values use `<value>` syntax. Without a value placeholder, options are boolean flags.
+
+### Arguments
+
+Add positional arguments:
+
+```python
+program.argument("<file>", "Input file (required)")
+program.argument("[output]", "Output file (optional)")
+program.argument("<files...>", "Multiple input files (variadic)")
+```
+
+- `<name>` - Required argument
+- `[name]` - Optional argument
+- `<name...>` - Variadic (collects remaining args as list)
+
+### Subcommands
+
+Create subcommands for complex CLIs:
+
+```python
+from ekta_chalk import Program
+
+program = Program()
+program.name("git-clone")
+program.version("1.0.0")
+
+# Add a subcommand
+clone = program.command("clone", "Clone a repository")
+clone.argument("<repo>", "Repository URL")
+clone.option("-b, --branch <branch>", "Branch to clone", "main")
+
+@clone.action
+def clone_action(repo, options):
+    print(f"Cloning {repo} (branch: {options.branch})")
+
+# Add another subcommand
+init = program.command("init", "Initialize a repository")
+init.option("--bare", "Create a bare repository")
+
+@init.action
+def init_action(options):
+    print(f"Initializing {'bare ' if options.bare else ''}repository")
+
+program.parse()
+```
+
+```bash
+$ python git-clone.py clone https://github.com/user/repo -b develop
+Cloning https://github.com/user/repo (branch: develop)
+
+$ python git-clone.py init --bare
+Initializing bare repository
+```
+
+### Action Handlers
+
+The action handler receives positional arguments in order, followed by an `Options` object:
+
+```python
+program.argument("<input>", "Input file")
+program.argument("[output]", "Output file")
+program.option("-v, --verbose", "Verbose output")
+
+@program.action
+def main(input_file, output_file, options):
+    print(f"Input: {input_file}")
+    print(f"Output: {output_file}")
+    print(f"Verbose: {options.verbose}")
+```
+
+### Command Aliases
+
+Add aliases for subcommands:
+
+```python
+install = program.command("install", "Install packages")
+install.alias("i")  # Now 'myapp i' works like 'myapp install'
+```
+
+## Complete Example
+
+```python
+from ekta_chalk import Program
+
+program = Program()
+program.name("file-tool")
+program.version("2.0.0")
+program.description("A file manipulation tool")
+
+# Global options
+program.option("-v, --verbose", "Enable verbose output")
+
+# Copy command
+copy = program.command("copy", "Copy files")
+copy.alias("cp")
+copy.argument("<source>", "Source file")
+copy.argument("<dest>", "Destination")
+copy.option("-f, --force", "Overwrite existing files")
+
+@copy.action
+def copy_files(source, dest, options):
+    print(f"Copying {source} to {dest}")
+    if options.force:
+        print("(overwriting if exists)")
+
+# List command
+ls = program.command("list", "List directory contents")
+ls.alias("ls")
+ls.argument("[dir]", "Directory to list", ".")
+ls.option("-a, --all", "Show hidden files")
+
+@ls.action
+def list_dir(directory, options):
+    print(f"Listing {directory}")
+    if options.all:
+        print("(including hidden files)")
+
+program.parse()
+```
+
+## Requirements
+
+- Python 3.10+
+
+## License
+
+MIT
