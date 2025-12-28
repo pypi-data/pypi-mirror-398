@@ -1,0 +1,101 @@
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/postgres
+      o: bind
+  mongo_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/mongo
+      o: bind
+  clickhouse_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/clickhouse
+      o: bind
+services:
+  grafana:
+    image: grafana/grafana-enterprise:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-stats}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-ch}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-ch}
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: true
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: chrisgeorge-devhealth-panel
+      GF_LOG_FILTERS: plugin.devhealth-devhealthpanels-panel:debug
+      GF_LOG_LEVEL: debug
+      GF_DATAPROXY_LOGGING: 1
+      GF_RENDERING_SERVER_URL: http://renderer:8081/render
+      GF_RENDERING_CALLBACK_URL: http://grafana:3000/
+    ports:
+      - "3000:3000"
+    depends_on:
+      - clickhouse
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/plugins/dev-health-panels:/var/lib/grafana/plugins/dev-health-panels
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PG_DATA: /var/lib/postgresql/
+    ports:
+      - "5555:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    restart: on-failure
+    environment:
+      CLICKHOUSE_LISTEN_HOST: 0.0.0.0
+      CLICKHOUSE_USER: ch
+      CLICKHOUSE_PASSWORD: ch
+      CLICKHOUSE_DB: stats
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+  stats:
+    image: python:alpine
+    environment:
+      PG_URL: postgres://postgres:postgres@postgres:5432/postgres
+      DB_CONN_STRING: postgres://postgres:postgres@postgres:5432/postgres
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: /bin/sh -c 'python3 cli.py sync git --provider local --db "$DB_CONN_STRING" --repo-path .'
+  renderer:
+    image: grafana/grafana-image-renderer:latest
