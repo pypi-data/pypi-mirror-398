@@ -1,0 +1,156 @@
+Metadata-Version: 2.4
+Name: qiskit-state-evolution-recorder
+Version: 1.0.2
+Summary: Simple module allowing to record animations to trace changes in qubit states for arbitrary quantum circuits.
+Author-email: Dawid Ciepiela <71898979+sarumaj@users.noreply.github.com>
+License: BSD 3-Clause License
+        
+        Copyright (c) 2024, Dawid Ciepiela
+        
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are met:
+        
+        1. Redistributions of source code must retain the above copyright notice, this
+           list of conditions and the following disclaimer.
+        
+        2. Redistributions in binary form must reproduce the above copyright notice,
+           this list of conditions and the following disclaimer in the documentation
+           and/or other materials provided with the distribution.
+        
+        3. Neither the name of the copyright holder nor the names of its
+           contributors may be used to endorse or promote products derived from
+           this software without specific prior written permission.
+        
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+        AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+        IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+        FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+        DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+        SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+        CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+        OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        
+Project-URL: Homepage, https://github.com/sarumaj/qiskit-state-evolution-recorder
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: matplotlib==3.10.8
+Requires-Dist: matplotlib-inline==0.2.1
+Requires-Dist: numpy<2.4.1
+Requires-Dist: qiskit<=2.2.3,>=2.2.3
+Requires-Dist: pillow==12.0.0
+Requires-Dist: pylatexenc==2.10
+Requires-Dist: tqdm==4.67.1
+Provides-Extra: opencv
+Requires-Dist: opencv-python==4.12.0.88; extra == "opencv"
+Provides-Extra: test
+Requires-Dist: psutil==7.2.0; extra == "test"
+Requires-Dist: pytest==9.0.2; extra == "test"
+Requires-Dist: pytest-benchmark==5.2.3; extra == "test"
+Dynamic: license-file
+
+[![release](https://github.com/sarumaj/qiskit-state-evolution-recorder/actions/workflows/release.yml/badge.svg)](https://github.com/sarumaj/qiskit-state-evolution-recorder/actions/workflows/release.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/sarumaj/qiskit-state-evolution-recorder?logo=github)](https://github.com/sarumaj/qiskit-state-evolution-recorder/releases/latest)
+[![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/sarumaj/qiskit-state-evolution-recorder)](https://github.com/sarumaj/qiskit-state-evolution-recorder/blob/main/pyproject.toml)
+
+---
+
+# qiskit-state-evolution-recorder
+
+Simple module allowing to record animations to trace changes in qubit states for arbitrary quantum circuits.
+
+## Installation
+
+```bash
+pip install qiskit-state-evolution-recorder
+```
+
+## Usage
+
+```python
+from qiskit.circuit import QuantumCircuit
+from qiskit_state_evolution_recorder import StateEvolutionRecorder
+
+qc = QuantumCircuit(4)
+# apply Pauli X-gate
+qc.x(3)
+# apply Hadamart gate
+qc.h(range(4))
+# apply Toffoli gate
+qc.mcx(list(range(3)), 3)
+# apply Hadamart gate
+qc.h(range(4))
+qc.measure_all()
+
+recorder = StateEvolutionRecorder(qc, figsize=(12, 8), num_cols=4, style={'name': 'bw'})
+# evolve the circuit using 120 intermediate states for each qubit
+# since we have 5 fundamental states it will lead to 481 frames
+recorder.evolve(120)
+# with FPS of 30, the video duration will be 16.033333s
+recorder.record("quantum_circuit.mp4", fps=30)
+```
+
+In a Jupyter notebook, you can do:
+
+```python
+from IPython.display import Video
+
+video = Video("quantum_circuit.mp4")
+video.reload()
+video
+```
+
+https://github.com/user-attachments/assets/8a3c8567-cbb8-4271-9c2c-9588130c01b0
+
+## Testing
+
+### Running Tests
+
+The project includes both unit tests and performance tests. Performance tests can be run optionally.
+
+```bash
+# Run all tests except performance tests
+python -m pytest --benchmark-skip
+
+# Run all tests including performance tests
+python -m pytest --benchmark-enable
+
+# Run only performance tests
+python -m pytest --benchmark-enable --benchmark-only
+```
+
+### Backend Support
+
+The library supports multiple animation backends:
+
+- **FFmpeg** (default, preferred): Uses matplotlib's FuncAnimation with FFmpeg
+- **OpenCV**: Uses OpenCV for video creation (fallback when FFmpeg is not available)
+
+The system automatically selects the best available backend. To install additional backends:
+
+```bash
+# Install OpenCV backend
+pip install opencv-python
+
+# Install FFmpeg (system-dependent)
+# Ubuntu/Debian: sudo apt-get install ffmpeg
+# macOS: brew install ffmpeg
+# Windows: Download from https://ffmpeg.org/download.html
+```
