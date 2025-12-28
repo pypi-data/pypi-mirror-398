@@ -1,0 +1,160 @@
+Metadata-Version: 2.4
+Name: k2pipe
+Version: 0.1.3
+Summary: k2pipe
+Home-page: https://www.k2data.com.cn
+Author: K2data
+Author-email: admin@k2data.com.cn
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Requires-Dist: numexpr
+Requires-Dist: loguru
+Requires-Dist: pytest
+Requires-Dist: pytest-mock
+Requires-Dist: pytest-cov
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Pipe SDK （暂用名）
+通过配置的方式，简化数据处理流程中常用操作，使得数据处理的业务逻辑更加直观和稳定。
+
+## 一、安装
+
+要求python 3.8或以上，建议3.8.10版本。
+
+```
+pip install -U k2pipe
+```
+
+## 二、使用方法
+
+### 2.1 数据加工
+
+提供 `extract_features()` 方法，根据配置里的计算规则，将当前DataFrame处理并返回结果DataFrame。
+
+#### 2.1.1 配置文件
+
+配置DataFrame一般从csv文件中加载，它定义了对原始DataFrame进行数据转换的规则。配置文件中每一行定义结果DataFrame里的一个（新）列，其中feature是列名，expression是列的计算表达式。
+
+配置里定义的列是顺序处理的，因此列表达式既可以引用原始DataFrame里的列，也可以引用前面新定义的列。
+
+| feature | expression                         | comment                      |
+|---------|------------------------------------|------------------------------|
+| feat1   | col1 / 100 - col2                  | 四则运算示例                       |
+| feat2   | col2.rolling(3).mean()             | 按行数滚动窗口示例                    |
+| feat3   | col2.rolling('3D').mean()          | 按时间滚动窗口示例（dataframe必须有时间索引列） |
+| feat4   | feat1.my_func()                    | 自定义函数示例（函数需要在python代码里注册）    |
+| feat5   | "where(col1 > 50, col1, col2 * 2)" | 条件赋值示例（支持多层where嵌套）          |
+| #       | 注释内容                             | 注释行示例                        |
+| feat6   | (col3 - k_ts).dt.days              | 时间处理示例                       |
+| *       |                                    | 表示保留原始dataframe的所有列          |
+| feat7   | k_device.str[1]                    | 字符串操作示例                      |
+| feat8   | "where(col1.isna(), 1, 2)"         | 空值判断示例                       |
+| feat9   | @df.shape[0]                       | 获取待处理的DataFrame的属性示例         |
+| feat10  | feat01.round()                     | 取整操作示例                       |
+| feat11  | k_ts + col1.astype('timedelta64[s]')  | 时间处理示例1（暂时无法进行常数时间计算）        |
+| feat12  | k_ts.time_shift('-10s')            | 时间处理示例2（带有常数时间的计算）           |
+
+说明：
+- 若表达式或注释包含逗号，需要用双引号包裹，双引号前不能有空格
+- 表达式不支持apply()函数
+- 内置变量列表：@df
+- 内置函数列表：time_shift()
+- 更多示例：[K2Pipe Examples](https://gitlab.kstonedata.k2/zhanghao/k2pipe/tree/develop/tests/example)
+- 表达式语法参考：[Mastering Eval Expressions in Pandas](https://www.sparkcodehub.com/pandas/advanced/eval-expressions-guide)
+
+
+#### 2.2.2 Python代码
+
+根据配置里定义的处理规则，将原始DataFrame数据转换为结果DataFrame数据。
+
+```python
+import pandas as pd
+from pathlib import Path
+from k2pipe.mypipe import MyDataFrame
+
+# 样例数据
+df = MyDataFrame({'k_device': ['dev1','dev1', 'dev1', 'dev2', 'dev2', 'dev2'],
+                   'col1': [50, 60, 70, 80, 90, 100],
+                   'col2': [1, 2, 3, 4, 5, 6]})
+df['k_ts'] = pd.date_range(start='2025-01-01 08:00:00', periods=len(df), freq='S')
+df['ts2'] = pd.date_range(start='2025-01-01 12:00:00', periods=len(df), freq='S')
+df.set_index('k_ts', inplace=True)
+
+# 配置信息
+config = pd.read_csv(Path(__file__).parent / 'my_feat.csv')
+df.columns = df.columns.str.strip()
+
+# 注册自定义函数
+pd.Series.my_func = (lambda x: x.rolling(3).mean())
+
+# 处理数据
+result = df.extract_features(config)
+```
+
+#### 2.2.3 运行结果
+
+原始数据：
+
+```
+                    k_device  col1  col2                col3
+k_ts                                                        
+2025-01-01 08:00:00     dev1    50     1 2025-01-01 12:00:00
+2025-01-01 08:00:01     dev1    60     2 2025-01-01 12:00:01
+2025-01-01 08:00:02     dev1    70     3 2025-01-01 12:00:02
+2025-01-01 08:00:03     dev2    80     4 2025-01-01 12:00:03
+2025-01-01 08:00:04     dev2    90     5 2025-01-01 12:00:04
+2025-01-01 08:00:05     dev2   100     6 2025-01-01 12:00:05
+
+```
+
+结果数据：
+
+```
+                    k_device  feat01  feat02  feat03  feat04  feat05  feat06 feat07  feat08  feat09  feat10              feat11
+k_ts                                                                                                                           
+2025-01-01 08:00:00     dev1    -0.5     NaN     1.0     NaN       2       0      e       2       6    -0.0 2025-01-01 08:00:10
+2025-01-01 08:00:01     dev1    -1.4     NaN     1.5     NaN      60       0      e       2       6    -1.0 2025-01-01 08:00:11
+2025-01-01 08:00:02     dev1    -2.3     2.0     2.0    -1.4      70       0      e       2       6    -2.0 2025-01-01 08:00:12
+2025-01-01 08:00:03     dev2    -3.2     3.0     2.5    -2.3      80       0      e       2       6    -3.0 2025-01-01 08:00:13
+2025-01-01 08:00:04     dev2    -4.1     4.0     3.0    -3.2      90       0      e       2       6    -4.0 2025-01-01 08:00:14
+2025-01-01 08:00:05     dev2    -5.0     5.0     3.5    -4.1     100       0      e       2       6    -5.0 2025-01-01 08:00:15
+```
+
+### 2.2 统一数据格式
+
+提供`format_columns()`方法，将输入的DataFrame内的`k_ts`转为时间类型，将`k_device`列转为字符串类型。
+
+```python
+import pandas as pd
+from k2pipe.mypipe import MyDataFrame
+
+df = MyDataFrame(...)
+df = df.format_columns()
+```
+
+
+### 2.3 数据流分析
+
+TODO
+
+### 2.4 冗余列分析
+
+TODO
+
