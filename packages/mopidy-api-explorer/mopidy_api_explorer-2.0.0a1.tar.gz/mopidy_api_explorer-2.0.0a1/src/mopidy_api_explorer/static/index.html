@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mopidy API Explorer</title>
+    <link href="css/vendor/bootstrap-v5.0.0-beta1.min.css" rel="stylesheet">
+    <link href="css/app.css" rel="stylesheet">
+</head>
+<body data-bs-spy="scroll" data-bs-target="#toc-container" data-bs-offset="100">
+
+<header class="navbar navbar-expand-lg navbar-dark bg-mopidy sticky-top">
+    <nav class="container flex-wrap flex-lg-nowrap" aria-label="Navigation">
+        <a class="navbar-brand" href="#">Mopidy API Explorer</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-contents" aria-controls="navbar-contents" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div id="navbar-contents" class="collapse navbar-collapse">
+            <ul class="navbar-nav flex-row flex-wrap pt-2 py-lg-0">
+                <li class="nav-item col-12 col-lg-auto">
+                    <a href="#api-methods" class="nav-link">Methods</a>
+                </li>
+                <li class="nav-item col-12 col-lg-auto">
+                    <a href="#events" class="nav-link">Events</a>
+                </li>
+                <li class="nav-item col-12 col-lg-auto">
+                    <a href="#documentation" class="nav-link">Documentation</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+</header>
+
+<div class="container my-md-4">
+    <div class="row">
+        <aside class="col-lg-3 d-none d-lg-block d-print-none">
+            <nav id="toc-container" class="navbar navbar-light bg-light"></nav>
+        </aside>
+        <main class="col-12 col-lg-9">
+            <div class="box">
+                <h1>WebSocket endpoint</h1>
+
+                <p>
+                    Mopidy has a WebSocket endpoint at <code>/mopidy/ws</code>.
+                    You can use this endpoint to access Mopidy's full API, and
+                    to get notified about events happening in Mopidy.
+                    <br>
+                    <a href="https://docs.mopidy.com/en/latest/api/http/#websocket-api" target="_blank" rel="noreferrer">More info</a>
+                </p>
+            </div>
+
+            <div class="box">
+                <h1>HTTP POST RPC endpoint</h1>
+
+                <p>
+                    Mopidy has a non-WebSocket API endpoint at <code>/mopidy/rpc</code>.
+                    You can use this endpoint to access Mopidy's full API.
+                    While you can't listen to events via this endpoint, it
+                    doesn't require maintaining a persistent connection.
+                    <br>
+                    <a href="https://docs.mopidy.com/en/latest/api/http/#http-post-api" target="_blank" rel="noreferrer">More info</a>
+                </p>
+            </div>
+
+            <div id="api-intro" class="box">
+                <h1>JavaScript API</h1>
+
+                <p>
+                    Mopidy.js is an official library that provides full access to the
+                    JSON-RPC API via the WebSocket endpoint. For Mopidy extensions, it
+                    will automatically connect to the WebSocket endpoint with no constructor
+                    arguments. The examples on this page initiate a connection using the
+                    following script:
+                </p>
+                <div class="mb-3 p-2 border rounded">
+                    <pre>window.mopidy = new Mopidy();</pre>
+                </div>
+                <p>
+                    More info can be found at the <a href="https://docs.mopidy.com/en/latest/api/js/" target="_blank" rel="noreferrer">Mopidy.js documentation</a>
+                </p>
+            </div>
+
+            <div id="api-methods" class="box navbar-target">
+                <h2>API Methods</h2>
+
+                <div id="api-methods-list"></div>
+            </div>
+
+            <div id="events" class="box navbar-target">
+                <h2>Events</h2>
+
+                <p>Here you can see events arriving from Mopidy in real time:</p>
+
+                <pre id="ws-console"></pre>
+
+                <p>Nothing to see? Try playing a track using your Mopidy client.</p>
+            </div>
+
+            <div id="documentation" class="box navbar-target">
+                <h2>Documentation</h2>
+
+                <p>
+                    For more information, please refer to the Mopidy documentation at
+                    <a href="https://docs.mopidy.com/" target="_blank" rel="noreferrer">docs.mopidy.com</a>.
+                </p>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script type="text/x-html-template" id="toc-template">
+<nav class="nav nav-pills flex-column">
+    {{#each toc}}
+    <a href="#class-{{apiClass}}" class="nav-link mb-1">{{apiClass}}</a>
+    <nav class="nav nav-pills flex-column">
+        {{#each classMethods}}
+        <a href="#method-{{../apiClass}}-{{this}}" class="nav-link ms-3 my-0 py-0">{{snakeToCamel this}}</a>
+        {{/each}}
+    </nav>
+    {{/each}}
+</nav>
+</script>
+
+<script type="text/x-html-template" id="body-template">
+{{#each toc}}
+<section id="class-{{apiClass}}">
+    <h3>{{apiClass}}</h3>
+
+    {{#each classMethods}}
+    <div class="method-outline">
+        <h4 id="method-{{../apiClass}}-{{this}}">
+            <a href="#method-{{../apiClass}}-{{this}}">instance.{{../apiClass}}.{{snakeToCamel this}}</a>
+        </h4>
+
+        <h5>cURL</h5>
+        <div class="mb-3 p-2 border rounded">
+            <pre>{{apiMethodCurlCall (lookup @root.methodsData (concat ../apiClass "." this))}}</pre>
+        </div>
+
+        <h5>JavaScript</h5>
+        <div class="mb-3 p-2 border rounded">
+            <pre>{{apiMethodJsCall (lookup @root.methodsData (concat ../apiClass "." this))}}</pre>
+        </div>
+
+        <h5>Python documentation</h5>
+        {{#with (lookup @root.methodsData (concat ../apiClass "." this))}}
+        <div class="mb-3 p-2 border rounded">
+            <pre>{{this.methodData.description}}</pre>
+        </div>
+        {{/with}}
+    </div>
+    {{/each}}
+</section>
+{{/each}}
+</script>
+
+<script src="js/vendor/mopidy-v1.2.1.min.js" type="text/javascript"></script>
+<script src="js/vendor/bootstrap-v5.0.0-beta1.min.js" type="text/javascript"></script>
+<script src="js/vendor/handlebars-v4.7.6.min.js" type="text/javascript"></script>
+
+<script src="js/app.js" type="text/javascript"></script>
+
+</body>
+</html>
