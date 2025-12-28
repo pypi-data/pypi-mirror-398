@@ -1,0 +1,293 @@
+Metadata-Version: 2.4
+Name: wgctl
+Version: 0.6.1
+Summary: WireGuard CLI Wrapper Tool
+Author: amertens
+License: AGPL-3.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: GNU Affero General Public License v3
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: System :: Networking
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyyaml>=6.0
+Dynamic: license-file
+
+# wgctl
+
+A simple command-line tool for managing WireGuard connections with consistent, script-friendly output.
+
+## Features
+
+- Consistent output (`success`, `connected`, `disconnected`, `error: ...`)
+- JSON output with `--json`
+- Defined exit codes for script integration
+- Idempotent operations (connect on existing connection is not an error)
+- Lease-based temporary connections with automatic expiration
+- Health checks (Ping/TCP) with configurable failure behavior
+- **Auto-connect on boot** via YAML configuration per interface
+
+## Installation
+
+### With pipx (recommended)
+
+```bash
+pipx install wgctl
+
+# Install globally (for all users, requires sudo)
+sudo pipx install --global wgctl
+```
+
+### With pip
+
+```bash
+pip install wgctl
+```
+
+### From source
+
+```bash
+# From the Git repository
+pipx install git+https://codeberg.org/swym/wgctl.git
+
+# Or clone and install
+git clone https://codeberg.org/swym/wgctl.git
+cd wgctl
+pipx install .
+```
+
+## Usage
+
+```bash
+wgctl <interface> <action> [options]
+```
+
+### Actions
+
+| Action | Description |
+|--------|-------------|
+| `connect` | Establish connection (reads config if present) |
+| `disconnect` | Terminate connection |
+| `reconnect` | Re-establish connection (down + up) |
+| `status` | Check connection status |
+| `list` | Show all available interfaces |
+| `request` | Request temporary connection with expiration |
+| `cron` | Check leases, auto-connect, health checks |
+| `test` | Run health check (Ping/TCP) |
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output in JSON format |
+| `--ttl SECONDS` | Lease duration for `request` (default: 60) |
+| `--test-ping HOST` | Ping test for health check |
+| `--test-tcp HOST PORT` | TCP test for health check |
+| `--on-test-fail {ignore,reconnect,disconnect}` | Behavior on failed test (default: ignore) |
+
+### Examples
+
+```bash
+# Establish connection
+wgctl wg0 connect
+
+# Check status
+wgctl wg0 status
+
+# List all interfaces
+wgctl list
+
+# JSON output
+wgctl wg0 status --json
+
+# Temporary connection for 5 minutes
+wgctl wg0 request --ttl 300
+
+# Permanent connection with health check (report status only)
+wgctl wg0 connect --test-ping 10.0.0.1
+
+# Permanent connection with auto-reconnect on failure
+wgctl wg0 connect --test-ping 10.0.0.1 --on-test-fail reconnect
+
+# Temporary connection with disconnect on failure
+wgctl wg0 request --ttl 300 --test-tcp 10.0.0.1 443 --on-test-fail disconnect
+
+# Run health check manually
+wgctl wg0 test --test-ping 10.0.0.1
+
+# Check all leases (for cron/timer)
+wgctl cron
+```
+
+### Output
+
+**Text (default):**
+```
+$ wgctl wg0 connect
+success
+
+$ wgctl wg0 status
+connected
+
+$ wgctl list
+wg0: connected
+wg1: disconnected
+```
+
+**JSON:**
+```json
+{"status": "connected", "details": {"public_key": "...", "endpoint": "vpn.example.com:51820", "latest_handshake": "...", "transfer_rx": "1.24 GiB", "transfer_tx": "256.3 MiB", "allowed_ips": "0.0.0.0/0"}, "action": "status", "interface": "wg0"}
+```
+
+## Lease System
+
+The lease system enables temporary connections with automatic expiration:
+
+- **Permanent connection** (`connect`): `expires_at = 0`, stays until manually disconnected
+- **Temporary connection** (`request`): `expires_at` = expiration time, automatically disconnected by `cron`
+
+### Lease File
+
+Leases are stored in `/run/wgctl/<interface>.lease`:
+
+```json
+{
+  "interface": "wg0",
+  "expires_at": 0,
+  "created_at": "2024-01-15T10:30:00+00:00",
+  "test_ping": "10.0.0.1",
+  "test_tcp": {"host": "10.0.0.1", "port": 443},
+  "on_test_fail": "reconnect"
+}
+```
+
+### Health Check Behavior
+
+Configure behavior on failed tests with `--on-test-fail`:
+
+| Value | Description |
+|-------|-------------|
+| `ignore` | Report status only, no action (default) |
+| `reconnect` | Attempt tunnel down+up |
+| `disconnect` | Close tunnel, delete lease |
+
+## Auto-Connect Configuration
+
+For automatic connection on boot, create YAML configuration files:
+
+**Path:** `/etc/wgctl/<interface>.yaml`
+
+```yaml
+# /etc/wgctl/wg0.yaml
+auto_connect: true
+test_ping: "10.0.0.1"
+# test_tcp:
+#   host: "10.0.0.1"
+#   port: 443
+on_test_fail: reconnect  # ignore | reconnect | disconnect
+```
+
+### How It Works
+
+- **Auto-Connect**: `wgctl cron` automatically connects all interfaces with `auto_connect: true`
+- **Config as fallback**: `wgctl wg0 connect` reads test parameters from config when no CLI parameters are given
+- **Manual control preserved**: `disconnect` terminates the connection (lease deleted, config remains)
+
+### Setup
+
+```bash
+# Create config directory
+sudo mkdir -p /etc/wgctl
+
+# Create config for wg0
+cat <<EOF | sudo tee /etc/wgctl/wg0.yaml
+auto_connect: true
+test_ping: "10.0.0.1"
+on_test_fail: reconnect
+EOF
+
+# Enable cron timer (for regular checks)
+sudo systemctl enable --now wgctl-cron.timer
+
+# Alternative: Test manually
+wgctl cron
+```
+
+### Priority
+
+CLI parameters always override config:
+
+```bash
+# Uses config parameters
+wgctl wg0 connect
+
+# Overrides config parameters
+wgctl wg0 connect --test-ping 192.168.1.1 --on-test-fail ignore
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error |
+| 2 | Config/interface not found |
+| 3 | Permission error |
+
+## Systemd Integration
+
+### Cron Timer (recommended)
+
+The cron timer regularly checks all leases, runs auto-connect for configured interfaces, and starts health checks.
+
+See [examples/systemd/README.md](examples/systemd/README.md) for installation instructions.
+
+```bash
+# Quick installation
+sudo cp examples/systemd/wgctl-cron.service examples/systemd/wgctl-cron.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now wgctl-cron.timer
+```
+
+### Check Status
+
+```bash
+# Timer status
+systemctl list-timers | grep wgctl
+
+# Logs
+journalctl -u wgctl-cron.service -n 20
+```
+
+## HTTP API (Webhook)
+
+For integration with [adnanh/webhook](https://github.com/adnanh/webhook), an example configuration is available:
+
+See [examples/webhook/hooks.json](examples/webhook/hooks.json)
+
+**Endpoints:**
+
+| URL | Auth | Description |
+|-----|------|-------------|
+| `/wgctl/<interface>/status` | No | Query status |
+| `/wgctl/list` | No | All interfaces |
+| `/wgctl/<interface>/test` | No | Health check |
+| `/wgctl/<interface>/connect` | `X-Auth-Token` | Connect |
+| `/wgctl/<interface>/disconnect` | `X-Auth-Token` | Disconnect |
+| `/wgctl/<interface>/reconnect` | `X-Auth-Token` | Reconnect |
+| `/wgctl/<interface>/request?ttl=300` | `X-Auth-Token` | Temporary connect |
+| `/wgctl/cron` | `X-Auth-Token` | Run cron |
+
+## Requirements
+
+- Python 3.9+
+- WireGuard (`wg-quick`, `wg`)
+- Root privileges for connect/disconnect/reconnect
+
+## License
+
+AGPL-3.0
