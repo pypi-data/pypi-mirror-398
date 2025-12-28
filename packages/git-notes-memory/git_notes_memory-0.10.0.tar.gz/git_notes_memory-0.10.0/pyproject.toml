@@ -1,0 +1,205 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "git-notes-memory"
+dynamic = ["version"]
+description = "Git-native, semantically-searchable memory storage for Claude Code"
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["git", "notes", "memory", "semantic-search", "embeddings", "claude-code"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0.2",
+    "python-dotenv>=1.0.1",
+    "sentence-transformers>=3.0.0",
+    "sqlite-vec>=0.1.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+    "ruff>=0.14.0",
+    "mypy>=1.19.0",
+    "bandit>=1.8.0",
+    "pip-audit>=2.9.0",
+    "build>=1.2.0",
+    "types-PyYAML>=6.0.12",
+    "bump-my-version>=1.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/zircote/git-notes-memory"
+Documentation = "https://github.com/zircote/git-notes-memory#readme"
+Repository = "https://github.com/zircote/git-notes-memory.git"
+"Bug Tracker" = "https://github.com/zircote/git-notes-memory/issues"
+
+[project.scripts]
+git-notes-memory = "git_notes_memory.main:main"
+
+# UV/Astral dependency groups (modern tooling)
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+    "ruff>=0.14.0",
+    "mypy>=1.19.0",
+    "bandit>=1.8.0",
+    "pip-audit>=2.9.0",
+    "build>=1.2.0",
+    "types-PyYAML>=6.0.12",
+    "bump-my-version>=1.1.0",
+]
+
+# Hatch build configuration
+[tool.hatch.version]
+path = "src/git_notes_memory/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/git_notes_memory"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/git_notes_memory/**/*.py"]
+
+# Ruff - Linting and Formatting
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "S",      # flake8-bandit (security)
+]
+ignore = [
+    "E501",    # line length handled by formatter
+    "SIM108",  # ternary operator - prefer explicit if/else for readability
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["git_notes_memory"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "ARG001", "ARG002", "B017", "E402", "F841", "SIM117"]
+"src/git_notes_memory/embedding.py" = ["S101"]  # assert for type narrowing
+"src/git_notes_memory/git_ops.py" = ["S603"]  # subprocess with validated inputs
+"src/git_notes_memory/index.py" = ["S608"]  # SQL placeholders are safe (we generate ? only)
+"src/git_notes_memory/sync.py" = ["S324", "S110", "S112"]  # md5 for content hashing (not security), exception handling patterns
+
+# mypy - Type Checking
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "sentence_transformers.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sqlite_vec.*"
+ignore_missing_imports = true
+
+# pytest - Testing
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-v"]
+filterwarnings = [
+    "error",
+    # SQLite connections may not be closed during test teardown due to GC timing
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+# Coverage
+[tool.coverage.run]
+source = ["src/git_notes_memory"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+fail_under = 80
+
+# Bandit - Security
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv"]
+skips = ["B101"]  # assert_used OK in tests
+
+# bump-my-version - Version Management
+[tool.bumpversion]
+current_version = "0.10.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+tag_message = "Release v{new_version}"
+message = "chore(release): bump version {current_version} → {new_version}"
+allow_dirty = false
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+
+[[tool.bumpversion.files]]
+filename = "src/git_notes_memory/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = ".claude-plugin/plugin.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = ".claude-plugin/marketplace.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
