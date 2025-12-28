@@ -1,0 +1,10 @@
+from enum import StrEnum
+
+
+class VCSProvider(StrEnum):
+    GITEA = "GITEA"
+    GITHUB = "GITHUB"
+    GITLAB = "GITLAB"
+    AZURE_DEVOPS = "AZURE_DEVOPS"
+    BITBUCKET_CLOUD = "BITBUCKET_CLOUD"
+    BITBUCKET_SERVER = "BITBUCKET_SERVER"
