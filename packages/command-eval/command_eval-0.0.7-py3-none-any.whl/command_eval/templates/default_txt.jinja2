@@ -1,0 +1,60 @@
+Evaluation Result: {{ item_id }}
+========================================
+{% if test_input and test_input.actual_input %}
+Actual Input:
+{{ test_input.actual_input }}
+{%- endif %}
+{% if test_case and test_case.actual %}
+
+Actual Output:
+{{ test_case.actual }}
+{%- endif %}
+{% if evaluation_results %}
+
+Evaluation Results:
+{% for result in evaluation_results %}
+----------------------------------------
+SDK: {{ result.sdk }}
+Metric: {{ result.metric }}
+Score: {{ "%.2f"|format(result.score) }}
+Success: {{ "Yes" if result.success else "No" }}
+{%- if result.reason %}
+Reason: {{ result.reason }}
+{%- endif %}
+{%- if result.metadata %}
+{%- if result.metadata.evaluation_model %}
+Model: {{ result.metadata.evaluation_model }}
+{%- endif %}
+{%- if result.metadata.evaluation_cost %}
+Cost: ${{ "%.4f"|format(result.metadata.evaluation_cost) }}
+{%- endif %}
+{%- if result.metadata.threshold %}
+Threshold: {{ result.metadata.threshold }}
+{%- endif %}
+{%- if result.metadata.error %}
+Error: {{ result.metadata.error }}
+{%- endif %}
+{%- endif %}
+{% endfor -%}
+{%- endif %}
+{% if test_case and test_case.evaluation_specs %}
+
+Evaluation Specs:
+{% for spec in test_case.evaluation_specs %}
+----------------------------------------
+SDK: {{ spec.sdk }}
+Metric: {{ spec.metric }}
+{%- if spec.params %}
+Params:
+{%- for key, value in spec.params.items() %}
+  {{ key }}: {{ value if value is string else (value | tojson) }}
+{%- endfor %}
+{%- endif %}
+{% endfor -%}
+{%- endif %}
+========================================
+{%- if execution and execution.result and execution.result.console_output and execution.result.console_output.strip() %}
+
+Console Output:
+{{ execution.result.console_output }}
+{%- endif %}

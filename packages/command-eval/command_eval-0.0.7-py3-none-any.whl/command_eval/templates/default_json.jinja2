@@ -1,0 +1,41 @@
+{
+  "item_id": "{{ item_id }}"
+{%- if test_input and test_input.actual_input %},
+  "actual_input": {{ test_input.actual_input | tojson }}
+{%- endif %}
+{%- if test_case and test_case.actual %},
+  "actual_output": {{ test_case.actual | tojson }}
+{%- endif %}
+{%- if evaluation_results %},
+  "evaluation_results": [
+{%- for result in evaluation_results %}
+    {
+      "sdk": "{{ result.sdk }}",
+      "metric": "{{ result.metric }}",
+      "score": {{ "%.2f"|format(result.score) }},
+      "success": {{ result.success | tojson }}
+{%- if result.reason %},
+      "reason": {{ result.reason | tojson }}
+{%- endif %}
+{%- if result.metadata %},
+      "metadata": {{ result.metadata | tojson }}
+{%- endif %}
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+{%- endif %}
+{%- if test_case and test_case.evaluation_specs %},
+  "evaluation_specs": [
+{%- for spec in test_case.evaluation_specs %}
+    {
+      "sdk": "{{ spec.sdk }}",
+      "metric": "{{ spec.metric }}",
+      "params": {{ spec.params | tojson }}
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+{%- endif %}
+{%- if execution and execution.result and execution.result.console_output and execution.result.console_output.strip() %},
+  "console_output": {{ execution.result.console_output | tojson }}
+{%- endif %}
+}
