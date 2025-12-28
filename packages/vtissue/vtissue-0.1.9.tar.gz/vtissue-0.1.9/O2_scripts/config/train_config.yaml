@@ -1,0 +1,81 @@
+columns:
+  image_id: imageid
+  #phenotype: phenotype
+  x_centroid: X_centroid
+  y_centroid: Y_centroid
+
+data:
+  input_anndata: "/n/scratch/users/a/ajn16/vtissue/data/data_preprocessed.h5ad" #mel1_preprocessed orion_preprocessed
+  output_dir: "/n/scratch/users/a/ajn16/vtissue/results"
+  cache_dir: "/n/scratch/users/a/ajn16/vtissue/results/training_cache/"
+  save_modified_anndata: false
+  group_by: patch #patch image
+
+patching:
+  enabled: true
+  max_cells_per_patch: 1000
+  grid_size: null
+  overlap_fraction: 0.2
+
+spatial:
+  default_mpp: 0.32
+  n_fourier_freqs: 0
+  k_neighbors: 10
+  #radius: 20
+
+loss:
+  lambda_expr_mask: 1
+  lambda_reconstruction: 0
+  lambda_celltype: 0
+  lambda_cnp: 0.2
+  cnp_temperature: 0.1
+  cnp_enable_subsample: true # Prefer full graph; subsample only when graph is very large
+  cnp_max_nodes: 800       # Max valid nodes used in CNP; under this, use full graph
+  cnp_subsample_ratio: 1.0  # Fraction of valid nodes for CNP (1.0 = no subsample)
+  lambda_coord: 0
+  spatial_weight_lambda: 0
+  lambda_token_specialization: 0
+
+masking:
+  edge_ratio: 0.2
+  expr_ratio: 0.5 # works with lambda_expr_mask controls % genes to mask
+  phenotype_ratio: 0.2
+
+model:
+  d_model: 512 #1024
+  n_heads: 8 # 16
+  n_layers: 12
+  dropout: 0.1
+  n_global_tokens: 8
+  n_global_tokens_global: null
+  n_global_tokens_local: null
+
+training:
+  batch_size: 50
+  epochs: 200
+  learning_rate: 0.0001
+  seed: 42
+  test_split: 0.0
+  val_split: 0.2
+  center_on_graph: true
+  save_all_epochs: false # if true, save checkpoints to output_dir/model per epoch
+  resume_from: null # set to a checkpoint path to resume training
+  # Usage examples:
+  #   resume_from: "examples/real_data/output/checkpoint_best.pt"
+  #   resume_from: "examples/real_data/output/model/checkpoint_epoch_5.pt"
+  # Resumes at saved_epoch+1 with model and optimizer state restored
+  leakage:
+    patch_monitor:
+      enabled: false
+    patch_adv:
+      enabled: false
+      lambda_invariance: 0 #0.08
+    leakage_classifier:
+      enabled: flase
+      target: patch # patch or image
+      lambda: 0
+
+memory:
+  policy: auto #eager
+  feature_dtype: float32
+
