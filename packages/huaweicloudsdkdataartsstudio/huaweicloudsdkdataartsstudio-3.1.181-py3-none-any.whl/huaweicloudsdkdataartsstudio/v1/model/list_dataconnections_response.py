@@ -1,0 +1,199 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListDataconnectionsResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'count': 'int',
+        'max_records': 'int',
+        'total_size': 'int',
+        'data_connection_lists': 'list[ApigDataSourceView]'
+    }
+
+    attribute_map = {
+        'count': 'count',
+        'max_records': 'max_records',
+        'total_size': 'total_size',
+        'data_connection_lists': 'data_connection_lists'
+    }
+
+    def __init__(self, count=None, max_records=None, total_size=None, data_connection_lists=None):
+        r"""ListDataconnectionsResponse
+
+        The model defined in huaweicloud sdk
+
+        :param count: 当前分页返回记录数
+        :type count: int
+        :param max_records: 返回记录总数，一个工作空间最多只能创建50条数据连接
+        :type max_records: int
+        :param total_size: 返回当前空间内创建连接的总数
+        :type total_size: int
+        :param data_connection_lists: 返回数据连接列表
+        :type data_connection_lists: list[:class:`huaweicloudsdkdataartsstudio.v1.ApigDataSourceView`]
+        """
+        
+        super().__init__()
+
+        self._count = None
+        self._max_records = None
+        self._total_size = None
+        self._data_connection_lists = None
+        self.discriminator = None
+
+        if count is not None:
+            self.count = count
+        if max_records is not None:
+            self.max_records = max_records
+        if total_size is not None:
+            self.total_size = total_size
+        if data_connection_lists is not None:
+            self.data_connection_lists = data_connection_lists
+
+    @property
+    def count(self):
+        r"""Gets the count of this ListDataconnectionsResponse.
+
+        当前分页返回记录数
+
+        :return: The count of this ListDataconnectionsResponse.
+        :rtype: int
+        """
+        return self._count
+
+    @count.setter
+    def count(self, count):
+        r"""Sets the count of this ListDataconnectionsResponse.
+
+        当前分页返回记录数
+
+        :param count: The count of this ListDataconnectionsResponse.
+        :type count: int
+        """
+        self._count = count
+
+    @property
+    def max_records(self):
+        r"""Gets the max_records of this ListDataconnectionsResponse.
+
+        返回记录总数，一个工作空间最多只能创建50条数据连接
+
+        :return: The max_records of this ListDataconnectionsResponse.
+        :rtype: int
+        """
+        return self._max_records
+
+    @max_records.setter
+    def max_records(self, max_records):
+        r"""Sets the max_records of this ListDataconnectionsResponse.
+
+        返回记录总数，一个工作空间最多只能创建50条数据连接
+
+        :param max_records: The max_records of this ListDataconnectionsResponse.
+        :type max_records: int
+        """
+        self._max_records = max_records
+
+    @property
+    def total_size(self):
+        r"""Gets the total_size of this ListDataconnectionsResponse.
+
+        返回当前空间内创建连接的总数
+
+        :return: The total_size of this ListDataconnectionsResponse.
+        :rtype: int
+        """
+        return self._total_size
+
+    @total_size.setter
+    def total_size(self, total_size):
+        r"""Sets the total_size of this ListDataconnectionsResponse.
+
+        返回当前空间内创建连接的总数
+
+        :param total_size: The total_size of this ListDataconnectionsResponse.
+        :type total_size: int
+        """
+        self._total_size = total_size
+
+    @property
+    def data_connection_lists(self):
+        r"""Gets the data_connection_lists of this ListDataconnectionsResponse.
+
+        返回数据连接列表
+
+        :return: The data_connection_lists of this ListDataconnectionsResponse.
+        :rtype: list[:class:`huaweicloudsdkdataartsstudio.v1.ApigDataSourceView`]
+        """
+        return self._data_connection_lists
+
+    @data_connection_lists.setter
+    def data_connection_lists(self, data_connection_lists):
+        r"""Sets the data_connection_lists of this ListDataconnectionsResponse.
+
+        返回数据连接列表
+
+        :param data_connection_lists: The data_connection_lists of this ListDataconnectionsResponse.
+        :type data_connection_lists: list[:class:`huaweicloudsdkdataartsstudio.v1.ApigDataSourceView`]
+        """
+        self._data_connection_lists = data_connection_lists
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ListDataconnectionsResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListDataconnectionsResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
