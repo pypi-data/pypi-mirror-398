@@ -1,0 +1,219 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aurora-actr"
+version = "0.2.0"
+description = "AURORA: Adaptive Unified Reasoning and Orchestration Architecture with MCP Integration"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    {name = "AURORA Team", email = "aurora@example.com"}
+]
+keywords = ["aurora", "actr", "cognitive-architecture", "semantic-search", "mcp", "reasoning", "soar"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "aurora-core",
+    "aurora-context-code",
+    "aurora-soar",
+    "aurora-reasoning",
+    "aurora-cli",
+    "aurora-testing",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/aurora"
+Documentation = "https://github.com/yourusername/aurora/blob/main/README.md"
+Repository = "https://github.com/yourusername/aurora"
+Issues = "https://github.com/yourusername/aurora/issues"
+Changelog = "https://github.com/yourusername/aurora/blob/main/CHANGELOG.md"
+
+[project.scripts]
+aur = "aurora_cli.main:cli"
+aurora-mcp = "aurora.mcp.server:main"
+aurora-uninstall = "aurora.scripts.uninstall:main"
+
+[project.optional-dependencies]
+ml = [
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+]
+mcp = [
+    "fastmcp>=0.1.0",
+]
+all = [
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "fastmcp>=0.1.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-benchmark>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "types-jsonschema>=4.0.0",
+    "bandit>=1.7.5",
+    "memory-profiler>=0.61.0",
+    "aurora-testing",
+]
+
+# Tool configurations
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",    # line too long
+    "E721",    # type comparison
+    "E722",    # bare except
+    "ARG001",  # unused function argument
+    "ARG002",  # unused method argument
+    "B007",    # unused loop variable
+    "B017",    # assertRaises
+    "B023",    # function uses loop variable
+    "B024",    # abstract base class
+    "B904",    # raise from
+    "ERA001",  # commented code
+    "PERF203", # try-except in loop
+    "PERF401", # list comprehension
+    "PERF402", # list comprehension for set
+    "PLC0415", # import at top
+    "PLR0911", # too many return statements
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLW0602", # global variable not assigned
+    "PLW0603", # global statement
+    "PLW2901", # loop variable overwritten
+    "PTH110",  # exists
+    "PTH118",  # joinpath
+    "PTH123",  # open
+    "SIM102",  # collapsible if
+    "SIM105",  # use contextlib.suppress
+    "SIM108",  # use ternary
+    "SIM117",  # multiple with
+    "UP035",   # deprecated import
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
+"tests/**/*.py" = [
+    "S101",    # assert statements in tests
+    "PLC0415", # import at top-level (tests often import in fixtures/functions)
+    "F841",    # unused local variable (tests often assign for verification)
+    "ARG001",  # unused function argument (fixtures may not use all args)
+    "ARG002",  # unused method argument (test mocks)
+    "PLR0913", # too many arguments (test functions with many fixtures)
+    "PLR0915", # too many statements (complex test scenarios)
+]
+"packages/cli/**/*.py" = [
+    "PLC0415", # import at top-level (CLI uses lazy imports for performance)
+    "PLR0915", # too many statements (CLI command functions are complex)
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "tree_sitter.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "torch"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sentence_transformers"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "aurora_context_code.semantic.embedding_provider"
+warn_unused_ignores = false
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=packages",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=84",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "performance: Performance benchmark tests",
+    "slow: Slow running tests",
+]
+
+[tool.coverage.run]
+source = ["packages"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+precision = 2
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv"]
+skips = ["B101"]  # assert_used in tests is ok
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
