@@ -1,0 +1,173 @@
+[project]
+name = "moai-adk"
+version = "0.35.1"
+description = "MoAI Agentic Development Kit - SPEC-First TDD with Alfred SuperAgent & Unified moai-core-* Skills"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "MoAI Team", email = "support@moduai.kr"}
+]
+keywords = ["agentic", "ai", "claude", "tdd", "spec-first", "alfred", "development", "toolkit"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing"
+]
+dependencies = [
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "pyfiglet>=1.0.2",
+    "questionary>=2.0.0",
+    "InquirerPy>=0.3.4",  # Modern CLI prompts with fuzzy search
+    "gitpython>=3.1.45",
+    "packaging>=21.0",
+    "pyyaml>=6.0",
+    "jinja2>=3.0.0",
+    "requests>=2.28.0",
+    "psutil>=7.1.3",
+    "aiohttp>=3.13.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "google-genai>=1.0.0",  # Gemini 3 Pro image generation (moai-connector-nano-banana)
+    "pillow>=10.0.0",  # Image processing for nano-banana skill
+    "requests>=2.28.0",  # Already included, used for REST API fallback
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "types-PyYAML>=6.0.0",
+    "black>=24.0.0"
+]
+security = [
+    "pip-audit>=2.7.0",
+    "bandit>=1.8.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=src/moai_adk --cov-report=html --cov-report=term-missing"
+markers = [
+    "e2e: End-to-end workflow tests",
+]
+
+[tool.coverage.run]
+source = ["src/moai_adk"]
+omit = ["tests/*", "*/__pycache__/*"]
+parallel = true
+concurrency = ["multiprocessing"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 85
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N"]
+ignore = ["N999"]  # Allow hyphenated module names for skills (moai-workflow-project)
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = false
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+check_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+no_implicit_optional = false
+warn_no_return = false
+warn_unreachable = false
+strict_optional = false
+ignore_missing_imports = true
+
+# Hook scripts bypass strict type checking (local imports)
+[[tool.mypy.overrides]]
+module = ".claude.hooks.moai.*"
+ignore_errors = true
+
+# Core lib modules use standard checking
+[[tool.mypy.overrides]]
+module = ".claude.hooks.moai.lib.*"
+ignore_errors = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/moai_adk"]
+
+[build-system]
+requires = ["hatchling", "rich", "questionary", "click", "pyfiglet", "gitpython", "packaging", "pyyaml", "jinja2", "requests", "psutil", "aiohttp", "pytest-asyncio"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "types-PyYAML>=6.0.0",
+    "black>=24.0.0",
+]
+security = [
+    "pip-audit>=2.7.0",
+    "bandit>=1.8.0",
+]
+
+
+# Exclude developer-only tools and utilities from package distribution
+# Only exclude specific files, not entire directories
+[tool.hatch.build]
+exclude = [
+    "src/moai_adk/templates/.moai/scripts/dev",  # Developer-only utilities
+    "src/moai_adk/templates/.moai/backups",  # Backup files
+    "src/moai_adk/templates/.moai/temp",  # Temporary files
+    "src/moai_adk/templates/.claude/commands/moai/99-release.md",  # Release command - local-only
+    "src/moai_adk/templates/.moai/release",  # Release scripts - local-only
+
+    # ✅ INCLUDE: User-facing workflows (distributed to users)
+    # - ci-universal.yml (Multi-language CI/CD)
+    # - security-secrets-check.yml (Security scanner)
+    # - spec-issue-sync.yml (SPEC → GitHub Issue sync)
+
+    # ❌ EXCLUDE: MoAI-ADK internal workflows (development only)
+    "src/moai_adk/templates/.github/workflows/moai-gitflow.yml",
+    "src/moai_adk/templates/.github/workflows/moai-release-create.yml",
+    "src/moai_adk/templates/.github/workflows/moai-release-pipeline.yml",
+
+    "tests",  # Test directory
+    ".git",  # Git directory
+    ".github/workflows",  # GitHub Actions for MoAI-ADK itself (local development)
+]
+
+[project.scripts]
+moai-adk = "moai_adk.__main__:main"
+moai-worktree = "moai_adk.cli.worktree.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/modu-ai/moai-adk"
+Repository = "https://github.com/modu-ai/moai-adk"
+Issues = "https://github.com/modu-ai/moai-adk/issues"
+Changelog = "https://github.com/modu-ai/moai-adk/releases"
