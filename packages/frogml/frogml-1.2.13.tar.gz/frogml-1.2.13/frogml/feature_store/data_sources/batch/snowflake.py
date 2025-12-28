@@ -1,0 +1,111 @@
+import warnings
+from typing import Optional
+from typing_extensions import Self
+
+from pydantic import Field, model_validator
+
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    BatchSource as ProtoBatchSource,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    SnowflakeSource as ProtoSnowflakeSource,
+)
+from frogml._proto.qwak.feature_store.sources.data_source_pb2 import (
+    DataSourceSpec as ProtoDataSourceSpec,
+)
+from frogml.core.exceptions import FrogmlException
+from frogml.feature_store.data_sources.batch._batch import BaseBatchSource
+
+warnings.simplefilter("once", DeprecationWarning)
+
+
+class SnowflakeSource(BaseBatchSource):
+    host: str
+    username_secret_name: str
+    database: Optional[str] = None
+    schema_name: Optional[str] = Field(
+        default=None, alias="schema", serialization_alias="schema"
+    )
+    warehouse: str
+    password_secret_name: Optional[str] = None
+    pem_private_key_secret_name: Optional[str] = None
+    table: Optional[str] = None
+    query: Optional[str] = None
+
+    @property
+    def schema(self) -> Optional[str]:
+        return self.schema_name
+
+    @model_validator(mode="after")
+    def __validate_snowflake(self) -> Self:
+        if not self.username_secret_name:
+            raise FrogmlException("username_secret_name must be set!")
+
+        if not self.database:
+            raise FrogmlException("database must be set!")
+
+        if not self.schema_name:
+            raise FrogmlException("schema must be set!")
+
+        if self.password_secret_name:
+            warnings.warn(
+                "Snowflake basic authentication is deprecated and should not be used. Use key-pair authentication instead.",
+                DeprecationWarning,
+            )
+
+        no_unique_source_exception_message = "Only one of query or table may be set"
+        has_table = bool(self.table)
+        has_query = bool(self.query)
+        no_source_set = not (has_table or has_query)
+        both_source_set = has_table and has_query
+        if no_source_set or both_source_set:
+            raise FrogmlException(no_unique_source_exception_message)
+
+        no_unique_auth_exception_message = "Exactly one of 'password_secret_name' or 'pem_private_key_secret_name' must be set"
+        has_password_secret = bool(self.password_secret_name)
+        has_pem_private_key_secret = bool(self.pem_private_key_secret_name)
+        no_auth_set = not (has_password_secret or has_pem_private_key_secret)
+        both_auth_set = has_password_secret and has_pem_private_key_secret
+        if no_auth_set or both_auth_set:
+            raise FrogmlException(no_unique_auth_exception_message)
+
+        return self
+
+    def _to_proto(self, artifact_url: Optional[str] = None) -> ProtoDataSourceSpec:
+        return ProtoDataSourceSpec(
+            data_source_repository_name=self.repository,
+            batch_source=ProtoBatchSource(
+                name=self.name,
+                description=self.description,
+                date_created_column=self.date_created_column,
+                snowflakeSource=ProtoSnowflakeSource(
+                    host=self.host,
+                    username_secret_name=self.username_secret_name,
+                    password_secret_name=self.password_secret_name,
+                    pem_private_key_secret_name=self.pem_private_key_secret_name,
+                    database=self.database,
+                    schema=self.schema_name,
+                    warehouse=self.warehouse,
+                    table=self.table,
+                    query=self.query,
+                ),
+            ),
+        )
+
+    @classmethod
+    def _from_proto(cls, proto: ProtoBatchSource) -> Self:
+        snowflake = proto.snowflakeSource
+        return cls(
+            name=proto.name,
+            date_created_column=proto.date_created_column,
+            description=proto.description,
+            host=snowflake.host,
+            username_secret_name=snowflake.username_secret_name,
+            password_secret_name=snowflake.password_secret_name,
+            pem_private_key_secret_name=snowflake.pem_private_key_secret_name,
+            database=snowflake.database,
+            schema=snowflake.schema,
+            warehouse=snowflake.warehouse,
+            table=snowflake.table,
+            query=snowflake.query,
+        )

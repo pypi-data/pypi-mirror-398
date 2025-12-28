@@ -1,0 +1,165 @@
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import List, Optional, ClassVar, Union
+from typing_extensions import Self
+
+from pydantic import BaseModel, model_validator
+
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    DatePartitionColumns as ProtoDatePartitionColumns,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    DayFragmentColumn as ProtoDayFragmentColumn,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    MonthFragmentColumn as ProtoMonthFragmentColumn,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    NumericColumnRepresentation as ProtoNumericColumnRepresentation,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    TextualColumnRepresentation as ProtoTextualColumnRepresentation,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    TimeFragmentedPartitionColumns as ProtoTimeFragmentedPartitionColumns,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    YearFragmentColumn as ProtoYearFragmentColumn,
+)
+
+
+class ColumnRepresentation(Enum):
+    """
+    Time fragment columns representations
+        NumericColumnRepresentation:
+            Year:   2020 | '2020'
+            Month:  2  | '02' | '2'
+            Day:    2  | '02' | '2'
+        TextualColumnRepresentation:
+            Month: 'Jan' | 'JANUARY' (case-insensitive)
+    """
+
+    NumericColumnRepresentation = 1
+    TextualColumnRepresentation = 2
+
+    def _to_proto(
+        self,
+    ) -> Union[ProtoNumericColumnRepresentation, ProtoTextualColumnRepresentation]:
+        if self == ColumnRepresentation.NumericColumnRepresentation:
+            res = ProtoNumericColumnRepresentation()
+        elif self == ColumnRepresentation.TextualColumnRepresentation:
+            res = ProtoTextualColumnRepresentation()
+        else:
+            raise ValueError(
+                f"Unsupported ColumnRepresentation: {self.name}, supported types: {ColumnRepresentation.NumericColumnRepresentation}, {ColumnRepresentation.TextualColumnRepresentation} "
+            )
+        return res
+
+
+class FragmentColumn(BaseModel, ABC):
+    column_name: str
+    representation: ColumnRepresentation
+    _valid_representations: ClassVar[List[ColumnRepresentation]] = []
+
+    @model_validator(mode="after")
+    def __validate_fragment_column(self) -> Self:
+        if self.representation not in self._valid_representations:
+            raise ValueError(
+                f"{self.__class__.__name__} doesn't support representation: {self.representation}, supported types: {self._valid_representations} "
+            )
+        return self
+
+    @abstractmethod
+    def _to_proto(self):
+        pass
+
+
+class YearFragmentColumn(FragmentColumn):
+    _valid_representations = [ColumnRepresentation.NumericColumnRepresentation]
+
+    def _to_proto(self) -> ProtoYearFragmentColumn:
+        return ProtoYearFragmentColumn(
+            column_name=self.column_name,
+            numeric_column_representation=self.representation._to_proto(),
+        )
+
+
+class MonthFragmentColumn(FragmentColumn):
+    _valid_representations = [
+        ColumnRepresentation.NumericColumnRepresentation,
+        ColumnRepresentation.TextualColumnRepresentation,
+    ]
+
+    def _to_proto(self) -> ProtoMonthFragmentColumn:
+        proto_numeric_column_representation = None
+        proto_textual_column_representation = None
+        if self.representation == ColumnRepresentation.NumericColumnRepresentation:
+            proto_numeric_column_representation = self.representation._to_proto()
+        elif self.representation == ColumnRepresentation.TextualColumnRepresentation:
+            proto_textual_column_representation = self.representation._to_proto()
+        else:
+            raise ValueError(
+                f"{self.__class__.__name__} partition doesn't support representation: {self.representation}, supported types: {self._valid_representations} "
+            )
+        return ProtoMonthFragmentColumn(
+            column_name=self.column_name,
+            numeric_column_representation=proto_numeric_column_representation,
+            textual_column_representation=proto_textual_column_representation,
+        )
+
+
+class DayFragmentColumn(FragmentColumn):
+    _valid_representations = [ColumnRepresentation.NumericColumnRepresentation]
+
+    def _to_proto(self) -> ProtoDayFragmentColumn:
+        return ProtoDayFragmentColumn(
+            column_name=self.column_name,
+            numeric_column_representation=self.representation._to_proto(),
+        )
+
+
+class TimePartitionColumns(BaseModel, ABC):
+    @abstractmethod
+    def _to_proto(self) -> Self:
+        pass
+
+
+class DatePartitionColumns(TimePartitionColumns):
+    date_column_name: str
+    date_format: str
+
+    def _to_proto(self) -> ProtoDatePartitionColumns:
+        return ProtoDatePartitionColumns(
+            date_column_name=self.date_column_name,
+            date_format=self.date_format,
+        )
+
+
+class TimeFragmentedPartitionColumns(TimePartitionColumns):
+    year_partition_column: YearFragmentColumn
+    month_partition_column: Optional[MonthFragmentColumn] = None
+    day_partition_column: Optional[DayFragmentColumn] = None
+
+    @model_validator(mode="after")
+    def __validate_time_fragmented_partition_columns(self) -> Self:
+        if not self.month_partition_column and self.day_partition_column:
+            raise ValueError(
+                "If day partition column is set then month partition column must be set as well"
+            )
+
+        return self
+
+    def _to_proto(self) -> ProtoTimeFragmentedPartitionColumns:
+        return ProtoTimeFragmentedPartitionColumns(
+            year_partition_column=self.year_partition_column._to_proto(),
+            month_partition_column=(
+                self.month_partition_column._to_proto()
+                if self.month_partition_column
+                else None
+            ),
+            day_partition_column=(
+                self.day_partition_column._to_proto()
+                if self.day_partition_column
+                else None
+            ),
+        )

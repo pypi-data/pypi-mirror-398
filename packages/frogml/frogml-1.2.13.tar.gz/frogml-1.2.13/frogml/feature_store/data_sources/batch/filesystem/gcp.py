@@ -1,0 +1,50 @@
+from pydantic import model_validator
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    FileSystemConfiguration as ProtoFileSystemConfiguration,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    GcsServiceAccountImpersonation as ProtoGcsServiceAccountImpersonation,
+)
+from frogml._proto.qwak.feature_store.sources.batch_pb2 import (
+    GcsUnauthenticated as ProtoGcsUnauthenticated,
+)
+from frogml.core.exceptions import FrogmlException
+from frogml.feature_store.data_sources.batch.filesystem.base_config import (
+    FileSystemConfiguration,
+)
+
+
+class GcpGcsServiceAccountImpersonation(FileSystemConfiguration):
+    service_account_user: str
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if not self.service_account_user or not self.service_account_user.strip():
+            raise FrogmlException(
+                "Service account user is mandatory for GCS service account impersonation, blanks are invalid"
+            )
+        return self
+
+    def _to_proto(self):
+        return ProtoFileSystemConfiguration(
+            gcs_service_account_impersonation=ProtoGcsServiceAccountImpersonation(
+                service_account_user=self.service_account_user
+            )
+        )
+
+    @classmethod
+    def _from_proto(cls, proto):
+        return GcpGcsServiceAccountImpersonation(
+            service_account_user=proto.service_account_user
+        )
+
+
+class GcpGcsUnauthenticated(FileSystemConfiguration):
+    def _to_proto(self):
+        return ProtoFileSystemConfiguration(
+            gcs_unauthenticated=ProtoGcsUnauthenticated()
+        )
+
+    @classmethod
+    def _from_proto(cls, proto):
+        return GcpGcsUnauthenticated()
