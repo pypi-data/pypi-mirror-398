@@ -1,0 +1,3 @@
+from minjiang_client.qc.hamiltonian import Hamiltonian as Hamiltonian
+
+def solve(ham: Hamiltonian, wave_cache: dict, output_energy_level: int = 2, state0=None, shots=None, evolution: bool = False): ...

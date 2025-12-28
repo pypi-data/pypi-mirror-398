@@ -1,0 +1,23 @@
+from _typeshed import Incomplete
+from minjiang_client.com.file import download_file_to_local as download_file_to_local
+from minjiang_client.compiler.gate_compiler import GateCompiler as GateCompiler
+from minjiang_client.group import Group as Group
+from minjiang_client.languages import lang as lang
+from minjiang_client.plugin.plugin_register import plugin_register as plugin_register
+from minjiang_client.utils import single_decorator as single_decorator
+from minjiang_client.utils.local import get_cache_dir as get_cache_dir
+
+class GateCompilerRegister:
+    def __init__(self) -> None: ...
+    @property
+    def compilers(self): ...
+    @property
+    def compiler_group_mapping(self): ...
+    def clear(self) -> None: ...
+    def set_compiler_group_mapping(self, group_name: str, compiler_name: str): ...
+    def reg_compiler(self, compiler_name: str, plugin_name: str, compiler_class): ...
+    def get_gate_compiler(self, group: Group) -> GateCompiler: ...
+
+gate_compiler_register: GateCompilerRegister
+plugins: Incomplete
+compilers: Incomplete
