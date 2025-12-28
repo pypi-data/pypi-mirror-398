@@ -1,0 +1,85 @@
+Metadata-Version: 2.4
+Name: aiosqlite-strict
+Version: 1.0.3
+Summary: aiosqlite + strict pydantic models
+License: Copyright (c) 2025 Theori Inc.
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in
+        all copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        THE SOFTWARE.
+        
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aiosqlite>=0.22.0
+Requires-Dist: pydantic>=2.12.5
+Provides-Extra: test
+Requires-Dist: pytest>=8.4.2; extra == "test"
+Requires-Dist: pytest-asyncio>=0.26.0; extra == "test"
+Requires-Dist: pytest-cov>=6.3.0; extra == "test"
+Dynamic: license-file
+
+# aiosqlite-strict
+
+Strict Pydantic models on top of aiosqlite.
+
+## Install
+
+```bash
+pip install aiosqlite-strict
+```
+
+## Usage
+
+```python
+import asyncio
+
+import aiosqlite
+from aiosqlite_strict import TableModel
+
+class AppTable(TableModel):
+    ...
+
+class User(AppTable):
+    __indices__ = [("name",)]
+
+    name: str
+    email: str
+
+async def main() -> None:
+    async with aiosqlite.connect(":memory:") as db:
+        await AppTable.sqlite_init(db)
+
+        user1 = await User.create(db, name="name1", email="email1")
+        _ = await User.create(db, name="name2", email="email2")
+
+        async with User.select(db) as cursor:
+            print(await cursor.fetchall())
+
+        await user1.update_one(db, name="name1.1")
+
+        async with User.select(db, "WHERE name=?", ("name1.1",)) as cursor:
+            print(await cursor.fetchall())
+
+asyncio.run(main())
+```
+
+## Development
+
+```bash
+uv run pytest
+```
