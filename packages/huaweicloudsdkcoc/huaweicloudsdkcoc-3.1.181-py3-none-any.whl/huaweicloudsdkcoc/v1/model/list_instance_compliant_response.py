@@ -1,0 +1,141 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListInstanceCompliantResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'count': 'int',
+        'instance_compliant': 'list[InstanceCompliant]'
+    }
+
+    attribute_map = {
+        'count': 'count',
+        'instance_compliant': 'instance_compliant'
+    }
+
+    def __init__(self, count=None, instance_compliant=None):
+        r"""ListInstanceCompliantResponse
+
+        The model defined in huaweicloud sdk
+
+        :param count: 总条数
+        :type count: int
+        :param instance_compliant: 节点合规报告
+        :type instance_compliant: list[:class:`huaweicloudsdkcoc.v1.InstanceCompliant`]
+        """
+        
+        super().__init__()
+
+        self._count = None
+        self._instance_compliant = None
+        self.discriminator = None
+
+        if count is not None:
+            self.count = count
+        if instance_compliant is not None:
+            self.instance_compliant = instance_compliant
+
+    @property
+    def count(self):
+        r"""Gets the count of this ListInstanceCompliantResponse.
+
+        总条数
+
+        :return: The count of this ListInstanceCompliantResponse.
+        :rtype: int
+        """
+        return self._count
+
+    @count.setter
+    def count(self, count):
+        r"""Sets the count of this ListInstanceCompliantResponse.
+
+        总条数
+
+        :param count: The count of this ListInstanceCompliantResponse.
+        :type count: int
+        """
+        self._count = count
+
+    @property
+    def instance_compliant(self):
+        r"""Gets the instance_compliant of this ListInstanceCompliantResponse.
+
+        节点合规报告
+
+        :return: The instance_compliant of this ListInstanceCompliantResponse.
+        :rtype: list[:class:`huaweicloudsdkcoc.v1.InstanceCompliant`]
+        """
+        return self._instance_compliant
+
+    @instance_compliant.setter
+    def instance_compliant(self, instance_compliant):
+        r"""Sets the instance_compliant of this ListInstanceCompliantResponse.
+
+        节点合规报告
+
+        :param instance_compliant: The instance_compliant of this ListInstanceCompliantResponse.
+        :type instance_compliant: list[:class:`huaweicloudsdkcoc.v1.InstanceCompliant`]
+        """
+        self._instance_compliant = instance_compliant
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ListInstanceCompliantResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListInstanceCompliantResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
