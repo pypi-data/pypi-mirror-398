@@ -1,0 +1,109 @@
+# PorosData-Processor
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) 	[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**PorosData-Processor** is a deep text cleaning pipeline specifically designed for **AI for Science** scenarios. Currently, it focuses on fine-grained processing of structured JSON data output from document parsers (**MinerU**), addressing various "hard wounds" in scientific literature when converting to large language model (LLM) readable formats, aiming to ensure academic documents achieve format standardization, token minimization, and logical completeness before input to LLMs.
+
+## 📖 Project Motivation
+
+In the AI for Science field, high-quality data preprocessing is the foundation for models to understand academic literature. Although MinerU provides powerful PDF parsing capabilities, its raw output still faces the following challenges:
+
+* **Formula Damage**: Standard text cleaning rules often accidentally affect LaTeX formulas, leading to loss of scientific meaning.
+* **Structural Fragmentation**: Deep nested JSON and non-standard reference markers interfere with RAG system indexing quality.
+* **Token Waste**: Large amounts of redundant spaces and non-standard characters in academic documents increase LLM inference overhead.
+
+## 🌟 Core Highlights
+
+The emergence of PorosData-Processor is precisely to establish a perfect balance between "cleaning" and "protection".
+
+* **LaTeX Formula Protection**: Automatically identifies and locks inline `$ ... $` and block `$$...$$` formulas to avoid damaging key information during text cleaning.
+* **Code Block Preservation**: Protects Markdown code blocks and inline code.
+* **Placeholder Mechanism**: Uses fixed-width intelligent placeholders to prevent space compression from affecting layout.
+* **Academic Standardization**: Automatically fixes Greek letters (**$\alpha, \beta$**), Roman numerals, and chapter numbering.
+* **Reference Literature Purification**: Unifies diverse citation formats (like `【 1 】`) to standardized `[1]`.
+* **Token Optimization**: Cleans redundant spaces in LaTeX formulas to reduce LLM consumption.
+
+### 🛡️ Intelligent Shield Protection Mechanism
+
+For sensitive content in academic documents, we developed a "preprocessing-cleaning-restoration" three-stage protection process to ensure core information is "zero damage" and ensure absolute safety of sensitive data during the cleaning process:
+
+* **Pre-Shield**: Uses regex engine to lock LaTeX formulas, code blocks and other areas, mapping them to fixed-width placeholders (like `__CLEANLIT_SHIELD_001__`).
+* **Safe Cleaning**: Performs high-strength chapter standardization and whitespace compression on "pure text areas" outside placeholders.
+* **Precise Restoration**: After cleaning, reversely restores placeholders to original literature content.
+
+### 🔌 Modular Extension Plugins
+
+Based on the **Plugin Registry** architecture, developers can easily extend business logic through decorators. This design achieves complete decoupling of cleaning rules from the core pipeline, supporting users to dynamically combine their own Pipeline according to different corpora and research needs.
+
+```python
+@PluginRegistry.register("custom_academic_rule")
+def my_rule(text: str) -> str:
+    # Custom cleaning logic for specific fields (such as physics, biology)
+    return processed_text
+```
+
+## 📊 Core Function Matrix
+
+| **Function Module** | **Problem Solved** | **Example (Input -> Output)** |
+| ------------------------ | ----------------------------------- | ------------------------------------------- |
+| **Chinese-English Punctuation Fix** | Fix mixed punctuation and extra spaces | `"Hello，world"` -> Standardized output |
+| **Reference Literature Standardization** | Unify citation markers like `【1】`, `[ 2 ]` | `【1】` -> `[1]` |
+| **Roman Numeral Conversion** | Unify number representation (like `II`, `III`) | `Chapter II` -> `Chapter 2` |
+| **Chapter Numbering Standardization** | Fix chaotic document structure numbering | `第1章 1.1节` -> `Chapter 1, Section 1.1` |
+| **Greek Letter Conversion** | Convert Greek characters to LaTeX academic symbols | `α + β` -> `\alpha + \beta` |
+| **Whitespace Optimization** | Clear redundant spaces and illegal line breaks | `Text   with spaces` -> Standardized spacing |
+| **LaTeX Formula Compression** | Preprocess spaces in formulas to optimize token consumption | `$ \alpha + \beta $` -> `$\alpha+\beta$` |
+
+## ⚙️ Installation and Naming Specifications
+
+### **⚠️ Important Notice**:
+
+* **PyPI Installation Name**: `PorosData-Processor` (using hyphen `-`)
+* **Python Import Name**: `import porosdata_processor` (using underscore `_`)
+* **Command Line Tool**: `porosdata-processor`
+
+```bash
+pip install porosdata-processor
+```
+
+> **Notice**: Although the PyPI package name is `PorosData-Processor` (with hyphen -), it must be imported using underscore in code: `import porosdata_processor`
+
+```bash
+python -c "import porosdata_processor; print('porosdata_processor imported successfully')"
+```
+
+## 🚀 Quick Start
+
+```python
+from porosdata_processor import TextCleaner
+
+# Method 1: Use default pipeline (recommended)
+cleaner = TextCleaner()
+
+# Method 2: Custom plugin combination
+cleaner = TextCleaner(pipeline=["patterns_cleaning", "greek_to_latex"])
+
+# Execute cleaning
+raw_text = "Identify α particles described in literature 【1】."
+cleaned_text = cleaner.clean(raw_text)
+```
+
+```python
+# Enable advanced options: clean redundant spaces inside formulas
+cleaner = TextCleaner(clean_options={"clean_latex_math_spaces": True})
+
+# Enable only specific plugins
+custom_cleaner = TextCleaner(pipeline=["citation_rules", "greek_to_latex"])
+```
+
+## ✅ Reliability Guarantee
+
+This project adopts a strict unit testing framework, covering the following core dimensions:
+
+* **Core Registration System Coverage**: 100%
+* **Encoding Compatibility Verification**: Supports Windows/Linux/macOS full-platform UTF-8 immune processing
+
+## 🗺️ Development Roadmap
+
+* [ ] **Field-Specific Optimization**: Deep cleaning for arXiv papers and programming language-specific formats.
+* [ ] **AI Model Integration**: Introduce lightweight LLM to assist in identifying cleaning quality.
