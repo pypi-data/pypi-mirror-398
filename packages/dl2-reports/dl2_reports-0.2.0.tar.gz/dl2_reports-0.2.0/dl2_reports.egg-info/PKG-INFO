@@ -1,0 +1,124 @@
+Metadata-Version: 2.4
+Name: dl2-reports
+Version: 0.2.0
+Summary: A Python API for generating Datalys2 reports
+Author-email: kameronbrooks <kameron@creation-wasteland.com>
+Project-URL: Homepage, https://github.com/kameronbrooks/datalys2-reporting-python-api
+Project-URL: Bug Tracker, https://github.com/kameronbrooks/datalys2-reporting-python-api/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=1.0.0
+
+# Datalys2 Reporting Python API
+
+A Python library to build and compile interactive HTML reports using the Datalys2 Reporting framework.
+
+## Installation
+
+```bash
+pip install dl2-reports
+```
+
+## Quick Start
+
+```python
+import pandas as pd
+from dl2_reports import DL2Report
+
+# Create a report
+report = DL2Report(title="My Report")
+
+# Add data
+df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
+report.add_df("my_data", df, compress=True)
+
+# Add a page and visual
+page = report.add_page("Overview")
+page.add_row().add_kpi("my_data", value_column="A", title="Metric A")
+
+# Save to HTML or show in Jupyter
+report.save("report.html")
+report.show()
+```
+
+## Features
+
+### Jupyter Notebook Support
+
+You can render reports directly inside Jupyter Notebooks (including VS Code and JupyterLab).
+
+*   **`report.show(height=800)`**: Displays the report in an iframe.
+*   **Automatic Rendering**: Simply placing the `report` object at the end of a cell will render it automatically.
+
+**Requirements:**
+*   `IPython` must be installed in your environment.
+
+**Pro Tip:** Use `%autoreload` to see your code changes immediately without restarting the kernel:
+```python
+%load_ext autoreload
+%autoreload 2
+```
+
+### Modals
+
+Create detailed overlays that can be triggered from any element.
+
+```python
+# Define a modal
+modal = report.add_modal("details", "Detailed View")
+modal.add_row().add_table("my_data")
+
+# Trigger from a visual
+page.add_row().add_kpi("my_data", "A", "Metric", modal_id="details")
+
+# Or add a dedicated button
+page.add_row().add_modal_button("details", "Open Details")
+```
+
+### Visual Elements (Annotations)
+
+Add trend lines, markers, and custom axes to your charts using `.add_element(type, **kwargs)`.
+
+| Element Type | Description | Key Arguments |
+|--------------|-------------|---------------|
+| `trend` | Displays a trend line. | `coefficients` (e.g., `[intercept, slope]`), `color`, `line_style` (`solid`, `dashed`, `dotted`) |
+| `xAxis` | Vertical line at a specific X value. | `value`, `color`, `label`, `line_style` |
+| `yAxis` | Horizontal line at a specific Y value. | `value`, `color`, `label`, `line_style` |
+| `marker` | A point marker at a specific value. | `value`, `size`, `shape` (`circle`, `square`, `triangle`), `color` |
+| `label` | A text label at a specific value. | `value`, `label`, `font_size`, `font_weight` |
+
+```python
+chart = page.add_row().add_bar("my_data", "A", ["B"])
+chart.add_element("trend", color="#ff0000", line_style="dashed", coefficients=[0, 1.5])
+chart.add_element("yAxis", value=100, label="Target", color="green")
+```
+
+## Available Visuals
+
+All visuals are added to a layout row using `row.add_<type>(...)`.
+
+### Charts & Data
+
+| Method | Description | Key Arguments |
+|--------|-------------|---------------|
+| `add_kpi` | Large metric display. | `dataset_id`, `value_column`, `title` |
+| `add_table` | Interactive data table. | `dataset_id`, `title`, `page_size` |
+| `add_bar` | Clustered or Stacked bar chart. | `dataset_id`, `x_column`, `y_columns` (list), `stacked` (bool) |
+| `add_scatter` | Scatter plot. | `dataset_id`, `x_column`, `y_column` |
+| `add_pie` | Pie or Donut chart. | `dataset_id`, `category_column`, `value_column` |
+| `add_card` | Simple text card. | `title`, `text` |
+
+### Interactive Elements
+
+| Method | Description | Key Arguments |
+|--------|-------------|---------------|
+| `add_modal_button` | A button that opens a modal. | `modal_id`, `button_label` |
+
+> **Note:** Most visuals also support `modal_id` as a keyword argument to enable an "expand" icon that opens a modal on click.
+
+## Documentation
+
+For detailed information on available visuals and configuration, see [DOCUMENTATION.md](DOCUMENTATION.md).
