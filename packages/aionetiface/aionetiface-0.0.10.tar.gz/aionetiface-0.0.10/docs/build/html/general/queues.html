@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Queues &mdash; aionetiface 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Daemons" href="daemons.html" />
+    <link rel="prev" title="Interfaces" href="interfaces.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            aionetiface
+          </a>
+              <div class="version">
+                3.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">General networking</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="basics.html">Basic concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pipes.html">Pipes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="interfaces.html">Interfaces</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Queues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#why-use-message-subscriptions">Why use message subscriptions?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-queues">Using queues</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#final-conclusions">Final conclusions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="daemons.html">Daemons</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../articles/index.html">Knowledge articles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../built/index.html">Feature showcase</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dev/index.html">Development</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">aionetiface</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">General networking</a></li>
+      <li class="breadcrumb-item active">Queues</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/general/queues.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="queues">
+<h1>Queues<a class="headerlink" href="#queues" title="Permalink to this heading"></a></h1>
+<p>If you want to use the push / pull APIs there are some details
+you might find useful. In order to support these APIs the
+software must be able to save messages. It does this by using queues.
+Each queue may be indexed by a message regex and an
+optional tuple for a reply address.</p>
+<p>These queues only exist when a subscription is made. <strong>By default aionetiface
+subscribes to all messages when a destination is provided for a pipe and
+so does the REST API.</strong></p>
+<section id="why-use-message-subscriptions">
+<h2>Why use message subscriptions?<a class="headerlink" href="#why-use-message-subscriptions" title="Permalink to this heading"></a></h2>
+<p>You may know already that UDP offers no delivery guarantees. What this means is most UDP
+protocols (like STUN) end up using randomized IDs in
+requests / responses as kind of an asynchronous form of ‘ordering.’
+There is also the case of UDP being ‘connectionless.’ This means
+you can have a single socket send packets to many destinations.</p>
+<p>What ends up happening is you get messages [on the same socket] that:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p><strong>… Are from different hosts and or ports.</strong></p></li>
+<li><p><strong>… Match different requests.</strong></p></li>
+</ol>
+</div></blockquote>
+<p>So I had the idea of being able to sort messages into queues.
+Such an approach is flexible and is already used by the STUN client.
+Here’s what that looks like in practice.</p>
+</section>
+<section id="using-queues">
+<h2>Using queues<a class="headerlink" href="#using-queues" title="Permalink to this heading"></a></h2>
+<p>A subscription consists of:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">(</span>
+    <span class="sa">b</span><span class="s2">&quot;optional regex msg pattern&quot;</span><span class="p">,</span>
+    <span class="p">(</span><span class="sa">b</span><span class="s2">&quot;optional IP, optional reply port)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>A good way to show queue usage is to look at how its used already by the STUN
+client. Since UDP packets arrives out of order: the TXID of a reply message along
+with the expected reply address is subscribed to. Note that reply addresses
+passed for matching are normalised so IPv6 addresses are fully expanded.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sub</span> <span class="o">=</span> <span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">txn_id</span><span class="p">),</span> <span class="n">reply_addr</span><span class="p">)</span>
+<span class="n">pipe</span><span class="o">.</span><span class="n">subscribe</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>By default if you await pipe.recv() – what you’re really doing is awaiting
+the queue for SUB_ALL – a queue that matches all messages and senders –
+that gets setup automatically when no message handers are setup for a pipe
+and the pipe has a destination set.</p>
+</section>
+<section id="final-conclusions">
+<h2>Final conclusions<a class="headerlink" href="#final-conclusions" title="Permalink to this heading"></a></h2>
+<p>Messages are delivered to every matching subscription queues. If you subscribe to
+a specific pattern / tup you may end up with copies of every message because by
+default pipes with a destination (and no associated msg_cb handlers) subscribe
+to all messages. To unsubscribe from all messages:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pipe</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">(</span><span class="n">SUB_ALL</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This design is probably a terrible idea but it’s meant for control, not speed.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="interfaces.html" class="btn btn-neutral float-left" title="Interfaces" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="daemons.html" class="btn btn-neutral float-right" title="Daemons" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
