@@ -1,0 +1,32 @@
+from _typeshed import Incomplete
+
+THz: float
+thz: float
+terahertz: float
+GHz: float
+ghz: float
+gigahertz: float
+Mhz: Incomplete
+mhz: Incomplete
+megahertz: Incomplete
+KHz: Incomplete
+khz: Incomplete
+kilohertz: Incomplete
+Hz: Incomplete
+hz: Incomplete
+hertz: Incomplete
+ps: float
+picosecond: float
+ns: float
+nanosecond: float
+us: float
+microsecond: float
+ms: float
+millisecond: float
+s: float
+second: float
+rad: float
+degree: Incomplete
+pi: Incomplete
+au: float
+arbitraryunit: float
