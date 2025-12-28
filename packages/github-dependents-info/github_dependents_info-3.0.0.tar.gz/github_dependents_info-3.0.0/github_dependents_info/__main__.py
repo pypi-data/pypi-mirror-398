@@ -1,0 +1,186 @@
+import logging
+from typing import Annotated
+
+import typer
+from github_dependents_info import version
+from github_dependents_info.gh_dependents_info import GithubDependentsInfo
+from rich.console import Console
+
+app = typer.Typer(
+    name="github-dependents-info",
+    help="""Collect information about dependencies between a github repo and other repositories.
+         Results available in JSON, markdown and badges.""",
+    add_completion=False,
+)
+console = Console()
+
+
+def version_callback(print_version: bool) -> None:
+    """Print the version of the package."""
+    if print_version:
+        console.print(f"[yellow]github-dependents-info[/] version: [bold blue]{version}[/]")
+        raise typer.Exit()
+
+
+@app.command(name="")
+def main(
+    repo: str = typer.Option(None, "-r", "--repo", help="Repository (ex: oxsecurity/megalinter)"),
+    outputrepo: str = typer.Option(None, "-z", "--outputrepo", help="Output repository (ex: oxsecurity/megalinter)"),
+    markdown_file: str = typer.Option(None, "-m", "--markdownfile", help="Output Markdown file path"),
+    badge_markdown_file: str = typer.Option(
+        None,
+        "-b",
+        "--badgemarkdownfile",
+        help="""Path to markdown file to insert/update Used By badge between tags
+             <!-- gh-dependents-info-used-by-start --><!-- gh-dependents-info-used-by-end -->""",
+    ),
+    doc_url: str = typer.Option(
+        None, "-d", "--docurl", help="Hyperlink to use when clicking on badge markdown file badge"
+    ),
+    badge_color: str = typer.Option("informational", "-c", "--markdownbadgecolor", help="Markdown badge color"),
+    sort_key: str = typer.Option(None, "-s", "--sort", help="Sort of name(default) or stars"),
+    min_stars: int = typer.Option(None, "-x", "--minstars", help="Filter dependents with less than X stars"),
+    time_delay: float = typer.Option(0.1, "-t", "--timedelay", help="seconds delayed between two requests to github"),
+    json_output: bool = typer.Option(
+        False,
+        "-j",
+        "--json",
+        help="Output in JSON format",
+    ),
+    csv_directory: str = typer.Option(
+        None,
+        "--csvdirectory",
+        help="Path to directory for CSV files",
+    ),
+    merge_packages: bool = typer.Option(
+        False,
+        "-p",
+        "--mergepackages",
+        help="In case of multiple packages, merges results into a single list",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Prints the version of github-dependents-info package",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "-o",
+        "--overwrite",
+        help="Overwrite existing CSV files in provided csv_directory. Default is to resume from existing progress.",
+    ),
+    print_version: bool = typer.Option(
+        None,
+        "-v",
+        "--version",
+        callback=version_callback,
+        is_eager=True,
+        help="Prints the version of the github-dependents-info package.",
+    ),
+    owner: str = typer.Option(
+        None, "-u", "--owner", help="Filter dependent repositories with a specific owner (ex: oxsecurity)"
+    ),
+    max_scraped_pages: int = typer.Option(
+        0, "-n", "--max-scraped-pages", help="Maximum number of pages to scrape per package (0 means no limit)"
+    ),
+    pagination: bool = typer.Option(
+        True, "--pagination/--no-pagination", help="Enable pagination to split results into multiple files"
+    ),
+    page_size: int = typer.Option(500, "--page-size", help="Number of results per page when pagination is enabled"),
+    llm_summary: Annotated[
+        bool | None,
+        typer.Option(
+            "--llm-summary/--no-llm-summary",
+            help=(
+                "Generate an AI usage summary in the markdown output when an LLM API key is present "
+                "(default: enabled)."
+            ),
+        ),
+    ] = None,
+    llm_model: str = typer.Option(
+        None,
+        "--llm-model",
+        help=(
+            "LiteLLM model to use for summary generation. If not set, a lightweight model is selected "
+            "based on the API key provider."
+        ),
+    ),
+    llm_max_repos: int = typer.Option(
+        None,
+        "--llm-max-repos",
+        help="Max dependent repos to include in the LLM prompt payload (default: 80).",
+    ),
+    llm_max_words: int = typer.Option(
+        None,
+        "--llm-max-words",
+        help="Max words for the generated summary (default: 300).",
+    ),
+    llm_timeout: float = typer.Option(
+        None,
+        "--llm-timeout",
+        help="Timeout (seconds) for the LLM call (default: 120).",
+    ),
+) -> None:
+    # Init logger
+    if verbose is True:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
+    # Check minimum arguments
+    if repo is None:
+        raise ValueError("--repo argument is mandatory")
+    else:
+        # Manage default values :)
+        if outputrepo is None:
+            outputrepo = repo
+        if sort_key is None:
+            sort_key = "name"
+        if min_stars is None:
+            min_stars = 0
+        # Create GithubDependentsInfo instance
+        gh_options = {
+            "outputrepo": outputrepo,
+            "debug": verbose,
+            "overwrite_progress": overwrite,
+            "sort_key": sort_key,
+            "min_stars": min_stars,
+            "json_output": json_output,
+            "csv_directory": csv_directory,
+            "badge_markdown_file": badge_markdown_file,
+            "doc_url": doc_url,
+            "markdown_file": markdown_file,
+            "badge_color": badge_color,
+            "merge_packages": merge_packages,
+            "owner": owner,
+            "time_delay": time_delay,
+            "max_scraped_pages": max_scraped_pages,
+            "pagination": pagination,
+            "page_size": page_size,
+        }
+        # Only pass LLM options if explicitly provided, to keep env-based defaults working
+        if llm_summary is not None:
+            gh_options["llm_summary"] = llm_summary
+        if llm_model is not None:
+            gh_options["llm_model"] = llm_model
+        if llm_max_repos is not None:
+            gh_options["llm_max_repos"] = llm_max_repos
+        if llm_max_words is not None:
+            gh_options["llm_max_words"] = llm_max_words
+        if llm_timeout is not None:
+            gh_options["llm_timeout"] = llm_timeout
+
+        gh_deps_info = GithubDependentsInfo(repo, **gh_options)
+        # Collect data
+        gh_deps_info.collect()
+        # Write output markdown
+        if markdown_file is not None:
+            gh_deps_info.build_markdown(file=markdown_file)
+        # Update existing markdown to add badge
+        if badge_markdown_file is not None:
+            gh_deps_info.write_badge(badge_markdown_file, "total_doc_url")
+        # Print text or json result
+        gh_deps_info.print_result()
+
+
+if __name__ == "__main__":
+    app()
