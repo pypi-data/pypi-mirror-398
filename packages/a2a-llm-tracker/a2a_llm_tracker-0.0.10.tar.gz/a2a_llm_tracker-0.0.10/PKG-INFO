@@ -1,0 +1,159 @@
+Metadata-Version: 2.4
+Name: a2a-llm-tracker
+Version: 0.0.10
+Summary: A short description of your package
+Author-email: Nischal Bhandari <nischal@boomconsole.com>
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Requires-Dist: mftsccs>=0.1.7
+Requires-Dist: litellm
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Requires-Dist: python-dotenv; extra == "dev"
+
+# a2a-llm-tracker
+
+Track LLM usage and costs across providers (OpenAI, Gemini, Anthropic, etc.) from a single place.
+
+## Installation
+
+```bash
+pip install a2a-llm-tracker
+```
+
+## Quick Start (Recommended Pattern)
+
+For applications making multiple LLM calls, use a singleton pattern to initialize once and reuse everywhere.
+
+### Step 1: Create a tracking module
+
+Create `tracking.py` in your project:
+
+```python
+# tracking.py
+import os
+import asyncio
+import concurrent.futures
+from a2a_llm_tracker import init
+
+_meter = None
+
+def get_meter():
+    """Get or initialize the global meter singleton."""
+    global _meter
+    if _meter is None:
+        try:
+            client_id = os.getenv("CLIENT_ID", "")
+            client_secret = os.getenv("CLIENT_SECRET", "")
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    init(client_id, client_secret, "my-app")
+                )
+                _meter = future.result(timeout=5)
+
+        except Exception as e:
+            print(f"LLM tracking initialization failed: {e}")
+            return None
+    return _meter
+```
+
+### Step 2: Use it anywhere
+
+```python
+from openai import OpenAI
+from a2a_llm_tracker import analyze_response, ResponseType
+from tracking import get_meter
+
+def call_openai(prompt: str):
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    # Track usage
+    meter = get_meter()
+    if meter:
+        analyze_response(response, ResponseType.OPENAI, meter)
+
+    return response
+```
+
+### Environment Variables
+
+Set your CCS credentials:
+
+```bash
+export CLIENT_ID=your_client_id
+export CLIENT_SECRET=your_client_secret
+export OPENAI_API_KEY=sk-xxxxx
+```
+
+## Query Total Usage & Costs
+
+Retrieve your accumulated costs and token usage from CCS:
+
+```python
+import os
+import asyncio
+from a2a_llm_tracker import init
+from a2a_llm_tracker.sources import CCSSource
+
+async def get_total_usage():
+    client_id = os.getenv("CLIENT_ID")
+    client_secret = os.getenv("CLIENT_SECRET")
+
+    await init(
+        client_id=client_id,
+        client_secret=client_secret,
+        application_name="my-app",
+    )
+
+    source = CCSSource(int(client_id))
+    total_cost = await source.count_cost()
+    total_tokens = await source.count_total_tokens()
+
+    print(f"Total cost: ${total_cost:.4f}")
+    print(f"Total tokens: {total_tokens}")
+
+asyncio.run(get_total_usage())
+```
+
+## Supported Providers
+
+| Provider | ResponseType |
+|----------|-------------|
+| OpenAI | `ResponseType.OPENAI` |
+| Google Gemini | `ResponseType.GEMINI` |
+| Anthropic | `ResponseType.ANTHROPIC` |
+| Cohere | `ResponseType.COHERE` |
+| Mistral | `ResponseType.MISTRAL` |
+| Groq | `ResponseType.GROQ` |
+| Together AI | `ResponseType.TOGETHER` |
+| AWS Bedrock | `ResponseType.BEDROCK` |
+| Google Vertex AI | `ResponseType.VERTEX` |
+
+## Documentation
+
+- [LiteLLM Wrapper](docs/litellm-wrapper.md) - Auto-tracking via LiteLLM
+- [CCS Integration](docs/ccs-integration.md) - Centralized tracking setup
+- [Response Analysis](docs/response-analysis.md) - Direct SDK tracking
+- [Pricing](docs/pricing.md) - Custom pricing configuration
+- [Building](docs/building.md) - Development and publishing
+
+## What This Package Does NOT Do
+
+- Guess exact billing from raw text
+- Replace provider SDKs
+- Upload data anywhere automatically
+- Require a backend or SaaS
