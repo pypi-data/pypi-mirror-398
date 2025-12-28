@@ -1,0 +1,193 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class BatchAddMembersRequestBody:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'images': 'list[str]',
+        'projects': 'list[str]',
+        'domains': 'list[str]',
+        'organizations': 'list[str]'
+    }
+
+    attribute_map = {
+        'images': 'images',
+        'projects': 'projects',
+        'domains': 'domains',
+        'organizations': 'organizations'
+    }
+
+    def __init__(self, images=None, projects=None, domains=None, organizations=None):
+        r"""BatchAddMembersRequestBody
+
+        The model defined in huaweicloud sdk
+
+        :param images: 镜像ID列表
+        :type images: list[str]
+        :param projects: 项目ID列表
+        :type projects: list[str]
+        :param domains: 账号ID列表
+        :type domains: list[str]
+        :param organizations: 组织URN列表
+        :type organizations: list[str]
+        """
+        
+        
+
+        self._images = None
+        self._projects = None
+        self._domains = None
+        self._organizations = None
+        self.discriminator = None
+
+        self.images = images
+        self.projects = projects
+        if domains is not None:
+            self.domains = domains
+        if organizations is not None:
+            self.organizations = organizations
+
+    @property
+    def images(self):
+        r"""Gets the images of this BatchAddMembersRequestBody.
+
+        镜像ID列表
+
+        :return: The images of this BatchAddMembersRequestBody.
+        :rtype: list[str]
+        """
+        return self._images
+
+    @images.setter
+    def images(self, images):
+        r"""Sets the images of this BatchAddMembersRequestBody.
+
+        镜像ID列表
+
+        :param images: The images of this BatchAddMembersRequestBody.
+        :type images: list[str]
+        """
+        self._images = images
+
+    @property
+    def projects(self):
+        r"""Gets the projects of this BatchAddMembersRequestBody.
+
+        项目ID列表
+
+        :return: The projects of this BatchAddMembersRequestBody.
+        :rtype: list[str]
+        """
+        return self._projects
+
+    @projects.setter
+    def projects(self, projects):
+        r"""Sets the projects of this BatchAddMembersRequestBody.
+
+        项目ID列表
+
+        :param projects: The projects of this BatchAddMembersRequestBody.
+        :type projects: list[str]
+        """
+        self._projects = projects
+
+    @property
+    def domains(self):
+        r"""Gets the domains of this BatchAddMembersRequestBody.
+
+        账号ID列表
+
+        :return: The domains of this BatchAddMembersRequestBody.
+        :rtype: list[str]
+        """
+        return self._domains
+
+    @domains.setter
+    def domains(self, domains):
+        r"""Sets the domains of this BatchAddMembersRequestBody.
+
+        账号ID列表
+
+        :param domains: The domains of this BatchAddMembersRequestBody.
+        :type domains: list[str]
+        """
+        self._domains = domains
+
+    @property
+    def organizations(self):
+        r"""Gets the organizations of this BatchAddMembersRequestBody.
+
+        组织URN列表
+
+        :return: The organizations of this BatchAddMembersRequestBody.
+        :rtype: list[str]
+        """
+        return self._organizations
+
+    @organizations.setter
+    def organizations(self, organizations):
+        r"""Sets the organizations of this BatchAddMembersRequestBody.
+
+        组织URN列表
+
+        :param organizations: The organizations of this BatchAddMembersRequestBody.
+        :type organizations: list[str]
+        """
+        self._organizations = organizations
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, BatchAddMembersRequestBody):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
