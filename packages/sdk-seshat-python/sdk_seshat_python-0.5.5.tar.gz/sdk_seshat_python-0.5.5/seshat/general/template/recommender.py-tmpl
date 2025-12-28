@@ -1,0 +1,51 @@
+import os
+
+from dotenv import load_dotenv
+
+from seshat.feature_view.base import FeatureView
+from seshat.source.local import LocalSource
+from seshat.source.saver.database import SQLDBSaver
+from seshat.transformer.pipeline import Pipeline
+from seshat.source.saver.base import SaveConfig
+from seshat.transformer.schema import Schema, Col
+from seshat.transformer.splitter.block import BlockSplitter
+
+
+class TokenRecommendationView(FeatureView):
+    name = "Token Recommendation Feature View"
+    online = False
+
+    offline_source = LocalSource(
+        path="./data/data.csv",
+        schema=Schema([Col("some_column", "new_name"), Col("another_col")]),
+    )
+    online_source = ...
+    # The source can be local, database or else.
+    # for local source, you can use current defined and for
+    # sql database source:
+    # SQLDBSource(url=DB_URL, table_name="your_table_name")
+
+    offline_pipeline = Pipeline(pipes=[])
+    online_pipeline = Pipeline(pipes=[])
+    # Inside every pipeline you can use different transformers.
+    # These transformers will be run in order step by step.
+    # For example:
+    # pipes=[LowTransactionTrimmer(), FeatureTrimmer()]
+
+    splitter = BlockSplitter(percent=0.7)
+
+    saver = SQLDBSaver(
+        url=os.getenv("DB_URL"), save_configs=[SaveConfig(table=..., sf_key=...)]
+    )
+    # Saver only use in offline mode. By define extra SaveConfigs
+    # you can manage saving process. For example:
+    # save_configs = [
+    #     SaveConfig(
+    #         sf_key="your_sf_key",
+    #         table="your_table_name",
+    #         strategy="update",
+    #         schema=Schema(
+    #             cols=[...],
+    #         ),
+    #     )
+    # ]
