@@ -1,0 +1,46 @@
+# This package has been renamed to cross-web.
+# This module re-exports all symbols from cross for backwards compatibility.
+
+from cross import (
+    AiohttpHTTPRequestAdapter,
+    AsyncDjangoHTTPRequestAdapter,
+    AsyncFlaskHTTPRequestAdapter,
+    AsyncHTTPRequest,
+    AsyncHTTPRequestAdapter,
+    BaseRequestProtocol,
+    ChaliceHTTPRequestAdapter,
+    Cookie,
+    DjangoHTTPRequestAdapter,
+    FlaskHTTPRequestAdapter,
+    FormData,
+    HTTPException,
+    LitestarRequestAdapter,
+    QuartHTTPRequestAdapter,
+    Response,
+    SanicHTTPRequestAdapter,
+    StarletteRequestAdapter,
+    SyncHTTPRequestAdapter,
+    TestingRequestAdapter,
+)
+
+__all__ = [
+    "AiohttpHTTPRequestAdapter",
+    "AsyncDjangoHTTPRequestAdapter",
+    "AsyncFlaskHTTPRequestAdapter",
+    "AsyncHTTPRequest",
+    "AsyncHTTPRequestAdapter",
+    "BaseRequestProtocol",
+    "ChaliceHTTPRequestAdapter",
+    "Cookie",
+    "DjangoHTTPRequestAdapter",
+    "FlaskHTTPRequestAdapter",
+    "FormData",
+    "HTTPException",
+    "LitestarRequestAdapter",
+    "QuartHTTPRequestAdapter",
+    "Response",
+    "SanicHTTPRequestAdapter",
+    "StarletteRequestAdapter",
+    "SyncHTTPRequestAdapter",
+    "TestingRequestAdapter",
+]
