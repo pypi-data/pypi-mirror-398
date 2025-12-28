@@ -1,0 +1,166 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListSiteNetworkCapabilitiesRequest:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'specification': 'list[str]',
+        'limit': 'int',
+        'marker': 'str'
+    }
+
+    attribute_map = {
+        'specification': 'specification',
+        'limit': 'limit',
+        'marker': 'marker'
+    }
+
+    def __init__(self, specification=None, limit=None, marker=None):
+        r"""ListSiteNetworkCapabilitiesRequest
+
+        The model defined in huaweicloud sdk
+
+        :param specification: 根据分支网络租户能力名查询，可查询多个类型。
+        :type specification: list[str]
+        :param limit: 每页返回的个数。 取值范围：1~2000。
+        :type limit: int
+        :param marker: 翻页信息，从上次API调用返回的翻页数据中获取，可填写前一页marker或者后一页marker，填入前一页previous_marker就向前翻页，后一页next_marker就向后翻页。 翻页过程中，查询条件不能修改，包括过滤条件、排序条件、limit。
+        :type marker: str
+        """
+        
+        
+
+        self._specification = None
+        self._limit = None
+        self._marker = None
+        self.discriminator = None
+
+        if specification is not None:
+            self.specification = specification
+        if limit is not None:
+            self.limit = limit
+        if marker is not None:
+            self.marker = marker
+
+    @property
+    def specification(self):
+        r"""Gets the specification of this ListSiteNetworkCapabilitiesRequest.
+
+        根据分支网络租户能力名查询，可查询多个类型。
+
+        :return: The specification of this ListSiteNetworkCapabilitiesRequest.
+        :rtype: list[str]
+        """
+        return self._specification
+
+    @specification.setter
+    def specification(self, specification):
+        r"""Sets the specification of this ListSiteNetworkCapabilitiesRequest.
+
+        根据分支网络租户能力名查询，可查询多个类型。
+
+        :param specification: The specification of this ListSiteNetworkCapabilitiesRequest.
+        :type specification: list[str]
+        """
+        self._specification = specification
+
+    @property
+    def limit(self):
+        r"""Gets the limit of this ListSiteNetworkCapabilitiesRequest.
+
+        每页返回的个数。 取值范围：1~2000。
+
+        :return: The limit of this ListSiteNetworkCapabilitiesRequest.
+        :rtype: int
+        """
+        return self._limit
+
+    @limit.setter
+    def limit(self, limit):
+        r"""Sets the limit of this ListSiteNetworkCapabilitiesRequest.
+
+        每页返回的个数。 取值范围：1~2000。
+
+        :param limit: The limit of this ListSiteNetworkCapabilitiesRequest.
+        :type limit: int
+        """
+        self._limit = limit
+
+    @property
+    def marker(self):
+        r"""Gets the marker of this ListSiteNetworkCapabilitiesRequest.
+
+        翻页信息，从上次API调用返回的翻页数据中获取，可填写前一页marker或者后一页marker，填入前一页previous_marker就向前翻页，后一页next_marker就向后翻页。 翻页过程中，查询条件不能修改，包括过滤条件、排序条件、limit。
+
+        :return: The marker of this ListSiteNetworkCapabilitiesRequest.
+        :rtype: str
+        """
+        return self._marker
+
+    @marker.setter
+    def marker(self, marker):
+        r"""Sets the marker of this ListSiteNetworkCapabilitiesRequest.
+
+        翻页信息，从上次API调用返回的翻页数据中获取，可填写前一页marker或者后一页marker，填入前一页previous_marker就向前翻页，后一页next_marker就向后翻页。 翻页过程中，查询条件不能修改，包括过滤条件、排序条件、limit。
+
+        :param marker: The marker of this ListSiteNetworkCapabilitiesRequest.
+        :type marker: str
+        """
+        self._marker = marker
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListSiteNetworkCapabilitiesRequest):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
