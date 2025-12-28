@@ -1,0 +1,167 @@
+# 终端五子棋 (Gomoku Terminal)
+
+一个基于终端的五子棋游戏，支持人机对战，使用键盘控制光标进行游戏。
+
+## ✨ 特性
+
+- 🎮 **键盘控制** - 使用方向键或WASD移动光标
+- 🤖 **三种AI难度** - 简单、中等、困难可选
+- 🎨 **彩色界面** - 使用curses库实现美观的终端界面
+- 🎯 **完整的游戏逻辑** - 五子连珠判定、胜负判断
+- 📦 **易于安装** - 通过pip一键安装
+
+## 🚀 安装
+
+### 从 PyPI 安装（发布后）
+
+```bash
+pip install gomoku-terminal
+```
+
+### 从源码安装
+
+```bash
+git clone https://github.com/yourusername/gomoku-terminal.git
+cd gomoku-terminal
+pip install -e .
+```
+
+### Windows 用户注意
+
+Windows系统需要安装 `windows-curses`：
+
+```bash
+pip install windows-curses
+```
+
+## 🎮 使用方法
+
+### 启动游戏
+
+```bash
+# 默认中等难度
+gomoku
+
+# 指定难度
+gomoku -d easy      # 简单
+gomoku -d medium    # 中等
+gomoku -d hard      # 困难
+
+# 查看帮助
+gomoku --help
+
+# 查看版本
+gomoku --version
+```
+
+### 游戏操作
+
+- **方向键** 或 **WASD** - 移动光标
+- **Enter** 或 **空格** - 在光标位置落子
+- **Q** - 退出游戏
+- **R** - 重新开始
+- **H** - 显示帮助
+
+## 🎯 游戏规则
+
+在25×25的棋盘上，玩家（黑棋 X/●）与AI（白棋 O/○）轮流落子，率先形成横、竖、斜任意方向的连续五子者获胜。
+
+**符号说明：**
+- 游戏会自动检测终端是否支持 Unicode 字符
+- 如果支持：使用 `●`（黑棋）、`○`（白棋）、`◆`（光标）、`·`（空位）
+- 如果不支持：使用 `X`（黑棋）、`O`（白棋）、`#`（光标）、`+`（空位）
+
+**光标显示：**
+- 光标位置始终以反色高亮显示（黑底白字或白底黑字）
+- 即使该位置已有棋子，也能清晰看到光标
+- 状态栏实时显示当前光标坐标（如 A1, M13 等）
+
+## 🤖 AI难度说明
+
+| 难度 | 特点 | 适合玩家 |
+|------|------|---------|
+| **简单** | 基础攻守策略，会防守和简单进攻 | 新手玩家 |
+| **中等** | 全局评分系统，攻守平衡 | 普通玩家 |
+| **困难** | Minimax搜索算法，有深度思考 | 高级玩家 |
+
+## 📸 游戏截图
+
+```
+=== Terminal Gomoku - VS AI ===
+
+   A B C D E F G H I J K L M N O P Q R S T U V W X Y
+ 1 + + + + + + + + + + + + + + + + + + + + + + + + +
+ 2 + + + + + + + + + + + + + + + + + + + + + + + + +
+ ...
+12 + + + + + + + + + + + + + # + + + + + + + + + + +  <- Cursor (Reverse color)
+13 + + + + + + + + + X + + + + + + + + + + + + + + +
+14 + + + + + + + + + + O + + + + + + + + + + + + + +
+...
+25 + + + + + + + + + + + + + + + + + + + + + + + + +
+
+Difficulty: Medium | Turn: 12 | Position: (N12) | Current: Player(X)
+
+Controls: Arrow Keys or WASD - Move cursor
+          Enter/Space - Place stone | Q - Quit | R - Restart
+```
+
+**特色功能：**
+- ✨ **25×25 大棋盘** - 更大的游戏空间
+- 🎯 **反色光标** - 即使有棋子也能清晰看到当前位置
+- 📍 **坐标显示** - 状态栏实时显示光标坐标
+
+**注意：** 如果您的终端支持 Unicode，将显示 ●○◆· 等更美观的字符。
+
+## 🛠️ 开发
+
+### 项目结构
+
+```
+gomoku/
+├── __init__.py      # 包初始化
+├── __main__.py      # 程序入口
+├── board.py         # 棋盘类
+├── ai.py            # AI引擎
+├── game.py          # 游戏逻辑
+└── ui.py            # UI界面
+```
+
+### 运行测试
+
+```bash
+python -m pytest tests/
+```
+
+### 本地运行
+
+```bash
+python -m gomoku
+```
+
+## 📝 待办事项
+
+- [ ] 添加游戏记录保存/加载功能
+- [ ] 支持悔棋功能
+- [ ] 添加游戏回放
+- [ ] 支持自定义棋盘大小
+- [ ] 添加更多AI算法
+
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+## 👤 作者
+
+Your Name - your.email@example.com
+
+## 🙏 致谢
+
+感谢所有为这个项目做出贡献的开发者！
+
+## 🐛 问题反馈
+
+如果您发现任何问题或有改进建议，请在 [Issues](https://github.com/yourusername/gomoku-terminal/issues) 页面提交。
+
+---
+
+⭐ 如果您喜欢这个项目，请给它一个星标！
