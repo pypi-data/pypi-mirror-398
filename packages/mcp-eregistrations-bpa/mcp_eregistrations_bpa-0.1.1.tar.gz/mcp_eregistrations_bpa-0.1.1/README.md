@@ -1,0 +1,261 @@
+# MCP eRegistrations BPA
+
+An MCP (Model Context Protocol) server that bridges AI agents to the eRegistrations Business Process Analyzer (BPA) platform. This enables AI assistants like Claude to read, analyze, and modify government service configurations directly through the BPA REST API.
+
+## Overview
+
+**MCP eRegistrations BPA** transforms AI from an advisor that explains _how_ to configure services into an operator that _executes_ configurations. Service designers can now use natural language to:
+
+- Query services, registrations, roles, BOTs, determinants, and their relationships
+- Validate configurations, detect issues, and check cross-table consistency
+- Create, update, and link BPA objects with full audit trail and rollback capability
+
+## Features
+
+- **Service Operations**: List, read, create, and update BPA services
+- **Registration Management**: Full CRUD operations on registrations
+- **Form Fields**: Access and modify form field configurations within services
+- **Determinants**: Manage conditional logic and visibility rules
+- **Actions**: Configure component actions and workflows
+- **Roles & BOTs**: Manage workflow automation objects
+- **Document Requirements**: Handle document-related configurations
+- **Cost Management**: Manage fees and cost structures
+- **Analysis Tools**: Analyze service configurations and dependencies
+- **Audit Trail**: Complete logging of all operations (who, what, when, why)
+- **Rollback Capability**: Undo any write operation to restore previous state
+
+## Installation
+
+### Prerequisites
+
+- Python 3.11 or higher
+- [uv](https://github.com/astral-sh/uv) package manager (recommended)
+- Access to a BPA instance with Keycloak authentication
+
+### Install with uv
+
+```bash
+# Clone the repository
+git clone https://github.com/unctad-ai/mcp-eregistrations-bpa.git
+cd mcp-eregistrations-bpa
+
+# Install dependencies
+uv sync
+```
+
+### Quick Start with uvx
+
+```bash
+uvx mcp-eregistrations-bpa
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable           | Description                                                                    | Required |
+| ------------------ | ------------------------------------------------------------------------------ | -------- |
+| `BPA_INSTANCE_URL` | Base URL of your BPA instance (e.g., `https://bpa.dev.els.eregistrations.org`) | Yes      |
+| `KEYCLOAK_URL`     | Keycloak base URL (e.g., `https://auth.eregistrations.org`)                    | Yes      |
+| `KEYCLOAK_REALM`   | Keycloak realm name (e.g., `eregistrations`)                                   | Yes      |
+
+### Example Configuration
+
+```bash
+export BPA_INSTANCE_URL="https://bpa.dev.els.eregistrations.org"
+export KEYCLOAK_URL="https://auth.eregistrations.org"
+export KEYCLOAK_REALM="eregistrations"
+```
+
+Or use a config file at `~/.config/mcp-eregistrations-bpa/config.yaml`:
+
+```yaml
+bpa_instance_url: "https://bpa.dev.els.eregistrations.org"
+keycloak_url: "https://auth.eregistrations.org"
+keycloak_realm: "eregistrations"
+```
+
+### Advanced Configuration
+
+For non-standard deployments, you can override the Keycloak client ID (default: `mcp-eregistrations-bpa`):
+
+```bash
+export KEYCLOAK_CLIENT_ID="custom-client-id"
+```
+
+## Usage
+
+### Running the MCP Server
+
+```bash
+uv run mcp-eregistrations-bpa
+```
+
+### Integration with Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "eregistrations-bpa": {
+      "command": "uvx",
+      "args": ["mcp-eregistrations-bpa"],
+      "env": {
+        "BPA_INSTANCE_URL": "https://bpa.dev.els.eregistrations.org"
+      }
+    }
+  }
+}
+```
+
+### Integration with Claude Code (CLI)
+
+Add to your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "eregistrations-bpa": {
+      "command": "uvx",
+      "args": ["mcp-eregistrations-bpa"],
+      "env": {
+        "BPA_INSTANCE_URL": "https://bpa.dev.els.eregistrations.org"
+      }
+    }
+  }
+}
+```
+
+## Authentication
+
+The MCP server uses Keycloak OIDC with Authorization Code + PKCE flow:
+
+1. On first connection, a browser window opens for Keycloak login
+2. You authenticate with your BPA credentials
+3. The MCP receives and manages tokens automatically
+4. Your BPA permissions apply to all MCP operations
+
+**Note for multi-country deployments:** Each country's Keycloak administrator must create a client with ID `mcp-eregistrations-bpa` configured as a public client with PKCE support.
+
+## Example Prompts
+
+### Analyzing a Service
+
+```
+Analyze the Business Registration service. Show me all registrations,
+documents, and determinants. Highlight any orphaned objects.
+```
+
+### Adding a Conditional Document
+
+```
+Add a document 'Proof of Address' that only appears when
+nationality is not 'local'. Link it to the main registration.
+```
+
+### Bulk Operations
+
+```
+Rename 'Tax ID' to 'Taxpayer Certificate' across all services.
+Show me the impact before applying.
+```
+
+## Development
+
+### Run Tests
+
+```bash
+uv run pytest
+```
+
+### Run Tests with Coverage
+
+```bash
+uv run pytest --cov
+```
+
+### Linting
+
+```bash
+uv run ruff check .
+```
+
+### Type Checking
+
+```bash
+uv run mypy .
+```
+
+### Format Code
+
+```bash
+uv run ruff format .
+```
+
+## Project Structure
+
+```
+src/mcp_eregistrations_bpa/
+├── __init__.py          # Package entry point
+├── server.py            # MCP server setup
+├── config.py            # Configuration management
+├── exceptions.py        # Custom exceptions
+├── auth/                # Authentication (Keycloak OIDC)
+│   ├── oidc.py          # OIDC flow implementation
+│   ├── token_manager.py # Token storage and refresh
+│   ├── callback.py      # OAuth callback handler
+│   └── permissions.py   # Permission checking
+├── bpa_client/          # BPA REST API wrapper
+│   ├── client.py        # HTTP client
+│   ├── endpoints.py     # API endpoint definitions
+│   ├── models.py        # Data models
+│   └── errors.py        # Error handling
+├── tools/               # MCP tool implementations
+│   ├── services.py      # Service operations
+│   ├── registrations.py # Registration operations
+│   ├── fields.py        # Form field operations
+│   ├── determinants.py  # Determinant operations
+│   ├── actions.py       # Action operations
+│   ├── roles.py         # Role operations
+│   ├── bots.py          # BOT operations
+│   ├── costs.py         # Cost operations
+│   ├── document_requirements.py
+│   ├── analysis.py      # Analysis tools
+│   ├── audit.py         # Audit log access
+│   └── rollback.py      # Rollback operations
+├── audit/               # Audit trail system
+│   ├── logger.py        # Audit logging
+│   ├── models.py        # Audit data models
+│   └── context.py       # Audit context management
+├── rollback/            # Rollback capability
+│   └── manager.py       # Rollback state management
+└── db/                  # Database layer
+    ├── connection.py    # SQLite connection
+    └── migrations.py    # Schema migrations
+```
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for security policies and vulnerability reporting.
+
+## License
+
+Copyright (c) 2025-2026 United Nations Conference on Trade and Development (UNCTAD)
+Division on Investment and Enterprise (DIAE)
+Business Facilitation Section
+
+All rights reserved. This software is proprietary and confidential.
+See [LICENSE](LICENSE) for details.
+
+## Contact
+
+For questions or support, contact the UNCTAD Business Facilitation team:
+
+- Email: benmoumen@gmail.com
+- Web: https://businessfacilitation.org
+
+## Acknowledgments
+
+- Built with [FastMCP](https://github.com/jlowin/fastmcp) framework
+- Part of the [eRegistrations](https://businessfacilitation.org) platform ecosystem
