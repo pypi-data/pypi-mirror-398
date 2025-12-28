@@ -1,0 +1,300 @@
+# fastlowess
+
+[![PyPI](https://img.shields.io/pypi/v/fastlowess.svg?style=flat-square)](https://pypi.org/project/fastlowess/)
+[![License](https://img.shields.io/badge/License-AGPL--3.0%20OR%20Commercial-blue.svg)](LICENSE)
+[![Python Versions](https://img.shields.io/pypi/pyversions/fastlowess.svg?style=flat-square)](https://pypi.org/project/fastlowess/)
+[![Documentation Status](https://readthedocs.org/projects/fastlowess-py/badge/?version=latest)](https://fastlowess-py.readthedocs.io/en/latest/?badge=latest)
+[![Conda](https://anaconda.org/conda-forge/fastlowess/badges/version.svg)](https://anaconda.org/conda-forge/fastlowess)
+
+**High-performance parallel LOWESS (Locally Weighted Scatterplot Smoothing) for Python** — A high-level wrapper around the [`fastLowess`](https://github.com/thisisamirv/fastLowess) Rust crate that adds rayon-based parallelism and seamless NumPy integration.
+
+## Features
+
+- **Parallel by Default**: Multi-core regression fits via [rayon](https://crates.io/crates/rayon), achieving multiple orders of magnitude speedups on large datasets.
+- **Robust Statistics**: MAD-based scale estimation and IRLS with Bisquare, Huber, or Talwar weighting.
+- **Uncertainty Quantification**: Point-wise standard errors, confidence intervals, and prediction intervals.
+- **Optimized Performance**: Delta optimization for skipping dense regions and streaming/online modes.
+- **Parameter Selection**: Built-in cross-validation for automatic smoothing fraction selection.
+- **Production-Ready**: Comprehensive error handling, numerical stability, and high-performance numerical core.
+
+## Robustness Advantages
+
+Built on the same core as `lowess`, this implementation is **more robust than statsmodels** due to two key design choices:
+
+### MAD-Based Scale Estimation
+
+For robustness weight calculations, this crate uses **Median Absolute Deviation (MAD)** for scale estimation:
+
+```text
+s = median(|r_i - median(r)|)
+```
+
+In contrast, statsmodels uses median of absolute residuals:
+
+```text
+s = median(|r_i|)
+```
+
+**Why MAD is more robust:**
+
+- MAD is a **breakdown-point-optimal** estimator—it remains valid even when up to 50% of data are outliers.
+- The median-centering step removes asymmetric bias from residual distributions.
+- MAD provides consistent outlier detection regardless of whether residuals are centered around zero.
+
+### Boundary Padding
+
+This crate applies **boundary policies** (Extend, Reflect, Zero) at dataset edges:
+
+- **Extend**: Repeats edge values to maintain local neighborhood size.
+- **Reflect**: Mirrors data symmetrically around boundaries.
+- **Zero**: Pads with zeros (useful for signal processing).
+
+statsmodels does not apply boundary padding, which can lead to:
+
+- Biased estimates near boundaries due to asymmetric local neighborhoods.
+- Increased variance at the edges of the smoothed curve.
+
+### Gaussian Consistency Factor
+
+For interval estimation (confidence/prediction), residual scale is computed using:
+
+```text
+sigma = 1.4826 * MAD
+```
+
+The factor 1.4826 = 1/Phi^-1(3/4) ensures consistency with the standard deviation under Gaussian assumptions.
+
+## Performance Advantages
+
+Benchmarked against Python's `statsmodels`. Achieves **8.5x to 2800x faster performance** across different tested scenarios. The parallel implementation ensures that even at extreme scales (100k points), processing remains sub-20ms.
+
+### Summary
+
+| Category         | Matched | Median Speedup | Mean Speedup |
+| :--------------- | :------ | :------------- | :----------- |
+| **Scalability**  | 5       | **283.2x**     | 922.0x       |
+| **Pathological** | 4       | **355.5x**     | 355.0x       |
+| **Iterations**   | 6       | **302.3x**     | 339.8x       |
+| **Fraction**     | 6       | **265.8x**     | 285.0x       |
+| **Financial**    | 4       | **176.7x**     | 215.2x       |
+| **Scientific**   | 4       | **201.1x**     | 225.6x       |
+| **Genomic**      | 4       | **17.5x**      | 18.6x        |
+| **Delta**        | 4       | **4.1x**       | 6.1x         |
+
+### Top 10 Performance Wins
+
+| Benchmark        | statsmodels | fastlowess | Speedup     |
+| :--------------- | :---------- | :--------- | :---------- |
+| scale_100000     | 27.71s      | 9.9ms      | **2799.5x** |
+| scale_50000      | 7.15s       | 5.7ms      | **1252.0x** |
+| iterations_0     | 48.5ms      | 0.1ms      | **488.0x**  |
+| financial_10000  | 337.8ms     | 0.7ms      | **471.6x**  |
+| scientific_10000 | 522.4ms     | 1.2ms      | **432.5x**  |
+| clustered        | 172.2ms     | 0.4ms      | **426.1x**  |
+| constant_y       | 141.2ms     | 0.4ms      | **379.6x**  |
+| fraction_0.05    | 130.9ms     | 0.4ms      | **370.5x**  |
+| iterations_2     | 149.6ms     | 0.4ms      | **362.2x**  |
+| tricube          | 188.9ms     | 0.6ms      | **335.3x**  |
+
+Check [Benchmarks](https://github.com/thisisamirv/fastLowess-py/tree/bench/benchmarks) for detailed results and reproducible benchmarking code.
+
+## Installation
+
+Install via PyPI:
+
+```bash
+pip install fastlowess
+```
+
+Or install from conda-forge:
+
+```bash
+conda install -c conda-forge fastlowess
+```
+
+## Quick Start
+
+```python
+import numpy as np
+import fastlowess
+
+x = np.linspace(0, 10, 100)
+y = np.sin(x) + np.random.normal(0, 0.2, 100)
+
+# Basic smoothing (parallel CPU by default)
+result = fastlowess.smooth(x, y, fraction=0.3)
+
+print(f"Smoothed values: {result.y}")
+```
+
+## Smoothing Parameters
+
+```python
+import fastlowess
+
+fastlowess.smooth(
+    x, y,
+    # Smoothing span (0, 1]
+    fraction=0.5,
+
+    # Robustness iterations
+    iterations=3,
+
+    # Interpolation threshold
+    delta=0.01,
+
+    # Kernel function
+    weight_function="tricube",
+
+    # Robustness method
+    robustness_method="bisquare",
+
+    # Zero-weight fallback
+    zero_weight_fallback="use_local_mean",
+
+    # Boundary handling
+    boundary_policy="extend",
+
+    # Intervals
+    confidence_intervals=0.95,
+    prediction_intervals=0.95,
+
+    # Diagnostics
+    return_diagnostics=True,
+    return_residuals=True,
+    return_robustness_weights=True,
+
+    # Cross-validation
+    cv_fractions=[0.3, 0.5, 0.7],
+    cv_method="kfold",
+    cv_k=5,
+
+    # Convergence
+    auto_converge=1e-4,
+
+    # Parallelism
+    parallel=True
+)
+```
+
+## Result Structure
+
+The `smooth()` function returns a `LowessResult` object:
+
+```python
+result.x                    # Sorted independent variable values
+result.y                    # Smoothed dependent variable values
+result.standard_errors      # Point-wise standard errors
+result.confidence_lower     # Lower bound of confidence interval
+result.confidence_upper     # Upper bound of confidence interval
+result.prediction_lower     # Lower bound of prediction interval
+result.prediction_upper     # Upper bound of prediction interval
+result.residuals            # Residuals (y - fit)
+result.robustness_weights   # Final robustness weights
+result.diagnostics          # Diagnostics (RMSE, R^2, etc.)
+result.iterations_used      # Number of iterations performed
+result.fraction_used        # Smoothing fraction used
+result.cv_scores            # CV scores for each candidate
+```
+
+## Streaming Processing
+
+For datasets that don't fit in memory:
+
+```python
+result = fastlowess.smooth_streaming(
+    x, y,
+    fraction=0.3,
+    chunk_size=5000,
+    overlap=500,
+    parallel=True
+)
+```
+
+## Online Processing
+
+For real-time data streams:
+
+```python
+result = fastlowess.smooth_online(
+    x, y,
+    fraction=0.2,
+    window_capacity=100,
+    update_mode="incremental" # or "full"
+)
+```
+
+## Backend
+
+> [!NOTE]
+> A *beta* GPU backend is available for acceleration in the Rust crate, but it is not exposed in the Python API due to added dependencies and complexity. Feedbacks on if this is something you would like to see are welcome or how to expose it in a user-friendly way are appreciated.
+
+## Parameter Selection Guide
+
+### Fraction (Smoothing Span)
+
+- **0.1-0.3**: Local, captures rapid changes
+- **0.4-0.6**: Balanced, general-purpose
+- **0.7-1.0**: Global, smooth trends only
+- **Default: 0.67** (2/3, Cleveland's choice)
+
+### Robustness Iterations
+
+- **0**: Clean data, speed critical
+- **1-3**: Default, good balance
+- **4-5**: Heavy outliers
+
+### Kernel Function
+
+- **Tricube** (default): Best all-around
+- **Epanechnikov**: Optimal MSE
+- **Gaussian**: Very smooth
+- **Uniform**: Moving average
+
+### Delta Optimization
+
+- **None**: Small datasets (n < 1000)
+- **0.01 × range(x)**: Good starting point for dense data
+- **Manual tuning**: Adjust based on data density
+
+## Documentation
+
+For full documentation, visit [fastlowess-py.readthedocs.io](https://fastlowess-py.readthedocs.io/).
+
+## Examples
+
+Check the `examples` directory:
+
+```bash
+python examples/batch_smoothing.py
+python examples/online_smoothing.py
+python examples/streaming_smoothing.py
+```
+
+## Validation
+
+Validated against:
+
+- **Python (statsmodels)**: Passed on 44 distinct test scenarios.
+- **Original Paper**: Reproduces Cleveland (1979) results.
+
+Check [Validation](https://github.com/thisisamirv/fastLowess-py/tree/bench/validation) for more information. Small variations in results are expected due to differences in scale estimation and padding.
+
+## Related Work
+
+- [fastLowess (Rust core)](https://github.com/thisisamirv/fastLowess)
+- [fastLowess-R (R wrapper)](https://github.com/thisisamirv/fastlowess-R)
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+Dual-licensed under **AGPL-3.0** (Open Source) or **Commercial License**.
+Contact `<thisisamirv@gmail.com>` for commercial inquiries.
+
+## References
+
+- Cleveland, W.S. (1979). "Robust Locally Weighted Regression and Smoothing Scatterplots". *JASA*.
+- Cleveland, W.S. (1981). "LOWESS: A Program for Smoothing Scatterplots". *The American Statistician*.
