@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk=self.webpackChunk||[]).push([[2571],{98706:function(e,t,s){s.r(t);var u=s(53231),n=s(38975),a=(s(75271),s(52676));t.default=function(){var e=(0,u.useIntl)();return(0,a.jsx)(n.ZP,{status:"404",title:"404",subTitle:e.formatMessage({id:"common.exception.404"})})}}}]);
