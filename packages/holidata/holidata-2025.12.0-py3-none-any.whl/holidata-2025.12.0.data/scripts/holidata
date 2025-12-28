@@ -1,0 +1,71 @@
+#!python
+# encoding: utf-8
+
+"""
+Holidata - generate holidata files.
+
+Usage:
+  holidata (--year=<value>) (--locale=<value>) [--output=<value>]
+  holidata (--year=<value>) (--country=<value>) [--lang=<value>] [--output=<value>]
+
+Options:
+    --year=<value>
+        Specify which year to generate data for.
+        Note: Holidata generates valid data from 2011.
+
+    --locale=<id>
+        Specify the locale for which data should be generated.
+        The locale <id> is a combination of language <id> and country <id>.
+
+    --country=<id>
+        Specify the country for which data should be generated.
+        The country <id> has to be from ISO 3166-1 alpha-2.
+
+    --lang=<id>
+        Specify the language in which data should be generated (requires --country).
+        Not needed if the country has a default language defined.
+        The language <id> has to be from ISO 639-1.
+
+    --output=(csv|json|yaml|xml)
+        Specify the output format [default: csv].
+
+Dependencies:
+    pip3 install arrow docopt
+"""
+import re
+import sys
+
+from docopt import docopt
+
+from holidata import for_locale
+
+
+def parse_locale(locale):
+    locale_regex = re.compile(r"^(?P<lang>[a-zA-Z]{2})[-_](?P<country>[a-zA-Z]{2})$")
+    m = locale_regex.search(locale)
+
+    if m is None:
+        raise ValueError(f"'{locale}' is not a valid locale!")
+
+    return m.group("country").upper(), m.group("lang").lower()
+
+
+if __name__ == "__main__":
+    args = docopt(__doc__)
+
+    try:
+        if args["--locale"] is not None:
+            country_id, lang_id = parse_locale(args["--locale"])
+
+        elif args["--country"] is not None:
+            country_id = args["--country"].upper()
+            lang_id = args["--lang"]
+
+        else:
+            # When neither '--locale' nor '--country' are given, docopt prints usage
+            sys.exit(1)
+
+        print(for_locale(country_id, lang_id).holidays_of(args["--year"]).formatted_as(args["--output"]), end="")
+
+    except ValueError as e:
+        sys.exit(str(e))
