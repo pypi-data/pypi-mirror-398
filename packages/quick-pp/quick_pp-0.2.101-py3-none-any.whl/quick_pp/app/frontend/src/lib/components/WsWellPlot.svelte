@@ -1,0 +1,207 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  export let projectId: string | number;
+  export let wellName: string;
+
+  import { browser } from '$app/environment';
+  import { onDestroy } from 'svelte';
+  import { depthFilter, zoneFilter, getCachedPlot, setCachedPlot, clearPlotCache } from '$lib/stores/workspace';
+  import DepthFilterStatus from './DepthFilterStatus.svelte';
+
+  let Plotly: any = null;
+  let container: HTMLDivElement | null = null;
+  export let minWidth: string = '480px';
+  let loading = false;
+  let error: string | null = null;
+  let autoRefresh = false;
+  let refreshInterval = 5000; // ms
+  let _refreshTimer: number | null = null;
+  let lastDepthFilter: any = null;
+  let lastZoneFilter: any = null;
+  let mounted = false;
+
+  const API_BASE = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:6312';
+
+  async function ensurePlotly() {
+    if (!browser) throw new Error('Plotly can only be loaded in the browser');
+    if (Plotly) return Plotly;
+    // dynamic import to avoid SSR evaluation of Plotly which expects `self`/window
+    const mod = await import('plotly.js-dist-min');
+    Plotly = (mod as any).default || mod;
+    return Plotly;
+  }
+
+  async function loadAndRender(forceRefresh = false) {
+    if (!projectId || !wellName || !mounted || !container) return;
+    loading = true;
+    error = null;
+    try {
+      // Build cache key including filter state
+      const filterKey = JSON.stringify({ depth: $depthFilter, zone: $zoneFilter });
+      const cacheKey = `${projectId}-${wellName}-${filterKey}`;
+      
+      let fig;
+      const cached = getCachedPlot(projectId, cacheKey);
+      
+      // Use cache if available and not forcing refresh
+      if (!forceRefresh && cached) {
+        fig = cached.data;
+      } else {
+        // Build URL with depth filter parameters
+        let url = `${API_BASE}/quick_pp/plotter/projects/${projectId}/wells/${encodeURIComponent(String(wellName))}/log`;
+        
+        // Build query parameters for depth and zone filters
+        const params = new URLSearchParams();
+        if ($depthFilter?.enabled) {
+          if ($depthFilter.minDepth !== null) {
+            params.append('min_depth', String($depthFilter.minDepth));
+          }
+          if ($depthFilter.maxDepth !== null) {
+            params.append('max_depth', String($depthFilter.maxDepth));
+          }
+        }
+        // Include zone filter if enabled - send as comma-separated `zones` param
+        if ($zoneFilter?.enabled && Array.isArray($zoneFilter.zones) && $zoneFilter.zones.length > 0) {
+          // encode individual zone values and join with comma
+          const encoded = $zoneFilter.zones.map((z) => String(z)).join(',');
+          params.append('zones', encoded);
+        }
+        if (params.toString()) {
+          url += '?' + params.toString();
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(await res.text());
+        fig = await res.json();
+        
+        // Cache the result
+        setCachedPlot(projectId, cacheKey, fig);
+      }
+      // container is guaranteed to exist due to early return check
+      // ensure Plotly library is loaded in the browser
+      const PlotlyLib = await ensurePlotly();
+      if (!PlotlyLib) throw new Error('Failed to load Plotly library');
+      // Use Plotly.react if available for smoother updates; ensure responsive
+      // Enable scroll zoom and set a sensible default dragmode for the layout.
+      const config = { ...(fig.config || {}), responsive: true, scrollZoom: true };
+      const layout = { ...(fig.layout || {}), dragmode: fig.layout?.dragmode ?? 'zoom' };
+      if ((PlotlyLib as any).react) {
+        (PlotlyLib as any).react(container, fig.data, layout, config);
+      } else {
+        (PlotlyLib as any).newPlot(container, fig.data, layout, config);
+      }
+
+      // Setup ResizeObserver to call Plotly resize when container changes size
+      if (browser && typeof ResizeObserver !== 'undefined') {
+        // disconnect previous observer if any
+        if ((container as any)?._plotlyResizeObserver) {
+          try { (container as any)._plotlyResizeObserver.disconnect(); } catch (e) {}
+        }
+        const ro = new ResizeObserver(() => {
+          try {
+            if ((PlotlyLib as any).Plots && (PlotlyLib as any).Plots.resize) {
+              (PlotlyLib as any).Plots.resize(container);
+            }
+          } catch (e) {
+            // ignore
+          }
+        });
+        ro.observe(container);
+        // attach to container for later cleanup
+        (container as any)._plotlyResizeObserver = ro;
+      }
+    } catch (err: any) {
+      console.error('Failed to render well plot', err);
+      error = String(err?.message ?? err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  function scheduleAutoRefresh() {
+    try {
+      if (_refreshTimer) {
+        clearInterval(_refreshTimer as any);
+        _refreshTimer = null;
+      }
+      if (autoRefresh && typeof window !== 'undefined') {
+        _refreshTimer = window.setInterval(() => {
+          loadAndRender();
+        }, Number(refreshInterval) || 5000);
+      }
+    } catch (e) {}
+  }
+
+  $: if (browser && projectId && wellName) {
+    // reactive: when inputs change reload (client-only)
+    loadAndRender();
+  }
+
+  // Reactive updates for filters
+  $: if ($depthFilter && JSON.stringify($depthFilter) !== JSON.stringify(lastDepthFilter)) {
+    lastDepthFilter = { ...$depthFilter };
+    if (browser && projectId && wellName) loadAndRender();
+  }
+
+  $: if ($zoneFilter && (JSON.stringify($zoneFilter) !== JSON.stringify(lastZoneFilter))) {
+    lastZoneFilter = { ...$zoneFilter };
+    if (browser && projectId && wellName) loadAndRender();
+  }
+
+  onMount(() => {
+    mounted = true;
+    // Trigger initial render now that the DOM is ready
+    loadAndRender();
+  });
+
+  onDestroy(() => {
+    try {
+      if (container && (container as any)._plotlyResizeObserver) {
+        (container as any)._plotlyResizeObserver.disconnect();
+        delete (container as any)._plotlyResizeObserver;
+      }
+      if (_refreshTimer) {
+        clearInterval(_refreshTimer as any);
+        _refreshTimer = null;
+      }
+    } catch (e) {
+      // ignore
+    }
+  });
+
+  // Listen for updates dispatched from other components (e.g., save actions)
+  if (browser) {
+    const handler = (ev: Event) => {
+      try {
+        const detail = (ev as CustomEvent).detail;
+        if (!detail) return;
+        // Only refresh if the event refers to the same project/well
+        if (String(detail.projectId) === String(projectId) && String(detail.wellName) === String(wellName)) {
+          loadAndRender(true); // Force refresh when data is updated
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('qpp:data-updated', handler as EventListener);
+    // remove listener on destroy
+    onDestroy(() => window.removeEventListener('qpp:data-updated', handler as EventListener));
+  }
+</script>
+
+<div class="ws-well-plot">
+  <DepthFilterStatus />
+  <div class="mb-2 flex items-center gap-2">
+    <button class="btn px-3 py-1 text-sm bg-gray-800 text-white rounded" onclick={() => loadAndRender(true)} aria-label="Refresh plot">Refresh</button>
+    <label class="text-sm flex items-center gap-1">
+      <input type="checkbox" bind:checked={autoRefresh} />
+      Auto-refresh
+    </label>
+    {#if autoRefresh}
+      <label class="text-sm">Interval (ms): <input type="number" bind:value={refreshInterval} class="input w-24 ml-2" /></label>
+    {/if}
+  </div>
+  {#if loading}
+    <div class="text-sm">Loading well log…</div>
+  {:else if error}
+    <div class="text-sm text-red-500">Error: {error}</div>
+  {/if}
+  <div bind:this={container} style="width:100%; min-width: {minWidth}; height:900px;"></div>
+</div>
