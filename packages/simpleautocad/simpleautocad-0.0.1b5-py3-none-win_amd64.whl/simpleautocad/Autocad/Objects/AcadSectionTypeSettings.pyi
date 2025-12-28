@@ -1,0 +1,54 @@
+from ..Base import *
+from ..Proxy import *
+
+class AcadSectionTypeSettings(AppObject):
+    def __init__(self, obj) -> None: ...
+    BackgroundLinesColor: AcadAcCmColor
+    BackgroundLinesHiddenLine: bool
+    BackgroundLinesLayer: str
+    BackgroundLinesLinetypeScale: float
+    BackgroundLinesLineweight: AcLineWeight
+    BackgroundLinesPlotStyleName: str
+    BackgroundLinesVisible: bool
+    CurveTangencyLinesColor: AcadAcCmColor
+    CurveTangencyLinesLayer: str
+    CurveTangencyLinesLinetype: str
+    CurveTangencyLinesLinetypeScale: float
+    CurveTangencyLinesLineweight: AcLineWeight
+    CurveTangencyLinesPlotStyleName: str
+    CurveTangencyLinesVisible: bool
+    DestinationBlock: Variant
+    DestinationFile: str
+    ForegroundLinesColor: AcadAcCmColor
+    ForegroundLinesEdgeTransparency: int
+    ForegroundLinesFaceTransparency: int
+    ForegroundLinesHiddenLine: bool
+    ForegroundLinesLayer: str
+    ForegroundLinesLinetype: str
+    ForegroundLinesLinetypeScale: float
+    ForegroundLinesLineweight: AcLineWeight
+    ForegroundLinesPlotStyleName: str
+    ForegroundLinesVisible: bool
+    GenerationOptions: AcSectionGeneration
+    IntersectionBoundaryColor: AcadAcCmColor
+    IntersectionBoundaryDivisionLines: bool
+    IntersectionBoundaryLayer: str
+    IntersectionBoundaryLinetype: str
+    IntersectionBoundaryLinetypeScale: float
+    IntersectionBoundaryLineweight: AcLineWeight
+    IntersectionBoundaryPlotStyleName: str
+    IntersectionBoundaryVisible: bool
+    IntersectionFillColor: AcadAcCmColor
+    IntersectionFillFaceTransparency: int
+    IntersectionFillHatchAngle: float
+    IntersectionFillHatchPatternName: str
+    IntersectionFillHatchPatternType: AcPatternType
+    IntersectionFillHatchScale: float
+    IntersectionFillHatchSpacing: float
+    IntersectionFillLayer: str
+    IntersectionFillLinetype: str
+    IntersectionFillLinetypeScale: float
+    IntersectionFillLineweight: AcLineWeight
+    IntersectionFillPlotStyleName: str
+    IntersectionFillVisible: bool
+    SourceObjects: Variant

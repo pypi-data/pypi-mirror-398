@@ -1,0 +1,286 @@
+Metadata-Version: 2.4
+Name: simpleautocad
+Version: 0.0.1b5
+Summary: Модуль для работы с AutoCAD через COM интерфейс
+Author-email: Andrey Litvinov <busybeaver.bb@gmail.com>
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: pywin32
+Requires-Dist: numpy
+
+# simpleautocad 
+simpleautocad — это мощная библиотека Python для полной автоматизации и программного управления Autodesk AutoCAD. 
+Она предоставляет интуитивно понятный интерфейс для создания, редактирования и управления 2D- и 3D-чертежами непосредственно из ваших Python-приложений.
+- Ключевые возможности:
+    * Полный контроль над AutoCAD: Использует объектную модель ActiveX/COM для взаимодействия с установленным приложением AutoCAD, позволяя автоматизировать практически любую задачу.
+    * Продвинутая работа с геометрией: Включает набор классов PyGe- для выполнения сложных геометрических вычислений, функционально аналогичных нативным классам AcGe- из ObjectARX, что обеспечивает высокую точность и совместимость.
+    * Автоматизация рутинных задач: Идеально подходит для создания скриптов, автоматизирующих создание слоев, блоков, объектов, атрибутов и управление ими.
+    * Простота интеграции: Разрабатывайте собственные приложения, которые работают в связке с AutoCAD, без необходимости глубокого погружения в сложное программирование на C++ или AutoLISP.
+
+
+## Установка
+
+`pip install simpleautocad`
+
+
+
+## Пример 1. Создаем отрезок в пространстве модели
+
+```python
+
+from simpleautocad import AutoCAD, PyGePoint3d, AcLineWeight, AcRegenType
+
+def create_line():
+    # Подключаемся к AutoCAD
+    acad = AutoCAD()
+    # Делаем окно видимым
+    acad.Visible = True
+    # Активный документ
+    doc = acad.ActiveDocument
+    # Пространство модели
+    model_space = doc.ModelSpace
+
+    # Создаем начальную и конечную точку для отрезка
+    start_pt = PyGePoint3d() # x=0,y=0,z=0
+    end_pt = PyGePoint3d(10,10) # x=10,y=10,z=0
+
+    # Добавляем линию
+    line = model_space.AddLine(start_pt,end_pt)
+
+    # Получаем интерфейс AcCmColor для установки цвета
+    color = acad.uGetAcadAcCmColor()
+    # Устанавливаем RGB цвет
+    color.SetRGB(10,110,210)
+    # Применяем цвет к отрезку
+    line.TrueColor = color
+    # Применяем тип линии
+    line.Linetype = 'DASHED'
+    # Применяем вес линий
+    line.Lineweight = AcLineWeight.acLnWt020
+    # Обновляем экран
+    doc.Regen(AcRegenType.acAllViewports)
+
+```
+
+## Пример 2. Рисуем аналоговые часы
+
+```python
+
+from simpleautocad import AutoCAD, AcadLine, AcadMtext, PyGePoint3d, PyGeVector3d, PyGeMatrix3d, AcLineWeight, AcAttachmentPoint, AcRegenType, AcColor, vInteger
+import math
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+def test_clock():
+    # Подключаемся к AutoCAD
+    app = AutoCAD()
+    # Делаем окно видимым
+    app.Visible = True
+    # Активный документ
+    doc = app.ActiveDocument
+    # Пространство модели
+    ms = doc.ModelSpace
+
+    # Центральная точка
+    center = PyGePoint3d()
+    # Размер для одинакового масштабирования всех элементов
+    size = 10
+    # Интерфейс AcadAcCmColor для установки цвета
+    icolor = app.uGetAcadAcCmColor()
+    # Угол поворота на 6 градусов для отрисовки циферблата и хода стрелок (минус для поворота по часовой стрелке)
+    ang_1_60 = -math.radians(6)
+
+    # Отрисовка шкалы
+    pt1 = PyGePoint3d(center.x,center.y+size-size/10)
+    pt2 = PyGePoint3d(center.x,center.y+size)
+    line = ms.AddLine(pt1,pt2)
+    hinspt = PyGePoint3d(pt1.x,pt1.y - size/6)
+
+    icolor.ColorIndex = 251
+    line.TrueColor = icolor
+    lines = line.ArrayPolar(60,-math.pi*2 - ang_1_60,center)
+    line.ScaleEntity(line.EndPoint,1.5)
+    line.Lineweight = AcLineWeight.acLnWt050
+    icolor.ColorIndex = AcColor.acMagenta
+    line.TrueColor = icolor
+    for i in range(4,59,5):
+        objLine = AcadLine(lines[i])
+        objLine.ScaleEntity(objLine.EndPoint,1.5)
+        objLine.Lineweight = AcLineWeight.acLnWt050
+        objLine.TrueColor = icolor
+
+    # Текстовые обозначения часов на циферблате
+    hour_txt = ms.AddMText(hinspt, size/6, '12')
+    hour_txt.Height = size/8
+    hour_txt.AttachmentPoint = AcAttachmentPoint.acAttachmentPointMiddleCenter
+    hour_txt.InsertionPoint = hinspt
+    icolor.ColorIndex = 250
+    hour_txt.TrueColor = icolor
+
+    hours = hour_txt.ArrayPolar(12,-math.pi*2 - ang_1_60*5, center)
+    for i in range(0,11):
+        objHour = AcadMtext(hours[i])
+        objHour.TextString = str(i+1)
+        objHour.Rotate(objHour.InsertionPoint, -ang_1_60*5*(i+1))
+
+    # Добавляем стрелки
+    line_sec = ms.AddLine(PyGePoint3d(center.x,center.y - size/6),PyGePoint3d(center.x,center.y+size-size/10-size/40))
+    icolor.SetRGB(255,0,0) # icolor = AcColor.acRed
+    line_sec.TrueColor = icolor
+    line_sec.Lineweight = AcLineWeight.acLnWt030
+
+    line_min = ms.AddLine(PyGePoint3d(center.x,center.y - size/6),PyGePoint3d(center.x,center.y+size-size/10-size/8))
+    icolor.SetRGB(0,255,0) # icolor = AcColor.acGreen
+    line_min.TrueColor = icolor
+    line_min.Lineweight = AcLineWeight.acLnWt030
+
+    line_hour = ms.AddLine(PyGePoint3d(center.x,center.y - size/6),PyGePoint3d(center.x,center.y+size-size/10-size/4))
+    icolor.SetRGB(0,0,255) # icolor = AcColor.acBlue
+    line_hour.TrueColor = icolor
+    line_hour.Lineweight = AcLineWeight.acLnWt030
+
+    # Включаем отображение веса линий если отключено
+    if not doc.GetVariable('LWDISPLAY'):
+        doc.SetVariable('LWDISPLAY',vInteger(1))
+
+    # Создадим матрицы поворота для всех положений стрелок на циферблате
+    rotation_matrixes: list[PyGeMatrix3d] = []
+    for i in range(0,60):
+        mat = PyGeMatrix3d.rotation(ang_1_60 * i, PyGeVector3d.kZaxis, center)
+        rotation_matrixes.append(mat)
+    # Матрица с индексом 0 не изменяет объект (матрица идентичности), она нужна при инициализации - если сек/мин == 0 или час == 12 
+
+    # Получаем текущее время
+    mytime = datetime.now(ZoneInfo("Asia/Novosibirsk"))
+    my_h = mytime.hour
+    my_m = mytime.minute
+    my_s = mytime.second
+
+    # Поворачиваем стрелки на угол, соответствующий текущиму значению времени
+    line_sec.TransformBy(rotation_matrixes[my_s])
+    line_min.TransformBy(rotation_matrixes[my_m])
+    # Часовую стрелку поворачиваем на соответствующую риску между целыми значениями часа
+    idx = (my_h if my_h < 12 else my_h - 12) * 5 + (my_m // 12)
+    line_hour.TransformBy(rotation_matrixes[idx])
+
+    # Изменяем направление взгляда
+    viewport = doc.ActiveViewport
+    viewport.Direction = PyGeVector3d(-1, -1, 1)
+    doc.ActiveViewport = viewport
+    app.ZoomAll()
+
+    # Бесконечный цикл: получаем время - поворачиваем стрелки
+    while True:
+        # Получаем текущее время
+        mytime = datetime.now(ZoneInfo("Asia/Novosibirsk"))
+        regen = False
+        if my_s != mytime.second:
+            # Вычисляем индекс для нужной матрицы
+            idx = abs(mytime.second - my_s)
+            if idx == 59 and mytime.second == 0: idx = 1
+            # Поворачиваем секундную стрелку
+            line_sec.TransformBy(rotation_matrixes[idx])
+            my_s = mytime.second
+            regen = True
+        if my_m != mytime.minute:
+            idx = abs(mytime.minute - my_m)
+            if idx == 59 and mytime.minute == 0: idx = 1
+            # Поворачиваем минутную стрелку
+            line_min.TransformBy(rotation_matrixes[idx])
+            my_m = mytime.minute
+            # Каждые 12 минут поворачиваем часовую стрелку
+            # При больших задержках нужен алгоритм для определения индекса
+            if not (my_m % 12):
+                line_hour.TransformBy(rotation_matrixes[1])
+            regen = True
+        if regen:
+            doc.Regen(AcRegenType.acActiveViewport)
+            print(f"{my_h:02}:{my_m:02}:{my_s:02}")
+        # Задержка, чтобы не загружать процессор
+        time.sleep(0.2)
+
+```
+
+## Пример 3. Записываем и читаем XData
+
+```python
+
+from simpleautocad import *
+
+def test_xdata():
+    # Подключаемся к AutoCAD
+    app = AutoCAD()
+    # Делаем окно видимым
+    app.Visible = True
+    # Активный документ
+    doc = app.ActiveDocument
+    # Пространство модели
+    ms = doc.ModelSpace
+
+    # Начальные данные
+    radius = 4
+    regAppName = 'AppCircleColor'
+    icolor = app.uGetAcadAcCmColor()
+
+    pt1 = PyGePoint3d(10,30)
+    pt2 = PyGePoint3d(10,20)
+    pt3 = PyGePoint3d(10,10)
+
+    # Добавляем окружности в пространство модели
+    cir1 = ms.AddCircle(pt1, radius)
+    cir2 = ms.AddCircle(pt2, radius)
+    cir3 = ms.AddCircle(pt3, radius)
+
+    # Инициализация данных для записи в XData
+    # Добавляем индекс
+    xdm1 = XDataManager(regAppName)
+    xdm1.add_data(DxfGroupXDCode.kDxfXdInteger16, AcColor.acRed)
+
+    xdm2 = XDataManager(regAppName)
+    xdm2.add_data(DxfGroupXDCode.kDxfXdInteger16, AcColor.acYellow)
+
+    xdm3 = XDataManager(regAppName)
+    xdm3.add_data(DxfGroupXDCode.kDxfXdInteger16, AcColor.acGreen)
+
+    # Устанавливаем XData для окружностей
+    app.uSetXData(cir1,xdm1)
+    app.uSetXData(cir2,xdm2)
+    app.uSetXData(cir3,xdm3)
+
+    # Удаляем переменные
+    del cir1
+    del cir2
+    del cir3
+
+    # Перебор объектов в пространстве модели
+    for obj in ms:
+        # Получаем тип объекта
+        if app.uGetObjectType(obj) is AcadCircle:
+            # Если это окружность - читаем XData
+            xdata = obj.GetXData(regAppName)
+            # Если данные существуют
+            if xdata[0]:
+                # Проверяем тип данных (В XData данные располагаются в порядке их добавления)
+                if xdata[0][1] == DxfGroupXDCode.kDxfXdInteger16:
+                    # Устанавливаем индекс цвета
+                    icolor.ColorIndex = xdata[1][1]
+                else:
+                    # Если данные в другом формате, применяем белый цвет
+                    icolor.ColorIndex == 255
+                # Создаем объект штриховки
+                hatch = ms.AddHatch(AcPatternType.acHatchPatternTypePreDefined, 'SOLID', True, AcHatchObjectType.acHatchObject)
+                # Применяем цвет
+                hatch.TrueColor = icolor
+                # Ассоциируем штриховку с окружностью
+                hatch.AppendInnerLoop(vObjectArray(obj))
+    doc.Regen(AcRegenType.acActiveViewport)
+
+```
+
+## Автор
+
+ - [Андрей Литвинов](https://t.me/busy4beaver)
