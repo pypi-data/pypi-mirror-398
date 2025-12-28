@@ -1,0 +1,196 @@
+Metadata-Version: 2.3
+Name: nercone-macpower
+Version: 0.3.2
+Summary: pmset wrapper library/cli app for Python on macOS
+Author: Nercone
+Author-email: Nercone <nercone@diamondgotcat.net>
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Requires-Dist: rich
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+
+<img width="1920" src="https://github.com/user-attachments/assets/b0dd7f2b-e295-4722-b658-1951f8388f27" />
+
+# nercone-macpower
+pmset wrapper library/cli app for Python on macOS
+
+## Requiments
+- CPython 3
+- macOS
+- `uv` [PyPI↗︎](https://pypi.org/project/uv/) or `pip3` [PyPI↗︎](https://pypi.org/project/pip/)
+- `rich` [PyPI↗︎](https://pypi.org/project/nercone-modern/)
+
+## Installation
+
+### uv (recommended)
+```zsh
+uv tool install nercone-macpower
+```
+
+### pip3
+
+**System Python:**
+```zsh
+pip3 install nercone-macpower --break-system-packages
+```
+
+**Venv Python:**
+```zsh
+pip3 install nercone-macpower
+```
+
+## Update
+
+### uv
+```zsh
+uv tool install nercone-macpower --upgrade
+```
+
+### pip3
+
+**System Python:**
+```zsh
+pip3 install nercone-macpower --upgrade --break-system-packages
+```
+
+**Venv Python:**
+```zsh
+pip3 install nercone-macpower --upgrade
+```
+
+## Examples
+
+### Library Usage
+```python
+from datetime import time, datetime
+from macpower import MacPower, PMSetting, PMScope, PMEventType, PMRepeatEvent, PMWeekday
+
+pm = MacPower() # or: pm = MacPower(sudo=True)
+
+source = pm.power_source
+print(source) # e.g. PMPowerSource.ACPower
+
+status = pm.battery_status()
+print(status.source)          # Power Source Type
+print(status.percent)         # Battery level (% as a int, e.g. 93)
+print(status.state)           # charging / discharging / charged
+print(status.time_remaining)  # timedelta or None
+print(status.present)         # True / False / None
+
+# Setting Management
+pm.set_setting(PMSetting.DisplaySleep, 10) # Set the Display Sleep to 10 seconds for all Power Sources
+pm.set_settings( # Change Multiple Settings in one call
+    {
+        PMSetting.DisplaySleep: 10, # Display Sleep to 10 seconds
+        PMSetting.Sleep: 60, # System Sleep(Suspend) to 60 seconds
+        PMSetting.PowerNap: 1 # Enable the PowerNap feature
+    },
+    scope=PMScope.All # Apply to all Power Sources
+)
+pm.set_setting("tcpkeepalive", 1, scope=PMScope.Battery) # You can also use string for Setting ID
+
+# Create a One-time Schedule
+when = datetime.now().replace(hour=9, minute=0, second=0) + timedelta(days=1)
+pm.schedule(PMEventType.PowerOn, when)
+
+# Create a Multiple-time Schedule (Repeat Event)
+event = PMRepeatEvent(
+    PMEventType.Shutdown,
+    PMWeekday.M | PMWeekday.T | PMWeekday.W | PMWeekday.R | PMWeekday.F, # Monday ~ Friday
+    time(23, 0) # 23:00
+)
+pm.repeat(event)
+
+# Wake up after 10 seconds
+pm.relative("wake", 10)
+
+# Sleep now
+pm.sleepnow()
+```
+
+### CLI Usage
+```zsh
+macpower -h
+# usage: macpower [-h] [--pmset-path PMSET_PATH] [--sudo] [--sudo-path SUDO_PATH] [--timeout TIMEOUT] [--json] {status,get,settings,sched,repeat,relative,action,stream} ...
+#
+# positional arguments:
+#   {status,get,settings,sched,repeat,relative,action,stream}
+#     status              Show current battery/power source status
+#     get                 Run pmset -g <option> and print output
+#     settings            Show / get / set pmset settings
+#     sched               Manage scheduled power events
+#     repeat              Manage repeating events (pmset repeat)
+#     relative            Schedule a relative wake/poweron in N seconds
+#     action              Run simple pmset actions
+#     stream              Stream pmset logs (blocks until interrupted)
+#
+# options:
+#   -h, --help            show this help message and exit
+#   --pmset-path PMSET_PATH
+#                         Path to pmset (default: pmset)
+#   --sudo                Run pmset via sudo
+#   --sudo-path SUDO_PATH
+#                         Path to sudo (default: sudo)
+#   --timeout TIMEOUT     Command timeout seconds (default: 30)
+#   --json                Output as JSON where applicable
+macpower status
+# ╭──────────────────────────────────────────────── Status ────────────────────────────────────────────────╮
+# │ Power Source: AC Power                                                                                 │
+# │ Battery: 93%                                                                                           │
+# │ State: charging                                                                                        │
+# │ Present: True                                                                                          │
+# ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+macpower settings show
+# AC: AC Power
+# ┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+# ┃ Key              ┃ Value              ┃
+# ┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+# │ Sleep            │ On Power Button 1  │
+# │ disksleep        │ 10                 │
+# │ displaysleep     │ 10                 │
+# │ hibernatefile    │ /var/vm/sleepimage │
+# │ hibernatemode    │ 3                  │
+# │ lowpowermode     │ 0                  │
+# │ networkoversleep │ 0                  │
+# │ powernap         │ 1                  │
+# │ sleep            │ 0                  │
+# │ standby          │ 1                  │
+# │ tcpkeepalive     │ 1                  │
+# │ ttyskeepawake    │ 1                  │
+# │ womp             │ 1                  │
+# └──────────────────┴────────────────────┘
+# Battery: Battery Power
+# ┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+# ┃ Key              ┃ Value              ┃
+# ┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+# │ Sleep            │ On Power Button 1  │
+# │ disksleep        │ 10                 │
+# │ displaysleep     │ 3                  │
+# │ hibernatefile    │ /var/vm/sleepimage │
+# │ hibernatemode    │ 3                  │
+# │ lessbright       │ 1                  │
+# │ lowpowermode     │ 0                  │
+# │ networkoversleep │ 0                  │
+# │ powernap         │ 1                  │
+# │ sleep            │ 1                  │
+# │ standby          │ 1                  │
+# │ tcpkeepalive     │ 1                  │
+# │ ttyskeepawake    │ 1                  │
+# │ womp             │ 1                  │
+# └──────────────────┴────────────────────┘
+macpower sched show
+#                                            Scheduled (one-time)
+# ┏━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃ Index ┃ Type ┃ When                ┃ Owner                                                             ┃
+# ┡━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+# │     0 │ wake │ 2025-12-26 08:50:46 │ com.apple.alarm.user-invisible-com.apple.osanalytics.hardhigheng… │
+# │     1 │ wake │ 2025-12-26 08:50:49 │ com.apple.alarm.user-invisible-com.apple.osanalytics.hardhigheng… │
+# └───────┴──────┴─────────────────────┴───────────────────────────────────────────────────────────────────┘
+# ╭──────────────────────────────────────── Scheduled (repeating) ─────────────────────────────────────────╮
+# │ No repeating events.                                                                                   │
+# ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
