@@ -1,0 +1,476 @@
+# Outline SDK for Python
+
+[![PyPI version](https://badge.fury.io/py/outline-sdk.svg)](https://badge.fury.io/py/outline-sdk)
+[![Python Support](https://img.shields.io/pypi/pyversions/outline-sdk.svg)](https://pypi.org/project/outline-sdk/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+A beautiful, elegant Python SDK for the [Outline](https://www.getoutline.com/) API with rich models and comprehensive type safety.
+
+## Features
+
+✨ **Rich Models** - Models with intuitive methods like `collection.add_document()`, `document.list_comments()`  
+🔒 **Type Safe** - Full type hints for better IDE support and fewer bugs  
+🎯 **Simple & Elegant** - Clean, readable API following KISS principles  
+⚡ **Async Ready** - Built on httpx for modern async/await support  
+📝 **Well Documented** - Comprehensive documentation with real-world examples  
+🧪 **Fully Tested** - High test coverage with tests against real Outline instances  
+
+## Installation
+
+```bash
+# Using pip
+pip install outline-sdk
+
+# Using uv (recommended)
+uv pip install outline-sdk
+```
+
+## Quick Start
+
+```python
+from outline import OutlineClient, Collection
+
+# Initialize client
+client = OutlineClient(
+    api_url="https://your-outline.com",
+    api_key="your-api-key"
+)
+
+# Create a collection
+collection = Collection.create(
+    client,
+    name="Engineering Docs",
+    description="Technical documentation",
+    icon="📚"
+)
+
+# Add a document
+doc = collection.add_document(
+    title="Getting Started",
+    text="# Welcome!\n\nThis is your first document.",
+    publish=True
+)
+
+# Add a comment
+comment = doc.add_comment("Great start!")
+
+print(f"Created document: {doc.title}")
+print(f"Document ID: {doc.id}")
+```
+
+## Authentication
+
+Get your API key from your Outline instance under **Settings → API & Apps**.
+
+```python
+from outline import OutlineClient
+
+client = OutlineClient(
+    api_url="https://your.outline.com",
+    api_key="ol_api_xxxxxxxxxxxxx"
+)
+```
+
+For testing, you can use environment variables:
+
+```bash
+# .env file
+TEST_OUTLINE_URL=https://your.outline.com
+TEST_OUTLINE_API_KEY=your-api-key
+```
+
+## Core Models
+
+### Collection
+
+Collections organize documents into hierarchical structures with permission controls.
+
+```python
+from outline import Collection
+
+# Create a collection
+collection = Collection.create(
+    client,
+    name="Product Docs",
+    description="Product documentation",
+    icon="📦",
+    color="#4A90E2"
+)
+
+# List all collections
+collections = Collection.list(client)
+
+# Get a specific collection
+collection = Collection.get(client, "collection-id")
+
+# Update collection
+collection.update(
+    name="Updated Name",
+    description="New description"
+)
+
+# Add a document
+doc = collection.add_document(
+    title="API Reference",
+    text="# API Docs\n\nDetailed API documentation...",
+    publish=True
+)
+
+# List documents in collection
+docs_structure = collection.list_documents()
+
+# Delete collection (warning: deletes all documents!)
+collection.delete()
+```
+
+### Document
+
+Documents are individual pages with Markdown content.
+
+```python
+from outline import Document
+
+# Create a document
+doc = Document.create(
+    client,
+    title="User Guide",
+    collection_id="collection-id",
+    text="# Getting Started\n\nWelcome to our app!",
+    publish=True
+)
+
+# List documents
+docs = Document.list(
+    client,
+    collection_id="collection-id",
+    limit=50
+)
+
+# Get a document
+doc = Document.get(client, "document-id")
+
+# Update document
+doc.update(
+    title="Updated Title",
+    text="# New Content\n\nUpdated information..."
+)
+
+# Move document
+doc.move(
+    collection_id="new-collection-id",
+    parent_document_id="parent-doc-id"  # Optional for nesting
+)
+
+# Archive/restore
+doc.archive()
+doc.restore()
+
+# Publish/unpublish
+doc.publish()
+doc.unpublish()
+
+# Delete (moves to trash)
+doc.delete()
+
+# Permanent delete
+doc.delete(permanent=True)
+
+# Export as markdown
+markdown = doc.export()
+```
+
+### Comment
+
+Comments allow discussion on documents.
+
+```python
+from outline import Comment
+
+# Add a comment to a document
+comment = doc.add_comment("This looks great!")
+
+# Create a comment directly
+comment = Comment.create(
+    client,
+    document_id="doc-id",
+    text="My comment"
+)
+
+# Reply to a comment
+reply = Comment.create(
+    client,
+    document_id="doc-id",
+    text="I agree!",
+    parent_comment_id=comment.id
+)
+
+# List comments on a document
+comments = doc.list_comments()
+
+# Or list all comments
+all_comments = Comment.list(
+    client,
+    document_id="doc-id"
+)
+
+# Update comment
+comment.update(data={"content": "Updated comment"})
+
+# Delete comment
+comment.delete()
+```
+
+### Attachment
+
+Upload and download file attachments.
+
+```python
+from outline import Attachment
+
+# Upload a file (one-step)
+attachment = Attachment.create_and_upload(
+    client,
+    "report.pdf",
+    document_id="doc-id"
+)
+
+# Upload from bytes
+content = b"Hello, World!"
+attachment = Attachment.create(
+    client,
+    name="hello.txt",
+    content_type="text/plain",
+    size=len(content),
+    document_id="doc-id"
+)
+attachment.upload_from_bytes(content)
+
+# List attachments in a document
+attachments = doc.list_attachments()
+for ref in attachments:
+    print(f"{ref.name}: {ref.size} bytes")
+
+# Download an attachment
+content = doc.download_attachment(attachment_id)
+# Or save to file
+doc.download_attachment(attachment_id, "output.pdf")
+```
+
+## Error Handling
+
+The SDK provides detailed exception classes for different error scenarios:
+
+```python
+from outline import (
+    OutlineError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+    RateLimitError,
+    NetworkError
+)
+
+try:
+    doc = Document.get(client, "invalid-id")
+except NotFoundError as e:
+    print(f"Document not found: {e}")
+except AuthenticationError as e:
+    print(f"Invalid API key: {e}")
+except AuthorizationError as e:
+    print(f"Not authorized: {e}")
+except RateLimitError as e:
+    print(f"Rate limited. Retry after {e.retry_after} seconds")
+except OutlineError as e:
+    print(f"API error: {e}")
+```
+
+## Advanced Usage
+
+### Context Manager
+
+Use the client as a context manager to ensure proper cleanup:
+
+```python
+with OutlineClient(api_url, api_key) as client:
+    collections = Collection.list(client)
+    for collection in collections:
+        print(collection.name)
+# Session automatically closed
+```
+
+### Subdocuments
+
+Create hierarchical document structures with convenience methods:
+
+```python
+# Create parent
+parent = collection.add_document(
+    title="User Guide",
+    publish=True
+)
+
+# Add subdocuments
+intro = parent.add_subdocument(
+    title="Introduction",
+    text="# Introduction\n\nWelcome!",
+    publish=True
+)
+
+setup = parent.add_subdocument(
+    title="Setup",
+    text="# Setup\n\nInstallation steps...",
+    publish=True
+)
+
+# List subdocuments
+children = parent.list_subdocuments()
+for child in children:
+    print(f"- {child.title}")
+
+# Check if has children
+if parent.has_subdocuments():
+    print(f"{parent.title} has {len(children)} children")
+```
+
+### Batch Operations
+
+Efficiently work with multiple resources:
+
+```python
+# Create multiple documents
+documents = []
+for i in range(10):
+    doc = collection.add_document(
+        title=f"Doc {i+1}",
+        text=f"Content for document {i+1}",
+        publish=True
+    )
+    documents.append(doc)
+
+# Update all documents
+for doc in documents:
+    doc.update(text=doc.text + "\n\n## Updated")
+```
+
+### Pagination
+
+Handle large result sets:
+
+```python
+# Get all documents in batches
+offset = 0
+limit = 25
+all_docs = []
+
+while True:
+    batch = Document.list(
+        client,
+        collection_id=collection.id,
+        limit=limit,
+        offset=offset
+    )
+    
+    if not batch:
+        break
+    
+    all_docs.extend(batch)
+    offset += limit
+
+print(f"Found {len(all_docs)} documents")
+```
+
+## Development
+
+### Setup
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/outline-sdk-python
+cd outline-sdk-python
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+Set up your test environment:
+
+```bash
+# Copy example env file
+cp .env.example .env
+
+# Edit .env with your test instance URL and API key
+# TEST_OUTLINE_URL=https://your-test-instance.com
+# TEST_OUTLINE_API_KEY=your-test-api-key
+```
+
+Run tests:
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/outline --cov-report=html
+
+# Run specific test file
+pytest tests/test_collections.py -v
+
+# Run with verbose output
+pytest -vv
+```
+
+### Code Quality
+
+```bash
+# Format code
+black src/ tests/
+
+# Lint code
+ruff check src/ tests/
+
+# Type check
+mypy src/
+```
+
+## Examples
+
+See the [`examples/`](examples/) directory for examples:
+
+- [`basic_usage.py`](examples/basic_usage.py) - Getting started
+- [`attachments.py`](examples/attachments.py) - Upload/download files
+- [`subdocuments.py`](examples/subdocuments.py) - Nested documents
+
+## API Coverage
+
+- ✅ Collections (create, list, get, update, delete, export, documents)
+- ✅ Documents (create, list, get, update, delete, move, archive, publish, subdocuments)
+- ✅ Comments (create, list, get, update, delete, threads)
+- ✅ Attachments (create, upload, download, list, delete)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built for the [Outline](https://www.getoutline.com/) knowledge base
+- Inspired by modern Python SDK design patterns
+- Thanks to all contributors
+
