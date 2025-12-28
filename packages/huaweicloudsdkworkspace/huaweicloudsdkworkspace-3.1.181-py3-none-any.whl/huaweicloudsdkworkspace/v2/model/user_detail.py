@@ -1,0 +1,804 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class UserDetail:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'description': 'str',
+        'id': 'str',
+        'user_name': 'str',
+        'user_email': 'str',
+        'user_phone': 'str',
+        'active_type': 'str',
+        'object_sid': 'str',
+        'sam_account_name': 'str',
+        'user_principal_name': 'str',
+        'full_name': 'str',
+        'distinguished_name': 'str',
+        'account_type': 'int',
+        'when_created': 'str',
+        'account_expires': 'int',
+        'is_pre_user': 'bool',
+        'user_expired': 'bool',
+        'locked': 'bool',
+        'enable_change_password': 'bool',
+        'password_never_expired': 'bool',
+        'next_login_change_password': 'bool',
+        'disabled': 'bool',
+        'group_names': 'list[str]',
+        'share_space_subscription': 'bool',
+        'share_space_desktops': 'int',
+        'total_desktops': 'int'
+    }
+
+    attribute_map = {
+        'description': 'description',
+        'id': 'id',
+        'user_name': 'user_name',
+        'user_email': 'user_email',
+        'user_phone': 'user_phone',
+        'active_type': 'active_type',
+        'object_sid': 'object_sid',
+        'sam_account_name': 'sam_account_name',
+        'user_principal_name': 'user_principal_name',
+        'full_name': 'full_name',
+        'distinguished_name': 'distinguished_name',
+        'account_type': 'account_type',
+        'when_created': 'when_created',
+        'account_expires': 'account_expires',
+        'is_pre_user': 'is_pre_user',
+        'user_expired': 'user_expired',
+        'locked': 'locked',
+        'enable_change_password': 'enable_change_password',
+        'password_never_expired': 'password_never_expired',
+        'next_login_change_password': 'next_login_change_password',
+        'disabled': 'disabled',
+        'group_names': 'group_names',
+        'share_space_subscription': 'share_space_subscription',
+        'share_space_desktops': 'share_space_desktops',
+        'total_desktops': 'total_desktops'
+    }
+
+    def __init__(self, description=None, id=None, user_name=None, user_email=None, user_phone=None, active_type=None, object_sid=None, sam_account_name=None, user_principal_name=None, full_name=None, distinguished_name=None, account_type=None, when_created=None, account_expires=None, is_pre_user=None, user_expired=None, locked=None, enable_change_password=None, password_never_expired=None, next_login_change_password=None, disabled=None, group_names=None, share_space_subscription=None, share_space_desktops=None, total_desktops=None):
+        r"""UserDetail
+
+        The model defined in huaweicloud sdk
+
+        :param description: 用户描述。
+        :type description: str
+        :param id: 用户id。
+        :type id: str
+        :param user_name: 桌面用户名。
+        :type user_name: str
+        :param user_email: 用户邮箱。
+        :type user_email: str
+        :param user_phone: 手机号。
+        :type user_phone: str
+        :param active_type: 激活类型，默认为用户激活。 * USER_ACTIVATE： 用户激活 * ADMIN_ACTIVATE： 管理员激活
+        :type active_type: str
+        :param object_sid: 用户sid。
+        :type object_sid: str
+        :param sam_account_name: 登录名(windows以前版本)。
+        :type sam_account_name: str
+        :param user_principal_name: 用户登录名。
+        :type user_principal_name: str
+        :param full_name: 全名。
+        :type full_name: str
+        :param distinguished_name: 用户在域树上的唯一位置。
+        :type distinguished_name: str
+        :param account_type: 账号类型(0：用户；1：用户组)。
+        :type account_type: int
+        :param when_created: UTC时间毫秒数对应的字符，格式为：yyyy-MM-ddTHH:mm:ss.SSSZ。
+        :type when_created: str
+        :param account_expires: 账号有效期最后一天对应的UTC时间，以毫秒为单位。
+        :type account_expires: int
+        :param is_pre_user: 是否是预创建的用户，true表示是预创建用户，false表示不是预创建用户。
+        :type is_pre_user: bool
+        :param user_expired: 账户是否过期，true表示过期，false表示未过期。
+        :type user_expired: bool
+        :param locked: 账户是否被锁定，true表示被锁定，false表示未锁定。
+        :type locked: bool
+        :param enable_change_password: 是否允许修改密码，true表示允许修改密码，false表示不允许。
+        :type enable_change_password: bool
+        :param password_never_expired: 密码是否永不过期，true表示密码永不过期，false表示密码会过期。
+        :type password_never_expired: bool
+        :param next_login_change_password: 下次登录是否需要重置密码，true表示需要重置密码，false表示不需要。
+        :type next_login_change_password: bool
+        :param disabled: 账户是否禁用，true表示被禁用，false表示未禁用。
+        :type disabled: bool
+        :param group_names: 加入的组列表。
+        :type group_names: list[str]
+        :param share_space_subscription: 用户是否订阅协同，true表示已订阅，false表示未订阅。
+        :type share_space_subscription: bool
+        :param share_space_desktops: 用户已绑定协同桌面数。
+        :type share_space_desktops: int
+        :param total_desktops: 用户绑定桌面云总数。
+        :type total_desktops: int
+        """
+        
+        
+
+        self._description = None
+        self._id = None
+        self._user_name = None
+        self._user_email = None
+        self._user_phone = None
+        self._active_type = None
+        self._object_sid = None
+        self._sam_account_name = None
+        self._user_principal_name = None
+        self._full_name = None
+        self._distinguished_name = None
+        self._account_type = None
+        self._when_created = None
+        self._account_expires = None
+        self._is_pre_user = None
+        self._user_expired = None
+        self._locked = None
+        self._enable_change_password = None
+        self._password_never_expired = None
+        self._next_login_change_password = None
+        self._disabled = None
+        self._group_names = None
+        self._share_space_subscription = None
+        self._share_space_desktops = None
+        self._total_desktops = None
+        self.discriminator = None
+
+        if description is not None:
+            self.description = description
+        if id is not None:
+            self.id = id
+        if user_name is not None:
+            self.user_name = user_name
+        if user_email is not None:
+            self.user_email = user_email
+        if user_phone is not None:
+            self.user_phone = user_phone
+        if active_type is not None:
+            self.active_type = active_type
+        if object_sid is not None:
+            self.object_sid = object_sid
+        if sam_account_name is not None:
+            self.sam_account_name = sam_account_name
+        if user_principal_name is not None:
+            self.user_principal_name = user_principal_name
+        if full_name is not None:
+            self.full_name = full_name
+        if distinguished_name is not None:
+            self.distinguished_name = distinguished_name
+        if account_type is not None:
+            self.account_type = account_type
+        if when_created is not None:
+            self.when_created = when_created
+        if account_expires is not None:
+            self.account_expires = account_expires
+        if is_pre_user is not None:
+            self.is_pre_user = is_pre_user
+        if user_expired is not None:
+            self.user_expired = user_expired
+        if locked is not None:
+            self.locked = locked
+        if enable_change_password is not None:
+            self.enable_change_password = enable_change_password
+        if password_never_expired is not None:
+            self.password_never_expired = password_never_expired
+        if next_login_change_password is not None:
+            self.next_login_change_password = next_login_change_password
+        if disabled is not None:
+            self.disabled = disabled
+        if group_names is not None:
+            self.group_names = group_names
+        if share_space_subscription is not None:
+            self.share_space_subscription = share_space_subscription
+        if share_space_desktops is not None:
+            self.share_space_desktops = share_space_desktops
+        if total_desktops is not None:
+            self.total_desktops = total_desktops
+
+    @property
+    def description(self):
+        r"""Gets the description of this UserDetail.
+
+        用户描述。
+
+        :return: The description of this UserDetail.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this UserDetail.
+
+        用户描述。
+
+        :param description: The description of this UserDetail.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def id(self):
+        r"""Gets the id of this UserDetail.
+
+        用户id。
+
+        :return: The id of this UserDetail.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this UserDetail.
+
+        用户id。
+
+        :param id: The id of this UserDetail.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def user_name(self):
+        r"""Gets the user_name of this UserDetail.
+
+        桌面用户名。
+
+        :return: The user_name of this UserDetail.
+        :rtype: str
+        """
+        return self._user_name
+
+    @user_name.setter
+    def user_name(self, user_name):
+        r"""Sets the user_name of this UserDetail.
+
+        桌面用户名。
+
+        :param user_name: The user_name of this UserDetail.
+        :type user_name: str
+        """
+        self._user_name = user_name
+
+    @property
+    def user_email(self):
+        r"""Gets the user_email of this UserDetail.
+
+        用户邮箱。
+
+        :return: The user_email of this UserDetail.
+        :rtype: str
+        """
+        return self._user_email
+
+    @user_email.setter
+    def user_email(self, user_email):
+        r"""Sets the user_email of this UserDetail.
+
+        用户邮箱。
+
+        :param user_email: The user_email of this UserDetail.
+        :type user_email: str
+        """
+        self._user_email = user_email
+
+    @property
+    def user_phone(self):
+        r"""Gets the user_phone of this UserDetail.
+
+        手机号。
+
+        :return: The user_phone of this UserDetail.
+        :rtype: str
+        """
+        return self._user_phone
+
+    @user_phone.setter
+    def user_phone(self, user_phone):
+        r"""Sets the user_phone of this UserDetail.
+
+        手机号。
+
+        :param user_phone: The user_phone of this UserDetail.
+        :type user_phone: str
+        """
+        self._user_phone = user_phone
+
+    @property
+    def active_type(self):
+        r"""Gets the active_type of this UserDetail.
+
+        激活类型，默认为用户激活。 * USER_ACTIVATE： 用户激活 * ADMIN_ACTIVATE： 管理员激活
+
+        :return: The active_type of this UserDetail.
+        :rtype: str
+        """
+        return self._active_type
+
+    @active_type.setter
+    def active_type(self, active_type):
+        r"""Sets the active_type of this UserDetail.
+
+        激活类型，默认为用户激活。 * USER_ACTIVATE： 用户激活 * ADMIN_ACTIVATE： 管理员激活
+
+        :param active_type: The active_type of this UserDetail.
+        :type active_type: str
+        """
+        self._active_type = active_type
+
+    @property
+    def object_sid(self):
+        r"""Gets the object_sid of this UserDetail.
+
+        用户sid。
+
+        :return: The object_sid of this UserDetail.
+        :rtype: str
+        """
+        return self._object_sid
+
+    @object_sid.setter
+    def object_sid(self, object_sid):
+        r"""Sets the object_sid of this UserDetail.
+
+        用户sid。
+
+        :param object_sid: The object_sid of this UserDetail.
+        :type object_sid: str
+        """
+        self._object_sid = object_sid
+
+    @property
+    def sam_account_name(self):
+        r"""Gets the sam_account_name of this UserDetail.
+
+        登录名(windows以前版本)。
+
+        :return: The sam_account_name of this UserDetail.
+        :rtype: str
+        """
+        return self._sam_account_name
+
+    @sam_account_name.setter
+    def sam_account_name(self, sam_account_name):
+        r"""Sets the sam_account_name of this UserDetail.
+
+        登录名(windows以前版本)。
+
+        :param sam_account_name: The sam_account_name of this UserDetail.
+        :type sam_account_name: str
+        """
+        self._sam_account_name = sam_account_name
+
+    @property
+    def user_principal_name(self):
+        r"""Gets the user_principal_name of this UserDetail.
+
+        用户登录名。
+
+        :return: The user_principal_name of this UserDetail.
+        :rtype: str
+        """
+        return self._user_principal_name
+
+    @user_principal_name.setter
+    def user_principal_name(self, user_principal_name):
+        r"""Sets the user_principal_name of this UserDetail.
+
+        用户登录名。
+
+        :param user_principal_name: The user_principal_name of this UserDetail.
+        :type user_principal_name: str
+        """
+        self._user_principal_name = user_principal_name
+
+    @property
+    def full_name(self):
+        r"""Gets the full_name of this UserDetail.
+
+        全名。
+
+        :return: The full_name of this UserDetail.
+        :rtype: str
+        """
+        return self._full_name
+
+    @full_name.setter
+    def full_name(self, full_name):
+        r"""Sets the full_name of this UserDetail.
+
+        全名。
+
+        :param full_name: The full_name of this UserDetail.
+        :type full_name: str
+        """
+        self._full_name = full_name
+
+    @property
+    def distinguished_name(self):
+        r"""Gets the distinguished_name of this UserDetail.
+
+        用户在域树上的唯一位置。
+
+        :return: The distinguished_name of this UserDetail.
+        :rtype: str
+        """
+        return self._distinguished_name
+
+    @distinguished_name.setter
+    def distinguished_name(self, distinguished_name):
+        r"""Sets the distinguished_name of this UserDetail.
+
+        用户在域树上的唯一位置。
+
+        :param distinguished_name: The distinguished_name of this UserDetail.
+        :type distinguished_name: str
+        """
+        self._distinguished_name = distinguished_name
+
+    @property
+    def account_type(self):
+        r"""Gets the account_type of this UserDetail.
+
+        账号类型(0：用户；1：用户组)。
+
+        :return: The account_type of this UserDetail.
+        :rtype: int
+        """
+        return self._account_type
+
+    @account_type.setter
+    def account_type(self, account_type):
+        r"""Sets the account_type of this UserDetail.
+
+        账号类型(0：用户；1：用户组)。
+
+        :param account_type: The account_type of this UserDetail.
+        :type account_type: int
+        """
+        self._account_type = account_type
+
+    @property
+    def when_created(self):
+        r"""Gets the when_created of this UserDetail.
+
+        UTC时间毫秒数对应的字符，格式为：yyyy-MM-ddTHH:mm:ss.SSSZ。
+
+        :return: The when_created of this UserDetail.
+        :rtype: str
+        """
+        return self._when_created
+
+    @when_created.setter
+    def when_created(self, when_created):
+        r"""Sets the when_created of this UserDetail.
+
+        UTC时间毫秒数对应的字符，格式为：yyyy-MM-ddTHH:mm:ss.SSSZ。
+
+        :param when_created: The when_created of this UserDetail.
+        :type when_created: str
+        """
+        self._when_created = when_created
+
+    @property
+    def account_expires(self):
+        r"""Gets the account_expires of this UserDetail.
+
+        账号有效期最后一天对应的UTC时间，以毫秒为单位。
+
+        :return: The account_expires of this UserDetail.
+        :rtype: int
+        """
+        return self._account_expires
+
+    @account_expires.setter
+    def account_expires(self, account_expires):
+        r"""Sets the account_expires of this UserDetail.
+
+        账号有效期最后一天对应的UTC时间，以毫秒为单位。
+
+        :param account_expires: The account_expires of this UserDetail.
+        :type account_expires: int
+        """
+        self._account_expires = account_expires
+
+    @property
+    def is_pre_user(self):
+        r"""Gets the is_pre_user of this UserDetail.
+
+        是否是预创建的用户，true表示是预创建用户，false表示不是预创建用户。
+
+        :return: The is_pre_user of this UserDetail.
+        :rtype: bool
+        """
+        return self._is_pre_user
+
+    @is_pre_user.setter
+    def is_pre_user(self, is_pre_user):
+        r"""Sets the is_pre_user of this UserDetail.
+
+        是否是预创建的用户，true表示是预创建用户，false表示不是预创建用户。
+
+        :param is_pre_user: The is_pre_user of this UserDetail.
+        :type is_pre_user: bool
+        """
+        self._is_pre_user = is_pre_user
+
+    @property
+    def user_expired(self):
+        r"""Gets the user_expired of this UserDetail.
+
+        账户是否过期，true表示过期，false表示未过期。
+
+        :return: The user_expired of this UserDetail.
+        :rtype: bool
+        """
+        return self._user_expired
+
+    @user_expired.setter
+    def user_expired(self, user_expired):
+        r"""Sets the user_expired of this UserDetail.
+
+        账户是否过期，true表示过期，false表示未过期。
+
+        :param user_expired: The user_expired of this UserDetail.
+        :type user_expired: bool
+        """
+        self._user_expired = user_expired
+
+    @property
+    def locked(self):
+        r"""Gets the locked of this UserDetail.
+
+        账户是否被锁定，true表示被锁定，false表示未锁定。
+
+        :return: The locked of this UserDetail.
+        :rtype: bool
+        """
+        return self._locked
+
+    @locked.setter
+    def locked(self, locked):
+        r"""Sets the locked of this UserDetail.
+
+        账户是否被锁定，true表示被锁定，false表示未锁定。
+
+        :param locked: The locked of this UserDetail.
+        :type locked: bool
+        """
+        self._locked = locked
+
+    @property
+    def enable_change_password(self):
+        r"""Gets the enable_change_password of this UserDetail.
+
+        是否允许修改密码，true表示允许修改密码，false表示不允许。
+
+        :return: The enable_change_password of this UserDetail.
+        :rtype: bool
+        """
+        return self._enable_change_password
+
+    @enable_change_password.setter
+    def enable_change_password(self, enable_change_password):
+        r"""Sets the enable_change_password of this UserDetail.
+
+        是否允许修改密码，true表示允许修改密码，false表示不允许。
+
+        :param enable_change_password: The enable_change_password of this UserDetail.
+        :type enable_change_password: bool
+        """
+        self._enable_change_password = enable_change_password
+
+    @property
+    def password_never_expired(self):
+        r"""Gets the password_never_expired of this UserDetail.
+
+        密码是否永不过期，true表示密码永不过期，false表示密码会过期。
+
+        :return: The password_never_expired of this UserDetail.
+        :rtype: bool
+        """
+        return self._password_never_expired
+
+    @password_never_expired.setter
+    def password_never_expired(self, password_never_expired):
+        r"""Sets the password_never_expired of this UserDetail.
+
+        密码是否永不过期，true表示密码永不过期，false表示密码会过期。
+
+        :param password_never_expired: The password_never_expired of this UserDetail.
+        :type password_never_expired: bool
+        """
+        self._password_never_expired = password_never_expired
+
+    @property
+    def next_login_change_password(self):
+        r"""Gets the next_login_change_password of this UserDetail.
+
+        下次登录是否需要重置密码，true表示需要重置密码，false表示不需要。
+
+        :return: The next_login_change_password of this UserDetail.
+        :rtype: bool
+        """
+        return self._next_login_change_password
+
+    @next_login_change_password.setter
+    def next_login_change_password(self, next_login_change_password):
+        r"""Sets the next_login_change_password of this UserDetail.
+
+        下次登录是否需要重置密码，true表示需要重置密码，false表示不需要。
+
+        :param next_login_change_password: The next_login_change_password of this UserDetail.
+        :type next_login_change_password: bool
+        """
+        self._next_login_change_password = next_login_change_password
+
+    @property
+    def disabled(self):
+        r"""Gets the disabled of this UserDetail.
+
+        账户是否禁用，true表示被禁用，false表示未禁用。
+
+        :return: The disabled of this UserDetail.
+        :rtype: bool
+        """
+        return self._disabled
+
+    @disabled.setter
+    def disabled(self, disabled):
+        r"""Sets the disabled of this UserDetail.
+
+        账户是否禁用，true表示被禁用，false表示未禁用。
+
+        :param disabled: The disabled of this UserDetail.
+        :type disabled: bool
+        """
+        self._disabled = disabled
+
+    @property
+    def group_names(self):
+        r"""Gets the group_names of this UserDetail.
+
+        加入的组列表。
+
+        :return: The group_names of this UserDetail.
+        :rtype: list[str]
+        """
+        return self._group_names
+
+    @group_names.setter
+    def group_names(self, group_names):
+        r"""Sets the group_names of this UserDetail.
+
+        加入的组列表。
+
+        :param group_names: The group_names of this UserDetail.
+        :type group_names: list[str]
+        """
+        self._group_names = group_names
+
+    @property
+    def share_space_subscription(self):
+        r"""Gets the share_space_subscription of this UserDetail.
+
+        用户是否订阅协同，true表示已订阅，false表示未订阅。
+
+        :return: The share_space_subscription of this UserDetail.
+        :rtype: bool
+        """
+        return self._share_space_subscription
+
+    @share_space_subscription.setter
+    def share_space_subscription(self, share_space_subscription):
+        r"""Sets the share_space_subscription of this UserDetail.
+
+        用户是否订阅协同，true表示已订阅，false表示未订阅。
+
+        :param share_space_subscription: The share_space_subscription of this UserDetail.
+        :type share_space_subscription: bool
+        """
+        self._share_space_subscription = share_space_subscription
+
+    @property
+    def share_space_desktops(self):
+        r"""Gets the share_space_desktops of this UserDetail.
+
+        用户已绑定协同桌面数。
+
+        :return: The share_space_desktops of this UserDetail.
+        :rtype: int
+        """
+        return self._share_space_desktops
+
+    @share_space_desktops.setter
+    def share_space_desktops(self, share_space_desktops):
+        r"""Sets the share_space_desktops of this UserDetail.
+
+        用户已绑定协同桌面数。
+
+        :param share_space_desktops: The share_space_desktops of this UserDetail.
+        :type share_space_desktops: int
+        """
+        self._share_space_desktops = share_space_desktops
+
+    @property
+    def total_desktops(self):
+        r"""Gets the total_desktops of this UserDetail.
+
+        用户绑定桌面云总数。
+
+        :return: The total_desktops of this UserDetail.
+        :rtype: int
+        """
+        return self._total_desktops
+
+    @total_desktops.setter
+    def total_desktops(self, total_desktops):
+        r"""Sets the total_desktops of this UserDetail.
+
+        用户绑定桌面云总数。
+
+        :param total_desktops: The total_desktops of this UserDetail.
+        :type total_desktops: int
+        """
+        self._total_desktops = total_desktops
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, UserDetail):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
