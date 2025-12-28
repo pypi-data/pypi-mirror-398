@@ -1,0 +1,41 @@
+name: Main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release type"
+        required: true
+        default: "rc"
+        type: choice
+        options:
+          - rc
+          - release
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/run-unit-tests
+
+  bump-version:
+    name: Bump Version
+    if: "!startsWith(github.event.head_commit.message, 'bump:')"
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Bump version and create changelog
+        uses: commitizen-tools/commitizen-action@master
+        with:
+          github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          extra_requirements: packaging
+          prerelease: ${{ github.event_name == 'push' && 'rc' || inputs.release_type != 'release' && inputs.release_type || '' }}
