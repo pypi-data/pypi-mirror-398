@@ -1,0 +1,170 @@
+Metadata-Version: 2.4
+Name: functor
+Version: 0.0.1b1.dev0
+Summary: The `functor` package uses Python black magic to turn functions into objects (functors), letting them access their own instance via `functor.self`.
+Author-email: Caewinix <Caewinix@yeah.net>
+Project-URL: Homepage, https://github.com/Caewinix/functor
+Project-URL: Bug Tracker, https://github.com/Caewinix/functor/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: typing_extensions
+Dynamic: license-file
+
+# functor
+
+The package **functor** is a Python black magic library that bridges the gap between functions and objects. It upgrades standard functions into **Function Objects (Functors)**, allowing them to access their own instance via `functor.self` from within their own scope.
+
+This enables state persistence, self-reference (recursion), and metadata management without needing to pass an explicit `self` argument or write boilerplate class structures.
+
+## ✨ Key Features
+
+* **Implicit Context Injection**: Access the current function instance directly via `functor.self` inside the decorated function.
+* **State Persistence**: Functions are objects. You can attach attributes to them just like class instances.
+* **Module as a Class**: The library leverages the "Module as a Class" pattern. The `functor` module itself is callable and acts as the factory.
+
+## 📦 Installation
+
+```bash
+pip install functor
+```
+
+## 🚀 Quick Start
+
+### 1. Stateful Functions
+
+Standard Python functions cannot easily retain state without using `global` or `nonlocal`. With `@functor`, functions behave like single-method classes:
+
+```python
+import functor
+
+
+@functor
+def counter():
+    # Initialize state on the function instance itself
+    if not hasattr(functor.self, 'count'):
+        functor.self.count = 0
+    
+    functor.self.count += 1
+    return functor.self.count
+
+
+print(counter()) # Output: 1
+print(counter()) # Output: 2
+print(counter.count) # Output: 2
+```
+
+### 2. Recursion & Self-Reference
+
+Recursion usually requires hardcoding the function name. `functor` allows you to decouple the logic from the name:
+
+```python
+import functor
+
+
+@functor
+def factorial(n):
+    if n == 0:
+        return 1
+    # Use functor.self to call the function recursively
+    # This works even if the function is assigned to a different variable name
+    return n * functor.self(n - 1)
+
+
+print(factorial(5)) # Output: 120
+```
+
+### 3. Bound Mode
+
+`functor` can also be used inside classes. By using `bound=True`, you can control how the instance binding works.
+
+```python
+import functor
+
+
+@functor(bound=True)
+def factorial(self, n):
+    if n == 0:
+        return 1
+    # Use self to call the function recursively
+    return n * self(n - 1)
+
+
+print(factorial(5)) # Output: 120
+```
+
+### 4. Inheritance of `functor`
+
+`functor` can also be used inside classes. By using `bound=True`, you can control how the instance binding works.
+
+```python
+from functor import functor
+
+
+class Factorial(functor):
+    def minus(self, n, value):
+        return self(n - value)
+
+
+@Factorial
+def factorial(n):
+    if n == 0:
+        return 1
+    return n * Factorial.self.minus(n, 1)
+
+
+print(factorial(5)) # Output: 120
+```
+
+### Module as a Class
+
+It can be noticed that `import functor` can be used simply for `@functor`. This is because the library replaces the standard module object in `sys.modules` with a custom **FunctorModule** instance.
+
+```python
+import functor
+
+
+# 'functor' is a module which is callable
+print(type(functor))  # <class 'functor.FunctorModule'>
+```
+
+Nonetheless, `from functor import functor` can also be used.
+
+```python
+from functor import functor
+
+
+# 'functor' is a type
+print(type(functor))  # <class 'type'>
+```
+
+## 📝 API Reference
+
+### `@functor` / `@functor(bound=True)`
+
+The core decorator/constructor.
+
+* **function** (`FunctionType`): The function to wrap. It should contain a valid `__code__` attribute in principle.
+* **bound** (`bool`): Whether to bind the first argument to the current functor instance. Defaults to `False`.
+
+**Returns**: A callable `functor` instance that proxies the original function while enabling state management.
+
+### `functor.self`
+
+A magic accessor valid **only** inside a function decorated with `@functor` when not bound. It returns the current `functor` instance.
+
+* **Raises**: `RuntimeError` if accessed outside of a valid context.
+
+---
+
+## ⚠️ Caveats
+
+1. **Performance**: Because the library relies on `sys._getframe` and global variable proxying, there is a slight overhead compared to standard function calls. It is best used for logic-heavy or stateful operations, not tight loops in critical paths.
+2. **Debugging**: Since the function's `__globals__` are swapped for a proxy during execution, some debuggers might display the environment differently than expected.
+
+---
+
+*License: MIT*
