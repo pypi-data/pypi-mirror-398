@@ -1,0 +1,162 @@
+# AnoSys Logger for OpenAI Agents - Python
+
+[![PyPI version](https://badge.fury.io/py/anosys-logger-4-openai-agents.svg)](https://badge.fury.io/py/anosys-logger-4-openai-agents)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Automatically capture and send OpenAI API calls (and more) to [AnoSys](https://anosys.ai) for monitoring, analytics, and observability.
+
+## Features
+
+- ✨ **Automatic Instrumentation**: Automatically captures traces from OpenAI API calls via OpenTelemetry.
+- ✨ **Manual Instrumentation**: Easy-to-use decorator `@anosys_logger` for logging any function (sync or async).
+- ✨ **Raw Logging**: Send custom JSON data directly to AnoSys for unstructured events.
+- ✨ **Async & Streaming Support**: Fully supports Python's `asyncio` and streaming response aggregation.
+- ✨ **OpenTelemetry Standards**: Follows LLM / Gen AI semantic conventions.
+
+## Installation
+
+Install the package via pip:
+
+```bash
+pip install anosys-logger-4-openai-agents
+```
+
+## Configuration
+
+You need an AnoSys API Key to send data. Set it as an environment variable:
+
+```bash
+export ANOSYS_API_KEY="your_anosys_api_key"
+```
+
+Or create a `.env` file in your project root:
+
+```env
+ANOSYS_API_KEY=your_anosys_api_key
+```
+
+## Usage
+
+### 1. Automatic Tracing (with OpenAI Agents)
+
+To automatically capture traces from OpenAI agents, register the `AnosysOpenAIAgentsLogger` as a trace processor. This requires the `traceai-openai-agents` package.
+
+```python
+import os
+import contextvars
+from agents import add_trace_processor
+from AnosysLoggers import AnosysOpenAIAgentsLogger
+
+# 1. Set API Keys
+os.environ["OPENAI_API_KEY"] = "your_openai_key"
+os.environ['ANOSYS_API_KEY'] = "your_anosys_key"
+
+# 2. (Optional) Setup User Context
+current_user_context = contextvars.ContextVar("current_user_context")
+current_user_context.set({"session_id": "session_123", "user_id": "user_456"})
+
+# 3. Register the Logger
+add_trace_processor(AnosysOpenAIAgentsLogger(get_user_context=current_user_context.get))
+
+# Now, any agent execution will be automatically logged to AnoSys.
+```
+
+### 2. Manual Logging (Decorator)
+
+Use the `@anosys_logger` decorator to log inputs, outputs, and execution details of any function.
+
+#### Synchronous Example
+
+```python
+from AnosysLoggers import anosys_logger
+
+@anosys_logger(source="my_sync_function")
+def calculate_sum(a, b):
+    return a + b
+
+# Calling the function will automatically log data to AnoSys
+result = calculate_sum(5, 10)
+```
+
+#### Asynchronous Example
+
+```python
+import asyncio
+from AnosysLoggers import anosys_logger
+
+@anosys_logger(source="my_async_function")
+async def fetch_data(url):
+    await asyncio.sleep(1)  # Simulate network delay
+    return {"data": "sample", "url": url}
+
+# Run the async function
+asyncio.run(fetch_data("https://example.com"))
+```
+
+#### Streaming (Async Generator) Example
+
+```python
+@anosys_logger(source="my_streaming_function")
+async def stream_data():
+    yield "part1"
+    yield "part2"
+
+# The logger will capture and aggregate the streamed output
+async for chunk in stream_data():
+    print(chunk)
+```
+
+### 3. Raw Logging
+
+If you need to log unstructured data or custom events, use `anosys_raw_logger`.
+
+```python
+from AnosysLoggers import anosys_raw_logger
+
+data = {
+    "event": "user_signup",
+    "user_id": "12345",
+    "status": "success"
+}
+
+anosys_raw_logger(data)
+```
+
+## What Data is Captured?
+
+### OpenTelemetry Semantic Conventions
+
+Following the Gen AI standards:
+- `gen_ai.system`: "openai"
+- `gen_ai.request.model`: Model requested (e.g., "gpt-4")
+- `gen_ai.usage.input_tokens`: Prompt token count
+- `gen_ai.usage.output_tokens`: Completion token count
+- `gen_ai.response.finish_reasons`: Why the generation stopped
+
+### Additional Metadata
+- Request/response messages (optional)
+- Execution duration and timestamps
+- Error types and full stack traces
+- Custom source identifiers
+
+## Advanced Usage
+
+### Custom API URL or Proxy
+
+If you need to point to a specific AnoSys instance:
+
+```python
+from AnosysLoggers import setup_api
+
+setup_api(path="https://custom.anosys.endpoint/api/log")
+```
+
+## Troubleshooting
+
+- **Missing API Key**: Ensure `ANOSYS_API_KEY` is set in your environment.
+- **Import Error**: Ensure you installed `anosys-logger-4-openai-agents`.
+- **Async Errors**: Ensure you are `await`-ing async functions decorated with `@anosys_logger`.
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
