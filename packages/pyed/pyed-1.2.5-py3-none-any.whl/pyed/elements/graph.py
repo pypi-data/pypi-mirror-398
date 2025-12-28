@@ -1,0 +1,195 @@
+import logging
+
+import xml.etree.ElementTree as ET
+
+from ..core.xml_item import XmlItem
+from .edge import Edge
+from .group import Group
+from .resource import Resource
+
+LOG = logging.getLogger(__name__)
+
+
+class Graph(XmlItem):
+    def __init__(self):
+        """
+        Top Graph object of which every other nodes must depend
+        """
+        super().__init__(parent=None)
+
+        self.nodes = {}
+        self.edges = {}
+        self.groups = {}
+        # Used to store svg files for instance
+        self.resources = {}
+        self._ressources_hash = {}  # Corresponding hash for a given ressource (to avoid storing it twice)
+
+        # Yed only support directed graph, so masking this value
+        self.directed = "directed"
+        self.existing_entities = {self.id: self}
+
+        self.graphml = None
+
+    def _construct_graphml(self):
+        """
+        Create the self.graphml object as an XML.Element
+        """
+        graphml = ET.Element("graphml", xmlns="http://graphml.graphdrawing.org/xmlns")
+        graphml.set("xmlns:java", "http://www.yworks.com/xml/yfiles-common/1.0/java")
+        graphml.set("xmlns:sys", "http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0")
+        graphml.set("xmlns:x", "http://www.yworks.com/xml/yfiles-common/markup/2.0")
+        graphml.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+        graphml.set("xmlns:y", "http://www.yworks.com/xml/graphml")
+        graphml.set("xmlns:yed", "http://www.yworks.com/xml/yed/3")
+        graphml.set("xsi:schemaLocation",
+                    "http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd")
+
+        node_key = ET.SubElement(graphml, "key", id="data_node")
+        node_key.set("for", "node")
+        node_key.set("yfiles.type", "nodegraphics")
+
+        # Definition: url for Node
+        node_key = ET.SubElement(graphml, "key", id="url_node")
+        node_key.set("for", "node")
+        node_key.set("attr.name", "url")
+        node_key.set("attr.type", "string")
+
+        # Definition: resource for graphml
+        node_key = ET.SubElement(graphml, "key", id="resource_node")
+        node_key.set("for", "graphml")
+        node_key.set("yfiles.type", "resources")
+
+        # Definition: description for Node
+        node_key = ET.SubElement(graphml, "key", id="description_node")
+        node_key.set("for", "node")
+        node_key.set("attr.name", "description")
+        node_key.set("attr.type", "string")
+
+        # Definition: url for Edge
+        node_key = ET.SubElement(graphml, "key", id="url_edge")
+        node_key.set("for", "edge")
+        node_key.set("attr.name", "url")
+        node_key.set("attr.type", "string")
+
+        # Definition: description for Edge
+        node_key = ET.SubElement(graphml, "key", id="description_edge")
+        node_key.set("for", "edge")
+        node_key.set("attr.name", "description")
+        node_key.set("attr.type", "string")
+
+        edge_key = ET.SubElement(graphml, "key", id="data_edge")
+        edge_key.set("for", "edge")
+        edge_key.set("yfiles.type", "edgegraphics")
+
+
+
+        graph = ET.SubElement(graphml, "graph", edgedefault=self.directed,
+                              id=self.id)
+
+        for node in self.nodes.values():
+            graph.append(node.to_xml())
+
+        for grp in self.groups.values():
+            graph.append(grp.to_xml())
+
+        for edge in self.edges.values():
+            graph.append(edge.to_xml())
+
+        data_key = ET.SubElement(graphml, "data", key="resource_node")
+        resources_key = ET.SubElement(data_key, 'y:Resources')
+
+        for resource in self.resources.values():
+            t = resource.to_xml()
+            resources_key.append(t)
+
+        self.graphml = graphml
+
+
+    def add_resource(self, resource):
+        r_hash = hash(resource)
+
+        # Check if this ressource is already stored and return corresponding index if so
+        for (idx, res) in self.resources.items():
+            if r_hash == res.hash:
+                return idx
+
+        # New ressource
+        r_obj = Resource(resource, parent=self)
+
+        self.resources[r_obj.id] = r_obj
+        self.existing_entities[r_obj.id] = r_obj
+
+        return r_obj.id
+
+    def write_graph(self, filename):
+        """
+        Write current graph object to file (Syntax is GraphML, compatible with Yed)
+
+        :param str filename: absolute or relative path for output file (expect .graphml extension).
+        """
+        self._construct_graphml()
+
+        tree = ET.ElementTree(self.graphml)
+
+        print(f"Write graph to {filename}")
+        tree.write(filename)
+
+    def get_graph(self):
+        """
+        Render current object as xml code
+
+        :return: XML code
+        :rtype: str
+        """
+        self._construct_graphml()
+
+        return ET.tostring(self.graphml, encoding='UTF-8').decode()
+
+    def add_node(self, NodeClass, node_name, **kwargs):
+        """
+        Add node of type NodeClass to self.
+
+        :param NodeType NodeClass: Node class must be child class of Node (e.g. ShapeNode, GenericNode, TableNode, UmlNode)
+        :param str node_name: node title
+        :param kwargs: Extra parameter to the Node class
+
+        :return: child node created
+        :rtype: instance of type NodeClass
+        """
+        node = NodeClass(node_name, *args, parent=self, **kwargs)
+
+        self.nodes[node.id] = node
+        self.existing_entities[node.id] = node
+        return node
+
+    def add_edge(self, node1, node2, *args, **kwargs):
+        """
+        Add an edge between both input nodes
+
+        :param Node node1: First node object
+        :param Node node2: Second node object
+        :param kwargs: Extra parameters for the Edge object.
+
+        :return: edge object
+        :rtype: Edge
+        """
+
+        edge = Edge(node1, node2, *args, parent=self, **kwargs)
+        self.edges[edge.id] = edge
+        self.existing_entities[edge.id] = edge
+        return edge
+
+    def add_group(self, name, *args, **kwargs):
+        """
+        Add group to current object.
+
+        :param str name: child group name
+        :param kwargs: Extra parameters for the Group object
+
+        :return: child group created
+        :rtype: Group
+        """
+        group = Group(name, *args, parent=self, **kwargs)
+        self.groups[group.id] = group
+        self.existing_entities[group.id] = group
+        return group
