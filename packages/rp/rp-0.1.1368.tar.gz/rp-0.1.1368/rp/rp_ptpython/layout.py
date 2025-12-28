@@ -1,0 +1,1160 @@
+"""
+Creation of the `Layout` instance for the Python input/REPL.
+"""
+from __future__ import unicode_literals
+
+from rp.prompt_toolkit.enums import DEFAULT_BUFFER, SEARCH_BUFFER
+from rp.prompt_toolkit.filters import IsDone, HasCompletions, RendererHeightIsKnown, HasFocus, Condition, HasSelection
+from rp.prompt_toolkit.key_binding.vi_state import InputMode
+from rp.prompt_toolkit.layout.containers import Window, HSplit, VSplit, FloatContainer, Float, ConditionalContainer, ScrollOffsets
+from rp.prompt_toolkit.layout.controls import BufferControl, TokenListControl, FillControl, UIContent
+from rp.prompt_toolkit.layout.dimension import LayoutDimension
+from rp.prompt_toolkit.layout.lexers import SimpleLexer
+from rp.prompt_toolkit.layout.margins import PromptMargin, FoldMargin
+from rp.prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
+from rp.prompt_toolkit.layout.processors import (
+    ConditionalProcessor, AppendAutoSuggestion, HighlightSearchProcessor,
+    HighlightSelectionProcessor, HighlightMatchingBracketProcessor,
+    Processor, Transformation, IndentGuideProcessor, ShowWhitespaceProcessor,
+    HighlightWordOccurrencesProcessor, HighlightInjectedLanguageProcessor,
+    SyntaxErrorProcessor
+)
+from rp.prompt_toolkit.layout.screen import Char
+from rp.prompt_toolkit.layout.toolbars import CompletionsToolbar, ArgToolbar, SearchToolbar, ValidationToolbar, SystemToolbar, TokenListToolbar
+from rp.prompt_toolkit.layout.utils import token_list_width
+from rp.prompt_toolkit.reactive import Integer
+from rp.prompt_toolkit.selection import SelectionType
+from rp.prompt_toolkit.token import Token
+from rp.prompt_toolkit.document import Document
+from rp.prompt_toolkit.selection import SelectionState
+
+from .filters import HasSignature, ShowSidebar, ShowSignature, ShowDocstring,ShowRealtimeInput,ShowVarSpace,ShowVarSpaceAndShowRealtimeInput,ShowVarSpaceOrShowRealtimeInput,ShowParenthesisAutomator
+from .utils import if_mousedown
+
+from pygments.lexers import PythonLexer
+from pygments.token import Token
+
+import platform
+import sys
+
+def get_empty_component():
+    return ConditionalContainer(
+        content=Window(TokenListControl(lambda: []), height=LayoutDimension.exact(0)),
+        filter=Condition(lambda cli: False),
+    )
+
+
+def extract_variable_toolbar():
+    """Create toolbar for extract variable refactoring input."""
+    import rp
+    if not rp.r._treesitter_supported: return get_empty_component()
+    from . import refactor_extract as refactor
+    def get_tokens(cli):
+        st = refactor.state
+        if not st.active:
+            return []
+
+        tokens = []
+        T = Token.Toolbar.Search
+
+        if st.error:
+            tokens.append((Token.Toolbar.Validation, " Error: " + st.error + " "))
+            st.reset()  # Clear after displaying - keys pass through
+        else:
+            tokens.append((T, " Name: "))
+            # Show cursor position with inverted/underlined char
+            before = st.name[:st.name_cursor]
+            after = st.name[st.name_cursor:]
+            tokens.append((T.Text, before))
+            cursor_char = after[0] if after else " "
+            tokens.append((Token.SearchMatch.Current, cursor_char))
+            tokens.append((T.Text, after[1:] if after else ""))
+
+            if st.duplicate_count > 0:
+                total = st.duplicate_count + 1
+                if st.replace_all:
+                    tokens.append((Token.Toolbar.Arg, " [Tab: replace ALL " + str(total) + "]"))
+                else:
+                    tokens.append((T, " [Tab: replace 1/" + str(total) + "]"))
+
+        return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=Condition(lambda cli: refactor.state.active)
+    )
+
+
+def status_message_toolbar():
+    """Create toolbar for transient status messages (errors, etc.)."""
+    import rp
+    if not rp.r._treesitter_supported: return get_empty_component()
+    from . import refactor_extract as refactor
+    def get_tokens(cli):
+        msg = refactor.get_status()
+        if not msg:
+            return []
+        return [(Token.Toolbar.Validation, " {0} ".format(msg))]
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=Condition(lambda cli: refactor.get_status() is not None)
+    )
+
+
+def rename_variable_toolbar():
+    """Create toolbar for rename variable refactoring input."""
+    import rp
+    if not rp.r._treesitter_supported: return get_empty_component()
+    from . import refactor_rename as rn
+
+    def get_tokens(cli):
+        st = rn.state
+        if not st.active:
+            return []
+
+        tokens = []
+        T = Token.Toolbar.Search
+
+        if st.error:
+            tokens.append((Token.Toolbar.Validation, " Error: " + st.error + " "))
+            st.reset()  # Clear after displaying - keys pass through
+        else:
+            tokens.append((T, " Rename '" + st.old_name + "' to: "))
+            # Show cursor position with inverted/underlined char
+            before = st.name[:st.name_cursor]
+            after = st.name[st.name_cursor:]
+            tokens.append((T.Text, before))
+            cursor_char = after[0] if after else " "
+            tokens.append((Token.SearchMatch.Current, cursor_char))
+            tokens.append((T.Text, after[1:] if after else ""))
+            count = st.get_count()
+            mode = "all" if st.everywhere else "scope"
+            if st.is_import:
+                mode = "import"
+            tokens.append((T, " (" + str(count) + " " + mode + ")"))
+            if not st.is_import and st.occurrence_count != st.scope_count:
+                tokens.append((Token.Toolbar.Validation, " [Tab: toggle]"))
+
+        return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=Condition(lambda cli: rn.state.active)
+    )
+
+
+def bash_extract_variable_toolbar():
+    """Create toolbar for bash extract variable refactoring input."""
+    import rp
+    if not rp.r._treesitter_supported: return get_empty_component()
+    from . import bash_extract as bash_ref
+
+    def get_tokens(cli):
+        st = bash_ref.state
+        if not st.active:
+            return []
+
+        tokens = []
+        T = Token.Toolbar.Search
+
+        if st.error:
+            tokens.append((Token.Toolbar.Validation, " Error: " + st.error + " "))
+            st.reset()
+        else:
+            tokens.append((T, " Bash Extract - Name: "))
+            before = st.name[:st.name_cursor]
+            after = st.name[st.name_cursor:]
+            tokens.append((T.Text, before))
+            cursor_char = after[0] if after else " "
+            tokens.append((Token.SearchMatch.Current, cursor_char))
+            tokens.append((T.Text, after[1:] if after else ""))
+
+            if st.duplicate_count > 0:
+                total = st.duplicate_count + 1
+                if st.replace_all:
+                    tokens.append((Token.Toolbar.Arg, " [Tab: replace ALL " + str(total) + "]"))
+                else:
+                    tokens.append((T, " [Tab: replace 1/" + str(total) + "]"))
+
+        return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=Condition(lambda cli: bash_ref.state.active)
+    )
+
+
+def bash_rename_variable_toolbar():
+    """Create toolbar for bash rename variable refactoring input."""
+    import rp
+    if not rp.r._treesitter_supported: return get_empty_component()
+    from . import bash_rename as bash_rn
+
+    def get_tokens(cli):
+        st = bash_rn.state
+        if not st.active:
+            return []
+
+        tokens = []
+        T = Token.Toolbar.Search
+
+        if st.error:
+            tokens.append((Token.Toolbar.Validation, " Error: " + st.error + " "))
+            st.reset()
+        else:
+            tokens.append((T, " Bash Rename '" + st.old_name + "' to: "))
+            before = st.name[:st.name_cursor]
+            after = st.name[st.name_cursor:]
+            tokens.append((T.Text, before))
+            cursor_char = after[0] if after else " "
+            tokens.append((Token.SearchMatch.Current, cursor_char))
+            tokens.append((T.Text, after[1:] if after else ""))
+            tokens.append((T, " (" + str(st.occurrence_count) + " occurrences)"))
+
+        return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=Condition(lambda cli: bash_rn.state.active)
+    )
+
+
+def backslash_command_toolbar():
+    """Create toolbar for backslash command mode (select text, press \\, type command)."""
+    import rp
+    if not rp.r._treesitter_supported: return get_empty_component()
+    from . import backslash_commands as bslash
+
+    def get_tokens(cli):
+        st = bslash.state
+        if not st.active:
+            return []
+
+        tokens = []
+        T = Token.Toolbar.Search
+
+        # Show command being typed with cursor
+        tokens.append((T, " \\"))
+        before = st.command[:st.cursor]
+        after = st.command[st.cursor:]
+        tokens.append((T.Text, before))
+        cursor_char = after[0] if after else " "
+        tokens.append((Token.SearchMatch.Current, cursor_char))
+        tokens.append((T.Text, after[1:] if after else ""))
+
+        # Show hint/matches
+        matches = st.get_matching_commands()
+        if not st.command:
+            hint = " [type command, Enter to apply, Esc to cancel]"
+        elif len(matches) == 0:
+            hint = " [no match]"
+        elif len(matches) == 1 and matches[0] == st.command:
+            name, desc, _ = bslash.COMMANDS[st.command]
+            hint = " [{0}: {1}]".format(name, desc)
+        else:
+            hint = " [" + ", ".join(matches) + "]"
+        tokens.append((Token.Toolbar.Validation, hint))
+
+        return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=Condition(lambda cli: bslash.state.active)
+    )
+
+
+__all__ = (
+    'create_layout',
+    'CompletionVisualisation',
+)
+
+
+# DisplayMultipleCursors: Only for rp.prompt_toolkit>=1.0.8
+try:
+    from rp.prompt_toolkit.layout.processors import DisplayMultipleCursors
+except ImportError:
+    class DisplayMultipleCursors(Processor):
+        " Dummy. "
+        def __init__(self, *a):
+            pass
+
+        def apply_transformation(self, cli, document, lineno,
+                                 source_to_display, tokens):
+            return Transformation(tokens)
+
+
+class CompletionVisualisation:
+    " Visualisation method for the completions. "
+    NONE = 'none'
+    POP_UP = 'pop-up'
+    MULTI_COLUMN = 'multi-column'
+    TOOLBAR = 'toolbar'
+
+
+def show_completions_toolbar(python_input):
+    return Condition(lambda cli: python_input.completion_visualisation == CompletionVisualisation.TOOLBAR)
+
+
+def show_completions_menu(python_input):
+    return Condition(lambda cli: python_input.completion_visualisation == CompletionVisualisation.POP_UP)
+
+
+def show_multi_column_completions_menu(python_input):
+    return Condition(lambda cli: python_input.completion_visualisation == CompletionVisualisation.MULTI_COLUMN)
+
+
+def python_sidebar(python_input):
+    """
+    Create the `Layout` for the sidebar with the configurable options.
+    """
+    def get_tokens(cli):
+        tokens = []
+        T = Token.Sidebar
+
+        def append_category(category):
+            tokens.extend([
+                (T, '  '),
+                (T.Title, '   %-36s' % category.title),
+                (T, '\n'),
+            ])
+
+        def append(index, label, status):
+            selected = index == python_input.selected_option_index
+
+            @if_mousedown
+            def select_item(cli, mouse_event):
+                python_input.selected_option_index = index
+
+            @if_mousedown
+            def goto_next(cli, mouse_event):
+                " Select item and go to next value. "
+                python_input.selected_option_index = index
+                option = python_input.selected_option
+                option.activate_next()
+
+            token = T.Selected if selected else T
+
+            tokens.append((T, ' >' if selected else '  '))
+            tokens.append((token.Label, '%-24s' % label, select_item))
+            tokens.append((token.Status, ' ', select_item))
+            tokens.append((token.Status, '%s' % status, goto_next))
+
+            if selected:
+                tokens.append((Token.SetCursorPosition, ''))
+
+            tokens.append((token.Status, ' ' * (13 - len(status)), goto_next))
+            tokens.append((T, '<' if selected else ''))
+            tokens.append((T, '\n'))
+
+        i = 0
+        for category in python_input.options:
+            append_category(category)
+
+            for option in category.options:
+                append(i, option.title, '%s' % option.get_current_value())
+                i += 1
+
+        tokens.pop()  # Remove last newline.
+
+        return tokens
+
+    class Control(TokenListControl):
+        def move_cursor_down(self, cli):
+            python_input.selected_option_index += 1
+
+        def move_cursor_up(self, cli):
+            python_input.selected_option_index -= 1
+
+    return ConditionalContainer(
+        content=Window(
+            Control(get_tokens, Char(token=Token.Sidebar),
+                has_focus=ShowSidebar(python_input) & ~IsDone()),
+            width=LayoutDimension.exact(43),
+            height=LayoutDimension(min=3),
+            scroll_offsets=ScrollOffsets(top=1, bottom=1)),
+        filter=ShowSidebar(python_input) & ~IsDone())
+
+
+def python_sidebar_navigation(python_input):
+    """
+    Create the `Layout` showing the navigation information for the sidebar.
+    """
+    def get_tokens(cli):
+        tokens = []
+        T = Token.Sidebar
+
+        # Show navigation info.
+        tokens.extend([
+            (T.Separator, ' ' * 43 + '\n'),
+            (T, '    '),
+            (T.Key, '[Arrows]'),
+            (T, ' '),
+            (T.Key.Description, 'Navigate'),
+            (T, ' '),
+            (T.Key, '[F5]'),
+            (T, ' '),
+            (T.Key.Description, 'Save Settings'),
+        ])
+
+        return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens, Char(token=Token.Sidebar)),
+            width=LayoutDimension.exact(43),
+            height=LayoutDimension.exact(2)),
+        filter=ShowSidebar(python_input) & ~IsDone())
+
+
+def python_sidebar_help(python_input):
+    """
+    Create the `Layout` for the help text for the current item in the sidebar.
+    """
+    token = Token.Sidebar.HelpText
+
+    def get_current_description():
+        """
+        Return the description of the selected option.
+        """
+        i = 0
+        for category in python_input.options:
+            for option in category.options:
+                if i == python_input.selected_option_index:
+                    return option.description
+                i += 1
+        return ''
+
+    def get_tokens(cli):
+        return [(token, get_current_description())]
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens, Char(token=token)),
+            height=LayoutDimension(min=3)),
+        filter=ShowSidebar(python_input) &
+               Condition(lambda cli: python_input.show_sidebar_help) & ~IsDone())
+
+
+def signature_toolbar(python_input):
+    """
+    Return the `Layout` for the signature.
+    """
+    def get_tokens(cli):
+        result = []
+        append = result.append
+        Signature = Token.Toolbar.Signature
+
+        if python_input.signatures:
+            sig = python_input.signatures[0]  # Always take the first one.
+
+            append((Signature, ' '))
+            # Show cache hit indicator
+            import rp.rp_ptpython.r_iterm_comm as ric
+            if getattr(ric, 'signature_cache_hit', False):
+                append((Signature, 'HIT '))
+            try:
+                append((Signature, sig.full_name))
+            except:# IndexError but Also AttributeError: 'NoneType' object has no attribute 'split'
+                # Workaround for #37: https://github.com/jonathanslenders/python-prompt-toolkit/issues/37
+                # See also: https://github.com/davidhalter/jedi/issues/490
+                return []
+
+            append((Signature.Operator, '('))
+
+            try:
+                enumerated_params = enumerate(sig.params)
+            except AttributeError:
+                # Workaround for #136: https://github.com/jonathanslenders/ptpython/issues/136
+                # AttributeError: 'Lambda' object has no attribute 'get_subscope_by_name'
+                return []
+
+            for i, p in enumerated_params:
+                try:
+                    # Workaround for #47: 'p' is None when we hit the '*' in the signature.
+                    #                     and sig has no 'index' attribute.
+                    # See: https://github.com/jonathanslenders/ptpython/issues/47
+                    #      https://github.com/davidhalter/jedi/issues/598
+                    description = (p.description if p else '*') #or '*'
+                    sig_index = getattr(sig, 'index', 0)
+
+                    #region Ryan Burgert Code (it was annoying seeing f(param x,param y) etc. So I got rid of the 'param' stuff and now it looks nicer
+                    desc_string=str(description)
+                    if desc_string.startswith("param "):
+                        desc_string=desc_string[6:]
+                    #endregion
+                    if i == sig_index:
+                        # Note: we use `_Param.description` instead of
+                        #       `_Param.name`, that way we also get the '*' before args.
+                        append((Signature.CurrentName,desc_string))
+                    else:
+                        append((Signature,desc_string))
+                    append((Signature.Operator, ', '))
+                except:
+                    #NOTE: This used to be printed...but seeing as this bug never seemed to cause any problems and only spammed the terminal, I'm getting rid of it. I bet you'll never notice...
+                    # print("(Just caught a bug that would have crashed the prompt-toolkit gui. Why did this happen??)")
+                    pass#I don't know why, but this broke pseudo terminal. I don't know what this is but I don't really care...it's not worth crashing over...
+
+            if sig.params:
+                # Pop last comma
+                result.pop()
+
+            append((Signature.Operator, ')'))
+            append((Signature, ' '))
+        return result
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens),
+            height=LayoutDimension.exact(1)),
+        filter=
+            # Show only when there is a signature
+            HasSignature(python_input) &
+            # Signature needs to be shown.
+            ShowSignature(python_input) &
+            # Not done yet.
+            ~IsDone())
+
+
+class PythonPromptMargin(PromptMargin):
+    """
+    Create margin that displays the prompt.
+    It shows something like "In [1]:".
+    """
+    def __init__(self, python_input):
+        self.python_input = python_input
+
+        def get_prompt_style():
+            return python_input.all_prompt_styles[python_input.prompt_style]
+
+        def get_prompt(cli):
+            return get_prompt_style().in_tokens(cli)
+
+        def get_continuation_prompt(cli, width):
+            return get_prompt_style().in2_tokens(cli, width)
+
+        super(PythonPromptMargin, self).__init__(get_prompt, get_continuation_prompt,
+                show_numbers=Condition(lambda cli: python_input.show_line_numbers))
+
+
+def status_bar(python_input):
+    """
+    Create the `Layout` for the status bar.
+    """
+    TB = Token.Toolbar.Status
+
+    @if_mousedown
+    def toggle_mouse_support(cli, mouse_event):
+        python_input.enable_mouse_support = not python_input.enable_mouse_support
+
+    @if_mousedown
+    def toggle_microcompletions(cli, mouse_event):
+        python_input.enable_microcompletions = not python_input.enable_microcompletions
+
+    @if_mousedown
+    def toggle_wrap_lines(cli, mouse_event):
+        python_input.wrap_lines = not python_input.wrap_lines
+
+    @if_mousedown
+    def toggle_paste_mode(cli, mouse_event):
+        python_input.paste_mode = not python_input.paste_mode
+
+    @if_mousedown
+    def enter_history(cli, mouse_event):
+        python_input.enter_history(cli)
+
+    def get_tokens(cli):
+        python_buffer = cli.buffers[DEFAULT_BUFFER]
+
+        result = []
+        append = result.append
+
+        if hasattr(python_input,'session_title') and python_input.session_title:
+            # append((Token.Window.Title, python_input.session_title, toggle_microcompletions))
+            append((TB.PseudoTerminalCurrentVariable, python_input.session_title, toggle_microcompletions))
+        else:
+            pass
+        
+
+        append((TB, ' '))
+        result.extend(get_inputmode_tokens(cli, python_input))
+
+
+        # Position in history.
+        append((TB, '%i/%i ' % (python_buffer.working_index + 1,
+                                len(python_buffer._working_lines))))
+
+        # Shortcuts.
+        if not python_input.vi_mode and cli.current_buffer_name == SEARCH_BUFFER:
+            append((TB, '[Ctrl-G] Cancel search [Enter] Go to this position.'))
+        elif bool(cli.current_buffer.selection_state) and not python_input.vi_mode:
+            # Emacs cut/copy keys.
+            append((TB, '[Ctrl-W] Cut [Meta-W] Copy [Ctrl-Y] Paste [Ctrl-G] Cancel'))
+        else:
+
+
+            result.extend([
+                (TB.Key, '[F3]', enter_history),
+                (TB, 'History ', enter_history),
+                (TB.Key, '[F6]', toggle_paste_mode),
+                # (TB, ' ', toggle_paste_mode),
+            ])
+
+            if python_input.paste_mode:
+                append((TB.PasteModeOn, 'Paste:On  ', toggle_paste_mode))
+            else:
+                append((TB, 'Paste:Off ', toggle_paste_mode))
+
+            result.extend([
+                (TB.Key, '[F1]', toggle_mouse_support),
+            ])
+            if python_input.enable_mouse_support:
+                append((TB.PasteModeOn, 'Mouse:On  ', toggle_mouse_support))
+            else:
+                append((TB, 'Mouse:Off ', toggle_mouse_support))
+
+            
+
+            result.extend([
+                (TB.Key, '[F7]', toggle_wrap_lines),
+            ])
+            if hasattr(python_input,'wrap_lines') and python_input.wrap_lines:
+                append((TB, 'Wrap:On  ', toggle_wrap_lines))
+            else:
+                append((TB.PasteModeOn, 'Wrap:Off ', toggle_wrap_lines))
+
+
+
+            result.extend([
+                (TB.Key, '[F8]', toggle_microcompletions),
+            ])
+            if hasattr(python_input,'enable_microcompletions') and python_input.enable_microcompletions:
+                append((TB, 'Micro:On  ', toggle_microcompletions))
+            else:
+                append((TB.PasteModeOn, 'Micro:Off ', toggle_microcompletions))
+
+            # Show linting error at cursor position
+            if python_input.enable_linting:
+                python_input.update_linting_error_at_cursor(cli.current_buffer.document)
+                if python_input.current_linting_error:
+                    append((TB, ' '))
+                    append((TB.PasteModeOn, python_input.current_linting_error))
+
+            # if hasattr(python_input,'session_title') and python_input.session_title:
+            #     # append((Token.Window.Title, python_input.session_title, toggle_microcompletions))
+            #     append((TB.PseudoTerminalCurrentVariable, python_input.session_title, toggle_microcompletions))
+            # else:
+            #     pass
+            
+
+
+
+        #region RYAN BURGERT CODE GOES HERE FOR PSEUDOTERMINAL STUFF
+        if hasattr(python_input,'show_last_assignable') and python_input.show_last_assignable:
+            append((TB, ' '))
+            @if_mousedown
+            def testytest(cli,mouse_event):
+                # python_input.enter_history(cli)
+                pass
+            import rp.rp_ptpython.r_iterm_comm
+            append((TB.PseudoTerminalCurrentVariable,repr(rp.rp_ptpython.r_iterm_comm.last_assignable_comm),testytest))
+            append((TB, ' '))
+        return result
+
+    return TokenListToolbar(
+        get_tokens,
+        default_char=Char(token=TB),
+        filter=~IsDone() & RendererHeightIsKnown() &
+            Condition(lambda cli: python_input.show_status_bar and
+                                  not python_input.show_exit_confirmation))
+
+selection_flag=False
+def get_inputmode_tokens(cli, python_input):
+    """
+    Return current input mode as a list of (token, text) tuples for use in a
+    toolbar.
+
+    :param cli: `CommandLineInterface` instance.
+    """
+    @if_mousedown
+    def toggle_vi_mode(cli, mouse_event):
+        python_input.vi_mode = not python_input.vi_mode
+
+    token = Token.Toolbar.Status
+
+    mode = cli.vi_state.input_mode
+    result = []
+    append = result.append
+
+    append((token.InputMode, '[F4] ', toggle_vi_mode))
+
+    #region  RYAN BURGERT CODE: This code is called every time the user makes a selection. I'm going to use this to chage the selection area to make more sense (in my opinion)
+    global selection_flag
+    buffer=cli.current_buffer
+    has_selection=bool(buffer.selection_state)# Handling on_new_selection...
+    if has_selection and not selection_flag:# We made a new selection
+        document=buffer.document
+        assert isinstance(document,Document)
+        assert isinstance(document._selection,SelectionState)
+        #
+        cursor,cursor_orig=document.cursor_position,document._selection.original_cursor_position
+        if cursor>cursor_orig:
+            cursor-=1
+        elif cursor<cursor_orig:
+            cursor_orig-=1
+        #
+        try:
+            buffer.document=Document(document.text,cursor_position=cursor,selection=None)
+        except:
+            pass
+        buffer.document._selection=SelectionState(original_cursor_position=cursor_orig,type=document.selection.type)
+        #
+        # from rp import text_to_speech
+        # text_to_speech("HI")# For debugging
+    selection_flag=has_selection
+    #endregion
+
+    # InputMode
+    if python_input.vi_mode:
+        if has_selection:
+            if buffer.selection_state.type == SelectionType.LINES:
+                append((token.InputMode, 'Vi (VISUAL LINE)', toggle_vi_mode))
+            elif buffer.selection_state.type == SelectionType.CHARACTERS:
+                append((token.InputMode, 'Vi (VISUAL)', toggle_vi_mode))
+                append((token, ' '))
+            elif buffer.selection_state.type == 'BLOCK':
+                append((token.InputMode, 'Vi (VISUAL BLOCK)', toggle_vi_mode))
+                append((token, ' '))
+        elif mode in (InputMode.INSERT, 'vi-insert-multiple'):
+            append((token.InputMode, 'Vi (INSERT)', toggle_vi_mode))
+            append((token, '  '))
+        elif mode == InputMode.NAVIGATION:
+            append((token.InputMode, 'Vi (NAV)', toggle_vi_mode))
+            append((token, '     '))
+        elif mode == InputMode.REPLACE:
+            append((token.InputMode, 'Vi (REPLACE)', toggle_vi_mode))
+            append((token, ' '))
+    else:
+        append((token.InputMode, 'RP-Emacs', toggle_vi_mode))
+        append((token, ' '))
+
+    return result
+
+
+def format_tui_time():
+    """Format time for TUI display with optional timezone support"""
+    import datetime
+    import rp
+
+    remove_beginning_zero = lambda x: x[1:] if x[0] == '0' else x
+    now = datetime.datetime.now()
+
+    # Convert timezone if configured
+    default_timezone = rp.r._default_timezone
+    if default_timezone:
+        try:
+            import pytz
+            # Convert the timezone using the same translation as format_date
+            translated_tz = rp.r._translate_timezone(default_timezone)
+            target_timezone = pytz.timezone(translated_tz)
+            # Convert current time to the target timezone
+            now = now.astimezone(target_timezone)
+        except (ImportError, KeyError):
+            # If pytz not available or timezone invalid, use local time
+            pass
+
+    # Format time (now either in local time or converted timezone)
+    hour = now.hour % 12
+    hour = hour if hour else 12  # Convert 0 hour to 12 for 12-hour clock
+    minute = now.minute
+    am_pm = "AM" if now.hour < 12 else "PM"
+
+    time_str = ("{hour}:{minute:02d}{am_pm}".format(hour=hour, minute=minute, am_pm=am_pm)).lower()
+
+    # Add timezone abbreviation if available
+    if now.tzinfo is not None:
+        tz_abbr = now.strftime("%Z")
+        if tz_abbr:
+            time_str += " " + tz_abbr
+
+    return time_str
+
+
+def show_sidebar_button_info(python_input):
+    """
+    Create `Layout` for the information in the right-bottom corner.
+    (The right part of the status bar.)
+    """
+    @if_mousedown
+    def toggle_sidebar(cli, mouse_event):
+        " Click handler for the menu. "
+        python_input.show_sidebar = not python_input.show_sidebar
+
+    token = Token.Toolbar.Status
+
+    version = sys.version_info
+    import datetime
+    remove_beginning_zero=lambda x:x[1:] if x[0] == '0' else x
+    import rp
+
+    # if not hasattr(python_input,'session_title'):
+    #     title=''
+    # else:
+    #     title=python_input.session_title
+    # TB = Token.Toolbar.Status
+
+    get_tokens=lambda cli: [
+
+        # (Token.Window.Title, title),
+        # (token.Key, title),
+        # (TB.PseudoTerminalCurrentVariable, title),
+        (token, ' '),
+        *(
+            [
+                (token.BatteryPluggedIn if rp.battery_plugged_in() else token.BatteryNotPluggedIn,"🔋 "*0+str(rp.battery_percentage())[:6]+'%'),# put the time here
+                (token, ' ')
+            ]
+            if hasattr(python_input,'show_battery_life') and python_input.show_battery_life
+            else []
+        ),
+        (token, format_tui_time()),# put the time here
+        (token, ' '),
+        (token.Key, '[F2]', toggle_sidebar),
+        (token, ' Menu', toggle_sidebar),
+        # (token, ' - '),
+        # (token.PythonVersion, '%s %i.%i.%i' % (platform.python_implementation(),
+        #                                        version[0], version[1], version[2])),
+        (token, ' '),
+    ]
+    width = token_list_width(get_tokens(None))
+
+    # def get_tokens(cli):
+    #     Python version
+        # return tokens
+
+    return ConditionalContainer(
+        content=Window(
+            TokenListControl(get_tokens, default_char=Char(token=token)),
+            height=LayoutDimension.exact(1),
+            width=LayoutDimension.exact(width)),
+        filter=~IsDone() & RendererHeightIsKnown() &
+            Condition(lambda cli: python_input.show_status_bar and
+                                  not python_input.show_exit_confirmation))
+
+
+def exit_confirmation(python_input, token=Token.ExitConfirmation):
+    """
+    Create `Layout` for the exit message.
+    """
+    def get_tokens(cli):
+        # Show "Do you really want to exit?"
+        return [
+            (token, '\n %s ([y]/n)' % python_input.exit_message),
+            (Token.SetCursorPosition, ''),
+            (token, '  \n'),
+        ]
+
+    visible = ~IsDone() & Condition(lambda cli: python_input.show_exit_confirmation)
+
+    return ConditionalContainer(
+        content=Window(TokenListControl(
+            get_tokens, default_char=Char(token=token), has_focus=visible)),
+        filter=visible)
+
+
+def meta_enter_message(python_input):
+    """
+    Create the `Layout` for the 'Meta+Enter` message.
+    """
+    def get_tokens(cli):
+        return [(Token.AcceptMessage, ' [Meta+Enter] Execute ')]
+
+    def extra_condition(cli):
+        " Only show when... "
+        b = cli.buffers[DEFAULT_BUFFER]
+
+        return (
+            python_input.show_meta_enter_message and
+            (not b.document.is_cursor_at_the_end or
+                python_input.accept_input_on_enter is None) and
+            b.is_multiline())
+
+    visible = ~IsDone() & HasFocus(DEFAULT_BUFFER) & Condition(extra_condition)
+
+    return ConditionalContainer(
+        content=Window(TokenListControl(get_tokens)),
+        filter=visible)
+
+
+def _get_signature_ycursor_offset(cli, python_input):
+    """When on line 2 of a func call, move signature up so it doesn't block cursor."""
+    if python_input.signatures:
+        cursor_row = cli.buffers[DEFAULT_BUFFER].document.cursor_position_row
+        bracket_row = python_input.signatures[0].bracket_start[0] - 1
+        if cursor_row == bracket_row + 1:
+            return 0
+    return 1
+
+
+
+
+def create_layout(python_input,
+                  lexer=PythonLexer,
+                  extra_body=None, extra_toolbars=None,
+                  extra_buffer_processors=None, input_buffer_height=None):
+    D = LayoutDimension
+    extra_body = [extra_body] if extra_body else []
+    extra_toolbars = extra_toolbars or []
+    extra_buffer_processors = extra_buffer_processors or []
+    input_buffer_height = input_buffer_height or D(min=6)# This is the space between the input prompt and the toolbar. It lets the autocompletion menus have reaonable height.
+
+    def create_python_input_window():
+        def menu_position(cli):
+            """
+            When there is no autocompletion menu to be shown, and we have a signature,
+            set the pop-up position at `bracket_start`.
+            """
+            b = cli.buffers[DEFAULT_BUFFER]
+
+            if b.complete_state is None and python_input.signatures:
+                row, col = python_input.signatures[0].bracket_start
+                index = b.document.translate_row_col_to_index(row - 1, col)
+                return index
+
+        # Create ruff checker and shellcheck checker and store on python_input
+        from rp.prompt_toolkit.layout.processors import AsyncRuffChecker, AsyncShellcheckChecker
+        python_input._ruff_checker = AsyncRuffChecker()
+        python_input._shellcheck_checker = AsyncShellcheckChecker()
+
+        return Window(
+            BufferControl(
+                buffer_name=DEFAULT_BUFFER,
+                lexer=lexer,
+                input_processors=[
+                    # Order matters here! We want to ensure brackets are highlighted properly
+                    # First add background highlighting for injected languages
+                    HighlightInjectedLanguageProcessor(),
+                    # Add syntax error highlighting with undercurls (with REPL globals awareness)
+                    ConditionalProcessor(
+                        processor=SyntaxErrorProcessor(python_input=python_input),
+                        filter=Condition(lambda cli: python_input.enable_linting),
+                    ),
+                    # Then highlight selections
+                    HighlightSelectionProcessor(),
+                    DisplayMultipleCursors(DEFAULT_BUFFER),
+                    # Then highlight search results
+                    ConditionalProcessor(
+                        processor=HighlightSearchProcessor(preview_search=True),
+                        filter=HasFocus(SEARCH_BUFFER),
+                    ),
+                    # Then highlight matching brackets - this is critical
+                    # Disable when there's a selection to reduce visual noise
+                    ConditionalProcessor(
+                        processor=HighlightMatchingBracketProcessor(chars='[](){}'),
+                        filter=HasFocus(DEFAULT_BUFFER) & ~IsDone() & ~HasSelection() &
+                            Condition(lambda cli: python_input.highlight_matching_parenthesis)),
+                    # Other processors can come after
+                    ConditionalProcessor(
+                        processor=AppendAutoSuggestion(),
+                        filter=~IsDone()),
+                    ConditionalProcessor(
+                        processor=IndentGuideProcessor(tabstop=4, propagate=False),
+                        filter=HasFocus(DEFAULT_BUFFER) & ~IsDone() &
+                            Condition(lambda cli: python_input.indent_guides_mode == 'Regular')),
+                    ConditionalProcessor(
+                        processor=IndentGuideProcessor(tabstop=4, propagate=True),
+                        filter=HasFocus(DEFAULT_BUFFER) & ~IsDone() &
+                            Condition(lambda cli: python_input.indent_guides_mode == 'Propagate')),
+                    ConditionalProcessor(
+                        processor=ShowWhitespaceProcessor(
+                            token=Token.Whitespace, 
+                            mode=lambda cli: python_input.show_whitespace
+                        ),
+                        filter=HasFocus(DEFAULT_BUFFER) & ~IsDone() &
+                            Condition(lambda cli: python_input.show_whitespace != 'Off')),
+                    ConditionalProcessor(
+                        processor=HighlightWordOccurrencesProcessor(min_word_length=1, skip_keywords=True),
+                        filter=HasFocus(DEFAULT_BUFFER) & ~IsDone() &
+                            Condition(lambda cli: python_input.highlight_matching_words))
+                ] + extra_buffer_processors,
+                menu_position=menu_position,
+
+                # Make sure that we always see the result of an reverse-i-search:
+                preview_search=True,
+            ),
+            left_margins=[
+                FoldMargin(get_buffer=lambda cli: cli.buffers[DEFAULT_BUFFER]),
+                PythonPromptMargin(python_input),
+            ],
+            # Scroll offsets. The 1 at the bottom is important to make sure the
+            # cursor is never below the "Press [Meta+Enter]" message which is a float.
+            scroll_offsets=ScrollOffsets(bottom=1, left=4, right=4),
+            # Highlight cursor line - brackets will be drawn on top of this
+            # Now using same conditions as other processors like HighlightWordOccurrencesProcessor
+            cursorline=Condition(lambda cli: python_input.highlight_cursor_line) & 
+                       HasFocus(DEFAULT_BUFFER) & ~IsDone() &
+                       Condition(lambda cli: len(cli.buffers[DEFAULT_BUFFER].document.lines) > 1),
+            cursorline_token=Token.CursorLine,
+            # Highlight cursor column - same conditions as cursor line
+            cursorcolumn=Condition(lambda cli: python_input.highlight_cursor_column) & 
+                      HasFocus(DEFAULT_BUFFER) & ~IsDone(),
+            cursorcolumn_token=Token.CursorColumn,
+            # As long as we're editing, prefer a minimal height of 6.
+            get_height=(lambda cli: (
+                None if cli.is_done or python_input.show_exit_confirmation
+                        else input_buffer_height)),
+            wrap_lines=Condition(lambda cli: python_input.wrap_lines),
+        )
+    def title_fill(title,fill=' ',style=Token.Window.TIItleV2):
+        height=title.count("\n")+1
+        import rp.rp_ptpython.r_iterm_comm
+        rp.rp_ptpython.r_iterm_comm.python_input_buffers[title]=title
+        try:
+            return VSplit([
+            Window(height=D.exact(height),content=FillControl(fill,token=style)),
+            Window(BufferControl(buffer_name=title,lexer=SimpleLexer(default_token=style),),wrap_lines=False,height=D.exact(height),width=D.exact(max(len(x)for x in title.split('\n')))),
+            Window(height=D.exact(height),content=FillControl(fill,token=style)),
+                    ])
+        except:
+            return Window(height=D.exact(1),content=FillControl(fill,token=Token.Separator))
+    import rp
+    
+    # Create the main content area 
+    main_content_inner = HSplit([
+        VSplit([
+            HSplit([
+                FloatContainer(
+                    content=HSplit(
+                        [create_python_input_window()] + extra_body
+                    ),
+                    floats=[
+                        Float(xcursor=True,
+                              ycursor=True,
+                              ycursor_offset=lambda cli: 2 if python_input.signatures else 1,
+                              content=CompletionsMenu(
+                                  scroll_offset=Integer.from_callable(
+                                      lambda:python_input.completion_menu_scroll_offset),
+                                  max_height=12,
+                                  extra_filter=show_completions_menu(python_input))),
+                        Float(xcursor=True,
+                              ycursor=True,
+                              ycursor_offset=lambda cli: 2 if python_input.signatures else 1,
+                              content=MultiColumnCompletionsMenu(
+                                  extra_filter=show_multi_column_completions_menu(python_input))),
+                        Float(xcursor=True,
+                              ycursor=True,
+                              ycursor_offset=lambda cli: _get_signature_ycursor_offset(cli, python_input),
+                              content=signature_toolbar(python_input)),
+                        Float(left=2,
+                              bottom=1,
+                              content=exit_confirmation(python_input)),
+                        Float(bottom=0,right=0,height=1,
+                              content=meta_enter_message(python_input),
+                              hide_when_covering_content=True),
+                        Float(bottom=1,left=1,right=0,content=python_sidebar_help(python_input)),
+                    ]),
+                ArgToolbar(),
+                SearchToolbar(),
+                extract_variable_toolbar(),
+                rename_variable_toolbar(),
+                bash_extract_variable_toolbar(),
+                bash_rename_variable_toolbar(),
+                backslash_command_toolbar(),
+                status_message_toolbar(),
+                SystemToolbar(),
+                ValidationToolbar(),
+                CompletionsToolbar(extra_filter=show_completions_toolbar(python_input)),
+                # Docstring region.
+                ConditionalContainer(
+                    content=Window(height=D.exact(1),
+                                   content=FillControl('\u2500',token=Token.Separator)),
+                    filter=HasSignature(python_input) & ShowDocstring(python_input) & ~IsDone()),
+                ConditionalContainer(
+                    content=Window(
+                        BufferControl(
+                            buffer_name='docstring',
+                            lexer=SimpleLexer(default_token=Token.Docstring),
+                            # lexer=PythonLexer,
+                        ),
+                        height=D(max=12)),
+                    filter=HasSignature(python_input) & ShowDocstring(python_input) & ~IsDone(),
+                ),
+                # realtime display region RYAN BURGERT CODE zone
+                # ConditionalContainer(
+                #     content=Window(height=D.exact(1),content=FillControl('\u2500',token=Token.Separator)),
+                #     filter=ShowVarSpaceOrShowRealtimeInput(python_input) & ~IsDone()),
+                ConditionalContainer(
+
+
+                    content=
+                    HSplit([
+                        # title_fill("Parenthesis Automator"),
+                        # Window(BufferControl(buffer_name='parenthesizer_buffer',lexer=lexer,),wrap_lines=False,height=D(max=rp.rp_ptpython.r_iterm_comm.parenthesized_line.count('\n'),min=rp.rp_ptpython.r_iterm_comm.parenthesized_line.count('\n')    ))
+                        Window(BufferControl(buffer_name='parenthesizer_buffer',lexer=lexer,),wrap_lines=False)
+                        # title_fill(rp.rp_ptpython.r_iterm_comm.parenthesized_line),
+                    ]),
+                    filter=ShowParenthesisAutomator(python_input) & ~IsDone(),
+                ),
+                VSplit([
+                    ConditionalContainer(
+                        content=
+                        HSplit([
+                            # title_fill("Realtime Evaluator"),
+                            Window(BufferControl(buffer_name='realtime_display',
+                                                 # lexer=SimpleLexer(default_token=Token.Docstring)
+                                                 lexer=lexer
+                                                 ,),wrap_lines=True,height=D(weight=2))
+                        ]),
+                        filter=ShowRealtimeInput(python_input) & ~IsDone(),
+                    ),
+                    ConditionalContainer(
+                        content=Window(width=D.exact(1),
+                                       content=FillControl('│',token=Token.Window.TIItleV2)),
+                        filter=ShowVarSpaceAndShowRealtimeInput(python_input) & ~IsDone()),
+                    ConditionalContainer(
+
+
+                        content=
+                        HSplit([
+                            # title_fill("VARS"),
+                            Window(BufferControl(buffer_name='vars',
+                                                 lexer=SimpleLexer(default_token=Token.Docstring)
+                                                 # lexer=lexer
+                                                 ,),wrap_lines=True)
+                        ]),
+                        filter=ShowVarSpace(python_input) & ~IsDone(),
+                    ),
+                  ]),
+            ]),
+            HSplit([
+                python_sidebar(python_input),
+                python_sidebar_navigation(python_input),
+            ])
+        ]),
+    ] + extra_toolbars)
+    
+    # Use the original main content without additional constraints
+    # Height constraint is now handled by ConstrainedHeightOutput wrapper
+    main_content = main_content_inner
+    
+    # For now, let's just return the constrained layout without spacer
+    # The height constraint should limit the interface size
+    return HSplit([
+        main_content,
+        VSplit([
+            status_bar(python_input),
+            show_sidebar_button_info(python_input),
+        ])
+    ])
