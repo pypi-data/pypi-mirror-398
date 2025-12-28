@@ -1,0 +1,380 @@
+# PyRust (skeleton)
+
+[![PyPI version](https://img.shields.io/pypi/v/pyrust)](https://pypi.org/project/pyrust/)
+[![PyPI status](https://img.shields.io/pypi/status/pyrust)](https://pypi.org/project/pyrust/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/pyrust-dev/pyrust/blob/main/LICENSE)
+
+PyRust is a **Python-first library** that aims to automatically identify performance hotspots in a Python project
+and "rustify" them by generating and compiling Rust extensions (via **PyO3 + maturin**), with safe fallback to Python.
+
+This repository is an **initial skeleton**: it builds a minimal Rust-backed Python module and exposes a tiny API.
+Next phases will add profiling, AST analysis, transpilation, caching, and hot-swapping.
+
+📚 **Documentación**: https://pyrust-dev.github.io/pyrust/ (versión HTML generada con MkDocs) · https://github.com/pyrust-dev/pyrust/tree/main/docs (fuentes en GitHub)
+🗒️ **Notas de publicación**: https://github.com/pyrust-dev/pyrust/releases
+
+## Índice
+
+- [Instalación](#instalación)
+- [Ejemplo rápido](#ejemplo-rápido)
+- [Compatibilidad resumida](#compatibilidad-resumida)
+- [Perfilado rápido con `profile_project`](#perfilado-rápido-con-profile_project)
+- [Recarga de extensiones y hot-swap seguro](#recarga-de-extensiones-y-hot-swap-seguro)
+- [Analizador de rustyficabilidad](#analizador-de-rustyficabilidad)
+- [Transpilación con filtro del analizador](#transpilación-con-filtro-del-analizador)
+- [Ejemplos](#ejemplos)
+- [Quick start (dev)](#quick-start-dev)
+- [Comprobación recomendada (entorno aislado)](#comprobación-recomendada-entorno-aislado)
+- [Extras opcionales](#extras-opcionales)
+- [Build the Rust extension](#build-the-rust-extension)
+- [Generar la rueda nativa (release)](#generar-la-rueda-nativa-release)
+- [Flujo de publicación con maturin](#flujo-de-publicación-con-maturin)
+- [Integración continua (Fase 1)](#integración-continua-fase-1)
+- [Layout](#layout)
+
+### Guía rápida para PyPI
+
+- **Objetivo del paquete**: exponer una librería Python con aceleradores en Rust para perfilar, analizar y probar la "rustificación" de proyectos.
+- **Plataformas con rueda publicada**: Linux x86_64/aarch64, macOS x86_64/arm64 y Windows x86_64.
+- **Dependencias mínimas**: Python 3.10+ para ejecutar la librería y las CLI; Rust 1.70+ solo si quieres compilar desde fuente.
+- **Entrypoints instalados**: `pyrust-profile`, `pyrust-analyze` y el módulo `pyrust` para importación directa.
+
+Instalación directa desde PyPI:
+
+```bash
+pip install pyrust
+```
+
+Instalación de prueba desde TestPyPI (útil para validar lanzamientos previos):
+
+```bash
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple pyrust
+```
+
+Verificación rápida tras la instalación:
+
+```bash
+python -c "import pyrust; print(pyrust.hello())"
+pyrust-profile --help
+```
+
+Para el flujo completo de publicación consulta https://pyrust-dev.github.io/pyrust/publish/ y, si necesitas reproducir la rueda localmente, usa el objetivo `make build-native`.
+
+## Instalación
+
+```bash
+pip install pyrust
+```
+
+Requisitos mínimos:
+
+- **Python 3.10+** para ejecutar la librería y las herramientas de línea de comandos.
+- **Rust 1.70+** (edición 2021) solo es necesario si quieres compilar desde el código fuente o generar ruedas tú mismo; no se requiere para usar las ruedas ya publicadas.
+
+## Ejemplo rápido
+
+Importa el paquete instalado y usa la API básica:
+
+```python
+import pyrust
+
+print(pyrust.hello())
+print(pyrust.add(2, 3))
+```
+
+Entrypoints de CLI instalados con la rueda estándar:
+
+```bash
+# Perfilado rápido de un proyecto o script
+pyrust-profile examples --limit 5
+
+# Análisis de rustyficabilidad con salida en tabla
+pyrust-analyze my_project --limit 3
+```
+
+## Compatibilidad resumida
+
+| Python | Rust (solo para build desde fuente) | Ruedas publicadas (SO) | Enlaces de detalle |
+| --- | --- | --- | --- |
+| 3.10+ | 1.70+ | Linux x86_64/aarch64, macOS x86_64/arm64, Windows x86_64 | [Generar la rueda nativa](#generar-la-rueda-nativa-release), [Flujo de publicación](#flujo-de-publicación-con-maturin) |
+
+## Perfilado rápido con `profile_project`
+
+PyRust incluye un perfilador ligero para localizar hotspots antes de rustyficar.
+El punto de entrada público es `pyrust.profile_project(path, *, entrypoint=None, command=None, limit=None, use_sys_profile=True, include_stdlib=False, output_path=None)`.
+
+- Si `path` apunta a un archivo, se ejecuta directamente con `runpy.run_path`.
+- Si `path` es un directorio, se busca `__main__.py` o el `entrypoint` proporcionado.
+- `command` permite pasar un callable ya preparado (por ejemplo, una función de pruebas).
+- `limit` recorta el número de filas del resumen (útil para tablas compactas).
+- `use_sys_profile` activa/desactiva `cProfile` (el hook de alto nivel se mantiene para medir tiempo total).
+- `include_stdlib` añade llamadas de la stdlib a la tabla (por defecto se filtran para centrarse en tu código).
+- `output_path` permite volcar el JSON serializado al disco tras el perfilado.
+
+Ejemplo mínimo desde un REPL o script:
+
+```python
+from pathlib import Path
+from pyrust import profile_project
+
+summary = profile_project(Path("examples"))
+print(f"Tiempo total: {summary.total_runtime:.3f}s")
+print(summary.to_table(limit=5))
+
+# Guardar el JSON para análisis posteriores
+summary.to_json("profile_report.json")
+```
+
+CLI equivalente (instalación editable o entorno con el entrypoint `pyrust-profile` disponible):
+
+```bash
+pyrust-profile examples --limit 5 --include-stdlib --no-use-sys-profile --output-path profile_report.json
+```
+
+Salida típica (hotspots ordenados por `total_time`):
+
+```
+# | total_time (s) | runtime (%) | call_count | avg_time (s) | function
+-----------------------------------------------------------------------
+ 1 |        0.152341 |       90.30 |          2 |     0.076170 | /ruta/proyecto/examples/basic.py:11:run
+ 2 |        0.010250 |        6.08 |         10 |     0.001025 | /ruta/proyecto/examples/utils.py:45:expensive_op
+ 3 |        0.001902 |        1.13 |          1 |     0.001902 | /ruta/proyecto/examples/basic.py:22:main
+```
+
+Cómo leer la tabla de hotspots:
+
+- **total_time**: tiempo acumulado en la función (mayor → más candidato a rustyficar).
+- **call_count**: número de llamadas (útil para detectar funciones ligeras pero muy frecuentes).
+- **avg_time**: tiempo medio por llamada; si es alto, conviene optimizar la función individualmente.
+
+Usa `include_stdlib=True` si necesitas ver el impacto de dependencias estándar y ajusta `limit`
+para centrarte en los hotspots principales.
+
+## Recarga de extensiones y hot-swap seguro
+
+La fachada `pyrust.runtime.reload_extension` crea internamente un `RuntimeManager`, aplica
+la política de caché indicada y devuelve un `ReloadResult` con el módulo cargado y las
+métricas de recarga. Puedes adjuntar validadores y hooks de éxito/fallo/rollback; el
+gestor usado queda expuesto en `ReloadResult.runtime_manager` para reusar la misma
+instancia en recargas posteriores y consultar `last_metrics`.
+
+Ejemplo básico con validación y sustitución de funciones en vivo:
+
+```python
+from pathlib import Path
+from pyrust.runtime import reload_extension
+
+runtime = None
+
+def validator(module: object) -> bool:
+    return hasattr(module, "compute")
+
+def on_success(name, loaded, metrics):
+    print(f"{name} swap #{metrics.swap_count}; cache={metrics.used_cache}")
+
+result_v1 = reload_extension(
+    "my_hot_ext",
+    source=Path("/tmp/my_hot_ext_v1.py"),
+    cache_dir=Path(".cache/pyrust"),
+    validate=validator,
+    on_success=on_success,
+)
+runtime = result_v1.runtime_manager
+
+# Recarga con otra versión y reusa el mismo gestor para mantener el estado
+result_v2 = reload_extension(
+    "my_hot_ext",
+    source=Path("/tmp/my_hot_ext_v2.py"),
+    runtime_manager=runtime,
+    force_recompile=True,
+)
+runtime.replace_function(target_object, "compute", result_v2.loaded.module.compute)
+print("Último swap:", runtime.last_metrics.swap_count)
+```
+
+Opciones adicionales: `cache_manager` (para usar uno existente), `compiler` (callable
+que genere el artefacto), `event_hooks` (tabla inicial de hooks por evento) y banderas
+`force_recompile`/`invalidate_cache`/`use_cache` que controlan el origen del artefacto.
+
+## Analizador de rustyficabilidad
+
+El analizador revisa módulos y funciones para estimar su compatibilidad con una conversión a Rust.
+Recorre el AST con una política conservadora:
+
+- **Reglas AST**: se permiten expresiones aritméticas y booleanas simples, bucles sobre ``range``/``enumerate`` o contenedores básicos, y condiciones de comparaciones sencillas. ``yield``/``yield from`` y comprensiones generan ``PARTIAL``.
+- **Heurísticas de tipos**: las anotaciones primitivas (``int``, ``float``, ``bool``, ``str``, etc.) son aceptadas. Contenedores sin parametrizar o anotaciones ambiguas (``Any``, ``object``) degradan a ``PARTIAL``. Tipos complejos/personalizados o variádicos sin anotar se marcan como ``NO``.
+- **Política conservadora**: IO, reflexión, async/await, acceso dinámico a ``__dict__`` o mutaciones complejas generan razones bloqueantes. Si hay dudas, se degrada el veredicto y se registran todas las razones.
+
+### API Python
+
+```python
+from pathlib import Path
+from pyrust import analyze_summary
+
+summary = analyze_summary(Path("src"), excluded_dirs=["venv", "__pycache__"])
+print(summary.to_dict()["counts"])
+for result in summary.blockers:
+    print(f"Bloqueante: {result.target} -> {result.reasons[0]}")
+```
+
+### CLI
+
+Se instala el entrypoint `pyrust-analyze` (o puedes usar `python -m pyrust.analyzer`):
+
+```bash
+# Tabla legible con los primeros hallazgos
+pyrust-analyze my_project --exclude venv --exclude build --limit 3
+
+# JSON estructurado (ideal para pipelines)
+pyrust-analyze my_project --format json
+
+# Mostrar todas las razones encontradas por objetivo
+pyrust-analyze my_project --show-reasons
+```
+
+La salida incluye conteos por veredicto (`FULL`, `PARTIAL`, `NO`) y listados de objetivos
+parciales o bloqueantes con sus razones completas (todas las razones si se usa
+`--show-reasons`).
+
+## Transpilación con filtro del analizador
+
+Puedes encadenar el analizador con el transpiler usando la API pública
+`pyrust.transpile_with_analysis(path, *, backend=None, excluded_dirs=None)`. La
+función ejecuta el análisis primero, salta funciones con veredicto `NO` y añade
+el veredicto como metadato en el `IRFunction` antes de renderizar con el backend
+elegido (`RustTemplateBackend` por defecto).
+
+```python
+from pathlib import Path
+from pyrust import transpile_with_analysis
+
+results = transpile_with_analysis(Path("src"))
+for item in results:
+    if item.skipped:
+        print(f"Saltada por veredicto {item.verdict.name}: {item.target}")
+    else:
+        print(f"Renderizada: {item.target}\n{item.rendered}")
+```
+
+Si se intenta renderizar manualmente una función con veredicto `NO`, el
+transpiler devolverá un error claro (`IRValidationError`) en vez de generar
+plantilla incompleta.
+
+## Ejemplos
+
+Consulta [examples/README.md](examples/README.md) para ejecutar los ejemplos rápidos:
+
+1. Compila el módulo nativo: `maturin develop`.
+2. Verifica la integración Rust: `python examples/basic.py`.
+3. Fuerza el modo solo-Python: `PYRUST_FORCE_PYTHON_FALLBACK=1 python examples/fallback.py`.
+
+## Quick start (dev)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -U pip
+pip install -e "[dev]"
+```
+
+### Comprobación recomendada (entorno aislado)
+
+Para validar que las dependencias de desarrollo se instalan correctamente y que el módulo funciona después de compilarse con `maturin`, puedes ejecutar:
+
+```bash
+pytest tests/test_dev_environment_setup.py -k dev_environment_install_and_import
+```
+
+La prueba crea un entorno virtual temporal, instala `.[dev]`, ejecuta `maturin develop` con `CARGO_TARGET_DIR` apuntando a un directorio efímero y verifica que `pyrust.hello()` y `pyrust.add()` funcionan, sin dejar artefactos en el repositorio.
+
+> Compatibilidad: Python 3.10+ y Rust 1.70+ (edición 2021) funcionan correctamente con la versión actual de PyO3 y maturin.
+
+### Extras opcionales
+
+- **Dev** (tooling de contribución: linting, pruebas y build nativo): `pip install -e "[dev]"`.
+- **Rust** (tooling de compilación): `pip install -e "[rust]"`.
+- **Ejemplos** (IPython + helpers de consola para depuración): `pip install -e "[examples]"`.
+- **Docs** (generar documentación estática con MkDocs): `pip install -e "[docs]"`.
+
+## Build the Rust extension
+
+```bash
+maturin develop
+```
+
+## Generar la rueda nativa (release)
+
+Para producir la rueda compilada usa el objetivo de Make:
+
+```bash
+make build-native
+```
+
+El objetivo ejecuta `maturin build --release -m rust/Cargo.toml` y deja el artefacto generado en `target/wheels/` (p. ej., `target/wheels/pyrust_native-<version>-*.whl`).
+
+### Verificación opcional del módulo nativo
+
+Después de construir la rueda puedes validarla con:
+
+```bash
+make verify-native
+```
+
+El paso anterior crea un entorno virtual temporal, instala la rueda recién construida y ejecuta `python -c "import pyrust; print(pyrust.hello())"` para comprobar que el módulo `_native` carga correctamente.
+
+## Flujo de publicación con maturin
+
+Para un checklist detallado y paso a paso (versionado, changelog, build, validación y publicación), consulta https://pyrust-dev.github.io/pyrust/publish/.
+
+Requisitos previos:
+
+- Python **3.10+** y Rust **1.70+** (edición 2021) instalados.
+- `maturin>=1.6` disponible en el entorno (`pip install maturin`).
+- Variable opcional `CARGO_TARGET_DIR` apuntando a un directorio de artefactos (p. ej., `export CARGO_TARGET_DIR="$(pwd)/target"`) para mantener los builds fuera de otras carpetas.
+
+Pasos locales para generar y verificar artefactos antes de publicar:
+
+```bash
+# Compila la rueda en modo release reutilizando el script del repo
+CARGO_TARGET_DIR="$(pwd)/target" ./scripts/build_native.sh
+
+# Valida que la rueda generada se puede instalar y cargar
+./scripts/verify_native.sh
+
+# Instalación manual (opcional) de la rueda recién creada
+python -m pip install target/wheels/*.whl
+```
+
+Publicación manual a PyPI o TestPyPI desde el entorno local (usa tokens almacenados como variables de entorno):
+
+```bash
+# TestPyPI (rama de pruebas)
+MATURIN_PASSWORD="$TEST_PYPI_API_TOKEN" maturin publish \
+  --username __token__ \
+  --password "$MATURIN_PASSWORD" \
+  --repository-url https://test.pypi.org/legacy/ \
+  --skip-existing \
+  -m rust/Cargo.toml
+
+# PyPI (tag de lanzamiento)
+MATURIN_PASSWORD="$PYPI_API_TOKEN" maturin publish \
+  --username __token__ \
+  --password "$MATURIN_PASSWORD" \
+  --skip-existing \
+  -m rust/Cargo.toml
+```
+
+El workflow de CI (`.github/workflows/publish.yml`) reutiliza estos scripts para construir y verificar ruedas en cada push a `release/*` o en tags `v*`, adjunta los artefactos generados y, si hay tokens configurados, publica automáticamente a TestPyPI o PyPI según la referencia.
+
+## Integración continua (Fase 1)
+
+El workflow de CI (`.github/workflows/ci.yml`) se ejecuta en cada push y pull request. Configura Python 3.10 y Rust estable, crea un entorno virtual local, instala las dependencias con `pip install -e "[dev]"`, compila el módulo con `python -m maturin develop` usando `CARGO_TARGET_DIR="$PWD/target"` y ejecuta las pruebas `pytest tests/test_smoke.py` y `pytest tests/test_dev_environment_setup.py` (esta última usa rutas temporales para no dejar residuos).
+
+Para acelerar los builds, el workflow cachea `~/.cargo` y `target/` en función del `Cargo.lock` del crate de Rust. Si quieres reproducir localmente los mismos pasos, ejecuta los comandos anteriores desde un entorno limpio y con Python 3.10+ activado.
+
+## Layout
+
+- `pyrust/` — Python package (public API + placeholders)
+- `rust/` — Rust crate compiled as a Python extension (PyO3)
+- `examples/` — Examples (will grow)
+- `tests/` — Tests (will grow)
