@@ -1,0 +1,58 @@
+{% load i18n static %}
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="{% trans 'Toggle sidebar' %}">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
+    
+    <nav class="sidebar-nav">
+        <div class="global-search-container">
+            <input type="search" id="global-search" placeholder="{% trans 'Global Search...' %}" />
+            <div id="global-search-results" class="search-results"></div>
+        </div>
+        
+        <ul class="nav-menu">
+            <li>
+                <a href="{% url 'admin:index' %}" class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}">
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-text">{% trans 'Home' %}</span>
+                </a>
+            </li>
+            
+            {% if app_list %}
+                {% for app in app_list %}
+                    <li class="nav-group">
+                        <div class="nav-group-header">
+                            <span class="nav-icon">📁</span>
+                            <span class="nav-text">{{ app.name }}</span>
+                        </div>
+                        <ul class="nav-submenu">
+                            {% for model in app.models %}
+                                <li>
+                                    <a href="{{ model.admin_url }}" class="nav-link">
+                                        <span class="nav-text">{{ model.name }}</span>
+                                        {% if model.add_url %}
+                                            <a href="{{ model.add_url }}" class="nav-add" title="{% trans 'Add' %}">+</a>
+                                        {% endif %}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endfor %}
+            {% endif %}
+        </ul>
+    </nav>
+    
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <span>{% trans 'User' %}: {{ user.get_full_name|default:user.username }}</span>
+            <a href="{% url 'admin:logout' %}" class="logout-link">{% trans 'Log out' %}</a>
+        </div>
+    </div>
+</aside>
+

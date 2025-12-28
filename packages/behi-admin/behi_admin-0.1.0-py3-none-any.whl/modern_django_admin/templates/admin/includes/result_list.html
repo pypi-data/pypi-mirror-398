@@ -1,0 +1,44 @@
+{% load i18n static admin_list %}
+
+{% if result_list %}
+    <div class="results">
+        <table id="result_list" class="modern-table">
+            <thead>
+                <tr>
+                    {% for header in result_headers %}
+                        <th scope="col" {{ header.class_attrib }}>
+                            {% if header.sortable %}
+                                <div class="sortable">
+                                    <a href="{{ header.url_primary }}">{{ header.text|capfirst }}</a>
+                                    {% if header.sort_priority > 0 %}
+                                        <span class="sort-priority">{{ header.sort_priority }}</span>
+                                        {% if num_sorted_fields > 1 %}
+                                            <a href="{{ header.url_remove }}" class="sortremove" title="{% trans "Remove from sorting" %}"></a>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="text">{{ header.text|capfirst }}</div>
+                            {% endif %}
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                    {% if result.form.non_field_errors %}
+                        <tr><td colspan="{{ result|length }}">{{ result.form.non_field_errors }}</td></tr>
+                    {% endif %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        {% for item in result %}
+                            {{ item }}
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="no-results">{% trans "No items found." %}</p>
+{% endif %}
+
