@@ -1,0 +1,45 @@
+name: Deploy Docs to GitHub Pages
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: ⚙️ Install Hatch and build dependencies
+        run: pip install hatch
+          
+      - name: 🏗️ Build documentation with Sphinx
+        run: hatch run docs:build
+
+      - name: 📁 Configure Pages Artifact Path
+        run: echo "artifact_path=./docs/build/html" >> $GITHUB_ENV
+        
+      - name: 📦 Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.artifact_path }}
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

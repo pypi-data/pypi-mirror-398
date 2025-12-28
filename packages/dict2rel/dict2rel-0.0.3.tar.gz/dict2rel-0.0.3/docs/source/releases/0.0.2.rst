@@ -1,0 +1,34 @@
+====================
+0.0.2
+====================
+December 19th, 2025
+--------------------
+
+* Added :attr:`dict2rel.UnravelOptions.fields_to_expand` to enable treating nested objects as if they were in a list and
+  therefore should be expanded to a separate table. This can be helpful if a particular nested object has many fields and 
+  so flattening it inline is less readable then expanding to a separate table.
+
+  >>> tables = dict2rel(
+  ...   [
+  ...       {
+  ...           "settings": {
+  ...               "timezone": "EST",
+  ...               "lang": "en-US",
+  ...               ...
+  ...           },
+  ...           ...
+  ...       },
+  ...       ...
+  ...   ],
+  ...   pd.DataFrame,
+  ...   UnravelOptions(fields_to_expand=["settings"])
+  ... )
+  >>> list(tables.keys())
+  ["*", "*.settings"]
+  >>> tables["*.settings"]
+
+  +----------+-------+-----+
+  | timezone | lang  | ... |
+  +==========+=======+=====+
+  | EST      | en-US | ... |
+  +----------+-------+-----+

@@ -1,0 +1,67 @@
+====================
+0.0.3
+====================
+December 25th, 2025
+--------------------
+
+* Added :attr:`dict2rel.UnravelOptions.support_heterogeneous_data` to support fields where sometimes the value
+  is an object and other times it is a list of objects. Without this flag, the object is flattened inline and the
+  list of objects ends up in a separate table. With this flag, both cases end up in the separate table.
+
+  * Previously
+
+    >>> dict2rel([
+    ...     {
+    ...         "addresses": {
+    ...             "address1": "101 North Street",
+    ...             "city": "Waco",
+    ...             "state": "Texas",
+    ...             "zip": "76711"
+    ...         }
+    ...     },
+    ...     {
+    ...         "addresses": [
+    ...             {
+    ...                 "address1": "500 W 6th St",
+    ...                 "city": "Waterloo",
+    ...                 "state": "Iowa",
+    ...                 "zip": "50701"
+    ...             }
+    ...         ]
+    ...     }
+    ... ], ...)
+    
+    * ``*``
+
+      +--------------------+----------------+-----------------+---------------+-----+
+      | addresses.address1 | addresses.city | addresses.state | addresses.zip | _id |
+      +====================+================+=================+===============+=====+
+      | 101 North Street   | Waco           | Texas           | 76711         | 0   |
+      +--------------------+----------------+-----------------+---------------+-----+
+
+    * ``*.addresses``
+
+      +--------------+----------+-------+-------+---------------+
+      | address1     | city     | state | zip   | _id           |
+      +==============+==========+=======+=======+===============+
+      | 500 W 6th St | Waterloo | Iowa  | 50701 | 1.addresses.0 |
+      +--------------+----------+-------+-------+---------------+
+
+  * Now with :attr:`UnravelOptions(support_heterogeneous_data=True) <dict2rel.UnravelOptions.support_heterogeneous_data>`
+
+    >>> dict2rel(..., UnravelOptions(support_heterogeneous_data=True))
+
+    * ``addresses``
+    
+      +------------------+----------+-------+-------+---------------+
+      | address1         | city     | state | zip   | _id           |
+      +==================+==========+=======+=======+===============+
+      | 101 North Street | Waco     | Texas | 76711 | 0.addresses.0 |
+      +------------------+----------+-------+-------+---------------+
+      | 500 W 6th St     | Waterloo | Iowa  | 50701 | 1.addresses.0 |
+      +------------------+----------+-------+-------+---------------+
+
+* Updated handling of fields specified in :attr:`~dict2rel.UnravelOptions.fields_to_expand` so that values which
+  were originally objects aren't reconstructed as lists of a single object. Instead, the original object will be
+  reconstructed correctly with :func:`~dict2rel.rel2dict`
+* Updated :func:`~dict2rel.dict2rel` to only produce rows which have values and tables which have rows
