@@ -1,0 +1,283 @@
+Metadata-Version: 2.4
+Name: shotgrid-mcp-server
+Version: 0.14.1
+Summary: A Model Context Protocol (MCP) server implementation using fastmcp
+Project-URL: Homepage, https://github.com/loonghao/shotgrid-mcp-server
+Project-URL: Repository, https://github.com/loonghao/shotgrid-mcp-server.git
+Project-URL: Issues, https://github.com/loonghao/shotgrid-mcp-server/issues
+Project-URL: Changelog, https://github.com/loonghao/shotgrid-mcp-server/blob/main/CHANGELOG.md
+Author-email: Hal Long <hal.long@outlook.com>
+License: MIT
+License-File: LICENSE
+Keywords: Flow Production Tracking,api,mcp,server,shotgrid
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: <3.13,>=3.10
+Requires-Dist: aiohttp>=3.12.14
+Requires-Dist: click>=8.0.0
+Requires-Dist: diskcache-rs>=0.4.4
+Requires-Dist: fastmcp>=2.13.0
+Requires-Dist: mcp>=1.10.0
+Requires-Dist: pendulum<4.0.0,>=3.1.0
+Requires-Dist: platformdirs>=4.1.0
+Requires-Dist: pydantic[email]>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: python-slugify<9.0.0,>=8.0.4
+Requires-Dist: requests>=2.32.4
+Requires-Dist: shotgrid-query>=0.1.0
+Requires-Dist: shotgun-api3>=3.8.2
+Requires-Dist: tenacity<10.0.0,>=9.1.2
+Requires-Dist: uvicorn[standard]>=0.35.0
+Requires-Dist: websockets>=15.0.1
+Provides-Extra: dev
+Requires-Dist: black>=23.12.1; extra == 'dev'
+Requires-Dist: coverage>=7.4.0; extra == 'dev'
+Requires-Dist: flake8>=7.0.0; extra == 'dev'
+Requires-Dist: isort>=5.13.2; extra == 'dev'
+Requires-Dist: mypy>=1.8.0; extra == 'dev'
+Requires-Dist: nox>=2023.4.22; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.4; extra == 'dev'
+Requires-Dist: ruff>=0.1.11; extra == 'dev'
+Requires-Dist: uv>=0.9.6; extra == 'dev'
+Provides-Extra: lint
+Requires-Dist: black; extra == 'lint'
+Requires-Dist: mypy; extra == 'lint'
+Requires-Dist: ruff; extra == 'lint'
+Requires-Dist: types-requests; extra == 'lint'
+Provides-Extra: test
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'test'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'test'
+Requires-Dist: pytest-mock>=3.10.0; extra == 'test'
+Requires-Dist: pytest>=7.0.0; extra == 'test'
+Requires-Dist: pyyaml; extra == 'test'
+Description-Content-Type: text/markdown
+
+<div align="center">
+
+<img src="images/logo.png" alt="ShotGrid MCP Server Logo" width="200">
+
+# ShotGrid MCP Server
+
+**A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that provides AI assistants with seamless access to Autodesk ShotGrid (Flow Production Tracking)**
+
+English | [简体中文](README_zh.md)
+
+[![Python Version](https://img.shields.io/pypi/pyversions/shotgrid-mcp-server.svg)](https://pypi.org/project/shotgrid-mcp-server/)
+[![PyPI version](https://badge.fury.io/py/shotgrid-mcp-server.svg)](https://badge.fury.io/py/shotgrid-mcp-server)
+[![License](https://img.shields.io/github/license/loonghao/shotgrid-mcp-server.svg)](LICENSE)
+[![codecov](https://codecov.io/gh/loonghao/shotgrid-mcp-server/branch/main/graph/badge.svg)](https://codecov.io/gh/loonghao/shotgrid-mcp-server)
+[![Downloads](https://static.pepy.tech/badge/shotgrid-mcp-server)](https://pepy.tech/project/shotgrid-mcp-server)
+[![Downloads](https://static.pepy.tech/badge/shotgrid-mcp-server/week)](https://pepy.tech/project/shotgrid-mcp-server)
+[![Downloads](https://static.pepy.tech/badge/shotgrid-mcp-server/month)](https://pepy.tech/project/shotgrid-mcp-server)
+
+</div>
+
+## Overview
+
+ShotGrid MCP Server enables AI assistants like Claude, Cursor, and VS Code Copilot to interact directly with your ShotGrid (Flow Production Tracking) data. Built on [FastMCP](https://github.com/jlowin/fastmcp), it provides a high-performance bridge between AI tools and production tracking workflows.
+
+### Demo
+
+![ShotGrid MCP Server Demo](images/sg-mcp.gif)
+
+## Features
+
+| Category | Highlights |
+|----------|------------|
+| **40+ Tools** | Complete CRUD operations, batch processing, thumbnails, notes, playlists |
+| **Transport** | stdio (local), HTTP (remote), ASGI (production) |
+| **Performance** | Connection pooling, schema caching, lazy initialization |
+| **Deployment** | FastMCP Cloud, Docker, uvicorn/gunicorn, any ASGI server |
+| **Platform** | Windows, macOS, Linux |
+
+## Quick Start
+
+### Installation
+
+```bash
+# Using uv (recommended)
+uv pip install shotgrid-mcp-server
+
+# Or using pip
+pip install shotgrid-mcp-server
+```
+
+### Configuration
+
+Set your ShotGrid credentials:
+
+```bash
+export SHOTGRID_URL="https://your-site.shotgunstudio.com"
+export SHOTGRID_SCRIPT_NAME="your_script_name"
+export SHOTGRID_SCRIPT_KEY="your_script_key"
+```
+
+### Usage
+
+#### stdio Transport (Default) - For Claude Desktop, Cursor, etc.
+
+```bash
+uvx shotgrid-mcp-server
+```
+
+#### HTTP Transport - For Remote Access
+
+```bash
+uvx shotgrid-mcp-server http --host 0.0.0.0 --port 8000
+```
+
+## MCP Client Configuration
+
+Add the server to your MCP client configuration:
+
+### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "shotgrid": {
+      "command": "uvx",
+      "args": ["shotgrid-mcp-server"],
+      "env": {
+        "SHOTGRID_URL": "https://your-site.shotgunstudio.com",
+        "SHOTGRID_SCRIPT_NAME": "your_script_name",
+        "SHOTGRID_SCRIPT_KEY": "your_script_key"
+      }
+    }
+  }
+}
+```
+
+### Cursor / VS Code / Other MCP Clients
+
+```json
+{
+  "mcpServers": {
+    "shotgrid": {
+      "command": "uvx",
+      "args": ["shotgrid-mcp-server"],
+      "env": {
+        "SHOTGRID_URL": "https://your-site.shotgunstudio.com",
+        "SHOTGRID_SCRIPT_NAME": "your_script_name",
+        "SHOTGRID_SCRIPT_KEY": "your_script_key"
+      }
+    }
+  }
+}
+```
+
+### HTTP Transport (Remote)
+
+```json
+{
+  "mcpServers": {
+    "shotgrid": {
+      "url": "http://your-server:8000/mcp",
+      "transport": { "type": "http" }
+    }
+  }
+}
+```
+
+## Deployment
+
+| Method | Command / Setup |
+|--------|-----------------|
+| **FastMCP Cloud** | Deploy via [fastmcp.cloud](https://fastmcp.cloud) with `fastmcp_entry.py` |
+| **ASGI** | `uvicorn shotgrid_mcp_server.asgi:app --host 0.0.0.0 --port 8000` |
+| **Docker** | See [Deployment Guide](docs/deployment.md) |
+
+See the [Deployment Guide](docs/deployment.md) for detailed instructions.
+
+## Available Tools
+
+This server provides **40+ tools** for interacting with ShotGrid:
+
+| Category | Tools |
+|----------|-------|
+| **CRUD** | `create_entity`, `find_one_entity`, `search_entities`, `update_entity`, `delete_entity` |
+| **Batch** | `batch_create`, `batch_update`, `batch_delete` |
+| **Media** | `download_thumbnail`, `upload_thumbnail` |
+| **Notes** | `shotgrid.note.create`, `shotgrid.note.read`, `shotgrid.note.update` |
+| **Playlists** | `create_playlist`, `find_playlists` |
+| **Direct API** | `sg.find`, `sg.create`, `sg.update`, `sg.batch`, and more... |
+
+## Example Prompts
+
+Once connected, you can ask your AI assistant:
+
+- *"Find all shots updated last week in Project X"*
+- *"Create a playlist with yesterday's lighting renders"*
+- *"Add a note to SHOT_010 about the background lighting"*
+- *"Summarize time logs for the Animation department this month"*
+
+## Development
+
+```bash
+# Clone and install
+git clone https://github.com/loonghao/shotgrid-mcp-server.git
+cd shotgrid-mcp-server
+pip install -r requirements-dev.txt
+
+# Run tests
+nox -s tests
+
+# Development server with hot reload
+uv run fastmcp dev src/shotgrid_mcp_server/server.py:mcp
+```
+
+## Documentation
+
+See the [/docs](docs/) directory for detailed documentation.
+
+## Contributing
+
+Contributions welcome! Please follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html) and write tests.
+
+## License
+
+[MIT](LICENSE)
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Clients["🤖 MCP Clients"]
+        direction LR
+        CLAUDE["Claude Desktop"]
+        CURSOR["Cursor"]
+        VSCODE["VS Code"]
+        AI["Other AI"]
+    end
+
+    subgraph MCP["⚡ ShotGrid MCP Server"]
+        direction LR
+        TOOLS["40+ Tools"]
+        POOL["Connection Pool"]
+        SCHEMA["Schema Cache"]
+    end
+
+    subgraph ShotGrid["🎬 ShotGrid API"]
+        direction LR
+        P["Projects"]
+        S["Shots"]
+        A["Assets"]
+        T["Tasks"]
+        N["Notes"]
+    end
+
+    Clients -->|"MCP Protocol<br/>stdio / http"| MCP
+    MCP -->|"REST API"| ShotGrid
+
+    style Clients fill:#2ecc71,stroke:#27ae60,color:#fff
+    style MCP fill:#3498db,stroke:#2980b9,color:#fff
+    style ShotGrid fill:#e74c3c,stroke:#c0392b,color:#fff
+```
