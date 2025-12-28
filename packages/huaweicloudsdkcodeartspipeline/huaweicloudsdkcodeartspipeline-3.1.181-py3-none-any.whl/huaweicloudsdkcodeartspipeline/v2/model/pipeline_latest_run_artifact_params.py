@@ -1,0 +1,195 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class PipelineLatestRunArtifactParams:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'version': 'str',
+        'branch_filter': 'str',
+        'package_name': 'str',
+        'organization': 'str'
+    }
+
+    attribute_map = {
+        'version': 'version',
+        'branch_filter': 'branch_filter',
+        'package_name': 'package_name',
+        'organization': 'organization'
+    }
+
+    def __init__(self, version=None, branch_filter=None, package_name=None, organization=None):
+        r"""PipelineLatestRunArtifactParams
+
+        The model defined in huaweicloud sdk
+
+        :param version: **参数解释**： 包版本。 **取值范围**： 不涉及。 
+        :type version: str
+        :param branch_filter: **参数解释**： 过滤分支。 **取值范围**： 不涉及。 
+        :type branch_filter: str
+        :param package_name: **参数解释**： 包名称。 **取值范围**： 不涉及。 
+        :type package_name: str
+        :param organization: **参数解释**： docker组织。 **取值范围**： 不涉及。 
+        :type organization: str
+        """
+        
+        
+
+        self._version = None
+        self._branch_filter = None
+        self._package_name = None
+        self._organization = None
+        self.discriminator = None
+
+        if version is not None:
+            self.version = version
+        if branch_filter is not None:
+            self.branch_filter = branch_filter
+        if package_name is not None:
+            self.package_name = package_name
+        if organization is not None:
+            self.organization = organization
+
+    @property
+    def version(self):
+        r"""Gets the version of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： 包版本。 **取值范围**： 不涉及。 
+
+        :return: The version of this PipelineLatestRunArtifactParams.
+        :rtype: str
+        """
+        return self._version
+
+    @version.setter
+    def version(self, version):
+        r"""Sets the version of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： 包版本。 **取值范围**： 不涉及。 
+
+        :param version: The version of this PipelineLatestRunArtifactParams.
+        :type version: str
+        """
+        self._version = version
+
+    @property
+    def branch_filter(self):
+        r"""Gets the branch_filter of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： 过滤分支。 **取值范围**： 不涉及。 
+
+        :return: The branch_filter of this PipelineLatestRunArtifactParams.
+        :rtype: str
+        """
+        return self._branch_filter
+
+    @branch_filter.setter
+    def branch_filter(self, branch_filter):
+        r"""Sets the branch_filter of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： 过滤分支。 **取值范围**： 不涉及。 
+
+        :param branch_filter: The branch_filter of this PipelineLatestRunArtifactParams.
+        :type branch_filter: str
+        """
+        self._branch_filter = branch_filter
+
+    @property
+    def package_name(self):
+        r"""Gets the package_name of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： 包名称。 **取值范围**： 不涉及。 
+
+        :return: The package_name of this PipelineLatestRunArtifactParams.
+        :rtype: str
+        """
+        return self._package_name
+
+    @package_name.setter
+    def package_name(self, package_name):
+        r"""Sets the package_name of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： 包名称。 **取值范围**： 不涉及。 
+
+        :param package_name: The package_name of this PipelineLatestRunArtifactParams.
+        :type package_name: str
+        """
+        self._package_name = package_name
+
+    @property
+    def organization(self):
+        r"""Gets the organization of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： docker组织。 **取值范围**： 不涉及。 
+
+        :return: The organization of this PipelineLatestRunArtifactParams.
+        :rtype: str
+        """
+        return self._organization
+
+    @organization.setter
+    def organization(self, organization):
+        r"""Sets the organization of this PipelineLatestRunArtifactParams.
+
+        **参数解释**： docker组织。 **取值范围**： 不涉及。 
+
+        :param organization: The organization of this PipelineLatestRunArtifactParams.
+        :type organization: str
+        """
+        self._organization = organization
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, PipelineLatestRunArtifactParams):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

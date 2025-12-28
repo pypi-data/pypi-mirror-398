@@ -1,0 +1,305 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class PipelineTemplateDTO:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'name': 'str',
+        'description': 'str',
+        'language': 'str',
+        'variables': 'list[CustomVariable]',
+        'definition': 'str',
+        'is_system': 'bool',
+        'domain_id': 'str',
+        'is_show_source': 'bool'
+    }
+
+    attribute_map = {
+        'name': 'name',
+        'description': 'description',
+        'language': 'language',
+        'variables': 'variables',
+        'definition': 'definition',
+        'is_system': 'is_system',
+        'domain_id': 'domain_id',
+        'is_show_source': 'is_show_source'
+    }
+
+    def __init__(self, name=None, description=None, language=None, variables=None, definition=None, is_system=None, domain_id=None, is_show_source=None):
+        r"""PipelineTemplateDTO
+
+        The model defined in huaweicloud sdk
+
+        :param name: **参数解释**： 模板名称。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type name: str
+        :param description: **参数解释**： 模板描述。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type description: str
+        :param language: **参数解释**： 模板语言。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type language: str
+        :param variables: **参数解释**： 自定义参数。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type variables: list[:class:`huaweicloudsdkcodeartspipeline.v2.CustomVariable`]
+        :param definition: **参数解释**： 模板编排json，包含stages。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type definition: str
+        :param is_system: **参数解释**： 是否系统模板。 **约束限制**： 不涉及。 **取值范围**： - true：是系统模板。 - false：不是系统模板。 **默认取值**： 不涉及。 
+        :type is_system: bool
+        :param domain_id: **参数解释**： 租户id。 **约束限制**： 不涉及。 **取值范围**： 32位字符，由数字和字母组成。 **默认取值**： 不涉及。 
+        :type domain_id: str
+        :param is_show_source: **参数解释**： 是否显示流水线源。 **约束限制**： 不涉及。 **取值范围**： - true：显示流水线源。 - false：不显示流水线源。 **默认取值**： 不涉及。 
+        :type is_show_source: bool
+        """
+        
+        
+
+        self._name = None
+        self._description = None
+        self._language = None
+        self._variables = None
+        self._definition = None
+        self._is_system = None
+        self._domain_id = None
+        self._is_show_source = None
+        self.discriminator = None
+
+        self.name = name
+        if description is not None:
+            self.description = description
+        self.language = language
+        if variables is not None:
+            self.variables = variables
+        self.definition = definition
+        self.is_system = is_system
+        self.domain_id = domain_id
+        self.is_show_source = is_show_source
+
+    @property
+    def name(self):
+        r"""Gets the name of this PipelineTemplateDTO.
+
+        **参数解释**： 模板名称。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The name of this PipelineTemplateDTO.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this PipelineTemplateDTO.
+
+        **参数解释**： 模板名称。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param name: The name of this PipelineTemplateDTO.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def description(self):
+        r"""Gets the description of this PipelineTemplateDTO.
+
+        **参数解释**： 模板描述。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The description of this PipelineTemplateDTO.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this PipelineTemplateDTO.
+
+        **参数解释**： 模板描述。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param description: The description of this PipelineTemplateDTO.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def language(self):
+        r"""Gets the language of this PipelineTemplateDTO.
+
+        **参数解释**： 模板语言。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The language of this PipelineTemplateDTO.
+        :rtype: str
+        """
+        return self._language
+
+    @language.setter
+    def language(self, language):
+        r"""Sets the language of this PipelineTemplateDTO.
+
+        **参数解释**： 模板语言。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param language: The language of this PipelineTemplateDTO.
+        :type language: str
+        """
+        self._language = language
+
+    @property
+    def variables(self):
+        r"""Gets the variables of this PipelineTemplateDTO.
+
+        **参数解释**： 自定义参数。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The variables of this PipelineTemplateDTO.
+        :rtype: list[:class:`huaweicloudsdkcodeartspipeline.v2.CustomVariable`]
+        """
+        return self._variables
+
+    @variables.setter
+    def variables(self, variables):
+        r"""Sets the variables of this PipelineTemplateDTO.
+
+        **参数解释**： 自定义参数。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param variables: The variables of this PipelineTemplateDTO.
+        :type variables: list[:class:`huaweicloudsdkcodeartspipeline.v2.CustomVariable`]
+        """
+        self._variables = variables
+
+    @property
+    def definition(self):
+        r"""Gets the definition of this PipelineTemplateDTO.
+
+        **参数解释**： 模板编排json，包含stages。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The definition of this PipelineTemplateDTO.
+        :rtype: str
+        """
+        return self._definition
+
+    @definition.setter
+    def definition(self, definition):
+        r"""Sets the definition of this PipelineTemplateDTO.
+
+        **参数解释**： 模板编排json，包含stages。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param definition: The definition of this PipelineTemplateDTO.
+        :type definition: str
+        """
+        self._definition = definition
+
+    @property
+    def is_system(self):
+        r"""Gets the is_system of this PipelineTemplateDTO.
+
+        **参数解释**： 是否系统模板。 **约束限制**： 不涉及。 **取值范围**： - true：是系统模板。 - false：不是系统模板。 **默认取值**： 不涉及。 
+
+        :return: The is_system of this PipelineTemplateDTO.
+        :rtype: bool
+        """
+        return self._is_system
+
+    @is_system.setter
+    def is_system(self, is_system):
+        r"""Sets the is_system of this PipelineTemplateDTO.
+
+        **参数解释**： 是否系统模板。 **约束限制**： 不涉及。 **取值范围**： - true：是系统模板。 - false：不是系统模板。 **默认取值**： 不涉及。 
+
+        :param is_system: The is_system of this PipelineTemplateDTO.
+        :type is_system: bool
+        """
+        self._is_system = is_system
+
+    @property
+    def domain_id(self):
+        r"""Gets the domain_id of this PipelineTemplateDTO.
+
+        **参数解释**： 租户id。 **约束限制**： 不涉及。 **取值范围**： 32位字符，由数字和字母组成。 **默认取值**： 不涉及。 
+
+        :return: The domain_id of this PipelineTemplateDTO.
+        :rtype: str
+        """
+        return self._domain_id
+
+    @domain_id.setter
+    def domain_id(self, domain_id):
+        r"""Sets the domain_id of this PipelineTemplateDTO.
+
+        **参数解释**： 租户id。 **约束限制**： 不涉及。 **取值范围**： 32位字符，由数字和字母组成。 **默认取值**： 不涉及。 
+
+        :param domain_id: The domain_id of this PipelineTemplateDTO.
+        :type domain_id: str
+        """
+        self._domain_id = domain_id
+
+    @property
+    def is_show_source(self):
+        r"""Gets the is_show_source of this PipelineTemplateDTO.
+
+        **参数解释**： 是否显示流水线源。 **约束限制**： 不涉及。 **取值范围**： - true：显示流水线源。 - false：不显示流水线源。 **默认取值**： 不涉及。 
+
+        :return: The is_show_source of this PipelineTemplateDTO.
+        :rtype: bool
+        """
+        return self._is_show_source
+
+    @is_show_source.setter
+    def is_show_source(self, is_show_source):
+        r"""Sets the is_show_source of this PipelineTemplateDTO.
+
+        **参数解释**： 是否显示流水线源。 **约束限制**： 不涉及。 **取值范围**： - true：显示流水线源。 - false：不显示流水线源。 **默认取值**： 不涉及。 
+
+        :param is_show_source: The is_show_source of this PipelineTemplateDTO.
+        :type is_show_source: bool
+        """
+        self._is_show_source = is_show_source
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, PipelineTemplateDTO):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

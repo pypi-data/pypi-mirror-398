@@ -1,0 +1,589 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class PluginDTO:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'unique_id': 'str',
+        'icon_url': 'str',
+        'runtime_attribution': 'str',
+        'plugin_name': 'str',
+        'display_name': 'str',
+        'business_type': 'str',
+        'business_type_display_name': 'str',
+        'description': 'str',
+        'is_private': 'int',
+        'region': 'str',
+        'maintainers': 'str',
+        'plugin_composition_type': 'str',
+        'manifest_version': 'str',
+        'version': 'str',
+        'version_description': 'str',
+        'execution_info': 'PluginDTOExecutionInfo',
+        'output_info': 'list[PluginDTOOutputInfo]',
+        'input_info': 'list[PluginDTOInputInfo]'
+    }
+
+    attribute_map = {
+        'unique_id': 'unique_id',
+        'icon_url': 'icon_url',
+        'runtime_attribution': 'runtime_attribution',
+        'plugin_name': 'plugin_name',
+        'display_name': 'display_name',
+        'business_type': 'business_type',
+        'business_type_display_name': 'business_type_display_name',
+        'description': 'description',
+        'is_private': 'is_private',
+        'region': 'region',
+        'maintainers': 'maintainers',
+        'plugin_composition_type': 'plugin_composition_type',
+        'manifest_version': 'manifest_version',
+        'version': 'version',
+        'version_description': 'version_description',
+        'execution_info': 'execution_info',
+        'output_info': 'output_info',
+        'input_info': 'input_info'
+    }
+
+    def __init__(self, unique_id=None, icon_url=None, runtime_attribution=None, plugin_name=None, display_name=None, business_type=None, business_type_display_name=None, description=None, is_private=None, region=None, maintainers=None, plugin_composition_type=None, manifest_version=None, version=None, version_description=None, execution_info=None, output_info=None, input_info=None):
+        r"""PluginDTO
+
+        The model defined in huaweicloud sdk
+
+        :param unique_id: **参数解释**： 扩展插件唯一ID。可以通过[查询插件版本详情](ShowPluginVersion.xml)接口，获取响应参数中unique_id。 **约束限制**： 不涉及。 **取值范围**： 32位字符，由数字和字母组成。 **默认取值**： 不涉及。 
+        :type unique_id: str
+        :param icon_url: **参数解释**： 插件展示图标URL。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type icon_url: str
+        :param runtime_attribution: **参数解释**： 运行属性。 **约束限制**： 不涉及。 **取值范围**： - agent：基于agent运行。 - agentless：无需agent运行。 **默认取值**： 不涉及。 
+        :type runtime_attribution: str
+        :param plugin_name: **参数解释**： 插件名。 **约束限制**： 仅支持输入大小写英文字母、数字、&#39;-&#39;、&#39;_&#39;。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+        :type plugin_name: str
+        :param display_name: **参数解释**： 展示名。 **约束限制**： 仅支持输入大小写英文字母、中文、空格、数字、&#39;-&#39;、&#39;_&#39;、&#39;.&#39;。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+        :type display_name: str
+        :param business_type: **参数解释**： 业务类型。 **约束限制**： 仅支持输入大小写英文字母、数字、&#39;-&#39;、&#39;_&#39;。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+        :type business_type: str
+        :param business_type_display_name: **参数解释**： 插件业务类型展示名。 **约束限制**： 不涉及。 **取值范围**： - 构建。 - 代码检查。 - 部署。 - 测试。 - 通用。 **默认取值**： 不涉及。 
+        :type business_type_display_name: str
+        :param description: **参数解释**： 插件描述。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type description: str
+        :param is_private: **参数解释**： 是否私有插件。 **约束限制**： 不涉及。 **取值范围**： - 1：私有插件。 - 0：公开插件。 **默认取值**： 0。 
+        :type is_private: int
+        :param region: **参数解释**： 局点。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type region: str
+        :param maintainers: **参数解释**： 插件维护者。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type maintainers: str
+        :param plugin_composition_type: **参数解释**： 插件的组合类型。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type plugin_composition_type: str
+        :param manifest_version: **参数解释**： 用于区分新旧版数据版本。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type manifest_version: str
+        :param version: **参数解释**： 插件版本号。 **约束限制**： 必须是类似 x.xx.xx（例如：1.0.2） 的格式，其中：x 是 1 到 2 位的数字（范围 0 到 99）。xx 是点后跟随的数字部分，且每部分可以是 1 位或 2 位数字。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type version: str
+        :param version_description: **参数解释**： 插件小版本版本号说明。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type version_description: str
+        :param execution_info: 
+        :type execution_info: :class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOExecutionInfo`
+        :param output_info: **参数解释**： 插件输出相关内容。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type output_info: list[:class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOOutputInfo`]
+        :param input_info: **参数解释**： 输入信息。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+        :type input_info: list[:class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOInputInfo`]
+        """
+        
+        
+
+        self._unique_id = None
+        self._icon_url = None
+        self._runtime_attribution = None
+        self._plugin_name = None
+        self._display_name = None
+        self._business_type = None
+        self._business_type_display_name = None
+        self._description = None
+        self._is_private = None
+        self._region = None
+        self._maintainers = None
+        self._plugin_composition_type = None
+        self._manifest_version = None
+        self._version = None
+        self._version_description = None
+        self._execution_info = None
+        self._output_info = None
+        self._input_info = None
+        self.discriminator = None
+
+        if unique_id is not None:
+            self.unique_id = unique_id
+        if icon_url is not None:
+            self.icon_url = icon_url
+        self.runtime_attribution = runtime_attribution
+        self.plugin_name = plugin_name
+        self.display_name = display_name
+        self.business_type = business_type
+        self.business_type_display_name = business_type_display_name
+        self.description = description
+        if is_private is not None:
+            self.is_private = is_private
+        if region is not None:
+            self.region = region
+        if maintainers is not None:
+            self.maintainers = maintainers
+        if plugin_composition_type is not None:
+            self.plugin_composition_type = plugin_composition_type
+        if manifest_version is not None:
+            self.manifest_version = manifest_version
+        self.version = version
+        if version_description is not None:
+            self.version_description = version_description
+        self.execution_info = execution_info
+        if output_info is not None:
+            self.output_info = output_info
+        if input_info is not None:
+            self.input_info = input_info
+
+    @property
+    def unique_id(self):
+        r"""Gets the unique_id of this PluginDTO.
+
+        **参数解释**： 扩展插件唯一ID。可以通过[查询插件版本详情](ShowPluginVersion.xml)接口，获取响应参数中unique_id。 **约束限制**： 不涉及。 **取值范围**： 32位字符，由数字和字母组成。 **默认取值**： 不涉及。 
+
+        :return: The unique_id of this PluginDTO.
+        :rtype: str
+        """
+        return self._unique_id
+
+    @unique_id.setter
+    def unique_id(self, unique_id):
+        r"""Sets the unique_id of this PluginDTO.
+
+        **参数解释**： 扩展插件唯一ID。可以通过[查询插件版本详情](ShowPluginVersion.xml)接口，获取响应参数中unique_id。 **约束限制**： 不涉及。 **取值范围**： 32位字符，由数字和字母组成。 **默认取值**： 不涉及。 
+
+        :param unique_id: The unique_id of this PluginDTO.
+        :type unique_id: str
+        """
+        self._unique_id = unique_id
+
+    @property
+    def icon_url(self):
+        r"""Gets the icon_url of this PluginDTO.
+
+        **参数解释**： 插件展示图标URL。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The icon_url of this PluginDTO.
+        :rtype: str
+        """
+        return self._icon_url
+
+    @icon_url.setter
+    def icon_url(self, icon_url):
+        r"""Sets the icon_url of this PluginDTO.
+
+        **参数解释**： 插件展示图标URL。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param icon_url: The icon_url of this PluginDTO.
+        :type icon_url: str
+        """
+        self._icon_url = icon_url
+
+    @property
+    def runtime_attribution(self):
+        r"""Gets the runtime_attribution of this PluginDTO.
+
+        **参数解释**： 运行属性。 **约束限制**： 不涉及。 **取值范围**： - agent：基于agent运行。 - agentless：无需agent运行。 **默认取值**： 不涉及。 
+
+        :return: The runtime_attribution of this PluginDTO.
+        :rtype: str
+        """
+        return self._runtime_attribution
+
+    @runtime_attribution.setter
+    def runtime_attribution(self, runtime_attribution):
+        r"""Sets the runtime_attribution of this PluginDTO.
+
+        **参数解释**： 运行属性。 **约束限制**： 不涉及。 **取值范围**： - agent：基于agent运行。 - agentless：无需agent运行。 **默认取值**： 不涉及。 
+
+        :param runtime_attribution: The runtime_attribution of this PluginDTO.
+        :type runtime_attribution: str
+        """
+        self._runtime_attribution = runtime_attribution
+
+    @property
+    def plugin_name(self):
+        r"""Gets the plugin_name of this PluginDTO.
+
+        **参数解释**： 插件名。 **约束限制**： 仅支持输入大小写英文字母、数字、'-'、'_'。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+
+        :return: The plugin_name of this PluginDTO.
+        :rtype: str
+        """
+        return self._plugin_name
+
+    @plugin_name.setter
+    def plugin_name(self, plugin_name):
+        r"""Sets the plugin_name of this PluginDTO.
+
+        **参数解释**： 插件名。 **约束限制**： 仅支持输入大小写英文字母、数字、'-'、'_'。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+
+        :param plugin_name: The plugin_name of this PluginDTO.
+        :type plugin_name: str
+        """
+        self._plugin_name = plugin_name
+
+    @property
+    def display_name(self):
+        r"""Gets the display_name of this PluginDTO.
+
+        **参数解释**： 展示名。 **约束限制**： 仅支持输入大小写英文字母、中文、空格、数字、'-'、'_'、'.'。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+
+        :return: The display_name of this PluginDTO.
+        :rtype: str
+        """
+        return self._display_name
+
+    @display_name.setter
+    def display_name(self, display_name):
+        r"""Sets the display_name of this PluginDTO.
+
+        **参数解释**： 展示名。 **约束限制**： 仅支持输入大小写英文字母、中文、空格、数字、'-'、'_'、'.'。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+
+        :param display_name: The display_name of this PluginDTO.
+        :type display_name: str
+        """
+        self._display_name = display_name
+
+    @property
+    def business_type(self):
+        r"""Gets the business_type of this PluginDTO.
+
+        **参数解释**： 业务类型。 **约束限制**： 仅支持输入大小写英文字母、数字、'-'、'_'。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+
+        :return: The business_type of this PluginDTO.
+        :rtype: str
+        """
+        return self._business_type
+
+    @business_type.setter
+    def business_type(self, business_type):
+        r"""Sets the business_type of this PluginDTO.
+
+        **参数解释**： 业务类型。 **约束限制**： 仅支持输入大小写英文字母、数字、'-'、'_'。 **取值范围**： 1到50位字符。 **默认取值**： 不涉及。 
+
+        :param business_type: The business_type of this PluginDTO.
+        :type business_type: str
+        """
+        self._business_type = business_type
+
+    @property
+    def business_type_display_name(self):
+        r"""Gets the business_type_display_name of this PluginDTO.
+
+        **参数解释**： 插件业务类型展示名。 **约束限制**： 不涉及。 **取值范围**： - 构建。 - 代码检查。 - 部署。 - 测试。 - 通用。 **默认取值**： 不涉及。 
+
+        :return: The business_type_display_name of this PluginDTO.
+        :rtype: str
+        """
+        return self._business_type_display_name
+
+    @business_type_display_name.setter
+    def business_type_display_name(self, business_type_display_name):
+        r"""Sets the business_type_display_name of this PluginDTO.
+
+        **参数解释**： 插件业务类型展示名。 **约束限制**： 不涉及。 **取值范围**： - 构建。 - 代码检查。 - 部署。 - 测试。 - 通用。 **默认取值**： 不涉及。 
+
+        :param business_type_display_name: The business_type_display_name of this PluginDTO.
+        :type business_type_display_name: str
+        """
+        self._business_type_display_name = business_type_display_name
+
+    @property
+    def description(self):
+        r"""Gets the description of this PluginDTO.
+
+        **参数解释**： 插件描述。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The description of this PluginDTO.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this PluginDTO.
+
+        **参数解释**： 插件描述。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param description: The description of this PluginDTO.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def is_private(self):
+        r"""Gets the is_private of this PluginDTO.
+
+        **参数解释**： 是否私有插件。 **约束限制**： 不涉及。 **取值范围**： - 1：私有插件。 - 0：公开插件。 **默认取值**： 0。 
+
+        :return: The is_private of this PluginDTO.
+        :rtype: int
+        """
+        return self._is_private
+
+    @is_private.setter
+    def is_private(self, is_private):
+        r"""Sets the is_private of this PluginDTO.
+
+        **参数解释**： 是否私有插件。 **约束限制**： 不涉及。 **取值范围**： - 1：私有插件。 - 0：公开插件。 **默认取值**： 0。 
+
+        :param is_private: The is_private of this PluginDTO.
+        :type is_private: int
+        """
+        self._is_private = is_private
+
+    @property
+    def region(self):
+        r"""Gets the region of this PluginDTO.
+
+        **参数解释**： 局点。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The region of this PluginDTO.
+        :rtype: str
+        """
+        return self._region
+
+    @region.setter
+    def region(self, region):
+        r"""Sets the region of this PluginDTO.
+
+        **参数解释**： 局点。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param region: The region of this PluginDTO.
+        :type region: str
+        """
+        self._region = region
+
+    @property
+    def maintainers(self):
+        r"""Gets the maintainers of this PluginDTO.
+
+        **参数解释**： 插件维护者。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The maintainers of this PluginDTO.
+        :rtype: str
+        """
+        return self._maintainers
+
+    @maintainers.setter
+    def maintainers(self, maintainers):
+        r"""Sets the maintainers of this PluginDTO.
+
+        **参数解释**： 插件维护者。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param maintainers: The maintainers of this PluginDTO.
+        :type maintainers: str
+        """
+        self._maintainers = maintainers
+
+    @property
+    def plugin_composition_type(self):
+        r"""Gets the plugin_composition_type of this PluginDTO.
+
+        **参数解释**： 插件的组合类型。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The plugin_composition_type of this PluginDTO.
+        :rtype: str
+        """
+        return self._plugin_composition_type
+
+    @plugin_composition_type.setter
+    def plugin_composition_type(self, plugin_composition_type):
+        r"""Sets the plugin_composition_type of this PluginDTO.
+
+        **参数解释**： 插件的组合类型。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param plugin_composition_type: The plugin_composition_type of this PluginDTO.
+        :type plugin_composition_type: str
+        """
+        self._plugin_composition_type = plugin_composition_type
+
+    @property
+    def manifest_version(self):
+        r"""Gets the manifest_version of this PluginDTO.
+
+        **参数解释**： 用于区分新旧版数据版本。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The manifest_version of this PluginDTO.
+        :rtype: str
+        """
+        return self._manifest_version
+
+    @manifest_version.setter
+    def manifest_version(self, manifest_version):
+        r"""Sets the manifest_version of this PluginDTO.
+
+        **参数解释**： 用于区分新旧版数据版本。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param manifest_version: The manifest_version of this PluginDTO.
+        :type manifest_version: str
+        """
+        self._manifest_version = manifest_version
+
+    @property
+    def version(self):
+        r"""Gets the version of this PluginDTO.
+
+        **参数解释**： 插件版本号。 **约束限制**： 必须是类似 x.xx.xx（例如：1.0.2） 的格式，其中：x 是 1 到 2 位的数字（范围 0 到 99）。xx 是点后跟随的数字部分，且每部分可以是 1 位或 2 位数字。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The version of this PluginDTO.
+        :rtype: str
+        """
+        return self._version
+
+    @version.setter
+    def version(self, version):
+        r"""Sets the version of this PluginDTO.
+
+        **参数解释**： 插件版本号。 **约束限制**： 必须是类似 x.xx.xx（例如：1.0.2） 的格式，其中：x 是 1 到 2 位的数字（范围 0 到 99）。xx 是点后跟随的数字部分，且每部分可以是 1 位或 2 位数字。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param version: The version of this PluginDTO.
+        :type version: str
+        """
+        self._version = version
+
+    @property
+    def version_description(self):
+        r"""Gets the version_description of this PluginDTO.
+
+        **参数解释**： 插件小版本版本号说明。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The version_description of this PluginDTO.
+        :rtype: str
+        """
+        return self._version_description
+
+    @version_description.setter
+    def version_description(self, version_description):
+        r"""Sets the version_description of this PluginDTO.
+
+        **参数解释**： 插件小版本版本号说明。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param version_description: The version_description of this PluginDTO.
+        :type version_description: str
+        """
+        self._version_description = version_description
+
+    @property
+    def execution_info(self):
+        r"""Gets the execution_info of this PluginDTO.
+
+        :return: The execution_info of this PluginDTO.
+        :rtype: :class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOExecutionInfo`
+        """
+        return self._execution_info
+
+    @execution_info.setter
+    def execution_info(self, execution_info):
+        r"""Sets the execution_info of this PluginDTO.
+
+        :param execution_info: The execution_info of this PluginDTO.
+        :type execution_info: :class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOExecutionInfo`
+        """
+        self._execution_info = execution_info
+
+    @property
+    def output_info(self):
+        r"""Gets the output_info of this PluginDTO.
+
+        **参数解释**： 插件输出相关内容。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The output_info of this PluginDTO.
+        :rtype: list[:class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOOutputInfo`]
+        """
+        return self._output_info
+
+    @output_info.setter
+    def output_info(self, output_info):
+        r"""Sets the output_info of this PluginDTO.
+
+        **参数解释**： 插件输出相关内容。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param output_info: The output_info of this PluginDTO.
+        :type output_info: list[:class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOOutputInfo`]
+        """
+        self._output_info = output_info
+
+    @property
+    def input_info(self):
+        r"""Gets the input_info of this PluginDTO.
+
+        **参数解释**： 输入信息。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :return: The input_info of this PluginDTO.
+        :rtype: list[:class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOInputInfo`]
+        """
+        return self._input_info
+
+    @input_info.setter
+    def input_info(self, input_info):
+        r"""Sets the input_info of this PluginDTO.
+
+        **参数解释**： 输入信息。 **约束限制**： 不涉及。 **取值范围**： 不涉及。 **默认取值**： 不涉及。 
+
+        :param input_info: The input_info of this PluginDTO.
+        :type input_info: list[:class:`huaweicloudsdkcodeartspipeline.v2.PluginDTOInputInfo`]
+        """
+        self._input_info = input_info
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, PluginDTO):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
