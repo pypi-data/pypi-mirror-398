@@ -1,0 +1,1 @@
+import"../chunks/Cjo0f8hx.js";import{W as p}from"../chunks/CE1HgFfv.js";function m(o){p(o,{})}export{m as component};
