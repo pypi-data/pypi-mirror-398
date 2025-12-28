@@ -1,0 +1,158 @@
+[project]
+name = "klondike-spec-cli"
+dynamic = ["version"]
+description = "CLI tool for managing Klondike Spec agent workflow artifacts"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Thomas Rohde" }]
+keywords = ["cli", "agent", "workflow", "copilot", "klondike-spec"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+dependencies = [
+    "pypith>=0.1.2",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "mcp>=1.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "watchdog>=3.0.0",
+    "websockets<15",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+klondike = "klondike_spec_cli.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ThomasRohde/klondike-spec-cli"
+Repository = "https://github.com/ThomasRohde/klondike-spec-cli"
+Issues = "https://github.com/ThomasRohde/klondike-spec-cli/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+# Use no-local-version to ensure PyPI-compatible version strings
+raw-options = { local_scheme = "no-local-version" }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/klondike_spec_cli/_version.py"
+
+[tool.hatch.build.targets.sdist]
+# Include static web assets in source distribution
+include = ["/src", "/tests", "/pyproject.toml", "/README.md", "/LICENSE"]
+# Treat static assets as artifacts so they're included despite not being .py files
+artifacts = ["*.html", "*.css", "*.js"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/klondike_spec_cli"]
+# Treat static assets as artifacts so they're included despite not being .py files
+artifacts = [
+    "*.html",
+    "*.css",
+    "*.js",
+    "*.svg",
+    "*.json",
+    "*.yaml",
+    "*.md",
+    "*.sh",
+    "*.ps1",
+]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = ""
+
+# Include template files and static files in the package
+# - templates/ directory: Copilot/Claude templates  
+# - static/ directory: Web UI assets (HTML, CSS, JS) for 'klondike serve'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --cov=klondike_spec_cli --cov-report=term-missing"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+exclude = ["src/klondike_spec_cli/_version.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "klondike_spec_cli.cli"
+# Pith/Typer use Argument/Option as defaults which mypy can't understand
+# Also has FastAPI endpoint functions with complex types
+disable_error_code = [
+    "assignment",
+    "no-untyped-def",
+    "type-arg",
+    "attr-defined",
+    "no-untyped-call",
+    "var-annotated",
+]
+
+[[tool.mypy.overrides]]
+module = "klondike_spec_cli.commands.*"
+# Pith/Typer use Argument/Option as defaults which mypy can't understand
+disable_error_code = ["assignment"]
+
+[[tool.mypy.overrides]]
+module = "klondike_spec_cli.worktree"
+# Dict type parameters in dataclasses
+disable_error_code = ["type-arg"]
+
+[[tool.mypy.overrides]]
+module = "klondike_spec_cli.formatting"
+# Rich table.add_row takes *args
+disable_error_code = ["arg-type"]
+
+[[tool.mypy.overrides]]
+module = "pith.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
