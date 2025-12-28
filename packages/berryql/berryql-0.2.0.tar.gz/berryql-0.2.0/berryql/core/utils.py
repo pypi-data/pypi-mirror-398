@@ -1,0 +1,359 @@
+from __future__ import annotations
+import ast as _ast
+import json as _json
+import uuid as _py_uuid
+from datetime import datetime
+from enum import Enum
+from typing import Any, Optional, Dict, List
+
+import strawberry
+from sqlalchemy.sql.sqltypes import Integer, Boolean, DateTime, Float, Numeric
+from sqlalchemy import and_ as _and
+from .filters import OPERATOR_REGISTRY
+
+# Try to import UUID types
+try:
+    from sqlalchemy import Uuid as _UUID
+except ImportError:
+    _UUID = None  # type: ignore
+
+try:
+    from sqlalchemy.dialects.postgresql import UUID as _PG_UUID
+except ImportError:
+    _PG_UUID = None  # type: ignore
+
+class _DirectionEnum(Enum):
+    asc = 'asc'
+    desc = 'desc'
+
+Direction = strawberry.enum(_DirectionEnum, name="Direction")  # type: ignore
+
+def dir_value(order_dir: Any) -> str:
+    if order_dir is None:
+        return 'asc'
+    try:
+        val = getattr(order_dir, 'value', order_dir)
+        return str(val).lower()
+    except Exception:
+        return 'asc'
+
+def coerce_where_value(col, val):
+    if isinstance(val, (list, tuple)):
+        return [coerce_where_value(col, v) for v in val]
+    
+    ctype = getattr(col, 'type', None)
+    if ctype is None:
+        return val
+
+    try:
+        # UUID coercion
+        is_uuid_type = False
+        if _UUID is not None and isinstance(ctype, _UUID):
+            is_uuid_type = True
+        elif _PG_UUID is not None and isinstance(ctype, _PG_UUID):
+            is_uuid_type = True
+        elif getattr(ctype, 'python_type', None) is _py_uuid.UUID:
+            is_uuid_type = True
+            
+        if is_uuid_type:
+            if isinstance(val, str):
+                try:
+                    return _py_uuid.UUID(val)
+                except Exception:
+                    return val
+            return val
+
+        if isinstance(ctype, DateTime):
+            if isinstance(val, str):
+                s = val.replace('Z', '+00:00') if 'Z' in val else val
+                try:
+                    dv = datetime.fromisoformat(s)
+                    if getattr(ctype, 'timezone', False) is False and getattr(dv, 'tzinfo', None) is not None:
+                        dv = dv.replace(tzinfo=None)
+                    return dv
+                except Exception:
+                    return val
+            return val
+
+        if isinstance(ctype, Integer):
+            try:
+                return int(val) if isinstance(val, str) else val
+            except Exception:
+                return val
+
+        if isinstance(ctype, (Float, Numeric)):
+             try:
+                return float(val) if isinstance(val, str) else val
+             except Exception:
+                return val
+
+        if isinstance(ctype, Boolean):
+            if isinstance(val, str):
+                lv = val.strip().lower()
+                if lv in ('true','t','1','yes','y'):
+                    return True
+                if lv in ('false','f','0','no','n'):
+                    return False
+            return bool(val)
+            
+    except Exception:
+        return val
+    return val
+
+# --- DRY helpers used across registry/builders ---
+def coerce_literal(v: Any) -> Any:
+    """Best-effort coercion of GraphQL AST-like values to plain Python types.
+
+    Handles lists, dicts, objects exposing `.values`/`.fields`/`.value`.
+    """
+    try:
+        # list-like
+        if isinstance(v, list):
+            return [coerce_literal(x) for x in v]
+        # dict-like
+        if isinstance(v, dict):
+            return {k: coerce_literal(x) for k, x in v.items()}
+        # GraphQL AST nodes often have `.values`
+        if hasattr(v, 'values'):
+            try:
+                return [coerce_literal(x) for x in getattr(v, 'values', []) or []]
+            except Exception:
+                return v
+        # GraphQL AST object nodes expose `.fields`
+        if hasattr(v, 'fields'):
+            try:
+                out: Dict[str, Any] = {}
+                for f in getattr(v, 'fields', []) or []:
+                    k = getattr(getattr(f, 'name', None), 'value', None) or getattr(f, 'name', None)
+                    out[k] = coerce_literal(getattr(f, 'value', None))
+                return out
+            except Exception:
+                return v
+        # Generic scalar value node
+        if hasattr(v, 'value'):
+            return getattr(v, 'value')
+    except Exception:
+        return v
+    return v
+
+def normalize_relation_cfg(cfg: Dict[str, Any]) -> None:
+    """Normalize a relation selection config in-place.
+
+    - Coerce literals for common keys
+    - Normalize order_multi/fields to List[str]
+    - Coerce filter_args values
+    - Recurse into nested configs
+    """
+    if not isinstance(cfg, dict):
+        return
+    for key in ('limit', 'offset', 'order_by', 'order_dir', 'where', 'default_where'):
+        if key in cfg:
+            val = coerce_literal(cfg.get(key))
+            # Best-effort: if 'where' or 'default_where' is a JSON string, parse into dict
+            if key in ('where', 'default_where'):
+                # unwrap single-item containers
+                try:
+                    if isinstance(val, (list, tuple)) and len(val) == 1:
+                        val = val[0]
+                except Exception:
+                    pass
+                # decode bytes
+                if isinstance(val, (bytes, bytearray)):
+                    try:
+                        val = val.decode('utf-8')
+                    except Exception:
+                        val = str(val)
+                if isinstance(val, str):
+                    s = val.strip()
+                    if (s.startswith('{') and s.endswith('}')) or (s.startswith('"{') and s.endswith('}"')):
+                        try:
+                            parsed = _json.loads(s)
+                            # Unwrap if still a JSON string up to two times
+                            unwrap = 0
+                            while isinstance(parsed, str) and unwrap < 2:
+                                try:
+                                    parsed = _json.loads(parsed)
+                                except Exception:
+                                    break
+                                unwrap += 1
+                            val = parsed
+                        except Exception:
+                            # Try Python literal_eval as last resort (e.g., single-quoted dicts)
+                            try:
+                                val = _ast.literal_eval(s)
+                            except Exception:
+                                # keep original to let builders raise a consistent error later
+                                pass
+            cfg[key] = val
+    # order_multi
+    if 'order_multi' in cfg and cfg.get('order_multi') is not None:
+        try:
+            om = coerce_literal(cfg.get('order_multi'))
+            if hasattr(om, 'values'):
+                try:
+                    om = [coerce_literal(x) for x in getattr(om, 'values', []) or []]
+                except Exception:
+                    pass
+            if not isinstance(om, list):
+                om = [om]
+            cfg['order_multi'] = [str(coerce_literal(x)) for x in (om or [])]
+        except Exception:
+            cfg['order_multi'] = [str(cfg.get('order_multi'))] if cfg.get('order_multi') is not None else []
+    # fields
+    if 'fields' in cfg and cfg.get('fields') is not None:
+        try:
+            fl = coerce_literal(cfg.get('fields'))
+            if hasattr(fl, 'values'):
+                try:
+                    fl = [coerce_literal(x) for x in getattr(fl, 'values', []) or []]
+                except Exception:
+                    pass
+            if not isinstance(fl, list):
+                fl = [fl]
+            cfg['fields'] = [str(coerce_literal(x)) for x in (fl or [])]
+        except Exception:
+            cfg['fields'] = [str(cfg.get('fields'))] if cfg.get('fields') is not None else []
+    # filter args
+    if 'filter_args' in cfg and isinstance(cfg.get('filter_args'), dict):
+        fa = cfg.get('filter_args') or {}
+        for k in list(fa.keys()):
+            fa[k] = coerce_literal(fa[k])
+    # nested
+    for n in list((cfg.get('nested') or {}).values()):
+        normalize_relation_cfg(n)
+
+def expr_from_where_dict(model_cls, wdict: Dict[str, Any], *, strict: bool = True):
+    """Build a SQLAlchemy conjunction from simple where dict: {col: {op: val}}.
+
+    Args:
+        model_cls: SQLAlchemy model class with __table__.
+        wdict: where dict.
+        strict: when False, unknown columns/operators are ignored instead of raising.
+    """
+    exprs: List[Any] = []
+    for col_name, op_map in (wdict or {}).items():
+        try:
+            col = model_cls.__table__.c.get(col_name)
+        except Exception:
+            col = None
+        if col is None:
+            if strict:
+                raise ValueError(f"Unknown where column: {col_name}")
+            else:
+                continue
+        for op_name, val in (op_map or {}).items():
+            op_fn = OPERATOR_REGISTRY.get(op_name)
+            if not op_fn:
+                if strict:
+                    raise ValueError(f"Unknown where operator: {op_name}")
+                else:
+                    continue
+            # Coerce values to match column types
+            if op_name in ('in', 'between') and isinstance(val, (list, tuple)):
+                val = [coerce_where_value(col, v) for v in val]
+            else:
+                val = coerce_where_value(col, val)
+            exprs.append(op_fn(col, val))
+    if not exprs:
+        return None
+    return _and(*exprs)
+
+def to_where_dict(val: Any, *, strict: bool = True) -> Optional[Dict[str, Any]]:
+    """Parse a where value into a dict.
+
+    - Accepts dict directly.
+    - Accepts JSON string and parses it.
+    - Returns None when input is None or empty.
+    - When strict=False, returns None on parse/type errors instead of raising.
+    """
+    if val is None:
+        return None
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        s = val.strip()
+        try:
+            parsed = _json.loads(s)
+        except Exception as e:
+            if strict:
+                raise ValueError(f"Invalid where JSON: {e}")
+            return None
+        if not isinstance(parsed, dict):
+            if strict:
+                raise ValueError("where must be a JSON object")
+            return None
+        return parsed
+    if strict:
+        raise ValueError("where must be a JSON object or JSON string")
+    return None
+
+def normalize_order_multi_values(multi: Any) -> List[str]:
+    """Normalize a potentially heterogeneous order_multi list to a list[str] of 'col:dir'."""
+    norm: List[str] = []
+    try:
+        for spec in (multi or []):
+            try:
+                norm.append(str(getattr(spec, 'value', spec)))
+            except Exception:
+                norm.append(str(spec))
+    except Exception:
+        pass
+    return norm
+
+# --- Context helpers ---
+def get_db_session(info_or_ctx: Any) -> Any | None:
+    """Best-effort extraction of an AsyncSession-like object from context.
+
+    Accepts either a Strawberry ``Info`` or a plain context object/dict. Tries
+    common keys/attributes in order: ``db_session``, ``db``, ``session``,
+    ``async_session``.
+
+    Returns:
+        The session object if found; otherwise ``None``.
+    """
+    if info_or_ctx is None:
+        return None
+    # If a Strawberry Info is passed, use its .context
+    ctx = getattr(info_or_ctx, 'context', info_or_ctx)
+    if ctx is None:
+        return None
+    candidates = ('db_session', 'db', 'session', 'async_session')
+    # Mapping-like access with .get
+    get = getattr(ctx, 'get', None)
+    if callable(get):
+        for k in candidates:
+            try:
+                v = get(k, None)
+            except (KeyError, AttributeError, TypeError):
+                v = None
+            except Exception:
+                # Treat unexpected context get errors as missing; continue
+                v = None
+            if v is not None:
+                return v
+    # Mapping access via __getitem__ (guard non-subscriptable contexts)
+    for k in candidates:
+        try:
+            v = ctx[k]  # type: ignore[index]
+        except (KeyError, TypeError, AttributeError):
+            v = None
+        except Exception:
+            # Treat unexpected context index errors as missing; continue
+            v = None
+        if v is not None:
+            return v
+    # Attribute access (safe getattr with default)
+    for k in candidates:
+        v = getattr(ctx, k, None)
+        if v is not None:
+            return v
+    # FastAPI/Starlette-style: context has request.state.db_session
+    try:
+        req = getattr(ctx, 'request', None)
+        state = getattr(req, 'state', None) if req is not None else None
+        v = getattr(state, 'db_session', None) if state is not None else None
+        if v is not None:
+            return v
+    except Exception:
+        pass
+    return None
