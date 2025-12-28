@@ -1,0 +1,196 @@
+## Sunbay Nexus Python SDK
+
+Official Python SDK for the Sunbay Nexus payment platform.
+
+This SDK provides a simple and professional way to integrate with Sunbay Nexus
+payment platform from Python applications, with full support for all payment operations.
+
+### Features
+
+- **Simple and intuitive API**
+- **Thread-safe client with connection pooling**
+- **Clear separation between network errors and business errors**
+- **Automatic authentication via API key**
+- **Configurable timeouts and retries for GET requests**
+- **Python 3.7+ support**
+
+### Installation
+
+Once published to PyPI:
+
+```bash
+pip install sunbay-nexus-sdk
+```
+
+### Supported Python versions
+
+- Officially supported: **Python 3.7 and above**
+- Python 2 is **not supported**.
+
+### Quick Start
+
+#### 1. Initialize client
+
+```python
+from sunbay_nexus_sdk import NexusClient
+
+# Option 1: pass api_key explicitly
+client = NexusClient(api_key="sk_test_xxx")
+
+# Option 2: read api_key from environment variable SUNBAY_API_KEY
+# client = NexusClient()
+```
+
+The `NexusClient` is thread-safe and can be reused across multiple threads.
+Create it once and reuse it in your application.
+
+#### 2. Sale transaction
+
+```python
+from sunbay_nexus_sdk import NexusClient, SunbayBusinessError, SunbayNetworkError
+from sunbay_nexus_sdk.models.common import SaleAmount
+from sunbay_nexus_sdk.models.request import SaleRequest
+
+client = NexusClient(api_key="sk_test_xxx")
+
+amount = SaleAmount(order_amount=100.0, pricing_currency="USD")
+
+request = SaleRequest(
+    app_id="app_123456",
+    merchant_id="mch_789012",
+    reference_order_id="ORDER20231119001",
+    transaction_request_id="PAY_REQ_1234567890",
+    amount=amount,
+    description="Product purchase",
+    terminal_sn="T1234567890",
+)
+
+try:
+    # If we reach here, code == "0" (success), no need to check is_success()
+    response = client.sale(request)
+    print("Transaction ID:", response.transaction_id)
+except SunbayNetworkError as e:
+    print("Network Error:", e)
+except SunbayBusinessError as e:
+    print("API Error:", e.code, "-", e)
+```
+
+#### 3. Query transaction
+
+```python
+from sunbay_nexus_sdk import NexusClient
+from sunbay_nexus_sdk.models.request import QueryRequest
+
+client = NexusClient(api_key="sk_test_xxx")
+
+request = QueryRequest(
+    app_id="app_123456",
+    merchant_id="mch_789012",
+    transaction_id="TXN20231119001",
+)
+
+try:
+    # If we reach here, code == "0" (success), no need to check is_success()
+    response = client.query(request)
+    print("Status:", response.transaction_status)
+except SunbayBusinessError as e:
+    print("API Error:", e.code, "-", e)
+except SunbayNetworkError as e:
+    print("Network Error:", e)
+```
+
+### API Overview
+
+The SDK provides a `NexusClient` with comprehensive payment APIs:
+
+- Transaction APIs:
+  - `sale(request: SaleRequest) -> SaleResponse`
+  - `auth(request: AuthRequest) -> AuthResponse`
+  - `forced_auth(request: ForcedAuthRequest) -> ForcedAuthResponse`
+  - `incremental_auth(request: IncrementalAuthRequest) -> IncrementalAuthResponse`
+  - `post_auth(request: PostAuthRequest) -> PostAuthResponse`
+  - `refund(request: RefundRequest) -> RefundResponse`
+  - `void_transaction(request: VoidRequest) -> VoidResponse`
+  - `abort(request: AbortRequest) -> AbortResponse`
+  - `tip_adjust(request: TipAdjustRequest) -> TipAdjustResponse`
+- Query APIs:
+  - `query(request: QueryRequest) -> QueryResponse`
+- Settlement APIs:
+  - `batch_close(request: BatchCloseRequest) -> BatchCloseResponse`
+
+### Exceptions
+
+The SDK differentiates between network-level and business-level errors:
+
+- `SunbayNetworkError`
+  - Thrown for network errors, timeouts, or HTTP non-2xx responses.
+  - Has a `retryable` flag to indicate whether the request may be retried safely.
+- `SunbayBusinessError`
+  - Thrown for API business errors (e.g. `code != "0"`) and local parameter validation failures.
+  - Contains `code` and `trace_id` fields when available.
+
+Always catch `SunbayNetworkError` before `SunbayBusinessError` if you need to
+distinguish between them.
+
+### Configuration
+
+You can configure the client using constructor arguments:
+
+```python
+from sunbay_nexus_sdk import NexusClient
+
+client = NexusClient(
+    api_key="sk_test_xxx",
+    base_url="https://open.sunbay.us",   # default
+    connect_timeout=30.0,                # seconds, default 30.0
+    read_timeout=60.0,                   # seconds, default 60.0
+    max_retries=3,                       # default 3 for GET requests
+    max_connections=200,                 # default 200
+    # Optional: custom logger instance
+    # logger=my_logger,
+)
+```
+
+In addition, the SDK uses the standard Python `logging` library:
+
+- By default it logs HTTP requests/responses and errors to the logger named `sunbay_nexus_sdk.http`.
+- The SDK **does not** configure handlers or logging levels itself — you are free to integrate with any logging stack
+  (standard logging, loguru, structlog, etc.) by configuring or adapting a `logging.Logger`.
+- For advanced use cases, you can pass a custom logger via the `NexusClient(logger=...)` constructor parameter; this
+  logger will be used by the underlying HTTP client for all log output.
+
+### Using enums
+
+For some fields (such as transaction status and card network type), the SDK
+provides enums to make the code more self-documenting:
+
+```python
+from sunbay_nexus_sdk import TransactionStatus
+
+# In try-catch block, if we reach here, code == "0" (success)
+# So we only need to check transaction_status
+if response.transaction_status == TransactionStatus.SUCCESS:
+    print("Transaction succeeded")
+```
+
+### Integration in web frameworks
+
+In web frameworks (such as FastAPI or Django), it is recommended to create a
+single `NexusClient` instance at startup and reuse it:
+
+```python
+from sunbay_nexus_sdk import NexusClient
+
+client = NexusClient(api_key="sk_live_xxx")
+
+def process_payment(request_data):
+    # build SaleRequest here...
+    response = client.sale(request_data)
+    ...
+```
+
+### License
+
+MIT License
+
+
