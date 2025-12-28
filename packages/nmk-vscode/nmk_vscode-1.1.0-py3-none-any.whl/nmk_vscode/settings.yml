@@ -1,0 +1,37 @@
+config:
+  # Folder for VSCode files
+  vscodeFolder: ${PROJECTDIR}/.vscode
+
+  # Generated VSCode settings
+  vscodeSettings: ${vscodeFolder}/settings.json
+
+  # List of VSCode settings files to be merged
+  vscodeSettingsFiles:
+    - ${BASEDIR}/base_settings.json
+
+  # Dict of VSCode settings items to be merged
+  vscodeSettingsItems: {}
+
+tasks:
+  # Create VSCode folder
+  vs.folder:
+    description: Create VSCode folder
+    emoji: ":laptop_computer:.:file_folder:"
+    silent: true
+    builder: nmk_base.common.MkdirBuilder
+    output: ${vscodeFolder}
+    appendToDeps: setup
+
+  # Settings generation
+  vs.settings:
+    description: Generate VSCode settings
+    emoji: ":laptop_computer:.:toolbox:"
+    appendToDeps: setup
+    deps:
+      - vs.folder
+    input: ${vscodeSettingsFiles}
+    output: ${vscodeSettings}
+    params:
+      files: ${vscodeSettingsFiles}
+      items: ${vscodeSettingsItems}
+    builder: nmk_vscode.builders.SettingsBuilder

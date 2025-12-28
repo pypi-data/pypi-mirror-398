@@ -1,0 +1,53 @@
+config:
+  # Generated VSCode tasks file
+  vscodeTasks: ${vscodeFolder}/tasks.json
+
+  # List of VSCode tasks additional files to be merged
+  vscodeTasksFiles: []
+
+  # Template for nmk specific tasks
+  vscodeTaskTemplate: ${BASEDIR}/templates/tasks.json.jinja
+
+  # List of "nmk" specific tasks to generate
+  vscodeNmkTasks:
+    build:
+      group: build
+    clean:
+      group: build
+    tests:
+      group: test
+
+  # List of shell tasks to generate
+  vscodeShellTasks:
+    setup:
+      group: build
+      runOn: folderOpen
+      command: ./buildenv.sh init
+
+  # Default build task
+  vscodeDefaultBuildTask: build
+
+  # Default test task
+  vscodeDefaultTestTask: tests
+
+tasks:
+  # Tasks generation
+  vs.tasks:
+    description: Generate VSCode tasks
+    emoji: ":laptop_computer:.:hammer_and_wrench: "
+    appendToDeps: setup
+    deps:
+      - vs.folder
+    input:
+      - ${vscodeTasksFiles}
+      - ${vscodeTaskTemplate}
+    output: ${vscodeTasks}
+    params:
+      files: ${vscodeTasksFiles}
+      task_template: ${vscodeTaskTemplate}
+      nmk_tasks: ${vscodeNmkTasks}
+      shell_tasks: ${vscodeShellTasks}
+      default_tasks:
+        - ${vscodeDefaultBuildTask}
+        - ${vscodeDefaultTestTask}
+    builder: nmk_vscode.builders.TasksBuilder
