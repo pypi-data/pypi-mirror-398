@@ -1,0 +1,139 @@
+from adam_community.tool import Tool
+from adam_community.util import runCmd
+
+class {{ name.replace("-", "_") }}_tool(Tool):
+    """
+    {{ description }}
+    
+    :param str input_text: 输入的文本内容
+    :param str? mode: 处理模式，可选值：basic、advanced
+    """
+    
+    DISPLAY_NAME = "{{ display_name }}工具"
+    NETWORK = False  # 根据需要设置是否需要网络访问
+    CPU = 1  # 需要的CPU数量
+    GPU = 0  # 需要的GPU数量
+    SIF = "adam-base:1.0.0"  # 指定容器镜像（必填）
+    
+    def call(self, kwargs):
+        """
+        工具的主要实现函数
+        
+        Args:
+            kwargs: 包含args、message、files、user、task_id等参数的字典
+        
+        Returns:
+            执行结果字符串（bash命令）或直接执行结果
+        """
+        # 获取用户输入的参数
+        input_text = kwargs['args']['input_text']
+        mode = kwargs['args'].get('mode', 'basic')
+        
+        # TODO: 在这里实现你的主要逻辑
+        if mode == 'advanced':
+            result = f"高级模式处理: {input_text}"
+        else:
+            result = f"基础模式处理: {input_text}"
+        
+        # 生成bash命令
+        bash_script = f'''
+# {{ display_name }} 处理脚本
+echo "开始处理: {input_text}"
+echo "处理模式: {mode}"
+
+# TODO: 在这里添加实际的处理命令
+echo "{result}"
+
+# 生成输出文件
+echo "处理完成" > output.txt
+echo "结果: {result}" >> output.txt
+
+echo "处理完成，结果已保存到 output.txt"
+'''
+        
+        return runCmd(bash_script)
+    
+    def outputShow(self, kwargs):
+        """
+        自定义输出显示格式（可选）
+        """
+        stdout = kwargs.get('stdout', '')
+        stderr = kwargs.get('stderr', '')
+        
+        display_text = f"""## 🎉 {{ display_name }} 处理完成
+
+### 📋 处理结果
+```
+{stdout}
+```
+"""
+        
+        if stderr:
+            display_text += f"""
+### ⚠️ 警告信息
+```
+{stderr}
+```
+"""
+        
+        # 返回可能生成的文件
+        file_list = ['output.txt'] if 'output.txt' in stdout else []
+        
+        return display_text, file_list
+    
+    def summary(self, kwargs):
+        """
+        为AI生成简短的执行摘要
+        """
+        stdout = kwargs.get('stdout', '')
+        stderr = kwargs.get('stderr', '')
+        
+        if stderr:
+            return f"{{ display_name }}工具执行完成但有警告: {stdout[:200]}...。警告: {stderr[:100]}"
+        else:
+            return f"{{ display_name }}工具执行成功: {stdout[:200]}..."
+
+
+class {{ name.replace("-", "_") }}_advanced_tool(Tool, calltype="python"):
+    """
+    {{ description }} - 高级功能
+    
+    :param str input_file: 输入文件路径
+    :param str output_format: 输出格式，可选值：json、csv、txt
+    """
+    
+    DISPLAY_NAME = "{{ display_name }}高级工具"
+    NETWORK = False  # 根据需要设置是否需要网络访问
+    CPU = 1  # 需要的CPU数量
+    GPU = 0  # 需要的GPU数量
+    SIF = "adam-base:1.0.0"  # 指定容器镜像（必填）
+    CONDA_ENV = "base"  # 指定conda环境
+    
+    def call(self, kwargs):
+        """
+        Python类型工具的实现
+        """
+        import json
+        import datetime
+        
+        input_file = kwargs['args']['input_file']
+        output_format = kwargs['args'].get('output_format', 'json')
+        
+        # TODO: 在这里实现你的Python逻辑
+        result = {
+            'input_file': input_file,
+            'output_format': output_format,
+            'processed_at': datetime.datetime.now().isoformat(),
+            'result': 'Python工具处理完成'
+        }
+        
+        # 对于Python工具，必须使用print输出结果
+        print(f"Python工具处理完成，输入文件: {input_file}")
+        print(f"输出格式: {output_format}")
+        print(f"处理结果: {result}")
+        
+        # 生成输出文件
+        if output_format == 'json':
+            with open('result.json', 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print("结果已保存到 result.json")
