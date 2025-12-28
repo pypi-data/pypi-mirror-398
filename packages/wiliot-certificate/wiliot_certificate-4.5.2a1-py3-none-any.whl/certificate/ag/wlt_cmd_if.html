@@ -1,0 +1,109 @@
+
+<!DOCTYPE html>
+<html>
+
+<style>
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse;
+  text-align: center;
+}
+th, td {
+  padding: 10px;
+}
+th {
+  background-color: #009999;
+}
+tr:nth-child(even) {
+  background-color: #b3cccc;
+}
+tr:nth-child(odd) {
+  background-color: #F0FFFF;
+}
+</style>
+
+<body>
+<table>
+<tr><th>Name</th><th>Shortcut</th><th>Num of Arguments</th><th>Description</th><th>Example</th></tr>
+<tr><td>energous</td><td>NONE</td><td>SKIP_ARGS_VALIDATION</td><td></td><td></td></tr>
+<tr><td>esp</td><td>NONE</td><td>SKIP_ARGS_VALIDATION</td><td></td><td>!esp reset</td></tr>
+<tr><td>ant_sel_mode_set</td><td>asms</td><td>1</td><td>set antenna polarity mode, whereas 0 = random_toggle, 1 = clear, 2 = set, 3 = toggle</td><td>!ant_sel_mode_set 1</td></tr>
+<tr><td>ant_sel_set</td><td>ass</td><td>1</td><td>Set the antenna select pin to be 0 or 1</td><td>!ant_sel_set 1</td></tr>
+<tr><td>pwr_cal_set</td><td>pcs</td><td>2</td><td>Set power calibration value (used by Energous during production line)</td><td>!pwr_cal_set 127 124</td></tr>
+<tr><td>sensor_set</td><td>sc</td><td>5</td><td>Format: (sensor idx) (sensor_ad_type) (sensor_uuid_msb) (sensor_uuid_lsb) (sensor_flags).                     Provides Instructions for the bridge on how to handle a specified External sensor. (sensor idx) - The index of in the sensors table sized 3 , (ad_type) + (uuid_msb) + (uuid_lsb) - The external sensor identifier , (flags) - 2 - Indicates whether the bridge should relay the sensor data as a unified packet or as data + side info,                     1 - Indicates whether the bridge should apply data scrambling to incoming data from the specified sensor. Relevant only for ADD action.</td><td>!sc 0 FF 76 54 0 1</td></tr>
+<tr><td>sensor_get</td><td>sg</td><td>0</td><td>Request the bridge to provide information regarding all of its associated external sensors</td><td>!sensor_get</td></tr>
+<tr><td>gw_wifi_connected</td><td>NONE</td><td>0</td><td>Indicates the ESP is connected to Wi-Fi</td><td>!gw_wifi_connected</td></tr>
+<tr><td>gw_wifi_disconnected</td><td>NONE</td><td>1</td><td>Indicates the ESP is not connected to Wi-Fi. Also sets leds pre-state on/off</td><td>!gw_wifi_disconnected 1</td></tr>
+<tr><td>gw_on</td><td>NONE</td><td>0</td><td>Indicates the ESP has started working</td><td>!gw_on</td></tr>
+<tr><td>ap_ready</td><td>NONE</td><td>0</td><td>Indicates the ESP has successfully started it's access point for provisioning</td><td>!ap_ready</td></tr>
+<tr><td>sntp_success</td><td>NONE</td><td>0</td><td>Indicates the ESP has successfully received time via SNTP</td><td>!sntp_success</td></tr>
+<tr><td>device_auth_success</td><td>NONE</td><td>0</td><td>Indicates the ESP has successfully performed device authorization</td><td>!device_auth_success</td></tr>
+<tr><td>reg_success</td><td>NONE</td><td>0</td><td>Indicates the ESP has successfully registered device to the cloud</td><td>!reg_success</td></tr>
+<tr><td>gw_mqtt_status</td><td>NONE</td><td>1</td><td>Indicates the ESP is connected to MQTT in case arg = 1 or disconnected in case arg = 0</td><td>!gw_mqtt_status 1</td></tr>
+<tr><td>ota_in_progress</td><td>NONE</td><td>1</td><td>Indicates the GW has started an OTA to itself or to a connected BRG. arg = 1 ota in progress, arg = 0 ota finished</td><td>!ota_in_progress 1</td></tr>
+<tr><td>send_msg_to_brg</td><td>NONE</td><td>2</td><td>Transmits a packet towards a BRG. arg1 = BRG mac address, arg2 = BLE packet to transmit</td><td></td></tr>
+<tr><td>set_logger_mode</td><td>NONE</td><td>2</td><td>Configure sniffer: (sniffer_mode) (rx_channel). Sniffer mode options: 0 - No Sniffer, 1 - Standard Sniffer (Data only), 2 - Extended Sniffer (AdvA+Data+RSSI)</td><td>!set_logger_mode 1 39</td></tr>
+<tr><td>get_logger_counters</td><td>glc</td><td>0</td><td>Get the counters of wiliot, non-wiliot and bad CRC packets</td><td>!get_logger_counters</td></tr>
+<tr><td>set_power_mgmt</td><td>spm</td><td>3,6</td><td>Configures the power management parameters as follows: !set_power_mgmt (mode) (sleep_duration) (on_duration) [keep_alive_period] [keep_alive_scan_duration] [led]</td><td>!spm 1 120 30 15 300 0, !spm 0 120 30</td></tr>
+<tr><td>get_power_mgmt</td><td>gpm</td><td>1</td><td>Get static or dynamic powr managment configuration from the bridge as follows: IDLE, ON, KA_PERIOD, KA_SCAN, LEDS</td><td>!get_power_mgmt</td></tr>
+<tr><td>send_pkt</td><td>sp</td><td>1, 2</td><td>Transmit a ble pkt. Optional - add an extra argument, specifying the number of repetitions for transmission. The default repetitions value is set to 8. BLE5 case - the packet must be of size 47 or 39 bytes</td><td>!send_pkt 04CBA011902C1E16AFFD0200002929B0FFF98DB104FA68BD5491456B55CC18AADBC230A83E 3</td></tr>
+<tr><td>ble_sim</td><td>bs</td><td>5, 6, 7, 8</td><td>Format: !ble_sim (pkt) (duplicates) (output power) (frequency/channel) (delay) (optional - radio mode) (optional - unique pkts) (optional - unique packet content), (pkt) - BLE packet , (duplicates) - the number of times to send the same packet , (output power) - the absolute value below max output power to transmit, (frequency) - 2402/2403/... or channel 37/38/39 , (delay) - the delay between the transmission of the current packet and the one after it, in milliseconds, (radio mode) - optional, for BLE5 transmission, could be 1 or 2, indicates if the transmission will be in 1Mbps or 2Mbps, (unique pkts) - optional for the device to increment the last bytes and send additional pkts, (unique_content) - sends packets with uniqe content to identify from what channel was the packet sent</td><td>!ble_sim 04CBA011902C1E16AFFD0200002929B0FFF98DB104FA68BD5491456B55CC18AADBC230A83E 10 2 2402 100 2 180</td></tr>
+<tr><td>ble_sim_ext_adv</td><td>NONE</td><td>4, 5, 6</td><td>Format: !ble_sim_ext_adv (pkt) (duplicates) (output power) (delay) (optional - unique pkts) (optional - add hardcoded data payload), (pkt) - BLE packet , (duplicates) - the number of times to send the same packet , (output power) - the absolute value below max output power to transmit, (delay) - the delay between the transmission of the current packet and the one after it, in milliseconds, (unique pkts) - optional for the device to increment the last bytes and send additional pkts, (add hardcoded data payload) - optional, add 5 data packets to the end of the ext adv packet. This command builds an aggregated packet and transmits it using extended advertising (sends pointers on channels 37, 38, 39 and data packet on a random secondary channel)</td><td>!ble_sim_ext_adv 04CBA011902C1E16AFFD0200002929B0FFF98DB104FA68BD5491456B55CC18AADBC230A83E 10 2 100 180</td></tr>
+<tr><td>ble_sim_init</td><td>NONE</td><td>1</td><td>Initiate the GW to be in simulator mode</td><td>!ble_sim_init 1 !ble_sim_init 0</td></tr>
+<tr><td>gateway_app</td><td>s</td><td>0</td><td>Initiates the GW application</td><td>!gateway_app</td></tr>
+<tr><td>pl_gw_config</td><td>NONE</td><td>1</td><td>Set production Line Status to enable (1) or disable (0)</td><td>!pl_gw_config 1</td></tr>
+<tr><td>version</td><td>v</td><td>0</td><td>Request the FW version of the GW/BRG</td><td>!version</td></tr>
+<tr><td>start_2_4_ghz_energizing</td><td>NONE</td><td>2</td><td></td><td></td></tr>
+<tr><td>store_to_flash</td><td>NONE</td><td>0</td><td>Store the relevant parameters to the gw flash (after each reset, the gw is reconfigured with the flash parameters)</td><td>!store_to_flash</td></tr>
+<tr><td>reset</td><td>r</td><td>0</td><td>Reset</td><td>!reset</td></tr>
+<tr><td>move_to_bootloader</td><td>mtb</td><td>0</td><td>Stops the GW application and moves to bootloader in order to perform version update</td><td>!move_to_bootloader</td></tr>
+<tr><td>restore_defaults</td><td>rd</td><td>0</td><td>Configure the default parameters for GW/BRG saved in flash.</td><td>!restore_defaults</td></tr>
+<tr><td>print_config_extended</td><td>pce</td><td>0</td><td>Print all configured parameters of the GW/BRG</td><td>!print_config_extended</td></tr>
+<tr><td>get_device_address</td><td>pda</td><td>0</td><td>Request for the MAC address of the GW/BRG</td><td>!get_device_address</td></tr>
+<tr><td>dump_flash</td><td>df</td><td>0</td><td>Displays the configured parameters in flash</td><td>!dump_flash</td></tr>
+<tr><td>cancel</td><td>c</td><td>0</td><td>Stop the gateway application, i.e. stops transmitting energy+beacons and stops receiving tags' packets.</td><td>!cancel</td></tr>
+<tr><td>set_interface_id</td><td>sii</td><td>1</td><td></td><td></td></tr>
+<tr><td>get_interface_id</td><td>gii</td><td>0</td><td></td><td>!get_interface_id</td></tr>
+<tr><td>set_pkt_filter</td><td>pf</td><td>1</td><td>Sets the packet filter configuration according to the first argument without decode</td><td>!pf 0</td></tr>
+<tr><td>set_accel_cfg</td><td>sac</td><td>1, 3</td><td>Sets the lis2dw12 accelerometer configuration - (motion_sensitivity_threshold) (s2d_transition_time) (d2s_transition_time)</td><td>!sdw12c 1 30 30</td></tr>
+<tr><td>get_accel_cfg</td><td>gac</td><td>0</td><td>Request the bridge to provide the embedded lis2dw12 accelerometer configuration</td><td>!gdw12c</td></tr>
+<tr><td>uart_sim</td><td>us</td><td>4</td><td>BLE chip sends pkts over the UART.                     Format: (amount of packets) (time interval in MS between packets) (packets origin [p6-pkt, p7-extended_pkt]) (packet data)</td><td>!us 1000 10 p0 1E16...</td></tr>
+<tr><td>connectivity_status</td><td>cs</td><td>2</td><td>Reports on WiFi (first argument) and MQTT (second argument) connectivity status</td><td>!connectivity_status 1 1</td></tr>
+<tr><td>blink</td><td></td><td>0</td><td>Blink Leds</td><td>!blink</td></tr>
+<tr><td>stop_advertising</td><td>sa</td><td>0</td><td>Disables soft device and nus</td><td>!sa</td></tr>
+<tr><td>deduplication_pkts</td><td>dp</td><td>1</td><td>Set new configuration for packets deduplication, options are 0 to disable and 1 to enable</td><td>!dp 1</td></tr>
+<tr><td>gw_cert_tester</td><td>gct</td><td>1</td><td>Set new configuration for gateway certification tester, options are 0 to disable and 1 to enable</td><td>!gct 1</td></tr>
+<tr><td>sub1g_duty_cycle_set</td><td>sdcs</td><td>1</td><td>Set duty cycle in percentage for Sub1GHz energizing. Min = 0, Max = 100. (for dual-band bridges only)</td><td>!sdcs 30</td></tr>
+<tr><td>sub1g_ep_set</td><td>seps</td><td>1</td><td>Set energy pattern for Sub1GHz radio.  {0: No energizing, 1: Single tone 915MHz, 2: Hopping, 3: Japan1W, 4: Japan350mW, 5: Korea, 6: Single tone 916300MHz, 7: Single tone 917500MHz, 8: Australia, 9: Israel, 10: NZ (Hopping)}. (for dual-band bridges only)</td><td>!sub1g_ep_set 1</td></tr>
+<tr><td>output_power</td><td>op</td><td>2</td><td>Set output power [dBm], for either energizing, calibration, or communication. The type is determined by the first argument given ('e' for energizing, 'ca' for calibration, 'cm' for communication). </td><td>!output_power e pos8dBm \n !output_power ca -40</td></tr>
+<tr><td>2_4_duty_cycle_set</td><td>24dcs</td><td>1</td><td>Set duty cycle in percentage for 2400 energizing. Min = 0, Max = 100.</td><td>!24dcs 30</td></tr>
+<tr><td>2_4_ep_set</td><td>24eps</td><td>1</td><td>Set energy pattern for 2400 radio. {0:No energizing, 1:channel 37, 2:channel 38, 3:channel 39, 4:2450MHz, 5:2454MHz, 6:Hopping 1}.</td><td>!2_4_ep_set 1</td></tr>
+<tr><td>move_to_slip</td><td>NONE</td><td>0</td><td>BLE starts using UART SLIP protocol</td><td>!move_to_slip</td></tr>
+<tr><td>move_to_ascii</td><td>NONE</td><td>0</td><td>BLE starts using UART ASCII</td><td>!move_to_ascii</td></tr>
+<tr><td>file_start</td><td>NONE</td><td>2</td><td>ESP signal to start file sending,. Format: (file type) (file total length)</td><td>!file_start 0 141</td></tr>
+<tr><td>file_crc</td><td>NONE</td><td>1</td><td>Compares saved crc to the one received and answers status back to ESP</td><td>!file_crc CBAFA</td></tr>
+<tr><td>is_file_saved</td><td>NONE</td><td>2</td><td>Checks for saved version of BRG OTA file. Format: (version) (is BL)</td><td>!is_file_saved 3.14.64 0</td></tr>
+<tr><td>file_saved_details</td><td>NONE</td><td>2</td><td>Saves details of the last saved file for BRG OTA. Format: (version) (is BL)</td><td>!file_saved_details 3.14.64 0</td></tr>
+<tr><td>set_tags_rssi_threshold</td><td>strt</td><td>1</td><td>Set new configuration for Tags RSSI Threshold, options are 0 to 127 (0 disables feature)</td><td>!strt 20</td></tr>
+<tr><td>set_sensors_rssi_threshold</td><td>ssrt</td><td>1</td><td>Set new configuration for Sensors RSSI Threshold, options are 0 to 127 (0 disables feature)</td><td>!ssrt 20</td></tr>
+<tr><td>set_sub1g_rssi_threshold</td><td>sgrt</td><td>1</td><td>Set new configuration for Sub1G RSSI Threshold, options are 0 to 127 (0 disables feature)</td><td>!sgrt 20</td></tr>
+<tr><td>set_pacer_interval</td><td>pi</td><td>1</td><td>Set the mean interval between transmissions of a single tag [seconds]</td><td></td></tr>
+<tr><td>set_event_window</td><td>sew</td><td>2</td><td>Set the time frame for defining a tag as dynamic and disabling the pacing for it. Format: (units - secs/mins/hours) (value)</td><td>!pdw 0 30</td></tr>
+<tr><td>set_event_trigger</td><td>set</td><td>1</td><td>Set the types of events that will trigger dynamic pacing for tags. Format: 4 bits, each bit represents a trigger - 1 (0b0001): New tag, 2 (0b0010): Temp change, 4 (0b0100): Tx rate change, 8 (0b1000): RSSI change</td><td>!set 8</td></tr>
+<tr><td>set_event_pacer_interval</td><td>sepi</td><td>1</td><td>Set the dynamic pacer interval for dynamic tags. Format: seconds</td><td>!sepi 5</td></tr>
+<tr><td>set_rssi_movement_threshold</td><td>srmt</td><td>1</td><td>Set the threshold for detecting rssi movement - {6, 9, 12, 15} [dBm].</td><td>!srmt 12</td></tr>
+<tr><td>set_datapath_pattern</td><td>scp</td><td>1</td><td>Set new configuration for communicatiom pattern, could be - {0: 'Standard beaconing', 1: 'No beacons on channel 37', 2: 'EU pattern', 3: 'Disable communication beaconing'}</td><td>!scp 2</td></tr>
+<tr><td>set_rx_channel</td><td>src</td><td>1</td><td>Set new configuration for rx channel or frequency, could be - [37, 38, 39, 10, 47 (37 and 10 hopping), 21] or any other valid channel or frequency</td><td>!src 10</td></tr>
+<tr><td>set_radio_mode</td><td>srm</td><td>1</td><td>Set new configuration for radio mode (rx rate), could be [1Mbps, 2Mbps E2/E3 Pixels, 2Mbps E4 Pixels] - [0, 1, 2]</td><td>!srm 1</td></tr>
+<tr><td>calib_interval</td><td>ci</td><td>1</td><td>Set new configuration for Calibration Interval, the actual interval is 20msec*(calib_interval)</td><td>!ci 10</td></tr>
+<tr><td>calib_pattern</td><td>cp</td><td>1</td><td>Set new configuration for Calibration Pattern, could be - {0: 'Standard beaconing', 1: 'No beacons on channel 37', 2: 'EU pattern', 3: 'Disable communication beaconing'}</td><td>!cp 0</td></tr>
+<tr><td>signal_indicator_2_4_set</td><td>si24</td><td>2</td><td>Set a new configuration for 2.4GHz signal_indicator packets cycle. The cycle is the duration in seconds between transmission of signal indicator packets. Min - 0 , Max - 16383. 0 - disable the transmission. When the 'Signal Indicator Cycle' is 0 repetitions value is irrelevant. repetitions Min - 1, Max - 4</td><td>!si24 60 4</td></tr>
+<tr><td>signal_indicator_sub1g_set</td><td>sis</td><td>2</td><td>Set a new configuration for sub1g signal_indicator packets cycle and repetition. The cycle is the duration in seconds between transmission of signal indicator packets. Min - 0 , Max - 16383. 0 - disable the transmission. When the 'Signal Indicator Cycle' is 0 repetitions value is irrelevant. repetitions Min - 1, Max - 4</td><td>!sis 60 4</td></tr>
+<tr><td>test_mode_2_4_set</td><td>tm24</td><td>3</td><td>Test mode for the 2.4Ghz radio, Frequency [2400-2480 MHz]; Power (before PA that can add ~20) [+8 dBm to -12 dBm]; Test Duration [Seconds]</td><td>!tm24 2400 2 30</td></tr>
+<tr><td>test_mode_sub1g_set</td><td>tms</td><td>6</td><td>Test mode for the Sub1G radio, Frequency [905000-920000 kHz], Output Power (before PA that can add ~20), On time [milliseconds], Off time [milliseconds]; Test Duration[Seconds] Modulation[0-2 for CW,GFSK,LORA]</td><td>!tms 905000 4 20 60 20 0</td></tr>
+<tr><td>test_mode_operational_2_4_set</td><td>tmo24</td><td>3</td><td>Test mode for various 2.4Ghz operational modes: Pattern [0=Beacons 37/38/39, 1=Beacons 38/38/39, 2=EU pattern]; Power [+8 dBm to -12 dBm , before PA that can add ~20 [dBm]]; Test Duration[Seconds]</td><td>!tmo24 0 2 30</td></tr>
+<tr><td>test_mode_operational_sub1g_set</td><td>tmos</td><td>3</td><td>Test mode for various sub1G operational modes: Pattern [0=No energy, 1=Single one 915M, 2=FCC Hopping, 3=Japan_1W, 4=Jappan_350mW, 5=Korea, 6=916.3 MHz, 7=917.5 mHz,8=Australia, 9=Israel, 10=NZ Hopping; Output Power (before PA that can add ~20); Test Duration[Seconds]</td><td>!tmos 2 4 60</td></tr>
+
+</table>
+</body>
+</html>

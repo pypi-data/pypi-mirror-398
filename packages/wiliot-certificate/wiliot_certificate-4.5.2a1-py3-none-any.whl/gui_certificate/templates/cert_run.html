@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <!-- Required meta tags -->
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{{ app }}</title>
+        <link rel="icon" href="https://www.wiliot.com/favicon.ico" type="image/x-icon" />
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+        <style>
+            /* Progress indicator */
+            .step-indicator {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 2rem;
+                position: relative;
+            }
+            .step-indicator::before {
+                content: '';
+                position: absolute;
+                top: 20px;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: #dee2e6;
+                z-index: 0;
+            }
+            .step-indicator .step {
+                position: relative;
+                z-index: 1;
+                background: white;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                border: 2px solid #dee2e6;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                color: #6c757d;
+            }
+            .step-indicator .step.active {
+                border-color: #00AB83;
+                background: #00AB83;
+                color: white;
+            }
+            .step-indicator .step.completed {
+                border-color: #00AB83;
+                background: #00AB83;
+                color: white;
+            }
+            .step-indicator > div {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                flex: 1;
+            }
+            .step-indicator .step-label {
+                margin-top: 0.5rem;
+                font-size: 0.875rem;
+                text-align: center;
+                color: #6c757d;
+            }
+            .step-indicator .step-label.active {
+                color: #00AB83;
+                font-weight: 600;
+            }
+            .step-indicator .step.active span,
+            .step-indicator .step.completed span {
+                color: white;
+            }
+            
+            /* Step content */
+            .step-content {
+                min-height: 400px;
+                padding: 2rem 0;
+            }
+            
+            /* Mandatory badge */
+            .mandatory-badge {
+                background: #dc3545;
+                color: white;
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                margin-left: 0.5rem;
+            }
+            
+            /* Knowledge base link */
+            .kb-link {
+                color: #0066cc;
+                text-decoration: none;
+                margin-left: 0.5rem;
+                font-size: 0.875rem;
+            }
+            .kb-link:hover {
+                text-decoration: underline;
+            }
+            /* Chevron rotation */
+            .test-toggle .chev { 
+                transition: transform .15s ease; 
+                transform: rotate(0deg); 
+            }
+            .test-toggle.collapsed .chev { 
+                transform: rotate(-90deg); 
+            }
+            
+            /* Certification warning */
+            .cert-warning {
+                background: #fff3cd;
+                border: 1px solid #ffc107;
+                border-radius: 0.5rem;
+                padding: 1rem;
+                margin: 1rem 0;
+            }
+            
+            /* Flavor cards */
+            .flavor-card {
+                border: 2px solid #dee2e6;
+                border-radius: 0.5rem;
+                padding: 1.5rem;
+                margin-bottom: 1rem;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .flavor-card:hover {
+                border-color: #00AB83;
+                background: #f0fdfa;
+            }
+            .flavor-card.selected {
+                border-color: #00AB83;
+                background: #e6f7f4;
+            }
+            .flavor-card input[type="radio"] {
+                margin-right: 0.5rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+        {% include 'menu.html' %}
+        <h1 style="color:#00AB83">{{ title }}</h1>
+        <hr>
+        
+        {% macro kb_link(doc) -%}
+            {% if doc %}
+                {% if doc is string %}
+                    <a href="{{ doc }}" target="_blank" class="kb-link" title="Knowledge Base">📚 KB</a>
+                {% elif doc is iterable %}
+                    {% for url in doc %}
+                        <a href="{{ url }}" target="_blank" class="kb-link" title="Knowledge Base">📚 KB</a>
+                    {% endfor %}
+                {% endif %}
+            {% endif %}
+        {%- endmacro %}
+        
+        {% set non_cert_text = "NOT READY FOR CERTIFICATION" %}
+        {% set unsterile_run_warning = "Unsterile run mode is set - a certifying run must be sterile." %}
+        
+        <!-- Progress Indicator -->
+        <div class="step-indicator">
+            <div>
+                <div class="step {{ 'completed' if step_num > 1 else 'active' if step_num == 1 else '' }}">
+                    <span>1</span>
+                </div>
+                <div class="step-label {{ 'active' if step_num >= 1 else '' }}">Flavor</div>
+            </div>
+            <div>
+                <div class="step {{ 'completed' if step_num > 2 else 'active' if step_num == 2 else '' }}">
+                    <span>2</span>
+                </div>
+                <div class="step-label {{ 'active' if step_num >= 2 else '' }}">Schema</div>
+            </div>
+            <div>
+                <div class="step {{ 'completed' if (step_num > 3 or (step_num >= 3 and flavor == 'gw_only')) else 'active' if step_num == 3 and flavor != 'gw_only' else '' }}">
+                    <span>3</span>
+                </div>
+                <div class="step-label {{ 'active' if (step_num >= 3 or (flavor == 'gw_only' and step_num >= 2)) else '' }}">Modules</div>
+            </div>
+            <div>
+                <div class="step {{ 'completed' if step_num > 4 else 'active' if step_num == 4 else '' }}">
+                    <span>4</span>
+                </div>
+                <div class="step-label {{ 'active' if step_num >= 4 else '' }}">Tests</div>
+            </div>
+            <div>
+                <div class="step {{ 'active' if step_num == 5 else '' }}">
+                    <span>5</span>
+                </div>
+                <div class="step-label {{ 'active' if step_num >= 5 else '' }}">Review</div>
+            </div>
+        </div>
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Error/Warning Messages -->
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        {% if warning %}
+        <div class="alert alert-warning" role="alert">
+            {{ warning }}
+        </div>
+        {% endif %}
+        
+        <!-- Step Content -->
+        <div class="step-content">
+            <form method="POST" enctype="multipart/form-data" id="mainForm">
+                <!-- Step 1: Flavor Selection -->
+                {% if step_num == 1 %}
+                <h3>Step 1: Select Certification Flavor</h3>
+                <p class="text-muted">Choose the type of certification you want to run.</p>
+                
+                <div class="flavor-card" onclick="document.getElementById('flavor_gw').click()">
+                    <input type="radio" name="flavor" id="flavor_gw" value="gw_only" required>
+                    <label for="flavor_gw" style="cursor: pointer; font-weight: bold; font-size: 1.1rem;">
+                        Gateway Only
+                    </label>
+                    <p class="mt-2 mb-0 text-muted">
+                        <strong>Mandatory Module:</strong> Cloud Connectivity<br>
+                        Tests gateway's BLE scans & MQTT data uploads capabilities.
+                    </p>
+                </div>
+                
+                <div class="flavor-card" onclick="document.getElementById('flavor_brg').click()">
+                    <input type="radio" name="flavor" id="flavor_brg" value="bridge_only" required>
+                    <label for="flavor_brg" style="cursor: pointer; font-weight: bold; font-size: 1.1rem;">
+                        Bridge Only
+                    </label>
+                    <p class="mt-2 mb-0 text-muted">
+                        <strong>Mandatory Module:</strong> Edge Management<br>
+                        Requires at least one additional module beyond the mandatory Edge Management module.
+                    </p>
+                </div>
+                
+                <div class="flavor-card" onclick="document.getElementById('flavor_combo').click()">
+                    <input type="radio" name="flavor" id="flavor_combo" value="combo" required>
+                    <label for="flavor_combo" style="cursor: pointer; font-weight: bold; font-size: 1.1rem;">
+                        Combo (Gateway + Bridge)
+                    </label>
+                    <p class="mt-2 mb-0 text-muted">
+                        <strong>Mandatory Modules:</strong> Cloud Connectivity + Edge Management<br>
+                        Requires at least one additional bridge module beyond the mandatory Edge Management module.<br>
+                        Tests both gateway and bridge capabilities.
+                    </p>
+                </div>
+                
+                <script>
+                    document.querySelectorAll('input[name="flavor"]').forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            document.querySelectorAll('.flavor-card').forEach(card => {
+                                card.classList.remove('selected');
+                            });
+                            this.closest('.flavor-card').classList.add('selected');
+                        });
+                    });
+                </script>
+                
+                <!-- Step 2: Validation Schema Upload -->
+                {% elif step_num == 2 %}
+                <h3>Step 2: Upload Validation Schema</h3>
+                <p class="text-muted">Upload the JSON validation schema file for your device. <a href="https://community.wiliot.com/customers/s/article/Validation-Schema" target="_blank" class="kb-link">📚 KB</a></p>
+                
+                <div class="mb-3">
+                    <label for="schema_file" class="form-label">Validation Schema File (JSON)</label>
+                    <input type="file" class="form-control" id="schema_file" name="schema_file" accept=".json">
+                    <div class="form-text">Select a JSON validation schema file that matches your selected flavor.</div>
+                </div>
+                
+                {% if schema_path %}
+                <div class="alert alert-success">
+                    Schema uploaded: {{ schema_path.split('/')[-1] }}
+                </div>
+                {% endif %}
+                
+                <!-- Step 3: Module Selection -->
+                {% elif step_num == 3 %}
+                <h3>Step 3: Select Modules</h3>
+                <p class="text-muted">Select the modules you want to test. Mandatory modules are pre-selected.</p>
+                
+                {% if flavor == 'bridge_only' %}
+                <div class="alert alert-info">
+                    <strong>Note:</strong> Bridge only requires at least one additional module beyond the mandatory Edge Management module.
+                </div>
+                {% elif flavor == 'combo' %}
+                <div class="alert alert-info">
+                    <strong>Note:</strong> Combo requires at least one additional bridge module beyond the mandatory Edge Management module.
+                </div>
+                {% endif %}
+                
+                <div id="step3_warning" class="cert-warning" style="display: none;">
+                    <strong>⚠️ Warning:</strong> {{ non_cert_text }}<br>
+                    <small id="step3_warning_text"></small>
+                </div>
+                
+                {% for mod in filtered_modules %}
+                    {% set is_mandatory = mod.is_mandatory | default(False) %}
+                    {% set is_selected = mod.name in selected_modules %}
+                    {% set has_selections = selected_modules|length > 0 %}
+                    {% set mod_doc = None %}
+                    {% if mod.tests and mod.tests|length > 0 %}
+                        {% for test in mod.tests %}
+                            {% if test.meta.documentation and not mod_doc %}
+                                {% set mod_doc = test.meta.documentation %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       name="modules[]" 
+                                       id="module_{{ mod.name }}" 
+                                       value="{{ mod.name }}"
+                                       {% if is_selected or (is_mandatory and not has_selections) or (mod.is_mandatory_by_schema and not has_selections) %}checked{% endif %}>
+                                <label class="form-check-label" for="module_{{ mod.name }}" style="font-weight: bold; font-size: 1.1rem;">
+                                    {{ mod.name }}
+                                    {% if is_mandatory %}
+                                        <span class="mandatory-badge">Mandatory</span>
+                                    {% endif %}
+                                    {% if mod.is_mandatory_by_schema %}
+                                        <span class="mandatory-badge" style="background: #0066cc;">Mandatory by Schema</span>
+                                    {% endif %}
+                                    {{ kb_link(mod_doc) }}
+                                </label>
+                                <p class="text-muted mt-1 mb-0">
+                                    {{ mod.tests|length }} test(s) available
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                <!-- Step 4: Test Selection -->
+                {% elif step_num == 4 %}
+                <h3>Step 4: Select Tests</h3>
+                <p class="text-muted">Select the specific tests to run. Mandatory tests are pre-selected and cannot be deselected.</p>
+                
+                <div id="step4_warning" class="cert-warning" style="display: none;">
+                    <strong>⚠️ Warning:</strong> {{ non_cert_text }}<br>
+                    <small id="step4_warning_text"></small>
+                </div>
+                
+                {% for mod in filtered_modules %}
+                    {% if mod.name in selected_modules %}
+                        {% set mod_id = 'mod_' ~ mod.name|replace('/', '_') %}
+                        <div class="card mb-3">
+                            <div class="card-header d-flex align-items-center">
+                                <button class="btn btn-sm btn-link text-decoration-none test-toggle me-2 collapsed"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#{{ mod_id }}"
+                                        aria-expanded="false">
+                                    <svg class="chev" width="16" height="16" viewBox="0 0 16 16">
+                                        <path d="M4.646 5.646a.5.5 0 0 1 .708 0L8 8.293l2.646-2.647a.5.5 0 1 1 .708.708L8.354 9.354a.5.5 0 0 1-.708 0L4.646 6.354a.5.5 0 0 1 0-.708z" fill="currentColor"/>
+                                    </svg>
+                                </button>
+                                <strong>{{ mod.name }}</strong>
+                                <span class="text-muted ms-2">({{ mod.tests|length }} tests)</span>
+                                <div class="ms-auto d-flex gap-2">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-primary"
+                                            data-mod-select-all="{{ mod.name }}">
+                                        Select All
+                                    </button>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-secondary"
+                                            data-mod-deselect-all="{{ mod.name }}">
+                                        Deselect All
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="{{ mod_id }}" class="collapse">
+                                <div class="card-body">
+                                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-2">
+                                        {% for t in mod.tests %}
+                                            {% set test_id = 'test_' ~ t.id|replace('/','_') %}
+                                            {% set is_mandatory = t.meta.mandatory | default(0) == 1 %}
+                                            {% set is_selected = t.id in selected_tests %}
+                                            {% set has_selections = selected_tests|length > 0 %}
+                                            {% set tip_id = 'tip_' ~ t.id|replace('/','_') %}
+                                            {% set test_doc = t.meta.documentation %}
+                                            
+                                            <div class="col">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" 
+                                                           type="checkbox" 
+                                                           id="{{ test_id }}" 
+                                                           name="tests[]" 
+                                                           value="{{ t.id }}"
+                                                           data-mod="{{ mod.name }}"
+                                                           {% if is_selected %}checked{% elif is_mandatory and not has_selections %}checked{% endif %}>
+                                                    <label class="form-check-label {% if is_mandatory %}fw-bold{% endif %}" for="{{ test_id }}">
+                                                        {{ t.label }}
+                                                        {% if is_mandatory %}
+                                                            <span class="mandatory-badge">Mandatory</span>
+                                                        {% endif %}
+                                                        {{ kb_link(test_doc) }}
+                                                    </label>
+                                                    {% if t.tooltip %}
+                                                        <div class="text-muted" style="font-size: 0.875rem; font-weight: normal; margin-top: 0.25rem;">{{ t.tooltip }}</div>
+                                                    {% endif %}
+                                                </div>
+                                                
+                                                {# Test parameters #}
+                                                {% set params_list = t.meta.allSupportedValues | default([]) %}
+                                                {% if params_list %}
+                                                    {% set has_dynamic = "dynamic_parameters" in params_list %}
+                                                    {% if has_dynamic %}
+                                                        {# Use params_list[1] as default if it exists, otherwise "1" #}
+                                                        {% if params_list|length > 1 %}
+                                                            {% set default_value = params_list[1] %}
+                                                        {% else %}
+                                                            {% set default_value = "1" %}
+                                                        {% endif %}
+                                                        {# Check if value exists in form_data (for restoring saved values) #}
+                                                        {% set dynamic_param_name = "params_" ~ t.id|replace('/','_') ~ "_dynamic" %}
+                                                        {% set saved_value = form_data.get(dynamic_param_name, default_value) %}
+                                                    {% endif %}
+                                                    <div id="{{ test_id }}_params" class="ms-4 mt-1 ps-2 border-start d-none">
+                                                        {% if has_dynamic %}
+                                                            <div class="small text-muted mb-1">Dynamic Parameter</div>
+                                                            {# Dynamic parameter: integer input #}
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <label class="small" for="{{ test_id }}_dynamic_param">Value:</label>
+                                                                <input type="number" 
+                                                                class="form-control form-control-sm" 
+                                                                       style="width: 100px;"
+                                                                       id="{{ test_id }}_dynamic_param" 
+                                                                       name="params_{{ t.id|replace('/','_') }}_dynamic" 
+                                                                       value="{{ saved_value }}"
+                                                                       min="1"
+                                                                       step="1">
+                                                            </div>
+                                                        {% else %}
+                                                            <div class="small text-muted mb-1">Parameters</div>
+                                                            {# Regular parameters: checkboxes #}
+                                                            <div class="d-flex flex-wrap gap-2">
+                                                                {% for p in params_list %}
+                                                                    {% set pid = test_id ~ '_p_' ~ loop.index %}
+                                                                    <div class="form-check">
+                                                                        <input class="form-check-input" 
+                                                                               type="checkbox" 
+                                                                               id="{{ pid }}" 
+                                                                               name="params_{{ t.id|replace('/','_') }}[]" 
+                                                                               value="{{ p }}" 
+                                                                               checked>
+                                                                        <label class="form-check-label small" for="{{ pid }}">{{ p }}</label>
+                                                                    </div>
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                
+                <!-- Additional form fields for CLI parameters -->
+                {% set cert_schema = cert_schema %}
+                
+                <hr class="my-4">
+                <h4>Run Parameters</h4>
+                {% set common_parameters = ['dut', 'custom_broker'] %}
+                
+                {% for f in cert_schema.fields %}
+                    {% if f.name != 'validation_schema' and f.name != 'tl' and f.name != 'custom_broker' and f.name in common_parameters %}
+                        {% set arg_label = (f.option_strings|join(', ') if f.option_strings else f.name) %}
+                        {% set tip_id = 'help_' ~ f.name %}
+                        {% set field_name = cert_schema.title ~ '_' ~ f.name %}
+                        {% set field_value = form_data.get(field_name, f.default if f.default is not none else '') %}
+                        
+                        <div class="row mb-3">
+                            <label for="{{ field_name }}" class="col-sm-3 col-form-label">
+                                {{ arg_label }}{% if f.required %} <span class="text-danger">*</span>{% endif %}
+                            </label>
+                            {% if f.widget == "select" %}
+                                <div class="col-sm-4">
+                                    <select id="{{ field_name }}" class="form-select" name="{{ field_name }}">
+                                        {% if f.default == None %}
+                                            <option value="">select value</option>
+                                        {% endif %}
+                                        {% for c in f.choices %}
+                                            <option value="{{ c }}" {% if c == field_value %}selected{% endif %}>{{ c }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            {% elif f.is_flag %}
+                                <div class="col-sm-4">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="{{ field_name }}" name="{{ field_name }}" {% if field_value %}checked{% endif %}>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="col-sm-4">
+                                    <input type="{{ f.type }}" class="form-control" id="{{ field_name }}" name="{{ field_name }}" value="{{ field_value }}">
+                                </div>
+                            {% endif %}
+                            {% if f.help or f.help_link %}
+                            <div class="col-sm-5 d-flex align-items-center">
+                                <span class="text-muted" style="font-size: 0.875rem; font-weight: normal;">
+                                    {{ f.help }}
+                                    {% if f.help_link %}
+                                        <a href="{{ f.help_link }}" target="_blank" class="kb-link" title="Knowledge Base">Knowledge Base</a>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                
+                <!-- Custom Broker Configuration -->
+                {% set cert_schema = cert_schema %}
+                {% set broker_field_prefix = cert_schema.title ~ '_custom_broker_' %}
+                <div class="card mb-3">
+                    <div class="card-header d-flex align-items-center">
+                        <button class="btn btn-sm btn-link text-decoration-none test-toggle me-2 collapsed"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#customBrokerConfig"
+                                aria-expanded="false">
+                            <svg class="chev" width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M4.646 5.646a.5.5 0 0 1 .708 0L8 8.293l2.646-2.647a.5.5 0 1 1 .708.708L8.354 9.354a.5.5 0 0 1-.708 0L4.646 6.354a.5.5 0 0 1 0-.708z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                        <strong>Custom MQTT Broker Configuration</strong>
+                        <span class="text-danger ms-2">*</span>
+                    </div>
+                    <div id="customBrokerConfig" class="collapse">
+                        <div class="card-body">
+                            {% for field_key, field_default in custom_broker_defaults.items() %}
+                                {% set field_name = broker_field_prefix ~ field_key %}
+                                {% set field_value = form_data.get(field_name, field_default) %}
+                                {% set input_type = 'number' if field_key == 'port' else 'password' if field_key == 'password' else 'text' %}
+                                {% set is_required = field_key not in ['username', 'password'] %}
+                                <div class="row mb-3">
+                                    <label for="{{ field_name }}" class="col-sm-3 col-form-label">
+                                        {{ field_key }}{% if is_required %} <span class="text-danger">*</span>{% endif %}
+                                    </label>
+                                    <div class="col-sm-4">
+                                        <input type="{{ input_type }}" class="form-control" id="{{ field_name }}" name="{{ field_name }}" value="{{ field_value }}">
+                                    </div>
+                                    {% if field_key in custom_broker_help.keys() %}
+                                    <div class="col-sm-5 d-flex align-items-center">
+                                        <span class="text-muted" style="font-size: 0.875rem; font-weight: normal;">
+                                            {{ custom_broker_help[field_key] }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header d-flex align-items-center">
+                        <button class="btn btn-sm btn-link text-decoration-none test-toggle me-2 collapsed"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#advancedParams"
+                                aria-expanded="false">
+                            <svg class="chev" width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M4.646 5.646a.5.5 0 0 1 .708 0L8 8.293l2.646-2.647a.5.5 0 1 1 .708.708L8.354 9.354a.5.5 0 0 1-.708 0L4.646 6.354a.5.5 0 0 1 0-.708z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                        <strong>Advanced Parameters</strong>
+                    </div>
+                    <div id="advancedParams" class="collapse">
+                        <div class="card-body">
+                            {% for f in cert_schema.fields %}
+                                {% if f.name != 'validation_schema' and f.name != 'tl' and f.name not in common_parameters %}
+                                    {% set arg_label = (f.option_strings|join(', ') if f.option_strings else f.name) %}
+                                    {% set tip_id = 'help_' ~ f.name %}
+                                    {% set field_name = cert_schema.title ~ '_' ~ f.name %}
+                                    {% set field_value = form_data.get(field_name, f.default if f.default is not none else '') %}
+                                    
+                                    <div class="row mb-3">
+                                        <label for="{{ field_name }}" class="col-sm-3 col-form-label">
+                                            {{ arg_label }}
+                                        </label>
+                                        {% if f.widget == "select" %}
+                                            <div class="col-sm-4">
+                                                <select id="{{ field_name }}" class="form-select" name="{{ field_name }}">
+                                                    {% if f.default == None %}
+                                                        <option value="">select value</option>
+                                                    {% endif %}
+                                                    {% for c in f.choices %}
+                                                        <option value="{{ c }}" {% if c == field_value %}selected{% endif %}>{{ c }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                        {% elif f.is_flag %}
+                                            <div class="col-sm-4">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" id="{{ field_name }}" name="{{ field_name }}" {% if field_value %}checked{% endif %}>
+                                                </div>
+                                            </div>
+                                        {% elif f.name == "overwrite_defaults" %}
+                                            <div class="col-sm-4">
+                                                <textarea id="{{ field_name }}" class="form-control" name="{{ field_name }}" rows="3" placeholder="key1=value1&#10;key2=value2">{{ field_value }}</textarea>
+                                            </div>
+                                        {% elif f.name == "port" %}
+                                            <div class="col-sm-4">
+                                                <select id="{{ field_name }}" class="form-select" name="{{ field_name }}">
+                                                    <option value="">Select a port</option>
+                                                    {% for port_info in available_ports %}
+                                                        <option value="{{ port_info.value }}" {% if port_info.value == field_value %}selected{% endif %}>{{ port_info.label }}</option>
+                                                    {% endfor %}
+                                                    {% if field_value and field_value not in available_ports|map(attribute='value')|list %}
+                                                        <option value="{{ field_value }}" selected>{{ field_value }} (not available)</option>
+                                                    {% endif %}
+                                                </select>
+                                            </div>
+                                        {% else %}
+                                            <div class="col-sm-4">
+                                                <input type="{{ f.type }}" class="form-control" id="{{ field_name }}" name="{{ field_name }}" value="{{ field_value }}">
+                                            </div>
+                                        {% endif %}
+                                        {% if f.help or f.help_link %}
+                                        <div class="col-sm-5 d-flex align-items-center">
+                                            <span class="text-muted" style="font-size: 0.875rem; font-weight: normal;">
+                                                {{ f.help }}
+                                                {% if f.help_link %}
+                                                    <a href="{{ f.help_link }}" target="_blank" class="kb-link" title="Knowledge Base">Knowledge Base</a>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Step 5: Review and Run -->
+                {% elif step_num == 5 %}
+                <h3>Step 5: Review and Run</h3>
+                
+                <!-- Summary -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Configuration Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Flavor:</strong> 
+                            {% if flavor == 'gw_only' %}Gateway Only
+                            {% elif flavor == 'bridge_only' %}Bridge Only
+                            {% elif flavor == 'combo' %}Combo (Gateway + Bridge)
+                            {% endif %}
+                        </p>
+                        <p><strong>Validation Schema:</strong> {{ schema_path.split('/')[-1] if schema_path else 'Not uploaded' }}</p>
+                        <p><strong>Selected Modules:</strong> {{ selected_modules|join(', ') }}</p>
+                        <p><strong>Selected Tests:</strong> {{ total_test_count }} test(s)</p>
+                        <p><strong>Certification Status:</strong> 
+                            {% if is_certified %}
+                                <span class="badge bg-success">READY FOR CERTIFICATION</span>
+                                <small class="text-muted d-block mt-1">All mandatory modules and tests are selected</small>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">{{ non_cert_text }}</span>
+                                <small class="text-muted d-block mt-1">
+                                    {% if not unsterile_run %}
+                                        Some mandatory modules or tests are missing
+                                    {% endif %}
+                                </small>
+                            {% endif %}
+                        </p>
+                        
+                        {% if unsterile_run %}
+                        <div class="alert alert-warning">
+                            <strong>⚠️ Warning:</strong> {{ unsterile_run_warning }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if not is_certified %}
+                            {% if missing_modules %}
+                                <div class="alert alert-warning">
+                                    <strong>Missing Mandatory Modules:</strong>
+                                    <ul class="mb-0">
+                                        {% for mod in missing_modules %}
+                                            <li>{{ mod }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if missing_additional_module %}
+                                <div class="alert alert-warning">
+                                    <strong>Missing Additional Module:</strong>
+                                    <ul class="mb-0">
+                                        {% if flavor == 'bridge_only' %}
+                                            <li>Bridge Only requires at least one additional module beyond the mandatory module (edge_mgmt)</li>
+                                        {% elif flavor == 'combo' %}
+                                            <li>Combo requires at least one additional bridge module beyond the mandatory modules (cloud_connectivity and edge_mgmt)</li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if missing_tests_details %}
+                                <div class="alert alert-warning">
+                                    <strong>Missing Mandatory Tests from Selected Modules:</strong>
+                                    <ul class="mb-0">
+                                        {% for test in missing_tests_details %}
+                                            <li>{{ test.label }} <small class="text-muted">({{ test.module }})</small></li>
+                                        {% endfor %}
+                                    </ul>
+                                    <small class="d-block mt-2">When a module is selected, its mandatory tests must also be selected.</small>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Schema Verification -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Schema Verification</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if schema_errors or schema_warnings or missing_modules_by_schema %}
+                            <p><strong>Schema Status:</strong> 
+                                <span class="badge bg-warning text-dark">SCHEMA DOES NOT MATCH RUN SETTINGS</span>
+                            </p>
+                            {% if schema_errors %}
+                                <div class="alert alert-danger">
+                                    <strong>Errors:</strong>
+                                    <ul class="mb-0">
+                                        {% for err in schema_errors %}
+                                            <li>{{ err }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if schema_warnings %}
+                                <div class="alert alert-warning">
+                                    <strong>Warnings:</strong>
+                                    <ul class="mb-0">
+                                        {% for warn in schema_warnings %}
+                                            <li>{{ warn }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if missing_modules_by_schema %}
+                                <div class="alert alert-warning mt-3">
+                                    <strong>Missing Modules Mandatory by Schema:</strong>
+                                    <ul class="mb-0">
+                                        {% for mod in missing_modules_by_schema %}
+                                            <li>{{ mod }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    <small class="d-block mt-2">These modules are declared in your validation schema but are not selected. They should be included for proper certification.</small>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <p><strong>Schema Status:</strong> 
+                                <span class="badge bg-success">SCHEMA MATCHES RUN SETTINGS</span>
+                                <small class="text-muted d-block mt-1">The uploaded schema matches the selected flavor, modules, and tests</small>
+                            </p>
+                        {% endif %}
+                        
+                    </div>
+                </div>
+                
+                <!-- Edit Links -->
+                <div class="mb-4">
+                    <p>Need to make changes?</p>
+                    <a href="{{ url_for('step', step_num=1) }}" class="btn btn-outline-secondary btn-sm me-2">Edit Flavor</a>
+                    <a href="{{ url_for('step', step_num=2) }}" class="btn btn-outline-secondary btn-sm me-2">Edit Schema</a>
+                    {% if flavor != 'gw_only' %}
+                    <a href="{{ url_for('step', step_num=3) }}" class="btn btn-outline-secondary btn-sm me-2">Edit Modules</a>
+                    {% endif %}
+                    <a href="{{ url_for('step', step_num=4) }}" class="btn btn-outline-secondary btn-sm">Edit Tests</a>
+                </div>
+                
+                <!-- Run Button -->
+                <div class="d-grid gap-2">
+                    <button type="submit" name="action" value="run" class="btn btn-primary btn-lg">Run Certificate</button>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('export_config') }}" class="btn btn-outline-primary flex-fill">Export Run Settings</a>
+                        <a href="{{ url_for('clear_session') }}" class="btn btn-outline-secondary flex-fill">Start New Run</a>
+                    </div>
+                </div>
+                
+                {% endif %}
+                
+                <!-- Navigation Buttons -->
+                <div class="d-flex justify-content-between mt-4">
+                    {% if step_num > 1 %}
+                        <button type="submit" name="action" value="back" class="btn btn-secondary">← Back</button>
+                    {% else %}
+                        <div></div>
+                    {% endif %}
+                    
+                    {% if step_num < 5 %}
+                        <button type="submit" name="action" value="next" class="btn btn-primary" id="nextBtn">Next →</button>
+                    {% else %}
+                        <div></div>
+                    {% endif %}
+                </div>
+            </form>
+            
+            <!-- Load Previous Run Settings -->
+            {% if step_num == 1 %}
+            <!-- Divider -->
+            <br>
+            <div class="position-relative my-4">
+                <hr>
+                <div class="position-absolute top-50 start-50 translate-middle bg-white px-3">
+                    <span class="text-muted fw-bold">OR Use Previous Run Settings...</span>
+                </div>
+            </div>
+            <br>
+            <!-- Load Previous Run Settings -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Load Previous Run Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('import_config') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="config_file" class="form-label">Load Saved Run Settings (JSON)</label>
+                            <input type="file" class="form-control" id="config_file" name="config_file" accept=".json">
+                            <div class="form-text">Select a previously exported certificate run settings file.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Load Run Settings</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <br><br>
+        
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+        <script>
+            // Configuration data from backend
+            const stepNum = {{ step_num }};
+            const selectedFlavor = {{ flavor|tojson }};
+            const mandatoryModules = {{ mandatory_modules_for_js|tojson|safe }};
+            const mandatoryTests = {{ mandatory_tests_for_js|tojson|safe }};
+            const currentSelectedModules = {{ selected_modules|tojson|safe }};
+            const brgCertSchema = {{ cert_schema|tojson|safe }};
+            const customBrokerFieldKeys = {{ custom_broker_field_keys|tojson|safe }};
+            
+            // Step 3: Module selection validation
+            const mandatoryModulesBySchema = {{ mandatory_modules_by_schema_for_js|tojson|safe }};
+            function checkStep3Validation() {
+                if (stepNum !== 3) return;
+                
+                const warningDiv = document.getElementById('step3_warning');
+                const warningText = document.getElementById('step3_warning_text');
+                if (!warningDiv || !warningText) return;
+                
+                const selectedModules = Array.from(document.querySelectorAll('input[name="modules[]"]:checked'))
+                    .map(cb => cb.value);
+                
+                let warnings = [];
+                
+                // Check if mandatory modules are deselected
+                const missingMandatory = mandatoryModules.filter(m => !selectedModules.includes(m));
+                if (missingMandatory.length > 0) {
+                    warnings.push('Missing mandatory modules: ' + missingMandatory.join(', '));
+                }
+                
+                // Check if schema-mandatory modules are deselected
+                if (mandatoryModulesBySchema && mandatoryModulesBySchema.length > 0) {
+                    const missingBySchema = mandatoryModulesBySchema.filter(m => !selectedModules.includes(m));
+                    if (missingBySchema.length > 0) {
+                        warnings.push('Missing modules mandatory by schema: ' + missingBySchema.join(', '));
+                    }
+                }
+                
+                // Check Bridge/Combo requirement for at least one additional module
+                if (selectedFlavor === 'bridge_only' || selectedFlavor === 'combo') {
+                    const nonMandatorySelected = selectedModules.filter(m => !mandatoryModules.includes(m));
+                    if (nonMandatorySelected.length === 0) {
+                        if (selectedFlavor === 'bridge_only') {
+                            warnings.push('Bridge only requires at least one additional module beyond the mandatory Edge Management module');
+                        } else {
+                            warnings.push('Combo requires at least one additional bridge module beyond the mandatory Edge Management module');
+                        }
+                    }
+                }
+                
+                if (warnings.length > 0) {
+                    warningText.innerHTML = warnings.join('<br>');
+                    warningDiv.style.display = 'block';
+                } else {
+                    warningDiv.style.display = 'none';
+                }
+            }
+            
+            // Step 4: Test selection validation
+            function checkStep4Validation() {
+                if (stepNum !== 4) return;
+                
+                const warningDiv = document.getElementById('step4_warning');
+                const warningText = document.getElementById('step4_warning_text');
+                if (!warningDiv || !warningText) return;
+                
+                const selectedTests = Array.from(document.querySelectorAll('input[name="tests[]"]:checked'))
+                    .map(cb => cb.value);
+                
+                // Use modules from backend (selected in step 3)
+                const selectedModules = currentSelectedModules || [];
+                
+                let warnings = [];
+                
+                // Check if unsterile_run is enabled
+                const unsterileRunField = document.querySelector('input[id*="unsterile_run"], input[name*="unsterile_run"]');
+                if (unsterileRunField && unsterileRunField.checked) {
+                    warnings.push('{{ unsterile_run_warning }}');
+                }
+                
+                // Check if mandatory modules are deselected (from step 3)
+                const missingMandatoryModules = mandatoryModules.filter(m => !selectedModules.includes(m));
+                if (missingMandatoryModules.length > 0) {
+                    warnings.push('Missing mandatory modules: ' + missingMandatoryModules.join(', '));
+                }
+                
+                // Check if schema-mandatory modules are deselected
+                if (mandatoryModulesBySchema && mandatoryModulesBySchema.length > 0) {
+                    const missingBySchema = mandatoryModulesBySchema.filter(m => !selectedModules.includes(m));
+                    if (missingBySchema.length > 0) {
+                        warnings.push('Missing modules mandatory by schema: ' + missingBySchema.join(', '));
+                    }
+                }
+                
+                // Check if mandatory tests from selected modules are deselected
+                // When a module is selected, its mandatory tests become mandatory
+                const missingMandatoryTests = mandatoryTests
+                    .filter(t => selectedModules.includes(t.module) && !selectedTests.includes(t.id))
+                    .map(t => t.label + ' (' + t.module + ')');
+                if (missingMandatoryTests.length > 0) {
+                    warnings.push('Missing mandatory tests from selected modules: ' + missingMandatoryTests.length + ' test(s)');
+                }
+                
+                if (warnings.length > 0) {
+                    warningText.innerHTML = warnings.join('<br>');
+                    warningDiv.style.display = 'block';
+                } else {
+                    warningDiv.style.display = 'none';
+                }
+            }
+            
+            // Module select all / deselect all functionality
+            document.addEventListener('click', (e) => {
+                // Handle Select All button
+                if (e.target.matches('button[data-mod-select-all]')) {
+                    e.preventDefault();
+                    const modName = e.target.getAttribute('data-mod-select-all');
+                    
+                    document.querySelectorAll(`input[type=checkbox][data-mod="${modName}"]:not([disabled])`).forEach(cb => {
+                        cb.checked = true;
+                        const params = document.getElementById(cb.id + '_params');
+                        if (params) {
+                            params.classList.remove('d-none');
+                            // Also select all parameters for this test
+                            const paramCheckboxes = params.querySelectorAll('input[type=checkbox][name^="params_"]');
+                            paramCheckboxes.forEach(paramCb => {
+                                paramCb.checked = true;
+                            });
+                        }
+                    });
+                    
+                    // Trigger validation and save
+                    if (stepNum === 4) {
+                        checkStep4Validation();
+                        debouncedSave();
+                    }
+                }
+                
+                // Handle Deselect All button
+                if (e.target.matches('button[data-mod-deselect-all]')) {
+                    e.preventDefault();
+                    const modName = e.target.getAttribute('data-mod-deselect-all');
+                    
+                    document.querySelectorAll(`input[type=checkbox][data-mod="${modName}"]:not([disabled])`).forEach(cb => {
+                        cb.checked = false;
+                        const params = document.getElementById(cb.id + '_params');
+                        if (params) {
+                            params.classList.add('d-none');
+                            // Also deselect all parameters for this test
+                            const paramCheckboxes = params.querySelectorAll('input[type=checkbox][name^="params_"]');
+                            paramCheckboxes.forEach(paramCb => {
+                                paramCb.checked = false;
+                            });
+                        }
+                    });
+                    
+                    // Trigger validation and save
+                    if (stepNum === 4) {
+                        checkStep4Validation();
+                        debouncedSave();
+                    }
+                }
+            });
+            
+            document.addEventListener('change', (e) => {
+                // Show/hide params panel when test checkbox toggles
+                if (e.target.matches('input[type=checkbox][name="tests[]"]')) {
+                    const params = document.getElementById(e.target.id + '_params');
+                    if (params) {
+                        params.classList.toggle('d-none', !e.target.checked);
+                        
+                        // If test is being checked, select all its parameters
+                        if (e.target.checked) {
+                            const paramCheckboxes = params.querySelectorAll('input[type=checkbox][name^="params_"]');
+                            paramCheckboxes.forEach(paramCb => {
+                                paramCb.checked = true;
+                            });
+                        }
+                    }
+                    
+                    // Trigger validation
+                    if (stepNum === 4) checkStep4Validation();
+                }
+                
+                // Handle parameter checkbox changes - deselect test if all parameters are deselected
+                if (e.target.matches('input[type=checkbox][name^="params_"]')) {
+                    // Find the test checkbox associated with this parameter
+                    // Parameter name format: params_{{ test_id|replace('/','_') }}[]
+                    const paramName = e.target.name;
+                    const testIdMatch = paramName.match(/^params_(.+)\[\]$/);
+                    if (testIdMatch) {
+                        const testIdBase = testIdMatch[1];
+                        // Find all parameter checkboxes for this test
+                        const allParams = document.querySelectorAll(`input[type=checkbox][name="${paramName}"]`);
+                        const checkedParams = document.querySelectorAll(`input[type=checkbox][name="${paramName}"]:checked`);
+                        
+                        // If all parameters are unchecked, uncheck the test (including mandatory tests)
+                        if (checkedParams.length === 0 && allParams.length > 0) {
+                            // Find the test checkbox - need to match by test ID
+                            // Test IDs are in format like "module_test_id" or similar
+                            // We need to find the test checkbox that has parameters with this name pattern
+                            const testCheckboxes = document.querySelectorAll('input[type=checkbox][name="tests[]"]');
+                            testCheckboxes.forEach(testCb => {
+                                const testParamsDiv = document.getElementById(testCb.id + '_params');
+                                if (testParamsDiv) {
+                                    // Check if this test has parameters with the matching name
+                                    const testParams = testParamsDiv.querySelectorAll(`input[type=checkbox][name="${paramName}"]`);
+                                    if (testParams.length > 0) {
+                                        // This is the test that owns these parameters
+                                        // Uncheck the test (applies to both mandatory and non-mandatory)
+                                        testCb.checked = false;
+                                        testParamsDiv.classList.add('d-none');
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    
+                    // Trigger validation
+                    if (stepNum === 4) checkStep4Validation();
+                }
+                
+                // Module checkbox change
+                if (e.target.matches('input[name="modules[]"]')) {
+                    if (stepNum === 3) checkStep3Validation();
+                    if (stepNum === 4) checkStep4Validation();
+                }
+                
+                // Unsterile run checkbox change
+                const unsterileRunField = document.querySelector('input[id*="unsterile_run"], input[name*="unsterile_run"]');
+                if (unsterileRunField && e.target === unsterileRunField) {
+                    // Show/hide warning and update validation
+                    const warningDiv = document.getElementById('step4_warning');
+                    const warningText = document.getElementById('step4_warning_text');
+                    if (warningDiv && warningText) {
+                        // Re-run validation to update warning
+                        if (stepNum === 4) checkStep4Validation();
+                    }
+                }
+            });
+            
+            // Initialize params visibility for pre-checked tests
+            (function initParamsVisibility() {
+                document.querySelectorAll('input[type=checkbox][name="tests[]"]:checked').forEach(cb => {
+                    const params = document.getElementById(cb.id + '_params');
+                    if (params) params.classList.remove('d-none');
+                });
+            })();
+            
+            // Step 4: Required fields validation for Next button
+            function validateRequiredFieldsBeforeNext() {
+                if (stepNum !== 4) return { valid: true, missing: [] };
+                
+                const nextBtn = document.getElementById('nextBtn');
+                if (!nextBtn) return { valid: true, missing: [] };
+                
+                // Get required fields from schema (excluding validation_schema and tl)
+                if (!brgCertSchema || !brgCertSchema.fields) {
+                    return { valid: true, missing: [] };
+                }
+                
+                const requiredFields = brgCertSchema.fields.filter(f => 
+                    f.required && f.name !== 'validation_schema' && f.name !== 'tl'
+                );
+                
+                const missingFields = [];
+                
+                for (const field of requiredFields) {
+                    const fieldName = `${brgCertSchema.title}_${field.name}`;
+                    let fieldValue = null;
+                    
+                    // Special handling for custom_broker - check if all required broker fields have values (like dut)
+                    // Username and password are optional, all other fields are required
+                    if (field.name === 'custom_broker') {
+                        const brokerFieldPrefix = `${brgCertSchema.title}_custom_broker_`;
+                        const optionalFields = ['username', 'password'];
+                        let allRequiredFieldsFilled = true;
+                        for (const brokerField of customBrokerFieldKeys) {
+                            // Skip optional fields
+                            if (optionalFields.includes(brokerField)) {
+                                continue;
+                            }
+                            const input = document.querySelector(`input[name="${brokerFieldPrefix}${brokerField}"]`);
+                            if (!input || !input.value || (typeof input.value === 'string' && !input.value.trim())) {
+                                allRequiredFieldsFilled = false;
+                                break;
+                            }
+                        }
+                        if (allRequiredFieldsFilled) {
+                            fieldValue = 'configured';
+                        }
+                    } else {
+                        // For other fields, check input/select value
+                        const inputs = document.querySelectorAll(`input[name="${fieldName}"], select[name="${fieldName}"]`);
+                        for (const input of inputs) {
+                            if (input.value && input.value.trim()) {
+                                fieldValue = input.value.trim();
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!fieldValue) {
+                        missingFields.push(field.name || field.label);
+                    }
+                }
+                
+                return {
+                    valid: missingFields.length === 0,
+                    missing: missingFields
+                };
+            }
+            
+            // Intercept form submission for Next button in step 4
+            const mainForm = document.getElementById('mainForm');
+            if (mainForm) {
+                mainForm.addEventListener('submit', function(e) {
+                    const action = e.submitter?.value || (new FormData(e.target)).get('action');
+                    if (action === 'next' && stepNum === 4) {
+                        const validation = validateRequiredFieldsBeforeNext();
+                        if (!validation.valid) {
+                            e.preventDefault();
+                            if (validation.missing.length === 1) {
+                                alert(`Please provide ${validation.missing[0]} to continue`);
+                            } else {
+                                alert(`Please provide the following required fields to continue: ${validation.missing.join(', ')}`);
+                            }
+                            return false;
+                        }
+                    }
+                });
+            }
+            
+            // Run initial validation on page load
+            if (stepNum === 3) {
+                checkStep3Validation();
+            } else if (stepNum === 4) {
+                checkStep4Validation();
+            }
+            
+            // Show run completion modal if run was just completed
+            {% if run_completed %}
+            (function() {
+                const terminal = {{ run_terminal|tojson }} || 'Unknown';
+                const pid = {{ run_pid|tojson }};
+                const isCertified = {{ run_is_certified|tojson }};
+                
+                function showModal() {
+                    if (stepNum !== 5) return;
+                    
+                    const modalEl = document.getElementById('runCompletionModal');
+                    if (!modalEl) {
+                        console.error('Modal element not found');
+                        return;
+                    }
+                    
+                    // Update modal content
+                    const terminalEl = document.getElementById('runTerminal');
+                    const pidEl = document.getElementById('runPid');
+                    const pidSection = document.getElementById('pidSection');
+                    const warningEl = document.getElementById('testRunWarning');
+                    
+                    if (terminalEl) terminalEl.textContent = terminal;
+                    if (pid && pidEl && pidSection) {
+                        pidEl.textContent = pid;
+                        pidSection.style.display = 'block';
+                    } else if (pidSection) {
+                        pidSection.style.display = 'none';
+                    }
+                    if (warningEl) {
+                        warningEl.style.display = !isCertified ? 'block' : 'none';
+                    }
+                    
+                    // Show modal
+                    if (typeof bootstrap !== 'undefined') {
+                        const modal = new bootstrap.Modal(modalEl);
+                        modal.show();
+                    } else {
+                        console.error('Bootstrap not loaded');
+                    }
+                }
+                
+                // Wait for DOM and Bootstrap to be ready
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        setTimeout(showModal, 100);
+                    });
+                } else {
+                    setTimeout(showModal, 100);
+                }
+            })();
+            {% endif %}
+        </script>
+        
+        <!-- Run Completion Modal -->
+        <div class="modal fade" id="runCompletionModal" tabindex="-1" aria-labelledby="runCompletionModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="runCompletionModalLabel">Certificate Run Started</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Terminal:</strong> <span id="runTerminal">Unknown</span></p>
+                        <p id="pidSection" style="display: none;"><strong>PID:</strong> <span id="runPid"></span></p>
+                        <div id="testRunWarning" class="alert alert-warning mt-3 mb-0" style="display: none;">
+                            <strong>⚠️ WARNING:</strong> This is a non-certifying run (mandatory tests/modules missing)
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
