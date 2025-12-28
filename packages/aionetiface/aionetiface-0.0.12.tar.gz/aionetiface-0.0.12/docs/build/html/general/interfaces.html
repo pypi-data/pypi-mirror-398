@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interfaces &mdash; aionetiface 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Queues" href="queues.html" />
+    <link rel="prev" title="Pipes" href="pipes.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            aionetiface
+          </a>
+              <div class="version">
+                3.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">General networking</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="basics.html">Basic concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pipes.html">Pipes</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Interfaces</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#the-addressing-problem">The addressing problem</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#routes-to-the-rescue">Routes to the rescue</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-a-route-with-a-pipe">Using a route with a pipe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#route-pools">Route pools</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#default-interface">Default interface</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="queues.html">Queues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="daemons.html">Daemons</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../articles/index.html">Knowledge articles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../built/index.html">Feature showcase</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dev/index.html">Development</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">aionetiface</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">General networking</a></li>
+      <li class="breadcrumb-item active">Interfaces</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/general/interfaces.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="interfaces">
+<h1>Interfaces<a class="headerlink" href="#interfaces" title="Permalink to this heading"></a></h1>
+<p>All network programming in aionetiface starts with the network interface card.
+Your computer will have a interface that traffic is sent down based on various
+routing methods. Let’s start by loading the OSes preferred interface. Starting the interface looks its addresses and relevant meta data.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">aionetiface</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">example</span><span class="p">():</span>
+    <span class="c1"># Start the default interface.</span>
+    <span class="n">nic</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Interface</span><span class="p">()</span>
+    
+    <span class="c1"># Load additional NAT details.</span>
+    <span class="c1"># Restrict, random port NAT assumed by default.</span>
+    <span class="k">await</span> <span class="n">nic</span><span class="o">.</span><span class="n">load_nat</span><span class="p">()</span>
+    
+    <span class="c1"># Show the interface details.</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">nic</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">async_test</span><span class="p">(</span><span class="n">example</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Interface.from_dict({
+    &quot;name&quot;: &quot;Intel(R) Wi-Fi 6 AX200 160MHz&quot;,
+    &quot;nat&quot;: {
+        &quot;type&quot;: 5,
+        &quot;nat_info&quot;: &quot;restrict port&quot;,
+        &quot;delta&quot;: {
+            &quot;type&quot;: 6,
+            &quot;value&quot;: 0
+        },
+        &quot;delta_info&quot;: &quot;random delta (local port == rand port)&quot;
+    },
+    &quot;rp&quot;: {
+        &quot;2&quot;: [
+            {
+                &quot;af&quot;: 2,
+                &quot;nic_ips&quot;: [
+                    {
+                        &quot;ip&quot;: &quot;192.168.21.21&quot;,
+                        &quot;cidr&quot;: 32,
+                        &quot;af&quot;: 2
+                    }
+                ],
+                &quot;ext_ips&quot;: [
+                    {
+                        &quot;ip&quot;: &quot;1.3.3.7&quot;,
+                        &quot;cidr&quot;: 32,
+                        &quot;af&quot;: 2
+                    }
+                ]
+            }
+        ],
+        &quot;23&quot;: []
+    }
+})
+</pre></div>
+</div>
+<p>Repr shows a serializable dict representation of the interface after it’s
+been loaded. You can see a list of interfaces available on your machine
+by using the <strong>list_interfaces</strong> function. Interfaces may be virtual,
+contain loopback devices, and other adapters that aren’t directly
+useful for networking. Often we are only interested in the adapters
+that are usable for WAN or LAN networking.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">aionetiface</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">example</span><span class="p">():</span>
+    <span class="c1"># Returns a list of Interface names.</span>
+    <span class="n">if_names</span> <span class="o">=</span> <span class="k">await</span> <span class="n">list_interfaces</span><span class="p">()</span>
+    <span class="n">ifs</span> <span class="o">=</span> <span class="k">await</span> <span class="n">load_interfaces</span><span class="p">(</span><span class="n">if_names</span><span class="p">,</span> <span class="n">Interface</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">ifs</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">async_test</span><span class="p">(</span><span class="n">example</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now you know how to lookup interfaces and start them. It’s time to
+learn about ‘routes.’</p>
+<hr class="docutils" />
+<section id="the-addressing-problem">
+<h2>The addressing problem<a class="headerlink" href="#the-addressing-problem" title="Permalink to this heading"></a></h2>
+<p>Modern event loops make it easy to write high-performance networking code.
+The engineers of today are spoiled by such elegant features compared to the
+tools available in the early days. But there is still something very basic
+missing from the networking toolbox:</p>
+<p><strong>The ability to see your external addressing information</strong></p>
+<p>There are many cases where this information is needed. For example: imagine
+a server that listens on multiple IPs such that it is available on more
+than one external IP. The server may wish to know what external IPs are
+available to it in case it needs to refer a client to another server. The
+STUN protocol is the perfect instance where a client can request
+a connection back ‘from a different IP address’ in order to determine
+what type of NAT they have.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>aionetiface makes external addressing details available to the programmer.
+Such information avoids having to manually pass details to bind()
+to use a given external IP.</p>
+</div>
+</section>
+<section id="routes-to-the-rescue">
+<h2>Routes to the rescue<a class="headerlink" href="#routes-to-the-rescue" title="Permalink to this heading"></a></h2>
+<p>aionetiface solves the addressing problem by introducing mappings called ‘Routes’.
+A Route describes how interface-assigned addresses relate to external addresses.
+Each route is indexed by address family. Either IPv4 or IPv6.</p>
+<hr class="docutils" />
+<p><strong>Example 1 – IPv4 routes</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NIC IPs:
+    192.168.0.20/32 (1 IP)
+    193.168.0.0/16 (65024 IPs)
+    7.7.7.7/32 (1 IP)
+    8.8.0.0/16 (65024 IPs)
+
+EXT IPs:
+    1.3.3.7/32 (1 IP)
+    8.8.0.0/16 (65024 IPs)
+
+---------------------------------------------------------------
+Routes:
+    [...20, 193..., 7.7.7.7] -&gt; [1.3.3.7]
+    [8.8.0.0] -&gt; [8.8.0.0]
+</pre></div>
+</div>
+<p>The software starts by grouping private IPs. It binds to the first
+and checks the external IP. The result is a new route with the external IP.
+If it finds a public IP for a NIC address it binds to the first IP
+in it’s range (range if it’s a block) and checks the external IP.
+If the IPs match it assumes the range is valid. If it matches the
+previous route it groups them as the same route.</p>
+<p>Example: the software finds a block of NIC IPs ‘8.8.0.0/16’ with ‘public IPs.’
+It binds to the first address and sees the external address matches. Seeing that
+it assumes this means the whole block is valid without checking every IP.
+This becomes a new route. This shows how some machines set their NIC IPs to their
+external addresses.</p>
+<hr class="docutils" />
+<p><strong>Example 2 – IPv6 routes</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NIC IPS:
+    2020:DEED:BEEF::0000/128 (global scope) (1 IP)
+    2020:DEED:DEED::0000/64 (global scope) (a lot of IPs)
+    FE80:DEED:BEEF::0000/128 (link-local) (1 IP)
+
+EXT IPS:
+    2020:DEED:BEEF::0000/128 (global scope) (1 IP)
+    2020:DEED:DEED::0000/64 (global scope) (a lot of IPs)
+
+---------------------------------------------------------------
+Routes:
+    [FE80:DEED:BEEF::0000/128] -&gt; [2020:DEED:BEEF::0000/128]
+    [FE80:DEED:BEEF::0000/128] -&gt; [2020:DEED:DEED::0000/64]
+</pre></div>
+</div>
+<p>The algorithm for IPv6 routes is slightly different.
+All link-local addresses are copied to each route.
+While every global address ‘EXT’ forms a new route.</p>
+<p>aionetiface uses the EXT portion for IPv6 servers. While it uses the NIC portion
+for IPv4. It is assumed that all servers should be publicly reachable.
+Though this can be bypassed by specifying IPs directly for bind calls
+which is indeed what the aionetiface REST server does.</p>
+<p>If that sounds difficult <a class="reference internal" href="daemons.html"><span class="doc">Daemons</span></a> make this easier.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>There’s other ‘types’ of addresses in IPv6 though they’re not
+supported in aionetiface for now. Just the equivalent of ‘private’ and
+‘public’ addresses.</p>
+</div>
+</section>
+<hr class="docutils" />
+<section id="using-a-route-with-a-pipe">
+<h2>Using a route with a pipe<a class="headerlink" href="#using-a-route-with-a-pipe" title="Permalink to this heading"></a></h2>
+<p>Connect to Google.com and get a response from it.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">aionetiface</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">example</span><span class="p">():</span>
+    <span class="c1"># Load default interface.</span>
+    <span class="n">nic</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Interface</span><span class="p">()</span>
+    
+    <span class="c1"># Get a route to use for sockets.</span>
+    <span class="c1"># This will give you a copy of the first route for that address family.</span>
+    <span class="c1"># Routes belong to an interface and include a reference to it.</span>
+    <span class="n">route</span> <span class="o">=</span> <span class="k">await</span> <span class="n">nic</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="n">IP4</span><span class="p">)</span><span class="o">.</span><span class="n">bind</span><span class="p">()</span>
+    
+    <span class="c1"># Lookup Google.com&#39;s IP address -- specify a specific address family.</span>
+    <span class="c1"># Most websites support IPv4 but not always IPv6.</span>
+    <span class="c1"># Interface is needed to resolve some specialty edge-cases.</span>
+    <span class="n">dest</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;example.com&quot;</span><span class="p">,</span> <span class="mi">80</span><span class="p">)</span>
+    
+    <span class="c1"># Now open a TCP connection to that the destination.</span>
+    <span class="n">pipe</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Pipe</span><span class="p">(</span><span class="n">TCP</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">route</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+    
+    <span class="c1"># Send it a malformed HTTP request.</span>
+    <span class="n">buf</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;Test</span><span class="se">\r\n\r\n</span><span class="s2">&quot;</span>
+    <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+    
+    <span class="c1"># Wait for any message response.</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+    
+    <span class="c1"># Cleanup.</span>
+    <span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">async_test</span><span class="p">(</span><span class="n">example</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Look closely at the route part. What this code is doing is it’s asking for
+the first route in the route pool for that address family. The route points
+to one or more external addresses (more if it’s a block) and ‘knowns’
+how to setup the tuples for bind to use that external address. Once a route
+is bound it can be used in the familiar open_pipe call.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can see from this example that aionetiface supports duel-stack networking,
+multiple network interface cards, external addressing, DNS / IP / target parsing,
+and publish-subscribe. But there are many more useful features for
+network programming.</p>
+</div>
+</section>
+<section id="route-pools">
+<h2>Route pools<a class="headerlink" href="#route-pools" title="Permalink to this heading"></a></h2>
+<p>Every interface with Internet access has at least one route in its
+route pool. If you don’t care about what route you’re using you can call the
+route function from an interface object. But through
+the RoutePool class every single possible external address can be used.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nic</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Interface</span><span class="p">()</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">nic</span><span class="o">.</span><span class="n">rp</span><span class="p">[</span><span class="n">IP4</span><span class="p">]</span> <span class="c1"># IP4 RoutePool</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">nic</span><span class="o">.</span><span class="n">rp</span><span class="p">[</span><span class="n">IP6</span><span class="p">]</span> <span class="c1"># IP6 RoutePool</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">x</span><span class="p">:</span>
+    <span class="c1"># A route to use a single external IP from the pool.</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The route pool is designed to make it easy to group multiple external addresses
+that may be themselves either single addresses or blocks of IPs into one
+object that can be indexed, counted, iterated, and used. In this way its easy
+to ‘grab an IP’ and use it.</p>
+</section>
+<section id="default-interface">
+<h2>Default interface<a class="headerlink" href="#default-interface" title="Permalink to this heading"></a></h2>
+<p>When you await loading an interface the software uses STUN to lookup external
+addressing information . This is useful for more advanced network programming
+(like connecting to link-local addresses where scope-IDs are needed),
+but sometimes you want a more lightweight approach. Maybe you don’t care about
+underlying addresses or topology, or you simply don’t want to incur the performance penalty of loading addresses to use any software written with it.</p>
+<p>In this case: if you specify “default” as the interface name the software does
+the bare minimum to make the interface usable.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># No await needed -- does no IO.</span>
+<span class="c1"># Adding await won&#39;t break it though.</span>
+<span class="n">nic</span> <span class="o">=</span> <span class="n">Interface</span><span class="p">(</span><span class="s2">&quot;default&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pipes.html" class="btn btn-neutral float-left" title="Pipes" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="queues.html" class="btn btn-neutral float-right" title="Queues" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
