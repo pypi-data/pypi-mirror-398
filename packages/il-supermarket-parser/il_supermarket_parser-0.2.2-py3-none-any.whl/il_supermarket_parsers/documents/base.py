@@ -1,0 +1,76 @@
+from abc import ABC, abstractmethod
+from typing import List
+import os
+from il_supermarket_parsers.utils import build_value, get_root_and_search
+
+
+class XmlBaseConverter(ABC):
+    """parser the xml docuement"""
+
+    @abstractmethod
+    def convert(self, found_store, file_name, **kwarg):
+        """parse file to data frame"""
+
+    @abstractmethod
+    def validate_succussful_extraction(
+        self, data, source_file, ignore_missing_columns=None
+    ):
+        """validate column requested"""
+
+
+class BaseXMLParser(XmlBaseConverter, ABC):
+    """parser the xml docuement"""
+
+    def __init__(
+        self,
+        list_key: List[str],
+        id_field: str,
+        roots=None,
+        ignore_column=None,
+        **additional_constant,
+    ):
+        self.list_key = list_key
+        self.roots = roots
+        self.id_field = id_field
+        self.ignore_column = ignore_column if ignore_column else []
+        self.additional_constant = additional_constant
+
+    def build_value(self, name, no_content):
+        """get the value"""
+        return build_value(name, self.additional_constant, no_content=no_content)
+
+    def convert(self, found_store, file_name, **kwarg):
+        """parse file to data frame
+
+        Args:
+            found_store: Directory containing the file
+            file_name: Name of the file to parse
+            **kwarg: Additional keyword arguments
+        """
+        source_file = os.path.join(found_store, file_name)
+        root, root_store = get_root_and_search(source_file, self.list_key, self.roots)
+
+        data = self._parse(
+            root,
+            found_store,
+            file_name,
+            root_store,
+            **kwarg,
+        )
+
+        return self.reduce_size(data)
+
+    def reduce_size(self, data):
+        """reduce the size"""
+        return data
+
+    @abstractmethod
+    def _parse(
+        self,
+        root,
+        found_folder,
+        file_name,
+        root_store,
+        **kwarg,
+    ):
+        """parse file to response"""
