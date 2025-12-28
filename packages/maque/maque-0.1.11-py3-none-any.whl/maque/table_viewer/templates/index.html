@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sparrow Table Viewer</title>
+    <script src="/static/vue.global.js"></script>
+    <script src="/static/element-plus.js"></script>
+    <script src="/static/element-plus-icons.js"></script>
+    <link rel="stylesheet" href="/static/element-plus.css" />
+    <link rel="stylesheet" href="/static/main.css" />
+</head>
+<body>
+    {% raw %}
+    <div id="app">
+        <div class="main-container">
+            <!-- 头部 -->
+            <div class="header">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <h1 style="margin: 0; font-size: 20px; color: #303133;">
+                        📊 Sparrow Table Viewer
+                    </h1>
+                    <el-tag v-if="tableInfo" type="info">{{ tableInfo.file_path }}</el-tag>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <el-button @click="showUploadDialog = true" type="success" size="small">
+                        上传文件
+                    </el-button>
+                    <el-button @click="resetTable" type="warning" size="small">
+                        重置
+                    </el-button>
+                    <el-button @click="saveTable" type="primary" size="small">
+                        保存
+                    </el-button>
+                </div>
+            </div>
+            
+            <!-- 内容区域 -->
+            <div class="content">
+                <!-- 工具栏 -->
+                <div class="toolbar">
+                    <el-button @click="refreshData" size="small" :loading="loading">
+                        刷新数据
+                    </el-button>
+                    
+                    <el-divider direction="vertical"></el-divider>
+                    
+                    <span style="color: #606266; font-size: 14px;">每页显示:</span>
+                    <el-select v-model="pagination.pageSize" @change="loadTableData" size="small" style="width: 100px;">
+                        <el-option :value="50" label="50"></el-option>
+                        <el-option :value="100" label="100"></el-option>
+                        <el-option :value="200" label="200"></el-option>
+                        <el-option :value="500" label="500"></el-option>
+                    </el-select>
+                    
+                    <el-divider direction="vertical"></el-divider>
+                    
+                    <el-button @click="showFilterDialog = true" size="small" type="info">
+                        行筛选 ({{ activeFilters.length }})
+                    </el-button>
+                    
+                    <el-button @click="clearFilters" size="small" v-if="activeFilters.length > 0">
+                        清除行筛选
+                    </el-button>
+                    
+                    <el-divider direction="vertical"></el-divider>
+                    
+                    <el-button @click="showColumnDialog = true" size="small" type="success">
+                        列显示 ({{ visibleColumns.length }}/{{ allColumns.length }})
+                    </el-button>
+                    
+                    <el-button @click="resetColumns" size="small" v-if="visibleColumns.length < allColumns.length">
+                        显示全部列
+                    </el-button>
+                    
+                    <el-divider direction="vertical" v-if="tableInfo && tableInfo.image_columns && tableInfo.image_columns.length"></el-divider>
+                    
+                    <!-- 图像设置 -->
+                    <div v-if="tableInfo && tableInfo.image_columns && tableInfo.image_columns.length" style="display: flex; align-items: center; gap: 16px;">
+                        <!-- 图像尺寸设置 -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #606266; font-size: 14px;">图像尺寸:</span>
+                            <el-select v-model="imageSize" @change="onImageSizeChange" size="small" style="width: 140px;">
+                                <el-option value="small" label="小 (80x60)"></el-option>
+                                <el-option value="medium" label="中 (120x90)"></el-option>
+                                <el-option value="large" label="大 (160x120)"></el-option>
+                                <el-option value="xlarge" label="超大 (200x150)"></el-option>
+                                <el-option value="xxlarge" label="最大 (400x300)"></el-option>
+                            </el-select>
+                        </div>
+                        
+                        <!-- 分隔符设置 -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #606266; font-size: 14px;">分隔符:</span>
+                            <el-select v-model="imageSeparator" @change="onSeparatorChange" @update:model-value="onSeparatorChange" size="small" style="width: 120px;">
+                                <el-option value="auto" label="自动检测"></el-option>
+                                <el-option value="semicolon" label="分号 ;"></el-option>
+                                <el-option value="newline" label="换行符"></el-option>
+                                <el-option value="custom" label="自定义"></el-option>
+                            </el-select>
+                            
+                            <!-- 自定义分隔符输入 -->
+                            <el-input 
+                                v-if="imageSeparator === 'custom'"
+                                v-model="customSeparator"
+                                @change="onSeparatorChange"
+                                placeholder="输入分隔符"
+                                size="small"
+                                style="width: 100px;"
+                            ></el-input>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 统计信息 -->
+                <div class="stats-info" v-if="tableInfo">
+                    <span style="margin-right: 24px;">
+                        <strong>总行数:</strong> {{ tableData.total || 0 }} 行
+                    </span>
+                    <span style="margin-right: 24px;">
+                        <strong>显示列数:</strong> {{ visibleColumns.length }}/{{ allColumns.length }} 列
+                    </span>
+                    <span v-if="tableInfo.image_columns && tableInfo.image_columns.length">
+                        <strong>图片列:</strong> {{ tableInfo.image_columns.join(', ') }}
+                    </span>
+                </div>
+                
+                <!-- 表格容器 -->
+                <div class="table-container">
+                    <el-table 
+                        :data="tableData.data" 
+                        stripe
+                        border
+                        :loading="loading"
+                        style="width: 100%;"
+                        max-height="calc(100vh - 320px)"
+                        size="small"
+                    >
+                        <el-table-column 
+                            v-for="column in tableColumns" 
+                            :key="column"
+                            :prop="column"
+                            :label="column"
+                            :width="getColumnWidth(column)"
+                            :sortable="false"
+                            show-overflow-tooltip
+                        >
+                            <template #header="{ column: headerColumn }">
+                                <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between; width: 100%;">
+                                    <span style="flex: 1;">{{ headerColumn.label }}</span>
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                        <!-- 排序按钮 -->
+                                        <el-button-group size="small">
+                                            <el-button 
+                                                @click.stop="handleSort(headerColumn.label, 'asc')"
+                                                :type="sortConfig.prop === headerColumn.label && sortConfig.order === 'ascending' ? 'primary' : ''"
+                                                size="small"
+                                                style="padding: 2px 4px; font-size: 10px;"
+                                                title="升序"
+                                            >
+                                                ↑
+                                            </el-button>
+                                            <el-button 
+                                                @click.stop="handleSort(headerColumn.label, 'desc')"
+                                                :type="sortConfig.prop === headerColumn.label && sortConfig.order === 'descending' ? 'primary' : ''"
+                                                size="small"
+                                                style="padding: 2px 4px; font-size: 10px;"
+                                                title="降序"
+                                            >
+                                                ↓
+                                            </el-button>
+                                        </el-button-group>
+                                        
+                                        <!-- 筛选按钮 -->
+                                        <el-button 
+                                            @click.stop="addColumnFilter(headerColumn.label)"
+                                            size="small"
+                                            type="text"
+                                            style="padding: 2px 4px; font-size: 10px;"
+                                            title="筛选"
+                                        >
+                                            🔍
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <template #default="scope">
+                                <div v-if="isImageColumn(column)">
+                                    <div v-if="scope.row[column] && scope.row[column].paths && scope.row[column].paths.length > 0" class="multi-images-container">
+                                        <template v-for="(imagePath, index) in scope.row[column].paths" :key="index">
+                                            <!-- 图像加载成功时显示图片 -->
+                                            <img 
+                                                v-if="isImageLoaded(imagePath)"
+                                                :src="`/api/image/proxy?url=${encodeURIComponent(imagePath)}`"
+                                                :alt="imagePath"
+                                                class="multi-image-item"
+                                                @click="showImageDialog(imagePath, scope.row[column].paths, index)"
+                                            />
+                                            <!-- 图像未加载成功时显示原始URL字符串 -->
+                                            <div 
+                                                v-else
+                                                style="color: #666; font-size: 12px; word-break: break-all; line-height: 1.4; cursor: pointer; margin-right: 8px; padding: 4px;"
+                                                @click="showImageDialog(imagePath, scope.row[column].paths, index)"
+                                            >
+                                                {{ imagePath }}
+                                            </div>
+                                            <!-- 隐藏的图片元素用于检测加载状态 -->
+                                            <img 
+                                                v-if="!isImageLoaded(imagePath)"
+                                                :src="`/api/image/proxy?url=${encodeURIComponent(imagePath)}`"
+                                                style="display: none;"
+                                                @load="onImageLoadSuccess(imagePath)"
+                                                @error="onImageLoadError(imagePath)"
+                                            />
+                                        </template>
+                                    </div>
+                                    <div v-else style="color: #666; font-size: 12px; word-break: break-all; line-height: 1.4; padding: 4px;">
+                                        {{ scope.row[column] && scope.row[column].original ? scope.row[column].original : (scope.row[column] || '') }}
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <input 
+                                        v-if="editingCell && editingCell.row === scope.$index && editingCell.column === column"
+                                        v-model="editingValue"
+                                        @blur="saveCell(scope.row._index, column)"
+                                        @keyup.enter="saveCell(scope.row._index, column)"
+                                        @keyup.escape="cancelEdit"
+                                        class="cell-editor"
+                                        ref="cellInput"
+                                    />
+                                    <span 
+                                        v-else
+                                        @dblclick="startEdit(scope.$index, column, scope.row[column])"
+                                        style="cursor: pointer; display: block; min-height: 20px;"
+                                    >
+                                        {{ scope.row[column] || '' }}
+                                    </span>
+                                </div>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    
+                    <!-- 分页 -->
+                    <div style="margin-top: 20px; display: flex; justify-content: center;">
+                        <el-pagination
+                            v-model:current-page="pagination.currentPage"
+                            v-model:page-size="pagination.pageSize"
+                            :page-sizes="[50, 100, 200, 500]"
+                            layout="total, sizes, prev, pager, next, jumper"
+                            :total="tableData.total"
+                            @size-change="handleSizeChange"
+                            @current-change="handleCurrentChange"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 筛选对话框 -->
+        <el-dialog v-model="showFilterDialog" title="高级筛选" width="600px">
+            <div v-for="(filter, index) in filterConfigs" :key="index" style="margin-bottom: 16px;">
+                <el-row :gutter="12">
+                    <el-col :span="6">
+                        <el-select v-model="filter.column" placeholder="选择列">
+                            <el-option v-for="col in tableColumns" :key="col" :value="col" :label="col"></el-option>
+                        </el-select>
+                    </el-col>
+                    <el-col :span="6">
+                        <el-select v-model="filter.operator" placeholder="操作符">
+                            <el-option value="contains" label="包含"></el-option>
+                            <el-option value="eq" label="等于"></el-option>
+                            <el-option value="ne" label="不等于"></el-option>
+                            <el-option value="startswith" label="开头是"></el-option>
+                            <el-option value="endswith" label="结尾是"></el-option>
+                            <el-option value="gt" label="大于"></el-option>
+                            <el-option value="lt" label="小于"></el-option>
+                            <el-option value="ge" label="大于等于"></el-option>
+                            <el-option value="le" label="小于等于"></el-option>
+                        </el-select>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-input v-model="filter.value" placeholder="筛选值"></el-input>
+                    </el-col>
+                    <el-col :span="4">
+                        <el-button @click="removeFilter(index)" type="danger" size="small">删除</el-button>
+                    </el-col>
+                </el-row>
+            </div>
+            
+            <el-button @click="addFilter" type="primary" size="small">添加筛选条件</el-button>
+            
+            <template #footer>
+                <el-button @click="showFilterDialog = false">取消</el-button>
+                <el-button @click="applyFilters" type="primary">应用筛选</el-button>
+            </template>
+        </el-dialog>
+        
+        <!-- 列显示管理对话框 -->
+        <el-dialog v-model="showColumnDialog" title="列显示管理" width="500px">
+            <div style="margin-bottom: 16px;">
+                <el-button @click="selectAllColumns" size="small" type="primary">全选</el-button>
+                <el-button @click="selectNoColumns" size="small">全不选</el-button>
+                <span style="margin-left: 16px; color: #666;">
+                    已选择 {{ visibleColumns.length }} / {{ allColumns.length }} 列
+                </span>
+            </div>
+            
+            <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 12px; border-radius: 4px;">
+                <el-row :gutter="12">
+                    <el-col :span="12" v-for="column in allColumns" :key="column" style="margin-bottom: 8px;">
+                        <el-checkbox 
+                            :model-value="visibleColumns.includes(column)"
+                            @change="toggleColumn(column)"
+                            style="width: 100%;"
+                        >
+                            <span :style="{ fontWeight: tableInfo && tableInfo.image_columns && tableInfo.image_columns.includes(column) ? 'bold' : 'normal', color: tableInfo && tableInfo.image_columns && tableInfo.image_columns.includes(column) ? '#409eff' : '' }">
+                                {{ column }}
+                                <el-tag v-if="tableInfo && tableInfo.image_columns && tableInfo.image_columns.includes(column)" size="small" type="primary">图片</el-tag>
+                            </span>
+                        </el-checkbox>
+                    </el-col>
+                </el-row>
+            </div>
+            
+            <template #footer>
+                <el-button @click="showColumnDialog = false">取消</el-button>
+                <el-button @click="resetColumns" type="warning">重置</el-button>
+                <el-button @click="applyColumnFilter" type="primary" :disabled="visibleColumns.length === 0">应用</el-button>
+            </template>
+        </el-dialog>
+        
+        <!-- 图片查看对话框 -->
+        <el-dialog v-model="showImagePreview" :title="`${currentImageIndex + 1}/${currentImageList.length} - ${currentImageUrl}`" width="90%">
+            <div style="position: relative; text-align: center;">
+                <!-- 左箭头按钮 -->
+                <el-button 
+                    v-if="currentImageList.length > 1 && currentImageIndex > 0"
+                    @click="showPreviousImage"
+                    type="primary"
+                    size="large"
+                    circle
+                    style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); z-index: 10;"
+                >
+                    ←
+                </el-button>
+                
+                <!-- 图片 -->
+                <img 
+                    :src="`/api/image/proxy?url=${encodeURIComponent(currentImageUrl)}`"
+                    style="max-width: 100%; max-height: 100vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+                    @error="handleImageError"
+                />
+                
+                <!-- 右箭头按钮 -->
+                <el-button 
+                    v-if="currentImageList.length > 1 && currentImageIndex < currentImageList.length - 1"
+                    @click="showNextImage"
+                    type="primary"
+                    size="large"
+                    circle
+                    style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); z-index: 10;"
+                >
+                    →
+                </el-button>
+            </div>
+        </el-dialog>
+
+        <!-- 文件上传对话框 -->
+        <el-dialog v-model="showUploadDialog" title="上传表格文件" width="600px">
+            <div class="upload-area" 
+                 @click="triggerFileInput"
+                 @drop="handleFileDrop" 
+                 @dragover="handleDragOver" 
+                 @dragleave="handleDragLeave"
+                 :class="{ 'dragover': isDragOver }">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">
+                    <div>点击选择文件或拖拽文件到此处</div>
+                    <div class="upload-hint">支持 .xlsx, .xls, .csv 格式</div>
+                </div>
+            </div>
+            
+            <input type="file" 
+                   ref="fileInput" 
+                   @change="handleFileSelect" 
+                   accept=".xlsx,.xls,.csv"
+                   style="display: none;">
+            
+            <template #footer>
+                <span class="dialog-footer">
+                    <el-button @click="showUploadDialog = false">取消</el-button>
+                </span>
+            </template>
+        </el-dialog>
+    </div>
+    {% endraw %}
+
+    <script src="/static/main.js"></script>
+</body>
+</html>
