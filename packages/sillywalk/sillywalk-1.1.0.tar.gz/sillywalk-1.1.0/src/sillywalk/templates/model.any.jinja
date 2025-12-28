@@ -1,0 +1,204 @@
+{% if create_human_model %}
+#ifpathexists "libdef.any"
+  #include "libdef.any"
+#else
+  #include "<ANYBODY_PATH_INSTALLDIR>/AMMR/libdef.any"
+#endif
+
+{%- if ammr_version and ammr_version[0] >= 4 %}
+#if AMMR_VERSION_MAJOR < 4
+  #ERROR "This model requires AMMR version 4 or higher."
+#endif
+{% elif ammr_version and ammr_version[0] == 3 %}
+#if AMMR_VERSION_MAJOR >= 4
+  #ERROR "This model is configured for AMMR version 3."
+#endif
+{% endif%}
+
+Main =
+{
+  #define BM_SCALING _SCALING_XYZ_
+  #define BM_TRUNK_MUSCLES OFF
+  #define BM_ARM_MUSCLES_RIGHT OFF
+  #define BM_ARM_MUSCLES_LEFT OFF
+  #define BM_LEG_MUSCLES_RIGHT OFF
+  #define BM_LEG_MUSCLES_LEFT OFF
+
+  #include "<ANYBODY_PATH_BODY>/HumanModel.any"
+
+  AnyKinStudy Study =
+  {
+     AnyFolder& BodyModel = Main.HumanModel.BodyModel;
+     AnyFolder& Drivers = Main.PCA_drivers;
+     Gravity = {0, 0, -9.81};
+     tStart = 0;
+     tEnd = Main.PCA_drivers.Period + Main.PCA_drivers.Period/nStep;
+     nStep = 200;
+  };
+
+  // Simple correction for pelvis position. The more correct way of doing this
+  // would be to run the simulation, note the lowest foot position and add
+  // that value to the pelvis position.
+  Main.PCA_drivers.JointsAndDrivers.Trunk_PelvisPosY_Pos_0 = {
+    a0_offset = (Main.HumanModel.Anthropometrics.SegmentDimensions.Right.ThighLength
+    + Main.HumanModel.Anthropometrics.SegmentDimensions.Right.ShankLength
+    +Main.HumanModel.Anthropometrics.SegmentDimensions.Right.FootHeight
+    + Main.HumanModel.Anthropometrics.SegmentDimensions.PelvisHeight);
+
+    Main.HumanModel.Mannequin.Posture.PelvisPosY = a0_offset;
+  };
+
+
+
+{% endif%}
+
+
+{% if scalar_data.get("Weight") or scalar_data.get("Height") %}
+Main.HumanModel.Anthropometrics =
+{
+  {{"//" if not scalar_data.get("Weight") }}BodyMass = {{ scalar_data.get("Weight", "70; // not defined in dataset") }};
+  {{"//" if not scalar_data.get("Height") }}BodyHeight = {{ scalar_data.get("Height", "1.7; // not defined in dataset") }};
+};
+{% endif %}
+
+{%- for key, val in scalar_data.items() if key.startswith("Main.HumanModel.Anthropometrics.SegmentDimensions.") %}
+{%- if loop.first %}
+Main.HumanModel.Anthropometrics.SegmentDimensions =
+{
+{%- endif %}
+  {{key.removeprefix("Main.HumanModel.Anthropometrics.SegmentDimensions.")}} = DesignVar({{val}});
+{%- if loop.last %}
+};
+{% endif %}
+{%- endfor %}
+
+
+{%- for key, val in scalar_data.items() if key.startswith("Main.ModelSetup.TrialSpecificData.") %}
+{%- if loop.first %}
+Main.ModelSetup.TrialSpecificData =
+{
+{%- endif %}
+  {{key.removeprefix("Main.ModelSetup.TrialSpecificData.")}} = DesignVar({{val}});
+{%- if loop.last %}
+};
+{% endif %}
+{%- endfor %}
+
+
+
+
+{%- for key, val in scalar_data.items() if key.startswith("Main.ModelSetup.SubjectSpecificData.") %}
+{%- if loop.first %}
+Main.ModelSetup.SubjectSpecificData =
+{
+{%- endif %}
+  {{key.removeprefix("Main.ModelSetup.SubjectSpecificData.")}} = DesignVar({{val}});
+{%- if loop.last %}
+};
+{% endif %}
+{%- endfor %}
+
+
+
+
+
+{% for name, obj in fourier_data.items() if obj.prefix == "DOF:" %}
+{%- if loop.first %}
+AnyFolder PCA_drivers = {
+  AnyVar Period =  DesignVar(1/{{scalar_data["freq"]}});
+
+  AnyMechObjectExcluder ExlucdeRhythms =
+  {
+    Objects = arrcat(
+    {%- if ammr_version and ammr_version[0] >= 4 %}
+      ObjSearch("Main.HumanModel.BodyModel.Trunk.Joints.Lumbar.SpineRhythmDrv*","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.Trunk.Joints.Cervical.*.rhythm*","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Joints.Scapula*Driver","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Joints.ScapulaTSThoraxNodeDriver","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Joints.ConoideumLigamentDrv","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Joints.SternoClavicularRotationRhythm","AnyKinEq")
+    {% else -%}
+      ObjSearch("Main.HumanModel.BodyModel.Trunk.JointsLumbar.SpineRhythmDrv*","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.Trunk.JointsCervicalSpine.*.rhythm*","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Jnt.Clavicula*Driver","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Jnt.Scapula*Driver","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Jnt.ScapulaTSThoraxNodeDriver","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Jnt.ConoideumLigamentDrv","AnyKinEq"),
+      ObjSearch("Main.HumanModel.BodyModel.*.ShoulderArm.Jnt.SternoClavicularRotationRhythm","AnyKinEq")
+    {%- endif %}
+    );
+
+  };
+
+  AnyFolder JointsAndDrivers = {
+{%- endif %}
+    AnyKinEqFourierDriver {{name}} = {
+      Type = CosSin;
+      Freq = 1/..Period;
+      CType = {Hard};
+      Reaction.Type = {Off};
+      MeasureOrganizer = { {{- obj.index -}} };
+      AnyKinMeasure &m = Main.HumanModel.BodyModel.{{obj.measure}};
+      AnyVar a0_offset ??= DesignVar(0.0);
+      A = {{ '{{ '}} {{ obj.a[0] }} + a0_offset, {% for i in range(1, obj.a | length) %}{{obj.a[i]}}, {% endfor %} {{ '}}' }};
+      B = {{ '{{' }} {% for i in range(0, obj.b | length) %}{{obj.b[i]}}, {% endfor %} {{ '}}' }};
+    };
+
+{%- if loop.last %}
+  };// JointsAndDrivers
+};//ModelEnvironmentConnection
+{% endif %}
+{%- endfor %}
+
+
+{% if create_human_model %}
+
+
+
+// See following file for more information on the camera class template
+// and options.
+#include "<ANYBODY_PATH_MODELUTILS>/Video/VideoLookAtCamera.any"
+
+Study = {
+  VideoLookAtCamera VideoTool (UP_DIRECTION = y) =
+  {
+     //VideoName = "MyVideo";
+
+    VideoResolution  = {1380, 1920};
+     // This fixes the "Look at point" at a specific height while still following the center of mass
+     CameraLookAtPoint = 0.9*CameraUpDirection +
+         mult(Main.HumanModel.BodyModel.Interface.CenterOfMass.Pos, not(CameraUpDirection));
+
+     // The vertical field of view in meters at the LookAtPoint
+     CameraFieldOfView = 2.1;
+
+     // The direction which the camera is placed
+     // (In global coordinates with respect to the LookAtPoint)
+     CameraDirection = {0, 0, 1};
+
+     Counter = Main.Study.iStep;
+
+     /// Determines the speed of the video.
+     /// Currently set to realtime
+     VideoInputFrameRate = round(Main.Study.nStep/iffun(Main.Study.tEnd-Main.Study.tStart, Main.Study.tEnd-Main.Study.tStart, 1.0*Main.Study.nStep));
+
+     VideoOutputFrameRate = 90;
+
+     // Operation which run before recoding is started.
+     PreAnalysis = {
+       //  AnyOperation &step1 = Main.RunAnalysis.LoadParameters;
+     };
+
+     // The operations which should be included in the video.
+     Analysis = {
+         AnyOperation &ref = Main.Study.Kinematics;
+     };
+     Create_Video.Settings.DisplayPriority = PriorityHigh;
+ };
+};
+
+
+
+
+}; // Main
+{% endif %}
