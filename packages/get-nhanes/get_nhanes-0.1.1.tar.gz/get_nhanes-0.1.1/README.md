@@ -1,0 +1,261 @@
+<div align="center">
+
+# get_nhanes
+
+**NHANES Data Processing Toolkit / NHANES 数据处理工具包**
+
+[English](#english) | [中文](#chinese)
+
+</div>
+
+---
+
+<a name="english"></a>
+
+# English
+
+`get_nhanes` is a Python toolkit designed for efficient processing and calculation of **NHANES** (National Health and Nutrition Examination Survey) data. It encapsulates logic for complex data extraction, cleaning, and merging, and includes built-in automated calculation models for various common clinical health metrics.
+
+## 📦 Installation
+
+1. Clone the repository locally:
+    ```bash
+    git clone https://github.com/wqlttt/getNhanes.git
+    cd getNhanes
+    ```
+
+2. Install the package and dependencies:
+    ```bash
+    pip install -e .
+    ```
+
+## ⚙️ Configuration
+
+Before usage, you need to configure the storage path for your raw NHANES data. The directory structure must follow this format:
+
+**Directory Structure Requirements**:
+```text
+/path/to/NHANES/
+├── 1999-2000
+│   ├── Demographics/tsv/*.tsv
+│   ├── Dietary/tsv/*.tsv
+│   ├── Examination/tsv/*.tsv
+│   ├── Laboratory/tsv/*.tsv
+│   └── Questionnaire/tsv/*.tsv
+├── 2001-2002
+    ...
+```
+
+**Setting the Data Path**:
+```python
+from get_nhanes import config
+
+# Set and save the base path (only need to run once; config is persisted)
+config.set_base_path("/path/to/your/NHANES_dataset")
+```
+
+## 🚀 Core Features
+
+### 1. Basic Data Extraction (`get_nhanes_data`)
+
+`get_nhanes_data` is the core function for general-purpose data extraction.
+
+```python
+from get_nhanes import get_nhanes_data
+
+# Extract Triglycerides data (prefix TRIGLY) for years 2007-2010
+df = get_nhanes_data(
+    years=['2007-2008', '2009-2010'],
+    metric_prefix='TRIGLY',    # File name prefix
+    features=['seqn', 'LBXTR'], # Columns to extract (must include seqn)
+    merge_output=True          # Whether to merge output into a single CSV
+)
+
+print(df.head())
+```
+
+### 2. Built-in Calculated Metrics (`coreCalculated`)
+
+`get_nhanes` includes calculation modules for various complex clinical metrics. You can directly call the `calculation_*` function of each module to generate result CSVs.
+
+**Supported Metrics**:
+
+| Module | Full Name | Description |
+| :--- | :--- | :--- |
+| **AIP** | Atherogenic Index of Plasma | Atherogenic Index of Plasma |
+| **BMI** | Body Mass Index | Body Mass Index |
+| **BRI** | Body Roundness Index | Body Roundness Index |
+| **CKM** | (Custom Kinetic Model) | *Custom Kinetic Model* |
+| **CVD10** | CVD 10-year Risk | Cardiovascular Disease 10-year Risk Score (Framingham/ASCVD etc.) |
+| **FIB4** | Fibrosis-4 Index | Liver Fibrosis Index |
+| **HALP** | Hemoglobin, Albumin, Lymphocyte, Platelet | HALP Score |
+| **HRR** | Heart Rate Reserve | Heart Rate Reserve |
+| **MAR** | Monocyte-to-ApoB Ratio | Monocyte to Apolipoprotein B Ratio |
+| **NLR** | Neutrophil-to-Lymphocyte Ratio | Neutrophil to Lymphocyte Ratio |
+| **NPAR** | Neutrophil Percentage-to-Albumin Ratio | Neutrophil Percentage to Albumin Ratio |
+| **RAR** | Red Cell Distribution Width-to-Albumin Ratio | RDW to Albumin Ratio |
+| **SBP** | Systolic Blood Pressure | Systolic Blood Pressure Processing |
+| **SII** | Systemic Immune-Inflammation Index | Systemic Immune-Inflammation Index |
+| **TyG** | Triglyceride-Glucose Index | Triglyceride-Glucose Index |
+| **TyG-BMI**| TyG constrained by BMI | TyG-BMI Index |
+| **UHR** | Uric Acid-to-HDL Ratio | Uric Acid to HDL Cholesterol Ratio |
+| **VAI** | Visceral Adiposity Index | Visceral Adiposity Index |
+| **eGFR** | Estimated Glomerular Filtration Rate | eGFR (CKD-EPI Formula) |
+| **PhenoAge**| Phenotypic Age | Phenotypic Age Calculation |
+
+**Usage Example (Calculate BMI)**:
+
+```python
+from get_nhanes.coreCalculated import BMICalculated
+
+# Calculate and save BMI results
+BMICalculated.calculation_bmi(save_path="./results/")
+```
+
+### 3. Covariate Processing (`getCovariates`)
+
+Provides standardized extraction and processing for covariates, including age, gender, race, education, marital status, income, smoking, and alcohol consumption.
+
+```python
+from get_nhanes.getCovariates import covariates
+
+# Calculate standard covariate set
+covariates.calculation_covariates(save_path="./results/")
+```
+
+## 🛠️ Advanced Usage
+
+### Automatic Missing Value Handling
+`get_nhanes_data` automatically handles `seqn` formatting issues and supports the `strict_features=False` parameter to fill missing year columns with `NaN`.
+
+### Custom Calculation Extensions
+All calculation modules follow the `fit_*` (extraction and cleaning) and `calculation_*` (calculation and saving) design pattern, making them easy to read and extend.
+
+## 📄 License
+MIT License
+
+---
+
+<a name="chinese"></a>
+
+# 中文 (Chinese)
+
+`get_nhanes` 是一个用于高效处理和计算 **NHANES** (National Health and Nutrition Examination Survey) 数据的 Python 工具包。它封装了复杂的数据提取、清洗和合并逻辑，并内置了多种常见临床健康指标的自动计算模型。
+
+## 📦 安装
+
+1. 克隆项目到本地：
+    ```bash
+    git clone https://github.com/wqlttt/getNhanes.git
+    cd getNhanes
+    ```
+
+2. 安装依赖包：
+    ```bash
+    pip install -e .
+    ```
+
+## ⚙️ 配置
+
+在使用之前，需要设置 NHANES 原始数据的存储路径。数据目录结构需遵循以下格式：
+
+**目录结构要求**:
+```text
+/path/to/NHANES/
+├── 1999-2000
+│   ├── Demographics/tsv/*.tsv
+│   ├── Dietary/tsv/*.tsv
+│   ├── Examination/tsv/*.tsv
+│   ├── Laboratory/tsv/*.tsv
+│   └── Questionnaire/tsv/*.tsv
+├── 2001-2002
+    ...
+```
+
+**设置数据路径**:
+```python
+from get_nhanes import config
+
+# 设置并保存基础路径（只需运行一次，配置会自动持久化）
+config.set_base_path("/path/to/your/NHANES_dataset")
+```
+
+## 🚀 核心功能
+
+### 1. 基础数据提取 (`get_nhanes_data`)
+
+`get_nhanes_data` 是最核心的通用数据提取函数。
+
+```python
+from get_nhanes import get_nhanes_data
+
+# 提取 2007-2010 年的甘油三酯数据 (Triglycerides - 前缀 TRIGLY)
+df = get_nhanes_data(
+    years=['2007-2008', '2009-2010'],
+    metric_prefix='TRIGLY',    # 文件名前缀
+    features=['seqn', 'LBXTR'], # 需要提取的列 (必须包含 seqn)
+    merge_output=True          # 是否合并输出为一个 CSV
+)
+
+print(df.head())
+```
+
+### 2. 内置计算指标 (`coreCalculated`)
+
+`get_nhanes` 内置了多种复杂临床指标的计算模块，可以直接调用各个模块的 `calculation_*` 函数生成结果 CSV。
+
+**支持的计算指标**:
+
+| 模块名 | 指标全称 | 功能描述 |
+| :--- | :--- | :--- |
+| **AIP** | Atherogenic Index of Plasma | 血浆致动脉硬化指数 |
+| **BMI** | Body Mass Index | 身体质量指数 |
+| **BRI** | Body Roundness Index | 身体圆度指数 |
+| **CKM** | (Custom Kinetic Model) | *自定义动力学模型* |
+| **CVD10** | CVD 10-year Risk | 心血管疾病 10 年风险评分 (Framingham/ASCVD 等) |
+| **FIB4** | Fibrosis-4 Index | 肝纤维化指数 |
+| **HALP** | Hemoglobin, Albumin, Lymphocyte, Platelet | HALP 评分 |
+| **HRR** | Heart Rate Reserve | 心率储备 |
+| **MAR** | Monocyte-to-ApoB Ratio | 单核细胞与载脂蛋白 B 比值 |
+| **NLR** | Neutrophil-to-Lymphocyte Ratio | 中性粒细胞与淋巴细胞比值 |
+| **NPAR** | Neutrophil Percentage-to-Albumin Ratio | 中性粒细胞百分比与白蛋白比值 |
+| **RAR** | Red Cell Distribution Width-to-Albumin Ratio | 红细胞分布宽度与白蛋白比值 |
+| **SBP** | Systolic Blood Pressure | 收缩压处理 |
+| **SII** | Systemic Immune-Inflammation Index | 系统免疫炎症指数 |
+| **TyG** | Triglyceride-Glucose Index | 甘油三酯-葡萄糖指数 |
+| **TyG-BMI**| TyG constrained by BMI | TyG-BMI 指数 |
+| **UHR** | Uric Acid-to-HDL Ratio | 尿酸与高密度脂蛋白比值 |
+| **VAI** | Visceral Adiposity Index | 内脏脂肪指数 |
+| **eGFR** | Estimated Glomerular Filtration Rate | 肾小球滤过率 (CKD-EPI 公式) |
+| **PhenoAge**| Phenotypic Age | 表型年龄计算 |
+
+**使用示例 (计算 BMI)**:
+
+```python
+from get_nhanes.coreCalculated import BMICalculated
+
+# 计算并保存 BMI 结果
+BMICalculated.calculation_bmi(save_path="./results/")
+```
+
+### 3. 协变量处理 (`getCovariates`)
+
+提供标准化的协变量提取和处理，包括年龄、性别、种族、教育程度、婚姻状况、收入、吸烟和饮酒情况等。
+
+```python
+from get_nhanes.getCovariates import covariates
+
+# 计算标准协变量集
+covariates.calculation_covariates(save_path="./results/")
+```
+
+## 🛠️ 高级用法
+
+### 自动处理缺失值
+`get_nhanes_data` 会自动处理 `seqn` 序列号的格式问题，并支持 `strict_features=False` 参数来用 `NaN` 填充缺失的年份列。
+
+### 自定义计算扩展
+所有计算模块均遵循 `fit_*` (提取与清洗) 和 `calculation_*` (计算与保存) 的设计模式，易于阅读和扩展。
+
+## 📄 License
+MIT License
