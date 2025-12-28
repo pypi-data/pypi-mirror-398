@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: dask-utils
+Version: 0.1.0
+Summary: daks lib utilities
+Project-URL: Homepage, https://github.com/mhferjani/dask-utils
+Project-URL: Repository, https://github.com/mhferjani/dask-utils
+Author-email: Mohamed Hedi FERJANI <ferjani.mohamedhedi@gmail.com>
+License: MIT
+Keywords: dask,python
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.10
+Requires-Dist: dask[distributed]>=2025.12.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov; extra == 'dev'
+Requires-Dist: pytest-html; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Provides-Extra: doc
+Requires-Dist: m2r2; extra == 'doc'
+Requires-Dist: sphinx-rtd-theme; extra == 'doc'
+Requires-Dist: sphinx>=7.2; extra == 'doc'
+Description-Content-Type: text/markdown
+
+# DASK utility library
+
+[![main](https://github.com/mhferjani/dask-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/mhferjani/dask-utils/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/dask-utils.svg)](https://pypi.org/project/dask-utils/)
+[![Python](https://img.shields.io/pypi/pyversions/dask-utils.svg)](https://pypi.org/project/dask-utils/)
+[![Downloads](https://img.shields.io/pypi/dm/dask-utils)](https://pypi.org/project/dask-utils/)This library provides custom Dask classes for connect and execute computation on DASK cluster.
+
+* Scan and parse Dask config file (cfg parser)
+* Extension of the default Dask Client
+* Custom functions to retrieve information from Dask cluster
+* Test utilities: generate local cluster and initialize client
+* Decorators: Singleton decorator
+* Packaging utility to create a zip dask tasks dependencies
+* Queue utility to deal with futures (Future) for different Dask clients
+
+## Requirements
+
+* Python >= 3.10 (not yet tested with Python =2.7 and =3.4)
+
+## Installation
+
+To install this library:
+
+```bash
+poetry add dask-utils
+```
+
+or 
+
+```bash
+uv add dask-utils
+```
+
+or directly with pip
+
+
+## Dependencies
+* dask[distribute]
+
+
+## Configuration
+
+### Default config file [useful for development purposes]
+
+By default, `dask-utils` come with a build-in config file named ``client.cfg``.
+``client.cfg`` contains a minimum of config options which client used to perform connection to Dask scheduler 
+and submitting computation on cluster.
+
+```
+[client]
+host = localhost
+port = 8786
+timeout=10
+name=client_name
+
+[worker]
+memory=1e5
+cpu=2
+process=1
+```
+
+**Example**:
+
+```python
+from  dask_utils import Client
+#Init client and connect to localhost scheduler on 8786 port
+c= Client()
+#sublit compuation on localhost dask
+c.submit(f,*args)
+```
+**Note** : field names in worker section can be changed if `--resources "XX=YY"` params used when launched worker respect the same convention name
+
+### Custom config file [**Recommended for production usage**]
+
+You can overwrite the default config file ``client.cfg`` by creating your custom file config into your project.
+In this case, you should define `DASK_UTILS_ROOT_CONFIG` variable env for the runtime.
+
+**Examples**:
+
+```bash
+export DASK_UTILS_ROOT_CONFIG=/etc/mlbox/client.cfg
+```
+```python
+from  dask_utils import Client
+#Init client and connect to scheduler defined into DASK_UTILS_ROOT_CONFIG 
+c= Client()
+c.submit(f,*args)
+```
+
+**Note** : In development time, you can overwrite options defined in config file (defined in `DASK_UTILS_ROOT_CONFIG`) by passing options 
+directly as parameters to `Client` class.
+
+```python
+from  dask_utils import Client
+#overwrite config
+my_custom_address='192.168.2.2:52879'
+c= Client(address=my_custom_address)
+c.submit(f,*args)
+```
+
+or 
+
+```python
+my_custom_resources:{'cpu':1,'memory':'2G'}
+c.submit(f,*args,resources=my_custom_resources)
+```

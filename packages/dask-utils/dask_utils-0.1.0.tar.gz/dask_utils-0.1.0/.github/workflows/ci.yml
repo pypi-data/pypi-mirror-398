@@ -1,0 +1,38 @@
+name: main
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  build-test-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Set up Python (via uv)
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Run tests
+        run: make test
+
+      - name: Run coverage
+        run: make coverage
+
+      - name: Run reports
+        run: make reports
+
+      - name: Build documentation
+        env:
+          DASK_UTILS_ROOT_CONFIG: tests/data/mlb_with_client.cfg
+        run: make docs
