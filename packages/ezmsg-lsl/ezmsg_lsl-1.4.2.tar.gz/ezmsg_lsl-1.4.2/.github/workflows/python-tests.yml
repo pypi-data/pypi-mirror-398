@@ -1,0 +1,68 @@
+name: Test package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        python-version: ["3.10.15", "3.11", "3.12", "3.13"]
+        os:
+          - "ubuntu-latest"
+          - "windows-latest"
+          - "macos-latest"
+    runs-on: ${{matrix.os}}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install linux dependencies
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y binutils libpugixml-dev qtbase5-dev qt5-qmake
+
+      - name: Install liblsl (linux)
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          curl -L https://github.com/sccn/liblsl/releases/download/v1.16.2/liblsl-1.16.2-jammy_amd64.deb -o liblsl-1.16.2-jammy_amd64.deb
+          sudo apt install -y ./liblsl-1.16.2-jammy_amd64.deb
+          rm liblsl-1.16.2-jammy_amd64.deb
+
+      - name: Install liblsl (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        shell: bash
+        run: |
+          curl -L https://github.com/sccn/liblsl/releases/download/v1.16.0/liblsl-1.16.0-OSX_arm64.tar.bz2 -o liblsl-1.16.0-OSX_arm64.tar.bz2
+          tar -xf liblsl-1.16.0-OSX_arm64.tar.bz2
+          mv lib/liblsl.1.16.0.dylib .
+          echo "PYLSL_LIB=$PWD/liblsl.1.16.0.dylib" >> $GITHUB_ENV
+          rm -R lib include bin
+          rm liblsl-1.16.0-OSX_arm64.tar.bz2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --all-extras
+
+      - name: Ruff check
+        uses: astral-sh/ruff-action@v1
+        with:
+          src: "./src"
+
+      - name: Run tests
+        run: uv run pytest tests
