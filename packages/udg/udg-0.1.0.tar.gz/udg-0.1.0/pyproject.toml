@@ -1,0 +1,104 @@
+[project]
+name = "udg"
+version = "0.1.0"
+description = "Upwind summation-by-parts discontinuous galerkin method for solving PDEs"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=1.26.0",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "click>=8.1",
+    "mpltools>=0.2.0",
+]
+
+[project.scripts]
+udg = "udg.cli:cli"
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.19.0",
+    "ruff>=0.14.8",
+    "pre-commit>=4.5.1",
+    "pytest>=8.3.4",
+    "pytest-xdist>=3.5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/udg"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "DTZ", # flake8-datetimez
+    "T20", # flake8-print
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "ARG", # flake8-unused-arguments
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "PD",  # pandas-vet
+    "PL",  # pylint
+    "TRY", # tryceratops
+    "NPY", # NumPy-specific rules
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "PLR0913", # too many arguments
+    "TRY003",  # avoid specifying long messages outside exception class
+    "RET504",  # allow using assignment before return
+    "N806",    # variable names should be lowercase
+    "PLR2004", # magic value used in comparison
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "udg.quadratures"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = ["-ra", "-q", "--strict-markers", "-n=4"]
