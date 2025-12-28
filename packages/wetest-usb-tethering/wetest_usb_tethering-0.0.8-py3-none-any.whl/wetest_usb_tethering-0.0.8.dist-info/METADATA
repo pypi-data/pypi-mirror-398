@@ -1,0 +1,118 @@
+Metadata-Version: 2.4
+Name: wetest-usb-tethering
+Version: 0.0.8
+Summary: Enable and verify Android USB tethering via uiautomator2, with device detection and helpers to download files and extract tar archives over the tethered LAN—useful for transfer testing and automation.
+Author: wetest
+Author-email: wetest@tencent.com
+Requires-Python: >=3.8,<4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: adbutils (>=2.11.0,<3.0.0)
+Requires-Dist: uiautomator2 (>=3.2.9,<4.0.0)
+Description-Content-Type: text/markdown
+
+# Wetest USB Tethering
+
+**Wetest USB Tethering** 用于开启 Android 设备的 USB 共享功能，并进行高速文件下载
+
+- 开启 USB 共享功能：通过 [uiautomator2](https://github.com/openatx/uiautomator2) 提供的控件操作能力实现
+- 高速文件下载：借助 [fastpusher](https://git.woa.com/CloudTesting/UDT/fastpusher) 提供的从任务容器到 Android 设备的文件传输功能
+
+## 使用指南
+
+[fastpusher 自动化测试使用说明](https://doc.weixin.qq.com/doc/w3_AOgAFQb5ACcCNaDbXSOCxTVK2Dt4k?scode=AJEAIQdfAAoZBaCq1qAXAA2AZiAG0)
+
+### 安装
+
+支持 Python 3.8 及以上版本
+
+```bash
+python -m pip install wetest-usb-tethering --upgrade --extra-index-url https://mirrors.tencent.com/repository/pypi/tencent_pypi/simple
+```
+
+### 快速上手
+
+```python
+from wetest.usbtethering import create_device
+
+# 创建设备实例
+device = create_device("your_android_serial")
+# 检查设备 adb 和 uiautomator2 是否正常工作
+assert device.is_connected()
+
+# 开启 USB 共享功能
+device.enable_usb_tethering()
+# 检查 USB 共享功能是否已开启
+assert device.is_usb_tethering_enabled()
+
+# 下载文件到 Android 设备
+device_file_path = device.download_file(download_file, "/sdcard/" + download_file)
+
+# 释放设备资源，清理 uiautomator2 和 fastpusher 进程
+# 不会自动关闭 USB 共享功能
+device.release()
+```
+
+更多示例请参考 [examples](./examples) 目录
+
+版本记录请参考 [CHANGELOG.md](./CHANGELOG.md)
+
+## 原理说明
+
+### 项目架构
+
+本项目主要包含以下几个核心模块：
+
+```shell
+src/wetest/usbtethering/
+├── device_factory.py            # 设备工厂，负责自动识别设备品牌并创建对应实例
+├── uiautomator_manager.py       # UIAutomator 管理器，处理设备连接和冲突问题
+├── fastpusher_manager.py        # fastpusher 管理器，管理 fastpusher 进程的启动和停止
+└── devices/
+    ├── base.py                  # 设备基类，定义开启 USB 共享功能的通用接口
+    └── ...                      # 其他设备类，实现各自品牌的 USB 共享功能开启逻辑
+└── resources/
+    ├── fastpusher_linux_x86_64  # fastpusher 工具，从 https://git.woa.com/CloudTesting/UDT/fastpusher/-/tags 获取
+```
+
+### 扩展支持
+
+要支持新的设备品牌，只需：
+
+1. 在 `devices/` 目录下创建新的设备类，继承 `BaseDevice`，并定义对应的 BRAND_MODELS 常量
+2. 实现 `_toggle_usb_tethering_on` 和 `_open_usb_tethering_page`(如有必要) ，用于开启 USB 共享功能
+3. 在 `devices/__init__.py` 中导入新创建的设备类
+4. 在 `device_factory.py` 中添加新的品牌映射关系到 SUPPORTED_BRANDS 常量
+
+### 构建流程
+
+#### 构建项目
+
+在 `dist/` 目录下生成 `wetest-usb-tethering-0.0.x.whl` 文件
+
+```shell
+make build
+```
+
+#### 清理构建产物
+
+删除 `dist/` 目录下的所有文件和 `src/wetest/usbtethering/resources/fastpusher_linux_x86_64` 文件
+
+```shell
+make clean
+```
+
+## 作者信息&致谢
+
+### [**Tencent WeTest Team**](https://wetest.qq.com/)
+
+特别感谢以下开源项目的启发:
+
+- <https://github.com/openatx/uiautomator2>
+
