@@ -1,0 +1,277 @@
+# Gault
+
+A lightweight Object Document Mapper (ODM) for MongoDB with Python type hints and state tracking.
+
+## Features
+
+- Type-safe MongoDB documents with Python type hints
+- Field aliasing for database column mapping
+- Query operators with Pythonic syntax
+- Async manager for CRUD operations
+- Aggregation pipeline support
+- Automatic state tracking and dirty field detection
+- Persistence tracking
+
+## Installation
+
+```bash
+pip install gault
+```
+
+## Quick Start
+
+```python
+from gault import Schema, Model, Field, configure, AsyncManager
+
+# Schema: Persistent documents mapped to MongoDB collections
+class Person(Schema, collection="people"):
+    id: Field[int] = configure(pk=True)
+    name: Field[str]
+    age: Field[int] = configure(db_alias="person_age")
+
+# Model: Non-persistent data classes (projections, view models, etc.)
+class PersonSummary(Model):
+    name: Field[str]
+    total: Field[int]
+
+# Create manager
+manager = AsyncManager(database)
+
+# Query and modify
+person = await manager.get(Person, filter=Person.id == 1)
+person.age = 43
+await manager.save(person, atomic=True)  # Only updates dirty fields
+```
+
+## Schema vs Model
+
+- **Schema**: Persistent MongoDB collections. Requires `collection` parameter and gets registered globally.
+- **Model**: Non-persistent data structures for aggregation projections, view models, or intermediate transformations.
+
+## Field Configuration
+
+Fields can be configured with metadata using the `configure()` function:
+
+```python
+class Person(Schema, collection="people"):
+    # Primary key field - used for filtering in save() operations
+    id: Field[int] = configure(pk=True)
+
+    # Regular field
+    name: Field[str]
+
+    # Field with database alias (field name differs from DB column)
+    age: Field[int] = configure(db_alias="person_age")
+```
+
+**Note**: Fields marked with `pk=True` are used as the filter criteria in `save()` operations to identify the document for upsert.
+
+## Querying with Filters
+
+Gault provides multiple ways to filter documents using type-safe field expressions.
+
+### Operator Expressions
+
+Use class fields with comparison operators to build type-safe queries:
+
+```python
+# Comparison operators
+Person.age == 42          # Equal
+Person.age != 30          # Not equal
+Person.age < 50           # Less than
+Person.age <= 50          # Less than or equal
+Person.age > 18           # Greater than
+Person.age >= 18          # Greater than or equal
+Person.id.in_([1, 2, 3])  # In list
+Person.id.nin([4, 5])     # Not in list
+
+# Logical operators
+filter = (Person.age >= 18) & (Person.age < 65)  # AND
+filter = (Person.name == "Alice") | (Person.name == "Bob")  # OR
+filter = ~(Person.age < 18)  # NOT
+
+# Complex expressions
+filter = (Person.age >= 18) & ((Person.name == "Alice") | (Person.name == "Bob"))
+```
+
+### Pipeline Filters
+
+For advanced queries, use the `Pipeline` API with aggregation stages:
+
+```python
+from gault import Pipeline
+
+# Match and sort
+pipeline = Pipeline().match(Person.age >= 18).sort(Person.age.asc())
+
+# Pagination
+pipeline = Pipeline().skip(10).take(20)
+
+# Group and aggregate
+from gault import Sum
+pipeline = (
+    Pipeline()
+    .match(Person.age >= 18)
+    .group(by=Person.name, accumulators={"total": Sum(Person.age)})
+)
+
+# Multiple stages
+pipeline = (
+    Pipeline()
+    .match(Person.age >= 18)
+    .sort(Person.age.desc())
+    .take(10)
+)
+```
+
+### Raw MongoDB Queries
+
+You can also use raw MongoDB query dictionaries:
+
+```python
+# Dict filter
+filter = {"age": {"$gte": 18}}
+
+# Raw pipeline stages
+pipeline = [
+    {"$match": {"age": {"$gte": 18}}},
+    {"$sort": {"age": -1}},
+    {"$limit": 10}
+]
+```
+
+## AsyncManager Methods
+
+### `find(model, filter=None)`
+Finds a single document matching the filter. Returns `None` if not found.
+
+**Filter types**: Operator expression, Pipeline, dict, or list of stages.
+
+```python
+# With operator
+person = await manager.find(Person, filter=Person.age == 42)
+
+# With pipeline
+pipeline = Pipeline().match(Person.age > 30).sort(Person.name.asc())
+person = await manager.find(Person, filter=pipeline)
+
+# With dict
+person = await manager.find(Person, filter={"age": 42})
+```
+
+### `get(model, filter=None)`
+Like `find()`, but raises `NotFound` exception if no document is found.
+
+**Filter types**: Operator expression, Pipeline, dict, or list of stages.
+
+```python
+try:
+    person = await manager.get(Person, filter=Person.id == 123)
+except NotFound:
+    print("Person not found")
+```
+
+### `select(model, filter=None, skip=None, take=None)`
+Returns an async iterator of documents matching the filter. Supports pagination.
+
+**Filter types**: Operator expression, Pipeline, dict, or list of stages.
+
+```python
+# Operator with in_()
+async for person in manager.select(Person, filter=Person.id.in_([1, 2, 3])):
+    print(person.name)
+
+# Pipeline
+pipeline = Pipeline().match(Person.age >= 18).sort(Person.age.desc())
+async for person in manager.select(Person, filter=pipeline, take=10):
+    print(person.name)
+
+# Complex filter
+filter = (Person.age >= 18) & (Person.age < 65)
+async for person in manager.select(Person, filter=filter):
+    print(person.name)
+```
+
+### `insert(instance)`
+Inserts a new document into the database. Only works with `Schema` instances.
+
+```python
+new_person = Person(id=1, name="Alice", age=30)
+await manager.insert(new_person)
+```
+
+### `save(instance, refresh=False, atomic=False)`
+Upserts a document using `find_one_and_update`. Supports atomic updates with dirty field tracking.
+
+- **`refresh=False`**: If `True`, refreshes the instance with the document returned from the database
+- **`atomic=False`**: If `True` and the instance is already persisted, only updates dirty fields
+
+```python
+# Create or update
+person = Person(id=1, name="Bob", age=25)
+await manager.save(person)
+
+# Later, update only changed fields
+person.age = 26
+await manager.save(person, atomic=True)  # Only updates 'person_age' field
+```
+
+## Persistence and Dirty Fields
+
+Gault tracks the persistence state and modifications of your documents automatically.
+
+### Persistence Tracking
+
+When documents are loaded from the database or saved, they are marked as persisted:
+
+```python
+# Loaded from DB - automatically marked as persisted
+person = await manager.find(Person, filter=Person.id == 1)
+assert manager.persistence.is_persisted(person)
+
+# Newly created - not yet persisted
+new_person = Person(id=2, name="Charlie", age=35)
+assert not manager.persistence.is_persisted(new_person)
+
+# After saving - marked as persisted
+await manager.save(new_person)
+assert manager.persistence.is_persisted(new_person)
+```
+
+### Dirty Field Tracking
+
+Gault snapshots document state and tracks which fields have been modified:
+
+```python
+person = await manager.get(Person, filter=Person.id == 1)
+
+# Modify some fields
+person.name = "New Name"
+person.age = 50
+
+# Check which fields changed
+dirty_fields = manager.state_tracker.get_dirty_fields(person)
+# dirty_fields == {'name', 'age'}
+
+# Atomic save only updates changed fields
+await manager.save(person, atomic=True)
+```
+
+### Atomic Updates
+
+When using `atomic=True`, the `save()` method generates optimal MongoDB updates:
+
+- **Dirty fields**: Updated with `$set`
+- **Unchanged fields**: Set with `$setOnInsert` (only on insert, not update)
+- **Primary key fields**: Used in the filter
+
+This minimizes race conditions and reduces unnecessary updates.
+
+## Requirements
+
+- Python >= 3.12
+- PyMongo >= 4.15.4
+
+## License
+
+MIT
