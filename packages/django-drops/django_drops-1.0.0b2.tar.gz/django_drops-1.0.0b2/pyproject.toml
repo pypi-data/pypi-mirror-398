@@ -1,0 +1,113 @@
+[project]
+name = "django-drops"
+version = "1.0.0b2"
+description = "Various helpers for django-based projects"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Abdrakhmanov Vladimir", email = "369565@gmail.com" },
+    { name = "Chechetkin Ilya", email = "illaech@gmail.com" },
+]
+maintainers = [
+    { name = "Abdrakhmanov Vladimir", email = "369565@gmail.com" },
+    { name = "Chechetkin Ilya", email = "illaech@gmail.com" },
+    { name = "Golubev Alexey", email = "dr.freecx@gmail.com" }
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6",
+    "Framework :: Django :: 6.0",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+
+requires-python = ">=3.12"
+dependencies = [
+    "dj-database-url>=3.0.1",
+    "django>=5.2",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "poethepoet>=0.38.0",
+    "ruff>=0.14.10",
+]
+
+
+[tool.poe.tasks]
+# отформатировать код ruff'ом
+format = { cmd = "ruff format" }
+# проверить линтером ruff'а и пофиксить автоисправляемое (мб сюда и pyright докинуть)
+lint = { cmd = "ruff check --fix" }
+
+[tool.poe.tasks.fix]
+sequence = [
+    { cmd = "ruff format ${check:+--check} $target" },
+    { cmd = "ruff check $target --fix ${unsafe:+--unsafe-fixes}" },
+    { cmd = "ruff format $target" },
+]
+args = [
+    { name = "unsafe", options = ["--unsafe-fixes"], type = "boolean" },
+    { name = "check", options = ["--check"], type = "boolean" },
+    { name = "target", default = ".", positional = true, multiple = true }
+]
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+output-format = "grouped"
+show-fixes = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+exclude = ["urls.py"]
+docstring-code-line-length = 80
+
+[tool.ruff.lint]
+select = [
+    "A", "ANN", "ARG", "B", "BLE", "C4", "C90", "DJ", "E", "EM", "F", "FA", "FBT003", "G", "I", "INP", "INT", "ISC",
+    "N", "PERF", "PGH004", "PIE", "PL", "PT", "PTH", "Q", "RET", "RSE", "RUF", "SIM", "T20", "TCH", "TID", "UP", "W",
+]
+ignore = [
+    # не надо делать аннотации для args, kwargs и нам норм использовать typing.Any
+    "ANN002", "ANN003", "ANN401",
+    # мы не конченные, оно всё равно внутри пакета
+    "A005",
+    # пофигу на Django Style Guide в плане порядка методов, делаем как нам читабельнее
+    "DJ012",
+    # мы кириллицу используем, какие еще ambiguous unicode characters
+    "RUF001", "RUF002", "RUF003", "PLC2403",
+    # мы знаем зачем мы используем изменяемые аттрибуты класса
+    "RUF012",
+    # конфликтует с форматтером
+    "ISC001",
+    # если импорт не в начале файла, значит это кому-нибудь нужно (во избежание цикличных импортов, например)
+    "PLC0415",
+    # больше переменных богу переменных
+    "EM101",
+]
+
+[tool.ruff.lint.isort]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
