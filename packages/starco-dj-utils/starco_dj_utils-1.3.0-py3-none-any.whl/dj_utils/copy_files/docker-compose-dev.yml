@@ -1,0 +1,92 @@
+
+services:
+  db:
+    image: postgres:17
+    volumes:
+      - database_data:/var/lib/postgresql/data/
+    networks:
+      - internal-network
+    environment:
+      POSTGRES_DB: ${POStGRE_DB_NAME}
+      POSTGRES_USER: ${POStGRE_USER}
+      POSTGRES_PASSWORD: ${POStGRE_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POStGRE_USER_EV} -d ${POStGRE_DB_NAME_EV}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  django:
+    build:
+      context: .
+    container_name: ${PROJECT_NAME}-django
+    image: ${PROJECT_NAME}:latest
+    command: bash -c "gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:8000"
+    entrypoint: /bin/bash /app/entrypoint.sh
+    environment:
+      DJANGO_ENV: production
+    volumes:
+      - .:/app
+      - ./staticfiles:/staticfiles
+    networks:
+      - internal-network
+      - dokploy-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    restart: always
+    networks:
+      - internal-network
+
+
+  celery:
+    container_name: ${PROJECT_NAME}-celery
+    image: ${PROJECT_NAME}:latest
+    command: celery -A core worker -Q celery -c 3 -l info
+    volumes:
+      - .:/app
+    networks:
+      - internal-network
+    environment:
+      DJANGO_ENV: production
+    depends_on:
+      django:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  celery-beat:
+    container_name: ${PROJECT_NAME}-beat
+    image: ${PROJECT_NAME}:latest
+    command: celery -A core beat -l info
+    volumes:
+      - .:/app
+    networks:
+      - internal-network
+    environment:
+      DJANGO_ENV: production
+    depends_on:
+      django:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  database_data:
+    name: ${PROJECT_NAME}-database-volume
+
+networks:
+  internal-network:
+    name: ${PROJECT_NAME}-network
+    driver: bridge
+  dokploy-network:
+#    external: true
