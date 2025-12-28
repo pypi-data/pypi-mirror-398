@@ -1,0 +1,137 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ListRepositoryTagsResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'body': 'list[ShowReposTagResp]',
+        'content_range': 'str'
+    }
+
+    attribute_map = {
+        'body': 'body',
+        'content_range': 'Content-Range'
+    }
+
+    def __init__(self, body=None, content_range=None):
+        r"""ListRepositoryTagsResponse
+
+        The model defined in huaweicloud sdk
+
+        :param body: 镜像tag列表
+        :type body: list[:class:`huaweicloudsdkswr.v2.ShowReposTagResp`]
+        :param content_range: 
+        :type content_range: str
+        """
+        
+        super().__init__()
+
+        self._body = None
+        self._content_range = None
+        self.discriminator = None
+
+        if body is not None:
+            self.body = body
+        if content_range is not None:
+            self.content_range = content_range
+
+    @property
+    def body(self):
+        r"""Gets the body of this ListRepositoryTagsResponse.
+
+        镜像tag列表
+
+        :return: The body of this ListRepositoryTagsResponse.
+        :rtype: list[:class:`huaweicloudsdkswr.v2.ShowReposTagResp`]
+        """
+        return self._body
+
+    @body.setter
+    def body(self, body):
+        r"""Sets the body of this ListRepositoryTagsResponse.
+
+        镜像tag列表
+
+        :param body: The body of this ListRepositoryTagsResponse.
+        :type body: list[:class:`huaweicloudsdkswr.v2.ShowReposTagResp`]
+        """
+        self._body = body
+
+    @property
+    def content_range(self):
+        r"""Gets the content_range of this ListRepositoryTagsResponse.
+
+        :return: The content_range of this ListRepositoryTagsResponse.
+        :rtype: str
+        """
+        return self._content_range
+
+    @content_range.setter
+    def content_range(self, content_range):
+        r"""Sets the content_range of this ListRepositoryTagsResponse.
+
+        :param content_range: The content_range of this ListRepositoryTagsResponse.
+        :type content_range: str
+        """
+        self._content_range = content_range
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ListRepositoryTagsResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ListRepositoryTagsResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
