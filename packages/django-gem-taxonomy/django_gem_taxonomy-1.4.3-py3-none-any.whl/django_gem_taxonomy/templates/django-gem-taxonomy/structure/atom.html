@@ -1,0 +1,210 @@
+<!--
+Copyright (c) 2024-2025 GEM Foundation
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/agpl.html>.
+-->
+{% extends "site_base.html" %}
+{% load i18n %}
+
+{% block title %}{% if atom == None %}Taxonomy Structure - Atoms{% else %}Taxonomy Structure - Atom: {{ atom.title }}{% endif %}{% endblock title %}
+{% block extra_head %}
+    {{ block.super }}
+    {% if oqp_version_maj == '1' %}
+    <link href="{{ STATIC_URL }}css/oqplatform_index.css" rel="stylesheet"/>
+    {% else %}
+    <link href="{{ STATIC_URL }}css/oqplatform.css" rel="stylesheet"/>
+    {% endif %}
+    <link href="{{ STATIC_URL }}css/handsontable.full.min.css" rel="stylesheet"/>
+    <link href="{{ STATIC_URL }}css/jQuery-UI-Bootstrap-0.2.5.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/absolute_center_spinner.css" />
+    <link href="{{ STATIC_URL }}css/sol.css" rel="stylesheet"/>
+    <link href="{{ STATIC_URL }}ipt/css/bootstrap-tagsinput.css" rel="stylesheet"/>
+    <script src="{{ STATIC_URL }}taxonomy_v3/js/dist/jquery.min.js"></script>
+    <link rel="stylesheet" href="{{ STATIC_URL }}taxonomy/css/taxonomy_help.css"/>
+{% endblock extra_head %}
+
+    {% block body %}
+    {% block oq_body_heading %}
+    <div id="oq-body-heading">
+      {% if atom == None %}
+      <h1>{% trans "TAXONOMY STRUCTURE - ATOMS" %}</h1>
+      {% else %}
+      <h1>{% trans "TAXONOMY STRUCTURE" %}</h1>
+      <h2>{% trans "ATOM" %}: {% trans atom.title %}</h2>
+      {% endif %}
+      <br />
+    </div>
+    {% endblock oq_body_heading %}
+
+    {% if atom == None %}
+    <div id="app" style="margin: auto;">
+      <table class="atom" style="width: 100%;">
+        <tr>
+          <td style="border: 1px solid #d0d0ff; background-color: #f0f0ff;">
+            <p style="font-weight: bold;">Hierarchy</p>
+            <p class="hierarchy0"><a href="../attribute/">All Attributes</a></p>
+            <p class="hierarchy1 hierarchy_arrow"><a href="../atoms_group/">All Atoms Groups</a></p>
+            <p class="hierarchy2 hierarchy_arrow"><a href="../atom/">All Atoms</a></p>
+          </td>
+        </tr>
+      </table>
+      <br/>
+      <table class="atom" width="100%">
+        <tr>
+          <th>Name</th>
+          <th>Title</th>
+        </tr>
+        {% for atom in atoms %}
+        <tr>
+          <td><a href="{{ atom.name }}">{{ atom.name }}</a></td>
+          <td>{{ atom.title }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <div id="app" style="margin: auto;">
+      <table class="atom" style="width: 100%;">
+        <tr>
+          <td style="border: 1px solid #d0d0ff; background-color: #f0f0ff;">
+            <p style="font-weight: bold;">Hierarchy</p>
+            <p class="hierarchy0"><a href="../attribute/{{ atom.group.attr.name }}">{{ atom.group.attr.title }}</a>
+              (or <a href="../attribute/">all Attributes</a>)</p>
+            <p class="hierarchy1 hierarchy_arrow"><a href="../atoms_group/{{ atom.group.name }}">{{ atom.group.title }}</a>
+              (or <a href="../atoms_group/">all Atoms Groups</a>)</p>
+            <p class="hierarchy2 hierarchy_arrow"><a href="../atom/">All Atoms</a></p>
+          </td>
+        </tr>
+      </table>
+      <br>
+      <table class="atom" style="width: 100%">
+        <tr>
+          <td class="highlight">Name: </td><td class="highlight">{{ atom.name }}</td>
+        </tr>
+        <tr>
+          <td>Title:</td><td>{{ atom.title }}</td>
+        </tr>
+        {% if atom.desc != '' %}
+        <tr>
+          <td>Description:</td><td>{{ atom.desc }}</td>
+        </tr>
+        {% endif %}
+        {% if atom.args != None %}
+        <tr>
+          <td>Arguments:</td>
+          <td>
+            <table class="atom" style="margin: auto;">
+              {% for key, value in atom.args.items %}
+              <tr>
+                <td>{{ key }}:</td><td>{{ value }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+        {% endif %}
+        {% if atom.params != None %}
+        <tr>
+          <td>Parameters:</td><td>
+            <table class="atom" style="margin: auto;">
+              {% for key, value in atom.params.items %}
+              <tr>
+                <td>{{ key }}:</td><td>{{ value }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td>Type:</td>
+          <td>
+            <table class="atom" style="margin: auto;">
+              {% for key, value in atom.entry_type.items %}
+              <tr>
+                <td>{{ key }}:</td><td>{{ value }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Enabled by:
+          </td>
+          <td>
+            {% if atom.deps.all %}
+            <table class="elements" style="margin: auto;">
+              <tr>
+                <th>Name</th><th>Title</th><th>Order Id</th>
+              </tr>
+              {% for el in atom.deps.all|dictsort:"prog" %}
+              <tr>
+                <td><a href="./{{ el.name }}">{{ el.name }}</a></td>
+                <td>{{ el.title }}</td>
+                <td>{{ el.prog }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+            {% else %}
+            Always visible
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Enabling:
+          </td>
+          <td>{% if atom.revdeps.all %}
+            <table class="elements" style="margin: auto;">
+              <tr>
+                <th>Name</th><th>Title</th><th>Order Id</th>
+              </tr>
+              {% for el in atom.revdeps.all|dictsort:"prog" %}
+              <tr>
+                <td><a href="./{{ el.name }}">{{ el.name }}</a></td>
+                <td>{{ el.title }}</td>
+                <td style="text-align: right;">{{ el.prog }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+            {% else %}
+            {%     if atom.params.type == 'options' %}
+            {%         if atom.param_set != None %}
+            <table class="atom" style="margin: auto;">
+              {%             for el in atom.param_set.all|dictsort:"prog" %}
+              <tr><td>
+                  <a href="./{{atom.name}}:{{ el.name }}">{{atom.name}}:{{ el.name }}</a>
+                </td>
+                <td>
+                  {{ el.title }}
+                </td>
+                {%             endfor %}
+            </table>
+            {%         endif %}
+            {%     else %}
+            Is a hierarchy leaf.
+            {%     endif %}
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+    </div>
+    {% endif %}
+
+{% endblock body %}
+
+{% block extra_script %}
+    {{block.super}}
+{% endblock extra_script %}

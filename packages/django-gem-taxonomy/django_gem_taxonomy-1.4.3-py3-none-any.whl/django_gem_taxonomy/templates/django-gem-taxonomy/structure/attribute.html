@@ -1,0 +1,126 @@
+<!--
+Copyright (c) 2024-2025 GEM Foundation
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/agpl.html>.
+-->
+{% extends "site_base.html" %}
+{% load i18n %}
+
+{% block title %}{% if attribute == None %}Taxonomy Structure - Attributes{% else %}Taxonomy Structure - Attribute: {{ attribute.title }}{% endif %}{% endblock title %}
+
+{% block extra_head %}
+    {{ block.super }}
+    {% if oqp_version_maj == '1' %}
+    <link href="{{ STATIC_URL }}css/oqplatform_index.css" rel="stylesheet"/>
+    {% else %}
+    <link href="{{ STATIC_URL }}css/oqplatform.css" rel="stylesheet"/>
+    {% endif %}
+    <link href="{{ STATIC_URL }}css/handsontable.full.min.css" rel="stylesheet"/>
+    <link href="{{ STATIC_URL }}css/jQuery-UI-Bootstrap-0.2.5.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/absolute_center_spinner.css" />
+    <link href="{{ STATIC_URL }}css/sol.css" rel="stylesheet"/>
+    <link href="{{ STATIC_URL }}ipt/css/bootstrap-tagsinput.css" rel="stylesheet"/>
+    <script src="{{ STATIC_URL }}taxonomy_v3/js/dist/jquery.min.js"></script>
+    <link rel="stylesheet" href="{{ STATIC_URL }}taxonomy/css/taxonomy_help.css"/>
+{% endblock extra_head %}
+
+{% block body %}
+    {% block oq_body_heading %}
+    <div id="oq-body-heading">
+      {% if attribute == None %}
+      <h1>{% trans "TAXONOMY STRUCTURE - ATTRIBUTES" %}</h1>
+      {% else %}
+      <h1>{% trans "TAXONOMY STRUCTURE" %}</h1>
+      <h2>{% trans "ATTRIBUTE" %}: {% trans attribute.title %}</h2>
+      {% endif %}
+      <br />
+    </div>
+    {% endblock oq_body_heading %}
+    {% if attribute == None %}
+    <div id="app" style="margin: auto;">
+      <table class="atom" style="width: 100%;">
+        <tr>
+          <td style="border: 1px solid #d0d0ff; background-color: #f0f0ff;">
+            <p style="font-weight: bold;">Hierarchy</p>
+            <p class="hierarchy0"><a href=".">All Attributes</a></p>
+            <p class="hierarchy1 hierarchy_arrow"><a href="../atoms_group/">All Atoms Groups</a></p>
+            <p class="hierarchy2 hierarchy_arrow"><a href="../atom/">All Atoms</a></p>
+          </td>
+        </tr>
+      </table>
+      <br/>
+      <table class="atom" style="width: 100%;">
+        <tr>
+          <th>Name</th>
+          <th>Title</th>
+          <th>Order Id</th>
+        </tr>
+        {% for attribute in attributes|dictsort:"prog" %}
+        <tr>
+          <td><a href="{{ attribute.name }}">{{ attribute.name }}</a></td>
+          <td>{{ attribute.title }}</td>
+          <td>{{ attribute.prog }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <div id="oq-body-heading">
+    </div>
+    <div id="app" style="margin: auto;">
+      <table class="atom" style="width: 100%;">
+        <tr>
+          <td style="border: 1px solid #d0d0ff; background-color: #f0f0ff;">
+            <p style="font-weight: bold;">Hierarchy</p>
+            <p class="hierarchy0"><a href=".">All Attributes</a></p>
+            <p class="hierarchy1 hierarchy_arrow"><a href="../atoms_group/">All Atoms Groups</a></p>
+            <p class="hierarchy2 hierarchy_arrow"><a href="../atom/">All Atoms</a></p>
+          </td>
+        </tr>
+      </table>
+      <br>
+      <table class="atom" style="width: 100%">
+        <tr>
+          <td class="highlight">Name: </td><td class="highlight">{{ attribute.name }}</td>
+        </tr>
+        <tr>
+          <td>Title:</td><td>{{ attribute.title }}</td>
+        </tr>
+        <tr>
+          <td>
+            Members:
+          </td>
+          <td>
+            <table class="elements" style="margin: auto;">
+              <tr>
+                <th>Name</th><th>Title</th><th>Order Id</th>
+              </tr>
+              {% for el in attribute.atomsgroup_set.all|dictsort:"prog" %}
+              <tr>
+                <td><a href="../atoms_group/{{ el.name }}">{{ el.name }}</a></td>
+                <td>{{ el.title }}</td>
+                <td style="text-align: right;">{{ el.prog }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+    {% endif %}
+{% endblock body %}
+
+{% block extra_script %}
+    {{block.super}}
+{% endblock extra_script %}

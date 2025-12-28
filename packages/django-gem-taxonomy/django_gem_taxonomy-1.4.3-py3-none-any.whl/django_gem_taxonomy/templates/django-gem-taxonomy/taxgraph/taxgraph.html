@@ -1,0 +1,150 @@
+<!--
+Copyright (c) 2024-2025 GEM Foundation
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/agpl.html>.
+-->
+{% extends "site_base.html" %}
+{% load i18n %}
+
+{% block title %} GEM Taxonomy Graph {% endblock title %}
+
+{% block extra_head %}
+    {{ block.super }}
+    {% if oqp_version_maj == '1' %}
+    <link href="{{ STATIC_URL }}css/oqplatform_index.css" rel="stylesheet"/>
+    {% else %}
+    <link href="{{ STATIC_URL }}css/oqplatform.css" rel="stylesheet"/>
+    {% endif %}
+    <link href="{{ STATIC_URL }}css/jQuery-UI-Bootstrap-0.2.5.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/absolute_center_spinner.css" />
+    <link href="{{ STATIC_URL }}ipt/css/bootstrap-tagsinput.css" rel="stylesheet"/>
+    <script src="{{ STATIC_URL }}taxonomy_v3/js/dist/jquery.min.js"></script>
+    <script src="{{ STATIC_URL }}taxonomy_v3/js/dist/bootstrap.bundle.min.js"></script>
+    <style>
+      .btn-sm { padding: 0px 4px 0px 4px; }
+      .shb_deep {
+      background-color: #40aa40;
+      border-color: #40aa40;
+      }
+      .shb_deep:hover {
+      background-color: #208820;
+      border-color: #208820;
+      }
+      .shb_deep::after {
+      font-weight: 400;
+      content: '\21b4';
+      }
+      .shb_enable::after {
+      content: '\21b4';
+      }
+      .shb_disable::after {
+      content: '\2192';
+      }
+
+      .gem_info {
+      border: 1px solid black;
+      padding: 8px;
+      display: inline-block;
+      }
+
+      .item_info {
+      margin-left: 50px;
+      font-family: serif;
+      transform:scale(1.5,1);
+      -webkit-transform:scale(1.5,1);
+      -moz-transform:scale(1.5,1);
+      -ms-transform:scale(1.5,1);
+      -o-transform:scale(1.5,1);
+      }
+
+      .item_info::after {
+      content: 'i';
+      }
+      .atom_highlight > h5 {
+      font-weight: bold;
+      }
+
+      .atom_highlight > h5::before {
+      /* Right-Pointing Magnifying Glass */
+      content: '\1F50E  ';
+      }
+
+      h5.gem_atom {
+      margin: 4px 4px 4px 0px;
+      }
+    </style>
+{% endblock extra_head %}
+
+{% block body %}
+  <div class="span12">
+    <div class="hero-unit">
+      <div id="oq-context-ribbon">
+        {% block oq_context_ribbon %}
+        {% endblock oq_context_ribbon %}
+      </div>
+      <div id="oq-body-heading">
+        {% block oq_body_heading %}
+          <h1>{% trans "GEM TAXONOMY GRAPH" %}</h1>
+          <br />
+        {% endblock oq_body_heading %}
+      </div>
+    <div>
+
+    <div style="background-color: #f0f0f0; padding: 8px;">
+        <button type="button" style="margin: 8px;" class="btn btn-primary btn-sm" onclick="taxtgraph_compress_all();">Collapse All</button>
+        <button type="button" style="margin: 8px;" class="btn btn-primary btn-sm" onclick="taxtgraph_uncompress_all();">Expand All</button>
+        <hr>
+       <form style="margin: 8px;" action="#" id="atom-search-form">
+         <p style="margin: 8px;">Atom Name: <input name="atom" type="text" value=""> <button type="submit" class="btn btn-primary btn-sm">Search</button> <a role="button" name="atom-search-link" class="btn btn-primary btn-sm" href="" style="display: none;">Link</a></p>
+       </form>
+    </div>
+    <div id="app"/>
+  </div>
+{% endblock body %}
+
+{% block extra_script %}
+    {{block.super}}
+    <script src="{{ STATIC_URL }}taxonomy_v3/js/dist/jquery.min.js"></script>
+    <script src="{{ STATIC_URL }}taxonomy_v3/js/homepage.js"></script>
+    <script src="{{ STATIC_URL }}js/sol.js"></script>
+
+    <script>
+      {% include '../taxcomm/taxcomm_incl.js' %}
+      {% include './taxgraph_incl.js' %}
+    </script>
+    <script>
+            window.onload = function () {
+                fetch('{{ STATIC_URL }}taxonomy_v3/json/taxonomy_standard4taxtweb.json')
+                    .then((response) => response.json())
+                    .then(function (json){
+                gem_tax = json;
+
+                $('#atom-search-form').on('submit', function (event) {
+                    taxtgraph_form_highlightatom_cb(event);
+                    return false;
+                    });
+
+                taxtgraph_main();
+                taxtgraph_compress_all();
+
+                const queryString = window.location.search;
+                const urlParams = new URLSearchParams(queryString);
+                const searched_atom = urlParams.get('atom');
+                if (searched_atom != null) {
+                    taxtgraph_highlightatom(searched_atom);
+                }
+            });
+        }
+    </script>
+{% endblock extra_script %}
