@@ -1,0 +1,3 @@
+from minjiang_client.waveform import WaveCircuit as WaveCircuit
+
+def draw_quantum_circuit(circuit: WaveCircuit, fig_width=None, ax=None): ...

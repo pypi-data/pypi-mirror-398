@@ -1,0 +1,43 @@
+from _typeshed import Incomplete
+from fastapi import FastAPI
+from minjiang_client.com.command import poll_command as poll_command, update_command_status as update_command_status
+from minjiang_client.com.file import download_file_to_local as download_file_to_local
+from minjiang_client.group.cloud_group import CloudGroup as CloudGroup
+from minjiang_client.plugin.parent_process_monitor import setup_parent_process_monitor as setup_parent_process_monitor
+from minjiang_client.plugin.widget.script_file_picker import OrganizationContext as OrganizationContext, create_script_file_picker_router as create_script_file_picker_router, get_script_picker_frontend_script as get_script_picker_frontend_script
+from pathlib import Path
+from pydantic import BaseModel
+
+def get_template_path(template_name: str) -> str: ...
+def load_html_template(template_name: str, **kwargs) -> str: ...
+
+PLUGIN_DIR: Incomplete
+REPO_ROOT: Incomplete
+MAX_LOG_LINES: int
+
+class HostClientProcessManager:
+    def __init__(self, repo_root: Path) -> None: ...
+    def start(self, script_path: str, direct_link_port: int, group_name: str) -> dict[str, object]: ...
+    def stop(self) -> bool: ...
+    def get_logs(self, cursor: int = 0) -> tuple[list[dict[str, object]], int]: ...
+    def get_status(self) -> dict[str, object]: ...
+
+runner: Incomplete
+
+class RunRequest(BaseModel):
+    script_path: str
+    direct_link_port: int
+    group_name: str | None
+    script_source: str
+
+class ConfigRequest(BaseModel):
+    group_name: str
+    local_script_path: str | None
+    manager_script_path: str | None
+
+def get_config_file_path() -> str: ...
+def load_config() -> dict[str, dict[str, str]]: ...
+def save_config(config: dict[str, dict[str, str]]) -> None: ...
+def get_group_config(group_name: str) -> dict[str, str]: ...
+def update_group_config(group_name: str, local_script_path: str | None = None, manager_script_path: str | None = None) -> None: ...
+def create_utility_app(utility_name: str, config: dict) -> FastAPI: ...
