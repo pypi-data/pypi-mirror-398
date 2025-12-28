@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# constants
+
+SUPERVISORD_LOG='/tmp/supervisord.log'
+DOCKERD_LOG='/tmp/dockerd.log'
+DEFAULT_TIMEOUT=60
+
+ERR_INSUFFICIENT_PRIVILEGES=101
+ERR_DOCKERD_FAILED=102
+ERR_INVALID_ARGS=103
+ERR_SUPERVISORD_FAILED=104
+
+# options
+
+verbose=false
+quiet=false
+logs=false
+timeout=${DEFAULT_TIMEOUT}
+
+# functions
+
+is_true() {
+    [[ ${1} = true ]]
+}
+
+is_verbose() {
+    is_true ${verbose}
+}
+
+is_quiet() {
+    is_true ${quiet}
+}
+
+say() {
+    echo "${@}" >&2
+}
+
+say_verbose() {
+    if is_verbose; then
+        say "${@}"
+    fi
+}
+
+check_privileged_mode_or_die() {
+    mkdir /mnt/_tmp
+    if ! mount -t tmpfs none /mnt/_tmp 2> /dev/null; then
+        say 'docker privileged mode required'
+        rm -r /mnt/_tmp
+        exit ${ERR_INSUFFICIENT_PRIVILEGES}
+    fi
+    umount /mnt/_tmp
+    rm -r /mnt/_tmp
+}
+
+start_restart_dockerd() {
+    if supervisorctl pid > /dev/null; then
+        say_verbose "restarting dockerd"
+        supervisorctl stop dockerd > /dev/null
+        if [[ -f ${DOCKERD_LOG} ]]; then
+            rm ${DOCKERD_LOG}
+        fi
+        supervisorctl start dockerd > /dev/null
+        echo 'restarted'
+    else
+        local ctl_status=${?}
+        # LSBInitExitStatuses.NOT_RUNNING = 7
+        if [[ ${ctl_status} -eq 7 ]]; then
+            say_verbose "starting dockerd"
+            supervisord -c /etc/supervisord.conf
+            echo 'started'
+        else
+            say "supervisorctl exited with status ${ctl_status}"
+            if ! is_quiet && [[ -f ${SUPERVISORD_LOG} ]]; then
+                cat ${SUPERVISORD_LOG} >&2
+            fi
+            exit ${ERR_SUPERVISORD_FAILED}
+        fi
+    fi
+}
+
+move_processes_to_separate_cgroup() {
+    # Move processes to a separate cgroup to prevent the root cgroup from becoming
+    # threaded -- "Once you have a threaded controller you can not create cgroups
+    # below it that reference non-threaded controllers like the memory controller".
+    # "A domain cgroup is turned into a threaded domain when [...] threaded controllers
+    # are enabled in the “cgroup.subtree_control” file while there are processes
+    # in the cgroup."
+    # Fixes "cannot enter cgroupv2 "/sys/fs/cgroup/docker" with domain controllers --
+    # it is in threaded mode" when starting containers with resource constraints,
+    # see https://github.com/dstackai/dstack/issues/1854
+    # Based on https://github.com/moby/moby/blob/65cfcc2/hack/dind#L59 and
+    # https://github.com/earthly/earthly/blob/08b0d1f/buildkitd/dockerd-wrapper.sh#L63
+    if [[ -f /sys/fs/cgroup/cgroup.controllers ]]; then
+        local group=/sys/fs/cgroup/dind
+        mkdir -p ${group}
+        xargs -rn1 < /sys/fs/cgroup/cgroup.procs > ${group}/cgroup.procs || true
+    fi
+}
+
+wait_dockerd_started() {
+    local counter=1
+    while true; do
+        if grep -qs 'API listen on' ${DOCKERD_LOG}; then
+            return 0
+        fi
+        if [[ ${counter} -gt ${timeout} ]]; then
+            break
+        fi
+        say_verbose "waiting for dockerd to start (${counter}/${timeout})"
+        ((counter++))
+        sleep 1
+    done
+    return 1
+}
+
+stop_dockerd_and_die() {
+    supervisorctl stop dockerd > /dev/null
+    say 'failed to start dockerd'
+    if ! is_quiet; then
+        cat ${DOCKERD_LOG} >&2
+    fi
+    exit ${ERR_DOCKERD_FAILED}
+}
+
+usage() {
+    echo 'usage: start-dockerd [-v|-q] [-l] [-t SECONDS]'
+    echo '  -v, --verbose           get more output, mutually exclusive with -q'
+    echo '  -q, --quiet             get less output, mutually exclusive with -v'
+    echo '  -l, --logs              follow dockerd log output'
+    echo '  -t, --timeout SECONDS   wait for dockerd to start the specified amount'
+    echo '                          of seconds before failing with error, '
+    echo "                          ${DEFAULT_TIMEOUT} seconds by default"
+}
+
+# main
+
+check_privileged_mode_or_die
+
+while [[ ${#} -gt 0 ]]; do
+    option=${1}
+    shift
+    case ${option} in
+        --verbose|-v)
+            verbose=true
+            ;;
+        --quiet|-q)
+            quiet=true
+            ;;
+        --logs|-l)
+            logs=true
+            ;;
+        --timeout|-t)
+            if [[ ${#} -eq 0 ]]; then
+                say "${option}: value expected"
+                exit ${ERR_INVALID_ARGS}
+            fi
+            timeout=${1}
+            shift
+            # single brackets are intentional, compare to:
+            # set -u; [[ "foo" -gt 0 ]]
+            # bash: foo: unbound variable
+            if ! [ "${timeout}" -gt 0 ] 2> /dev/null; then
+                say "${option}: invalid value"
+                exit ${ERR_INVALID_ARGS}
+            fi
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            say "${option}: invalid option"
+            usage
+            exit ${ERR_INVALID_ARGS}
+            ;;
+    esac
+done
+
+if is_verbose && is_quiet; then
+    say '--verbose and --quiet are mutually exclusive'
+    exit ${ERR_INVALID_ARGS}
+fi
+
+event=$(start_restart_dockerd)
+if ! wait_dockerd_started; then
+    stop_dockerd_and_die
+fi
+
+if [[ ${event} = 'started' ]]; then
+    move_processes_to_separate_cgroup
+fi
+
+if ! is_quiet; then
+    say "dockerd ${event}"
+fi
+
+if is_true ${logs}; then
+    tail -f ${DOCKERD_LOG}
+fi

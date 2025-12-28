@@ -1,0 +1,105 @@
+{% for zone in limit_req_zones %}
+limit_req_zone {{ zone.key }} zone={{ zone.name }}:10m rate={{ zone.rpm }}r/m;
+{% endfor %}
+
+{% if replicas %}
+upstream {{ domain }}.upstream {
+    {% if router_port is not none %}
+    server 127.0.0.1:{{ router_port }};  # SGLang router on the gateway
+    {% else %}
+    {% for replica in replicas %}
+    server unix:{{ replica.socket }};  # replica {{ replica.id }}
+    {% endfor %}
+    {% endif %}
+}
+{% else %}
+
+{% endif %}
+server {
+    server_name {{ domain }};
+    limit_req_status 429;
+    set $dstack_replica_hit 0;
+    access_log {{ access_log_path }} dstack_stat;
+    client_max_body_size {{ client_max_body_size }};
+
+    {% for location in locations %}
+    location {{ location.prefix }} {
+        {% if auth %}
+        auth_request /_dstack_auth;
+        {% endif %}
+
+        try_files /nonexistent @$http_upgrade;
+
+        {% if location.limit_req %}
+        limit_req zone={{ location.limit_req.zone }}{% if location.limit_req.burst %} burst={{ location.limit_req.burst }} nodelay{% endif %};
+        {% endif %}
+    }
+    {% endfor %}
+
+    {# For SGLang router: block all requests except whitelisted locations added dynamically above #}
+    {% if router is not none and router.type == "sglang" %}
+    location / {
+        return 403;
+    }
+    {% endif %}
+
+    location @websocket {
+        set $dstack_replica_hit 1;
+        {% if replicas %}
+        proxy_pass http://{{ domain }}.upstream;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_read_timeout 300s;
+        {% else %}
+        return 503;
+        {% endif %}
+    }
+    location @ {
+        set $dstack_replica_hit 1;
+        {% if replicas %}
+        proxy_pass http://{{ domain }}.upstream;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_read_timeout 300s;
+        {% else %}
+        return 503;
+        {% endif %}
+    }
+
+    {% if auth %}
+    location = /_dstack_auth {
+        internal;
+        if ($remote_addr = 127.0.0.1) {
+            # for requests from the gateway app, e.g. from the OpenAI-compatible API
+            return 200;
+        }
+        proxy_pass http://localhost:{{ proxy_port }}/api/auth/{{ project_name }};
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header Authorization $http_authorization;
+    }
+    {% endif %}
+
+    listen 80;
+    {% if https %}
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    set $force_https 1;
+    if ($scheme = "https") {
+        set $force_https 0;
+    }
+    if ($remote_addr = 127.0.0.1) {
+        set $force_https 0;
+    }
+    if ($force_https) {
+        return 301 https://$host$request_uri;
+    }
+    {% endif %}
+}
