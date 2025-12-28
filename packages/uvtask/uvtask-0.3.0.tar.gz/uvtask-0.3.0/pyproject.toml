@@ -1,0 +1,154 @@
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "uvtask"
+module-root = ""
+
+[project]
+authors = [
+    { name = "ticdenis", email = "navarrodenis940503@outlook.com" },
+]
+maintainers = [
+    { name = "ticdenis", email = "navarrodenis940503@outlook.com" }
+]
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = []
+description = "An extremely fast Python task runner."
+version = "0.3.0"
+keywords = [
+    "uv", 
+    "uvx",
+    "scripts", 
+    "tool", 
+    "pyproject",
+    "task",
+    "runner",
+]
+license = { text = "MIT" }
+name = "uvtask"
+readme = "README.md"
+requires-python = ">=3.13"
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.2", # security-analysis
+    "pip-licenses>=5.5.0", # security-analysis
+    "pytest>=8.0.0", # test
+    "pytest-cov>=7.0.0", # test, coverage
+    "pytest-xdist>=3.8.0", # test
+    "ruff>=0.14.10", # code-formatter, static-analysis
+    "ty>=0.0.6", # static-analysis
+]
+
+[project.urls]
+"documentation" = "https://aiopy.github.io/python-uvtask/"
+"repository" = "https://github.com/aiopy/python-uvtask"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B404", "B602"]
+
+[tool.pip-licenses]
+allow-only = "Apache;BSD;MIT;MPL"
+ignore-packages = [
+]
+partial-match = true
+
+[tool.pytest.ini_options]
+cache_dir = "var/pytest"
+addopts = "-q -n 1 -p no:warnings --no-cov-on-fail"
+testpaths = ["tests"]
+
+[tool.ruff]
+cache-dir = "var/ruff"
+line-length = 160
+target-version = "py313"
+respect-gitignore = true
+fix = true
+lint.select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "C90",  # mccabe
+    "N",    # pep8-naming
+    "PL",   # pylint
+    "RUF",  # ruff-specific
+]
+lint.ignore = [
+    "PLC0415",
+    "PLR0912",
+    "PLR0913",
+    "PLR2004", 
+]
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-single-line = false
+known-first-party = ["uvtask"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.src]
+exclude = [
+    "tests/fixtures/**",
+    "var",
+    ".venv",
+]
+
+[tool.run-script]
+install = "uv sync --frozen --no-dev"
+upgrade-install = "uv sync --frozen --no-dev --upgrade --refresh"
+dev-install = "uv sync --dev --all-extras"
+upgrade-dev-install = "uv sync --dev --all-extras --upgrade --refresh"
+code-formatter = "uv run ruff format uvtask tests"
+"security-analysis:licenses" = "uv run pip-licenses"
+"security-analysis:vulnerabilities" = "uv run bandit -r -c pyproject.toml uvtask tests"
+"static-analysis:linter" = "uv run ruff check uvtask tests"
+"static-analysis:types" = "uv run ty check uvtask tests"
+unit-tests = "uv run pytest tests/unit"
+integration-tests = "uv run pytest tests/integration"
+functional-tests = "uv run pytest -n1 tests/functional"
+coverage = "uv run pytest -n1 --cov --cov-report=html"
+clean = """python3 -c "
+from glob import iglob
+from shutil import rmtree
+
+for pathname in ['./build', './*.egg-info', './dist', './var', '**/__pycache__']:
+  for path in iglob(pathname, recursive=True):
+    rmtree(path, ignore_errors=True)
+"
+"""
+
+[project.scripts]
+uvtask = "uvtask.cli:main"
+run = "uvtask.cli:main"
+run-script = "uvtask.cli:main"
