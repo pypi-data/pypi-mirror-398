@@ -1,0 +1,260 @@
+Metadata-Version: 2.4
+Name: polydup
+Version: 0.5.1
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Summary: Cross-language duplicate code detector
+Keywords: duplicate,code,detection,rust,tree-sitter
+License: MIT OR Apache-2.0
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+# PolyDup Python Bindings
+
+Python bindings for **PolyDup**, a cross-language duplicate code detector powered by Tree-sitter and Rabin-Karp hashing.
+
+## Features
+
+- **Multi-language support**: Detect duplicates across Rust, Python, and JavaScript/TypeScript
+- **Type-2 clone detection**: Finds structurally similar code (normalized identifiers/literals)
+- **GIL-free scanning**: Releases Python's Global Interpreter Lock during CPU-intensive operations
+- **Parallel processing**: Built on Rayon for multi-core performance
+- **Zero-copy architecture**: Direct FFI to Rust core for minimal overhead
+
+## Installation
+
+### From Source (Development)
+
+```bash
+cd crates/polydup-py
+maturin develop --release
+```
+
+### From PyPI (Future)
+
+```bash
+pip install polydup
+```
+
+## Usage
+
+### Basic Example
+
+```python
+import polydup
+
+# Scan a directory for duplicates
+report = polydup.find_duplicates(
+    paths=['./src', './lib'],
+    min_block_size=50,    # Minimum tokens per code block
+    threshold=0.85        # 85% similarity threshold
+)
+
+print(f"Scanned {report.files_scanned} files")
+print(f"Analyzed {report.functions_analyzed} functions")
+print(f"Found {len(report.duplicates)} duplicates")
+print(f"Took {report.stats.duration_ms}ms")
+
+# Iterate through duplicates
+for dup in report.duplicates:
+    print(f"\n{dup.file1}:{dup.start_line1} ↔️ {dup.file2}:{dup.start_line2}")
+    print(f"  Similarity: {dup.similarity * 100:.1f}%")
+    print(f"  Length: {dup.length} tokens")
+```
+
+### Dictionary Output
+
+For JSON serialization or dict-based workflows:
+
+```python
+import polydup
+import json
+
+report_dict = polydup.find_duplicates_dict(
+    paths=['./src'],
+    min_block_size=30,
+    threshold=0.9
+)
+
+# Serialize to JSON
+print(json.dumps(report_dict, indent=2))
+```
+
+### Concurrent Execution
+
+**Critical**: PolyDup releases the GIL during scanning, allowing concurrent Python code:
+
+```python
+import polydup
+import concurrent.futures
+
+def scan_project(path):
+    return polydup.find_duplicates([path])
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    # These scans run in parallel thanks to GIL release
+    futures = [
+        executor.submit(scan_project, './project1'),
+        executor.submit(scan_project, './project2'),
+        executor.submit(scan_project, './project3'),
+    ]
+
+    for future in concurrent.futures.as_completed(futures):
+        report = future.result()
+        print(f"Found {len(report.duplicates)} duplicates")
+```
+
+## API Reference
+
+### `find_duplicates(paths, min_block_size=50, threshold=0.85)`
+
+Scan files for duplicate code and return a `Report` object.
+
+**Parameters:**
+- `paths` (list[str]): List of file or directory paths to scan
+- `min_block_size` (int, optional): Minimum code block size in tokens. Default: 50
+- `threshold` (float, optional): Similarity threshold (0.0-1.0). Default: 0.85
+
+**Returns:** `Report` object with scan results
+
+**Raises:** `RuntimeError` if scanning fails
+
+---
+
+### `find_duplicates_dict(paths, min_block_size=50, threshold=0.85)`
+
+Same as `find_duplicates()` but returns a Python dictionary.
+
+**Returns:** dict with keys:
+- `files_scanned` (int)
+- `functions_analyzed` (int)
+- `duplicates` (list[dict])
+- `stats` (dict)
+
+---
+
+### `version()`
+
+Get the PolyDup library version.
+
+**Returns:** str (e.g., "0.1.0")
+
+---
+
+### Class: `Report`
+
+**Attributes:**
+- `files_scanned` (int): Number of files processed
+- `functions_analyzed` (int): Number of functions extracted
+- `duplicates` (list[DuplicateMatch]): List of detected duplicates
+- `stats` (ScanStats): Performance metrics
+
+**Methods:**
+- `to_dict()`: Convert to Python dictionary
+- `__len__()`: Returns number of duplicates
+
+---
+
+### Class: `DuplicateMatch`
+
+**Attributes:**
+- `file1` (str): First file path
+- `file2` (str): Second file path
+- `start_line1` (int): Starting line in first file
+- `start_line2` (int): Starting line in second file
+- `length` (int): Length in tokens
+- `similarity` (float): Similarity score (0.0-1.0)
+- `hash` (str): Rolling hash value (hex string)
+
+**Methods:**
+- `to_dict()`: Convert to Python dictionary
+
+---
+
+### Class: `ScanStats`
+
+**Attributes:**
+- `total_lines` (int): Total lines of code processed
+- `total_tokens` (int): Total tokens analyzed
+- `unique_hashes` (int): Number of unique code blocks
+- `duration_ms` (int): Scan duration in milliseconds
+
+**Methods:**
+- `to_dict()`: Convert to Python dictionary
+
+## Performance
+
+PolyDup's Python bindings use `py.allow_threads()` to release the Global Interpreter Lock during scanning. This enables:
+
+1. **Concurrent Python execution**: Other Python threads continue running
+2. **True parallelism**: Rust's Rayon uses all CPU cores
+3. **Minimal overhead**: Zero-copy FFI with direct Rust integration
+
+### Benchmark Example
+
+```python
+import polydup
+import time
+
+start = time.time()
+report = polydup.find_duplicates(['./large-project'], min_block_size=30)
+elapsed = time.time() - start
+
+print(f"Scanned {report.files_scanned} files in {elapsed:.2f}s")
+print(f"Found {len(report.duplicates)} duplicates")
+print(f"Throughput: {report.stats.total_tokens / elapsed:.0f} tokens/sec")
+```
+
+## Algorithm
+
+PolyDup uses:
+- **Tree-sitter** for language-agnostic AST parsing
+- **Token normalization** for Type-2 clone detection (e.g., `userId` → `$$ID`)
+- **Rabin-Karp rolling hash** with window size 50 for efficient similarity detection
+- **Rayon** for parallel processing across CPU cores
+
+See [architecture-research.md](../../docs/architecture-research.md) for detailed algorithm analysis.
+
+## Development
+
+### Build
+
+```bash
+cd crates/polydup-py
+maturin develop  # Debug build
+maturin develop --release  # Optimized build
+```
+
+### Test
+
+```bash
+python test.py
+```
+
+### Type Checking
+
+```bash
+pip install mypy
+mypy test.py
+```
+
+## License
+
+MIT OR Apache-2.0
+
+## Links
+
+- **GitHub**: https://github.com/wiesnerbernard/polydup
+- **Core Library**: [polydup-core](../polydup-core)
+- **CLI Tool**: [polydup-cli](../polydup-cli)
+- **Node.js Bindings**: [polydup-node](../polydup-node)
+
