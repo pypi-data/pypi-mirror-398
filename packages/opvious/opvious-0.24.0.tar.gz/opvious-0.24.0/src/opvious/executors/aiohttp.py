@@ -1,0 +1,116 @@
+from collections.abc import AsyncIterator
+import contextlib
+import logging
+
+import aiohttp
+import brotli  # type: ignore
+
+from .common import (
+    CONTENT_TYPE_HEADER,
+    TRACE_HEADER,
+    BinaryExecutorResult,
+    Executor,
+    ExecutorError,
+    ExecutorResult,
+    Headers,
+    JsonExecutorResult,
+    JsonSeqExecutorResult,
+    PlainTextExecutorResult,
+)
+
+
+_logger = logging.getLogger(__name__)
+
+
+_BROTLI_QUALITY = 4
+
+
+_COMPRESSION_THRESHOLD = 2**16
+
+
+_READ_BUFFER_SIZE = 2**26  # 512MiB
+
+
+_REQUEST_TIMEOUT_SECONDS = 900  # 15 minutes
+
+
+class AiohttpExecutor(Executor):
+    """`aiohttp`-powered executor"""
+
+    def __init__(
+        self, endpoint: str, authorization: str | None = None
+    ) -> None:
+        super().__init__(
+            variant="aiohttp",
+            endpoint=endpoint,
+            authorization=authorization,
+            supports_streaming=True,
+        )
+
+    @contextlib.asynccontextmanager
+    async def _send(
+        self, url: str, method: str, headers: Headers, body: bytes | None
+    ) -> AsyncIterator[ExecutorResult]:
+        if body and len(body) > _COMPRESSION_THRESHOLD:
+            headers["content-encoding"] = "br"
+            compressed_body = brotli.compress(
+                body,
+                mode=brotli.MODE_TEXT,
+                quality=_BROTLI_QUALITY,
+            )
+            _logger.debug(
+                "Compressed request body. [size=%s]", len(compressed_body)
+            )
+            body = compressed_body
+        try:
+            async with (
+                aiohttp.ClientSession(
+                    headers=headers,
+                    read_bufsize=_READ_BUFFER_SIZE,
+                    timeout=aiohttp.ClientTimeout(
+                        total=_REQUEST_TIMEOUT_SECONDS
+                    ),
+                ) as session,
+                session.request(url=url, method=method, data=body) as res,
+            ):
+                status = res.status
+                trace = res.headers.get(TRACE_HEADER)
+                ctype = res.headers.get(CONTENT_TYPE_HEADER)
+                if JsonExecutorResult.is_eligible(ctype):
+                    text = await res.text()
+                    yield JsonExecutorResult(
+                        status=status,
+                        trace=trace,
+                        text=text,
+                    )
+                elif JsonSeqExecutorResult.is_eligible(ctype):
+                    yield JsonSeqExecutorResult(
+                        status=status,
+                        trace=trace,
+                        reader=res.content,
+                    )
+                elif PlainTextExecutorResult.is_eligible(ctype):
+                    yield PlainTextExecutorResult(
+                        status=status,
+                        trace=trace,
+                        reader=res.content,
+                    )
+                elif BinaryExecutorResult.is_eligible(ctype):
+                    yield BinaryExecutorResult(
+                        status=status,
+                        trace=trace,
+                        reader=res.content,
+                    )
+                else:
+                    text = await res.text()
+                    raise ExecutorError(
+                        status=status, trace=trace, reason=text
+                    )
+        except aiohttp.ClientResponseError as err:
+            trace = None
+            if isinstance(err.headers, list):
+                trace = next(
+                    (v for (k, v) in err.headers if k == TRACE_HEADER),
+                    None,
+                )
+            raise ExecutorError(status=err.status, trace=trace) from err
