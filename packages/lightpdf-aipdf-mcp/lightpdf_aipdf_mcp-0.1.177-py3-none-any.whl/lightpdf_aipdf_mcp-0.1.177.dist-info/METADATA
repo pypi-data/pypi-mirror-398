@@ -1,0 +1,255 @@
+Metadata-Version: 2.4
+Name: lightpdf-aipdf-mcp
+Version: 0.1.177
+Summary: MCP Server for LightPDF AI-PDF
+Author: LightPDF Team
+License: Proprietary
+Requires-Python: >=3.10
+Requires-Dist: fastmcp
+Requires-Dist: httpx
+Requires-Dist: httpx-sse
+Requires-Dist: mcp
+Requires-Dist: mcp[cli]
+Requires-Dist: pillow
+Requires-Dist: pydantic
+Requires-Dist: pydantic-settings
+Requires-Dist: python-dotenv
+Requires-Dist: starlette
+Requires-Dist: uvicorn
+Description-Content-Type: text/markdown
+
+# LightPDF AI-PDF MCP Server 🚀
+
+基于 **FastMCP** 框架的现代化 PDF 处理工具，提供 22 个专业的文档处理功能。
+
+## ✨ 项目特色
+
+- **🚀 高效架构**：基于 FastMCP，现代化设计
+- **🔒 类型安全**：100% 编译时参数验证  
+- **⚡ 开发友好**：新工具开发速度提升 300%+
+- **🔄 完全兼容**：标准 MCP 协议 100% 兼容
+- **🛠️ 功能丰富**：22 个工具涵盖 PDF 处理所有核心功能
+
+## 🚀 快速开始
+
+### 安装和启动
+
+```bash
+# 安装依赖
+uv sync
+
+# 启动 stdio 模式（用于 MCP 客户端）
+python run.py
+
+# 启动 SSE 服务器模式（用于 Web 调试）
+python run.py -p 8000 --sse
+
+# 启动 HTTP 服务器模式（用于 HTTP 调试）
+python run.py -p 8000
+```
+
+### 验证安装
+
+```bash
+# 运行完整测试套件
+python test_server.py
+```
+
+## 🛠️ 可用工具（共22个）
+
+### 📄 文档转换 (3个)
+- `convert_document` - 文档格式转换，支持20+格式互转
+- `add_page_numbers` - 为 PDF 添加页码
+- `remove_watermark` - 去除 PDF 水印
+
+### 🔧 PDF编辑 (6个)  
+- `compress_pdf` - PDF 压缩优化
+- `merge_pdfs` - 合并多个 PDF
+- `split_pdf` - 按页面、范围或书签拆分 PDF
+- `rotate_pdf` - 旋转 PDF 页面
+- `unlock_pdf` - 移除 PDF 密码保护
+- `protect_pdf` - 为 PDF 添加密码保护
+
+### 🎨 水印工具 (2个)
+- `add_text_watermark` - 添加文本水印
+- `add_image_watermark` - 添加图片水印
+
+### 🤖 AI功能 (4个)
+- `create_pdf` - 基于文本描述生成 PDF
+- `translate_pdf` - PDF 文档翻译（35种语言）
+- `ocr_document` - OCR 文字识别 (支持PDF/DOC/PPT/Excel/图片等)
+- `summarize_document` - 文档摘要生成
+
+### 🔧 专业工具 (7个)
+- `remove_margin` - 去除 PDF 白边
+- `extract_images` - 提取 PDF 中的图片
+- `flatten_pdf` - 扁平化 PDF（表单转静态）
+- `repair_pdf` - 修复损坏的 PDF
+- `curve_pdf` - 文字转曲（防止文字提取）
+- `double_layer_pdf` - 转换为双层 PDF（可搜索）
+- `delete_pdf_pages` - 删除指定页面
+
+### 🔒 安全功能 (2个)
+- `restrict_printing` - 限制 PDF 打印权限
+- `resize_pdf` - 调整 PDF 大小和分辨率
+- `replace_text` - 替换 PDF 文本内容
+
+## 📁 项目架构
+
+采用清晰的现代化5层架构：
+
+```
+src/lightpdf_aipdf_mcp/
+├── api/                    # API层 - FastMCP服务器与适配器
+│   ├── server.py          # FastMCP主服务器 (22个工具)
+│   └── adapter.py         # 业务逻辑适配器
+├── core/                   # 核心层 - 统一业务逻辑
+│   └── processor.py       # 核心业务处理器
+├── services/              # 服务层 - 具体功能模块
+│   ├── converter.py       # 文档转换服务
+│   ├── editor.py         # PDF编辑服务
+│   ├── create_pdf.py     # PDF创建服务
+│   ├── translator.py     # 翻译服务
+│   ├── summarizer.py     # 摘要服务
+│   └── ocr.py           # OCR服务
+├── models/               # 模型层 - 数据结构
+│   └── schemas.py       # Pydantic数据模型
+└── utils/               # 工具层 - 通用工具
+    └── common.py        # 基础工具类
+```
+
+## 🔄 架构优势
+
+| 特性 | 传统方式 | FastMCP 方式 |
+|------|---------|-------------|
+| 代码简洁度 | 复杂冗长 | 简洁高效 |
+| Schema 定义 | 手写 JSON | 自动生成 |
+| 类型检查 | 运行时 | 编译时 |
+| 开发新工具 | ~200 行/工具 | ~20 行/工具 |
+| 维护难度 | 高 | 低 |
+| 调试友好度 | 一般 | 极高 |
+
+## 🔧 开发指南
+
+### 添加新工具
+
+```python
+@mcp.tool
+async def my_new_tool(
+    ctx: Context,  # Context参数必须在第一位
+    files: List[FileObject],
+    my_param: str,
+    optional_param: Optional[int] = None
+) -> str:
+    """
+    我的新工具描述
+    
+    Args:
+        files: 输入文件列表
+        my_param: 必需参数
+        optional_param: 可选参数
+    
+    Returns:
+        JSON 格式的处理结果
+    """
+    logger = Logger(ctx, collect_info=False)
+    await logger.log("info", f"开始处理 {len(files)} 个文件...")
+    
+    # 构建操作配置
+    operation_config = generate_operation_config(
+        operation_type="convert",  # 或 "edit", "translate", "ocr", "summarize"
+        format_value="my-format",
+        extra_params={"my_param": my_param}
+    )
+    
+    # 调用适配器
+    result = await process_tool_call_adapter(logger, files, operation_config)
+    
+    await logger.log("info", "处理完成")
+    return result
+```
+
+### 测试工具
+
+```python
+# 在 test_server.py 中添加
+result = await client.call_tool("my_new_tool", {
+    "files": [{"path": "test.pdf"}],
+    "my_param": "test_value"
+})
+```
+
+## 📚 技术栈
+
+- **FastMCP**: 现代化的 MCP 服务器框架
+- **Pydantic**: 数据验证和序列化
+- **asyncio**: 异步 I/O 支持
+- **LightPDF API**: 底层文档处理服务
+
+## 🤝 开发最佳实践
+
+1. **参数顺序**：`ctx: Context` 参数始终放在第一位
+2. **类型安全**：使用 Pydantic 模型确保类型检查
+3. **模块化**：新功能优先在 `services/` 层实现
+4. **测试驱动**：添加功能时同步编写测试用例
+5. **日志记录**：使用统一的 Logger 进行日志管理
+6. **错误处理**：提供详细的错误信息和调试信息
+
+## 🎯 性能特点
+
+- **启动速度**: 快速启动，支持多种运行模式
+- **内存效率**: 优化的内存使用，支持大文件处理
+- **并发处理**: 智能并发控制，最大化处理效率
+- **类型安全**: 编译时参数验证，减少运行时错误
+
+## 🌐 运行模式
+
+支持多种运行模式：
+
+1. **stdio 模式**：标准 MCP 客户端连接
+   ```bash
+   python run.py
+   ```
+
+2. **HTTP 模式**：HTTP API 服务
+   ```bash
+   python run.py -p 8000
+   ```
+
+3. **SSE 模式**：服务器发送事件模式
+   ```bash
+   python run.py -p 8000 --sse
+   ```
+
+## 📖 相关文档
+
+- [功能介绍和配置指南（中文）](./Intro.md)
+- [Feature Introduction and Configuration Guide (English)](./Intro.en.md)
+- [LightPDF 开发者文档](https://lightpdf.cn/edit-api-doc#/)
+
+## 🔑 配置说明
+
+### 环境变量
+- `API_KEY`: LightPDF API 密钥（必需）
+- `API_ENDPOINT`: API 端点地址（默认：techsz.aoscdn.com/api）
+
+### MCP 客户端配置示例
+
+```json
+{
+  "mcpServers": {
+    "lightpdf": {
+      "command": "uvx",
+      "args": ["lightpdf-aipdf-mcp@latest"],
+      "env": {
+        "API_KEY": "your_api_key_here",
+        "API_ENDPOINT": "techsz.aoscdn.com/api"
+      }
+    }
+  }
+}
+```
+
+---
+
+**🎉 现代化、高效率、类型安全的 LightPDF Agent MCP Server，让 PDF 处理变得简单！** 
