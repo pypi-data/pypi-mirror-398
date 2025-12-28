@@ -1,0 +1,547 @@
+Metadata-Version: 2.4
+Name: aegis-vision
+Version: 0.2.49
+Summary: Cloud-native computer vision model training toolkit for Aegis AI
+Author-email: Aegis AI Team <your-email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/your-org/aegis-vision
+Project-URL: Documentation, https://aegis-vision.readthedocs.io
+Project-URL: Repository, https://github.com/your-org/aegis-vision
+Project-URL: Bug Tracker, https://github.com/your-org/aegis-vision/issues
+Keywords: computer-vision,yolo,model-training,kaggle,wandb,object-detection
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Image Recognition
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: numpy<2.0.0,>=1.24.0
+Requires-Dist: wandb>=0.15.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: tqdm>=4.65.0
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: firebase-admin>=6.0.0
+Requires-Dist: google-cloud-firestore>=2.11.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: kaggle>=1.5.0
+Requires-Dist: kagglehub>=0.2.0
+Requires-Dist: datasets>=2.16.0
+Requires-Dist: huggingface-hub>=0.20.0
+Requires-Dist: coremltools>=8.0.0; platform_machine != "aarch64" or sys_platform == "darwin"
+Provides-Extra: training
+Requires-Dist: ultralytics>=8.0.0; extra == "training"
+Requires-Dist: pycocotools>=2.0.6; extra == "training"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Provides-Extra: all
+Requires-Dist: aegis-vision[dev,training]; extra == "all"
+Dynamic: license-file
+
+# Aegis Vision
+
+> Cloud-native computer vision model training toolkit for Aegis AI
+
+[![PyPI version](https://badge.fury.io/py/aegis-vision.svg)](https://badge.fury.io/py/aegis-vision)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Overview
+
+**Aegis Vision** is a streamlined toolkit for training computer vision models in cloud environments (Kaggle, Colab, etc.) with built-in support for:
+
+- 🎯 **YOLO Models** (v8, v9, v10, v11) - Object detection training
+- 📊 **Wandb Integration** - Experiment tracking and visualization
+- 🔄 **COCO Format** - Dataset conversion and handling
+- ☁️ **Cloud-Optimized** - Designed for Kaggle/Colab workflows
+- 📦 **Model Export** - ONNX, CoreML, OpenVINO, TensorRT, TFLite
+
+## Installation
+
+### Standard Installation
+
+```bash
+# Basic installation
+pip install aegis-vision
+
+# With Kaggle support
+pip install aegis-vision[kaggle]
+
+# Development installation
+pip install aegis-vision[dev]
+
+# All features
+pip install aegis-vision[all]
+```
+
+### Headless Environments (Docker, CI/CD)
+
+The package uses `opencv-python-headless` by default, which works in both GUI and headless environments:
+
+```bash
+# Standard installation (works in all environments)
+pip install aegis-vision
+```
+
+No special configuration needed - the package automatically works in Docker containers, CI/CD systems, and GUI environments.
+
+### Nvidia DGX / High-Performance GPU Systems
+
+For Nvidia DGX Spark or other systems with latest NVIDIA GPUs (Blackwell architecture), installation is the same:
+
+```bash
+# Standard installation with automatic environment checking
+pip install aegis-vision
+
+# Login and start (agent will auto-check and fix environment)
+aegis-agent login
+aegis-agent start
+```
+
+The agent automatically:
+- Detects environment issues (NumPy, PyTorch compatibility)
+- Explains what's wrong and why
+- Offers one-click fixes
+- Starts agent after fixes
+
+See [`QUICKSTART_DGX.txt`](QUICKSTART_DGX.txt) for detailed guide.
+
+### GPU Detection & Support
+
+The Aegis Vision training agent includes comprehensive GPU detection that supports modern NVIDIA architectures:
+
+#### Supported GPU Architectures
+
+| Architecture | Compute Capability | GPU Examples | Status |
+|---|---|---|---|
+| Volta | 7.0 | V100, Titan V | ✓ Supported |
+| Turing | 7.5 | RTX 2080, RTX 2090, Titan RTX | ✓ Supported |
+| Ampere | 8.0-8.6 | A100, RTX 3090, RTX 3080 | ✓ Supported |
+| Ada | 8.9 | RTX 4090, RTX 4080, L40S | ✓ Supported |
+| Hopper | 9.0-9.1 | H100, H200 | ✓ Supported |
+| Blackwell | 9.2 | B100, B200 | ✓ Supported |
+
+#### GPU Detection Methods
+
+The agent uses a dual-detection approach for maximum reliability:
+
+1. **PyTorch Detection** (Primary)
+   - Queries `torch.cuda.is_available()` and device properties
+   - Provides compute capability and device memory
+   - Fastest detection method
+
+2. **nvidia-smi Fallback** (Secondary)
+   - Runs `nvidia-smi` command for GPU discovery
+   - Detects GPUs even if PyTorch CUDA runtime is unavailable
+   - Captures NVIDIA driver version and CUDA version from `nvcc`
+   - Handles edge cases: PyTorch built without CUDA, mismatched CUDA versions, etc.
+
+#### Check GPU Detection
+
+```bash
+# Show detailed GPU information
+aegis-agent info
+
+# Example output with H100:
+# 🎮 GPU Information:
+#   Detection Method: PyTorch
+#   CUDA Version: 12.1
+#   Driver Version: 550.120
+#   GPU 0:
+#     Name: NVIDIA H100 80GB
+#     Memory: 80.0 GB
+#     Compute Capability: 9.0
+```
+
+#### CUDA Architecture Auto-Configuration
+
+The agent automatically configures optimal CUDA architectures for training:
+
+```bash
+TORCH_CUDA_ARCH_LIST=7.0 7.5 8.0 8.6 8.9 9.0 9.1 9.2+PTX
+```
+
+This includes:
+- **PTX** flag for forward compatibility with future GPU architectures
+- All major consumer and data center GPUs
+- Optimal compilation for the target system
+
+Custom architectures can be set via environment variable:
+
+```bash
+# Force specific GPU architecture
+export TORCH_CUDA_ARCH_LIST="9.0 9.2+PTX"
+aegis-agent start
+```
+
+#### Troubleshooting GPU Detection
+
+If GPU is not detected despite having NVIDIA GPUs installed:
+
+```bash
+# 1. Verify NVIDIA driver is installed
+nvidia-smi
+
+# 2. Check CUDA version
+nvcc --version
+
+# 3. View detailed system info
+aegis-agent info
+
+# 4. Check CUDA compatibility
+aegis-agent check-env
+```
+
+If detection shows "CPU Only" but GPU is available:
+- The PyTorch in the environment may have been built without CUDA support
+- The agent will automatically use the `nvidia-smi` fallback method
+- Check driver and CUDA toolkit compatibility with your PyTorch version
+
+## Quick Start
+
+### Training a YOLO Model
+
+```python
+from aegis_vision import YOLOTrainer
+
+# Initialize trainer
+trainer = YOLOTrainer(
+    model_variant="yolov11l",
+    dataset_path="/kaggle/input/my-dataset",
+    epochs=100,
+    batch_size=16,
+)
+
+# Configure Wandb tracking (optional)
+trainer.setup_wandb(
+    project="my-project",
+    entity="my-team",
+    api_key="your-api-key"
+)
+
+# Train
+results = trainer.train()
+
+# Export to multiple formats
+trainer.export(formats=["onnx", "coreml", "openvino"])
+```
+
+### Converting COCO to YOLO Format
+
+```python
+from aegis_vision import COCOConverter
+
+# Convert dataset
+converter = COCOConverter(
+    annotations_file="annotations.json",
+    images_dir="images/",
+    output_dir="yolo_dataset/"
+)
+
+stats = converter.convert()
+print(f"Converted {stats['total_annotations']} annotations")
+```
+
+### Command-Line Interface
+
+```bash
+# Train a model
+aegis-train \
+    --model yolov11l \
+    --data /path/to/dataset \
+    --epochs 100 \
+    --batch 16 \
+    --wandb-project my-project
+
+# Convert COCO to YOLO
+aegis-train convert-coco \
+    --annotations annotations.json \
+    --images images/ \
+    --output yolo_dataset/
+```
+
+## Features
+
+### 🎯 YOLO Training
+
+- **Multi-version support**: YOLOv8, v9, v10, v11
+- **Fine-tuning & from-scratch** training modes
+- **Automatic augmentation** configuration
+- **Early stopping** with patience
+- **Validation metrics**: mAP50, mAP50-95, precision, recall
+
+### 📊 Experiment Tracking
+
+- **Wandb integration** for metrics, charts, and artifacts
+- **Automatic logging** of hyperparameters, metrics, and model outputs
+- **Run resumption** support
+
+### 🔄 Dataset Handling
+
+- **COCO format** support
+- **Auto-conversion** to YOLO format
+- **Label filtering** and validation
+- **Dataset statistics** reporting
+
+### 📦 Model Export
+
+- **ONNX** - Cross-platform inference
+- **CoreML** - iOS/macOS deployment
+- **OpenVINO** - Intel hardware optimization
+- **TensorRT** - NVIDIA GPU optimization
+- **TFLite** - Mobile/edge deployment
+
+### ☁️ Cloud Environment Support
+
+- **Kaggle** - Kernel execution and dataset management
+- **Google Colab** - Ready-to-use notebooks
+- **Environment detection** - Auto-configuration for different platforms
+
+## Configuration
+
+### Training Configuration
+
+```python
+config = {
+    # Model settings
+    "model_variant": "yolov11l",
+    "training_mode": "fine_tune",  # or "from_scratch"
+    
+    # Training hyperparameters
+    "epochs": 100,
+    "batch_size": 16,
+    "img_size": 640,
+    "learning_rate": 0.01,
+    "momentum": 0.937,
+    "weight_decay": 0.0005,
+    
+    # Augmentation
+    "augmentation": {
+        "hsv_h": 0.015,
+        "hsv_s": 0.7,
+        "hsv_v": 0.4,
+        "degrees": 0.0,
+        "translate": 0.1,
+        "scale": 0.5,
+        "shear": 0.0,
+        "perspective": 0.0,
+        "flipud": 0.0,
+        "fliplr": 0.5,
+        "mosaic": 1.0,
+        "mixup": 0.0,
+    },
+    
+    # Early stopping
+    "early_stopping": {
+        "enabled": True,
+        "patience": 50,
+        "min_delta": 0.0001
+    },
+    
+    # Wandb
+    "wandb_enabled": True,
+    "wandb_project": "my-project",
+    "wandb_entity": "my-team",
+    
+    # Export
+    "output_formats": ["onnx", "coreml", "openvino"],
+}
+
+trainer = YOLOTrainer(**config)
+```
+
+## Examples
+
+### Kaggle Kernel
+
+```python
+# In a Kaggle kernel
+from aegis_vision import YOLOTrainer
+
+trainer = YOLOTrainer(
+    model_variant="yolov11l",
+    dataset_path="/kaggle/input/my-dataset",
+    epochs=100,
+    wandb_api_key="/kaggle/input/secrets/wandb_api_key.txt"
+)
+
+results = trainer.train()
+trainer.save_to_kaggle_output()
+```
+
+### Custom Dataset
+
+```python
+from aegis_vision import YOLOTrainer, COCOConverter
+
+# 1. Convert your COCO dataset
+converter = COCOConverter(
+    annotations_file="my_annotations.json",
+    images_dir="my_images/",
+    output_dir="yolo_dataset/",
+    labels_filter=["person", "car", "dog"]  # Optional filtering
+)
+converter.convert()
+
+# 2. Train
+trainer = YOLOTrainer(
+    model_variant="yolov11m",
+    dataset_path="yolo_dataset/",
+    epochs=50,
+)
+results = trainer.train()
+```
+
+## API Reference
+
+### YOLOTrainer
+
+Main class for training YOLO models.
+
+**Methods**:
+- `train()` - Start training
+- `setup_wandb()` - Configure Wandb tracking
+- `export()` - Export trained model
+- `validate()` - Run validation
+- `get_metrics()` - Retrieve training metrics
+
+### COCOConverter
+
+Convert COCO format datasets to YOLO format.
+
+**Methods**:
+- `convert()` - Perform conversion
+- `validate()` - Check dataset integrity
+- `get_statistics()` - Dataset statistics
+
+## Development
+
+```bash
+# Clone repository
+git clone https://github.com/your-org/aegis-vision.git
+cd aegis-vision
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black src/
+
+# Lint
+ruff src/
+```
+
+### Testing & Debugging
+
+#### Programmatic Task Submission
+
+Test the agent without using the UI:
+
+```bash
+# Submit a basic training task
+python test_submit_task.py
+
+# Submit with CoreML export
+python test_submit_task.py --coreml --epochs 5
+
+# Submit with custom configuration
+python test_submit_task.py --model yolo11n --epochs 10 --batch-size 16
+```
+
+See [`TEST_TASK_SUBMISSION.md`](TEST_TASK_SUBMISSION.md) for complete documentation.
+
+#### Debugging with VS Code/Cursor
+
+1. **Set up debugging**:
+   ```bash
+   # Debug configurations are pre-configured in .vscode/launch.json
+   # Just open the project in VS Code/Cursor
+   ```
+
+2. **Start debugging**:
+   - Set breakpoints in `src/aegis_vision/agent.py` or `trainer.py`
+   - Press F5 and select "Debug Aegis Agent"
+   - Submit a task (via UI or `test_submit_task.py`)
+   - Debugger will pause at your breakpoints
+
+3. **Common debugging scenarios**:
+   - CoreML export issues: Breakpoint at `trainer.py:_export_coreml()`
+   - Task execution: Breakpoint at `agent.py:execute_task()`
+   - Training config: Breakpoint at `training_script.py:main()`
+
+See [`DEBUG_GUIDE.md`](DEBUG_GUIDE.md) for comprehensive debugging documentation.
+
+#### Combined Testing Workflow
+
+The most powerful debugging approach:
+
+```bash
+# Terminal 1: Start agent in debug mode (VS Code/Cursor)
+# Press F5 → "Debug Aegis Agent"
+# Set breakpoints in agent.py or trainer.py
+
+# Terminal 2: Submit test task
+python test_submit_task.py --coreml
+
+# Debugger will pause at breakpoints
+# Inspect variables, step through code, fix issues
+```
+
+This enables rapid iteration without manual UI interaction.
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Roadmap
+
+- [ ] Support for additional YOLO architectures
+- [ ] Integration with Hugging Face Hub
+- [ ] Distributed training support
+- [ ] Auto-hyperparameter tuning
+- [ ] Model quantization utilities
+- [ ] Segmentation and pose estimation models
+- [ ] Real-time inference utilities
+
+## Citation
+
+```bibtex
+@software{aegis_vision,
+  title = {Aegis Vision: Cloud-native Computer Vision Training Toolkit},
+  author = {Aegis AI Team},
+  year = {2025},
+  url = {https://github.com/your-org/aegis-vision}
+}
+```
+
+## Support
+
+- 📧 Email: support@aegis-ai.com
+- 💬 Discord: [Join our community](https://discord.gg/aegis-ai)
+- 📚 Documentation: [https://aegis-vision.readthedocs.io](https://aegis-vision.readthedocs.io)
+- 🐛 Issues: [GitHub Issues](https://github.com/your-org/aegis-vision/issues)
+
+
