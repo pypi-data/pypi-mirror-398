@@ -1,0 +1,80 @@
+from abc import abstractmethod
+from collections.abc import Awaitable, Callable, Generator
+from dataclasses import dataclass
+from typing import (
+    Any,
+    AsyncContextManager,
+    NoReturn,
+    Protocol,
+    runtime_checkable,
+)
+
+AsyncSemaphore: Callable[[int], AsyncContextManager[Any]]
+
+try:
+    import anyio
+
+except ImportError:  # pragma: no cover
+    import asyncio
+
+    AsyncSemaphore = asyncio.Semaphore
+
+else:
+    AsyncSemaphore = anyio.Semaphore
+
+
+@dataclass(repr=False, eq=False, frozen=True, slots=True)
+class SimpleAwaitable[T](Awaitable[T]):
+    callable: Callable[..., Awaitable[T]]
+
+    def __await__(self) -> Generator[Any, Any, T]:
+        return self.callable().__await__()
+
+
+@runtime_checkable
+class Caller[**P, T](Protocol):
+    __slots__ = ()
+
+    @abstractmethod
+    async def acall(self, /, *args: P.args, **kwargs: P.kwargs) -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def call(self, /, *args: P.args, **kwargs: P.kwargs) -> T:
+        raise NotImplementedError
+
+
+@dataclass(repr=False, eq=False, frozen=True, slots=True)
+class AsyncCaller[**P, T](Caller[P, T]):
+    callable: Callable[P, Awaitable[T]]
+
+    async def acall(self, /, *args: P.args, **kwargs: P.kwargs) -> T:
+        return await self.callable(*args, **kwargs)
+
+    def call(self, /, *args: P.args, **kwargs: P.kwargs) -> NoReturn:
+        raise RuntimeError("Can't call async callable synchronously.")
+
+
+@dataclass(repr=False, eq=False, frozen=True, slots=True)
+class SyncCaller[**P, T](Caller[P, T]):
+    callable: Callable[P, T]
+
+    async def acall(self, /, *args: P.args, **kwargs: P.kwargs) -> T:
+        return self.callable(*args, **kwargs)
+
+    def call(self, /, *args: P.args, **kwargs: P.kwargs) -> T:
+        return self.callable(*args, **kwargs)
+
+
+@runtime_checkable
+class HiddenCaller[**P, T](Protocol):
+    __slots__ = ()
+
+    @property
+    @abstractmethod
+    def __injection_hidden_caller__(self) -> Caller[P, T]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def __call__(self, /, *args: P.args, **kwargs: P.kwargs) -> T:
+        raise NotImplementedError
