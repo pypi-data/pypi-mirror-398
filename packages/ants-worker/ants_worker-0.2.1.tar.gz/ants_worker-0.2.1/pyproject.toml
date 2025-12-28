@@ -1,0 +1,94 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ants-worker"
+version = "0.2.1"
+description = "Distributed compute worker for Ants at Work colony"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Ants at Work", email = "hello@ants-at-work.com"}
+]
+keywords = ["distributed", "compute", "gpu", "npu", "amd", "ryzen-ai", "kangaroo", "ecdlp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+# NVIDIA GPU support
+cuda = [
+    "cupy-cuda12x>=12.0",
+]
+# AMD GPU support (ROCm)
+amd = [
+    "torch>=2.0",  # With ROCm support
+    "pyopencl>=2023.1",
+]
+# AMD NPU support (Ryzen AI)
+npu = [
+    "onnxruntime-directml>=1.16.0",  # Windows
+]
+# Legacy alias
+gpu = [
+    "cupy-cuda12x>=12.0",
+]
+agent = [
+    "uagents>=0.6.0",
+]
+typedb = [
+    "typedb-driver>=3.0.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "black>=23.0",
+    "mypy>=1.0",
+]
+all = [
+    "ants-worker[cuda,amd,agent,typedb,dev]",
+]
+
+[project.scripts]
+ants-worker = "ants_worker.cli:main"
+
+[project.urls]
+Homepage = "https://ants-at-work.com"
+Documentation = "https://github.com/ants-at-work/worker"
+Repository = "https://github.com/ants-at-work/worker"
+Issues = "https://github.com/ants-at-work/worker/issues"
+
+[tool.setuptools]
+packages = ["ants_worker", "ants_worker.core", "ants_worker.plugins", "ants_worker.plugins.compute", "ants_worker.plugins.cloud"]
+
+[tool.setuptools.package-data]
+ants_worker = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
