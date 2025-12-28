@@ -1,0 +1,320 @@
+Metadata-Version: 2.4
+Name: bohr-agent-sdk
+Version: 0.1.121
+Summary: SDK for scientific agents
+Home-page: https://github.com/dptech-corp/bohr-agent-sdk/
+Author: DP Technology
+Maintainer-email: liupeng <liupeng@dp.tech>, zjgemi <liuxzj@dp.tech>
+License: MIT
+Project-URL: Homepage, https://github.com/dptech-corp/bohr-agent-sdk
+Project-URL: repository, https://github.com/dptech-corp/bohr-agent-sdk
+Project-URL: Bug Reports, https://github.com/dptech-corp/bohr-agent-sdk/issues
+Keywords: agent SDK,AI for science
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.0.0
+Requires-Dist: mcp>=1.17.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: typing-extensions>=4.8.0
+Requires-Dist: dpdispatcher>=0.6.8
+Requires-Dist: lbg>=1.2.29
+Requires-Dist: jsonpickle>=3.0.3
+Requires-Dist: psutil>=5.9.6
+Requires-Dist: paho-mqtt>=2.1.0
+Requires-Dist: redis>=6.2.0
+Requires-Dist: twine>=6.1.0
+Requires-Dist: build>=1.2.2.post1
+Requires-Dist: cloudpickle
+Requires-Dist: watchdog>=6.0.0
+Requires-Dist: fastapi>=0.116.0
+Requires-Dist: bohrium-open-sdk
+Provides-Extra: device
+Requires-Dist: pywinauto-recorder>=0.1.0; extra == "device"
+Provides-Extra: cloud
+Requires-Dist: paho-mqtt>=1.6.1; extra == "cloud"
+Requires-Dist: redis>=5.0.1; extra == "cloud"
+Requires-Dist: aiohttp>=3.9.1; extra == "cloud"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.11.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Requires-Dist: pylint>=3.0.0; extra == "dev"
+Requires-Dist: google-adk; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.2.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.3.0; extra == "docs"
+Provides-Extra: all
+Requires-Dist: bohr-agent-sdk[bohrium,cloud,dev,device,dispatcher,docs]; extra == "all"
+Dynamic: home-page
+Dynamic: requires-python
+
+# Bohrium Science Agent SDK
+
+[English](README.md) | [简体中文](README_CN.md)
+
+**Transform Scientific Software into AI Assistants — 3 Steps to Intelligent Transformation**
+
+## 📖 Introduction
+
+The Bohrium platform introduces the **bohr-agent-sdk Scientific Agent Development Kit**, enabling AI systems to truly execute professional scientific tasks and helping developers quickly build their own specialized research agents. Through a three-step process — **Invoking MCP Tools, Orchestrating Agent Workflows, and Deploying Services** — any scientific software can be rapidly transformed into an AI assistant.
+
+## ✨ Core Features
+
+### 🎯 Intelligent Task Management: Simplified Development, Standardized Output
+With a decorator pattern, just a few annotations can quickly transform scientific computing programs into MCP standard services. Built-in application templates turn scattered research code into standardized, reusable intelligent components.
+
+### 🔧 Multi-Backend Framework Support
+Supports mainstream Agent open frameworks including Google ADK, Langraph, and Camel, providing flexible choices for developers familiar with different technology stacks.
+
+### ☁️ Flexible Deployment: Local Development, Cloud Production
+Dual-mode architecture supports seamless transition between development and production. Local environments enable rapid iteration and feature validation, while Bohrium's cloud GPU clusters handle production-grade computing tasks. The SDK automatically manages the complete workflow of task scheduling, status monitoring, and result collection, with built-in file transfer mechanisms for handling large-scale data uploads and downloads. Developers focus on core algorithm implementation while infrastructure management is fully automated.
+
+### 🖼️ Visual Interactive Interface: Professional Presentation, Intuitive Operation
+Based on the modern React framework, deploy fully-featured web applications with one click. Built-in 3D molecular visualization engine supports multiple structure formats and rendering modes for interactive molecular structure display. Real-time data synchronization ensures instant computing status updates, while multi-session management supports parallel task processing. Integrated with enterprise-grade features including file management, project switching, and permission control. Transform command-line tools into professional visual applications, significantly enhancing user experience and tool usability.
+
+## 🖼️ Interface Showcase
+
+### Scientific Computing Master Console
+<div align="center">
+
+![SCIMaster](image/SCIMaster.PNG)
+
+*Powerful scientific computing task management and monitoring platform*
+
+</div>
+
+### Visual Interactive Interface
+<div align="center">
+
+![UI](image/UI.png)
+
+*Modern web application interface providing intuitive user experience*
+
+</div>
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install bohr-agent-sdk -i https://pypi.org/simple --upgrade
+```
+
+### Build Your Research Agent in 3 Steps
+
+#### Step 1: Get Project Templates
+
+```bash
+# Get calculation project template
+dp-agent fetch scaffolding --type=calculation
+
+# Get device control project template
+dp-agent fetch scaffolding --type=device
+
+# Get configuration file
+dp-agent fetch config
+```
+
+#### Step 2: Develop Your Agent
+
+**Lab Mode Development Example**
+
+```python
+from typing import Dict, TypedDict
+from dp.agent.device.device import Device, action, BaseParams, SuccessResult
+
+class TakePictureParams(BaseParams):
+    """Picture taking parameters"""
+    horizontal_width: str  # Image horizontal width
+
+class PictureData(TypedDict):
+    """Picture data structure"""
+    image_id: str
+
+class PictureResult(SuccessResult):
+    """Picture taking result"""
+    data: PictureData
+
+class MyDevice(Device):
+    """Custom device class"""
+    device_name = "my_device"
+
+    @action("take_picture")
+    def take_picture(self, params: TakePictureParams) -> PictureResult:
+        """
+        Execute picture taking action
+
+        Through the @action decorator, automatically register this method as an MCP standard service
+        """
+        hw = params.get("horizontal_width", "default")
+        # Execute actual device control logic
+        return PictureResult(
+            message=f"Picture taken with {self.device_name}",
+            data={"image_id": "image_123"}
+        )
+```
+
+**Cloud Mode Development Example**
+
+```python
+"""
+MCP protocol-based cloud device control example
+"""
+import signal
+import sys
+from dp.agent.cloud import mcp, get_mqtt_cloud_instance
+from dp.agent.device.device import TescanDevice, register_mcp_tools
+
+def signal_handler(sig, frame):
+    """Graceful shutdown handling"""
+    print("Shutting down...")
+    get_mqtt_cloud_instance().stop()
+    sys.exit(0)
+
+def main():
+    """Start cloud services"""
+    print("Starting Tescan Device Twin Cloud Services...")
+
+    # Register signal handler
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # Create device instance
+    device = TescanDevice(mcp, device)
+
+    # Automatically register device tools to MCP server
+    # register_mcp_tools implements automatic registration through Python introspection
+    register_mcp_tools(device)
+
+    # Start MCP server
+    print("Starting MCP server...")
+    mcp.run(transport="sse")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Step 3: Run and Deploy
+
+```bash
+# Local lab environment
+dp-agent run tool device
+
+# Cloud computing environment
+dp-agent run tool cloud
+
+# Scientific calculation mode
+dp-agent run tool calculation
+
+# Start agent (with Web UI)
+dp-agent run agent --config
+
+# Debug mode
+dp-agent run debug
+```
+
+## 🏗️ Project Structure
+
+After running `dp-agent fetch scaffolding`, you'll get a standardized project structure:
+
+```
+your-project/
+├── lab/                    # Lab mode
+│   ├── __init__.py
+│   └── tescan_device.py    # Device control implementation
+├── cloud/                  # Cloud mode
+│   ├── __init__.py
+│   └── mcp_server.py       # MCP service implementation
+├── calculation/            # Calculation mode
+│   └── __init__.py
+├── .env                    # Environment configuration
+└── main.py                 # Main program entry
+```
+
+## ⚙️ Configuration
+
+Configure necessary environment variables in the `.env` file:
+
+```bash
+# MQTT connection configuration
+MQTT_INSTANCE_ID=your_instance_id
+MQTT_ENDPOINT=your_endpoint
+MQTT_DEVICE_ID=your_device_id
+MQTT_GROUP_ID=your_group_id
+MQTT_AK=your_access_key
+MQTT_SK=your_secret_key
+
+# Computing resource configuration
+BOHRIUM_USERNAME=your_username
+BOHRIUM_PASSWORD=your_password
+```
+
+Note: The `dp-agent fetch config` command automatically downloads configuration files and replaces dynamic variables (such as MQTT_DEVICE_ID). For security reasons, this feature is only available in internal network environments.
+
+## 🔒 Authentication Configuration
+
+For private deployments or development environment debugging, you need to configure the following environment variables:
+
+- `BOHR_ACCESS_KEY`: Requires a real Access Key obtained from [Bohrium User Settings](https://www.bohrium.com/settings/user)
+- `BOHR_APP_KEY`: Can be set to any value for development
+
+### Linux/macOS:
+```bash
+export BOHR_ACCESS_KEY=your_real_ak_from_bohrium_settings
+export BOHR_APP_KEY=any_value_for_dev
+```
+
+### Windows (Command Prompt):
+```cmd
+set BOHR_ACCESS_KEY=your_real_ak_from_bohrium_settings
+set BOHR_APP_KEY=any_value_for_dev
+```
+
+### Windows (PowerShell):
+```powershell
+$env:BOHR_ACCESS_KEY="your_real_ak_from_bohrium_settings"
+$env:BOHR_APP_KEY="any_value_for_dev"
+```
+
+For agents deployed on Bohrium APP, authentication parameters will be automatically obtained from cookies.
+
+## 🎯 Application Scenarios
+
+- **Materials Science Computing**: Molecular dynamics simulation, first-principles calculations
+- **Bioinformatics Analysis**: Gene sequence analysis, protein structure prediction
+- **Laboratory Equipment Control**: Intelligent control of research equipment such as electron microscopes and X-ray diffractometers
+- **Data Processing Workflows**: Automated data cleaning, analysis, and visualization
+- **Machine Learning Training**: Model training, hyperparameter optimization, result evaluation
+
+## 🔧 Advanced Features
+
+### File Management
+
+```bash
+# Upload files to cloud
+dp-agent artifact upload <path>
+
+# Download cloud files
+dp-agent artifact download <artifact_id>
+```
+
+### Task Monitoring
+
+The SDK provides real-time task status monitoring, supporting:
+- Task queue management
+- Computing resource scheduling
+- Automatic result collection
+- Exception handling and retry mechanisms
+
+## 📚 Documentation & Support
+
+- 📖 [Detailed Documentation](https://dptechnology.feishu.cn/wiki/ZSj9wbLJEiwdNek0Iu7cKsFanuW)
+
