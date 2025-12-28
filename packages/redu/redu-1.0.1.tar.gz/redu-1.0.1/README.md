@@ -1,0 +1,136 @@
+# Redu CLI
+
+The **Redu CLI** is a command-line tool for interacting with the **redu.cloud** platform.
+It allows you to authenticate, manage servers, networks, images, and other cloud resources
+directly from your terminal.
+
+---
+
+## Installation
+
+### Option 1 (recommended): Python via pipx  
+This installs `redu` as a global command without affecting your system Python.
+
+#### Debian / Ubuntu
+```bash
+sudo apt update
+sudo apt install -y pipx
+pipx ensurepath
+# reopen terminal or run:
+source ~/.profile
+
+pipx install redu
+redu --help
+````
+
+Upgrade:
+
+```bash
+pipx upgrade redu
+```
+
+Uninstall:
+
+```bash
+pipx uninstall redu
+```
+
+---
+
+### Option 2: Debian / Ubuntu (.deb package)
+
+If you prefer a system package install:
+
+```bash
+wget https://redu.cloud/redu_1.0.0_amd64.deb
+sudo apt update
+sudo apt install -y ./redu_1.0.0_amd64.deb
+```
+
+Verify:
+
+```bash
+redu --help
+```
+
+---
+
+### Option 3: Python virtual environment (portable)
+
+Use this method if you don’t want a system-wide install or `pipx` is not available.
+
+```bash
+python3 -m venv ~/redu-venv
+source ~/redu-venv/bin/activate
+pip install -U pip
+pip install redu
+redu --help
+```
+
+To deactivate later:
+
+```bash
+deactivate
+```
+
+---
+
+## Quick start
+
+Authenticate:
+
+```bash
+redu auth -u <username>
+```
+
+Check who you are logged in as:
+
+```bash
+redu whoami
+```
+
+List servers:
+
+```bash
+redu server list
+```
+
+---
+
+## Commands overview
+
+```bash
+redu ai
+redu auth
+redu image
+redu network
+redu server
+redu setup
+redu ssh
+redu whoami
+```
+
+Use `--help` on any command for more details:
+
+```bash
+redu server --help
+```
+
+---
+
+## License
+
+This CLI is **source-visible but proprietary** software.
+
+You may use it with redu.cloud services, but you may not modify, redistribute,
+or create derivative works without explicit written permission.
+
+See the `LICENSE` file for full terms.
+
+---
+
+## Support
+
+* Website: [https://redu.cloud](https://redu.cloud)
+* Documentation: [https://redu.cloud/docs](https://redu.cloud/docs)
+
