@@ -1,0 +1,262 @@
+{% extends 'aapayout/base.html' %}
+{% load i18n %}
+{% load humanize %}
+{% load aapayout_filters %}
+
+{% block details %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>{% translate "Loot Payout Dashboard" %}</h2>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">{% translate "Pending Payouts" %}</h5>
+                    <p class="card-text display-6">{{ pending_loot_pools|length }}</p>
+                    <p class="text-muted">{{ total_pending|isk_format_full }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h5 class="card-title">{% translate "Recent Payout Sessions" %}</h5>
+                    <p class="card-text display-6">{{ recent_fleets|length }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Payouts Table (one line per fleet/loot pool) -->
+    {% if pending_loot_pools %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% if can_view_all %}{% translate "Pending Payouts" %}{% else %}{% translate "Your Pending Payouts" %}{% endif %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>{% translate "Fleet" %}</th>
+                                    <th>{% translate "Date" %}</th>
+                                    {% if can_view_all %}<th>{% translate "FC" %}</th>{% endif %}
+                                    <th class="text-center">{% translate "Pending" %}</th>
+                                    <th class="text-end">{% translate "Amount" %}</th>
+                                    <th>{% translate "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pool in pending_loot_pools %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'aapayout:fleet_detail' pool.fleet.pk %}">
+                                            {{ pool.fleet.name }}
+                                        </a>
+                                    </td>
+                                    <td><small>{{ pool.created_at|date:"Y-m-d H:i" }}</small></td>
+                                    {% if can_view_all %}
+                                    <td>{{ pool.fleet.fleet_commander.username }}</td>
+                                    {% endif %}
+                                    <td class="text-center">
+                                        <span class="badge bg-warning">{{ pool.pending_count }} {% translate "pending" %}</span>
+                                    </td>
+                                    <td class="text-end">{{ pool.pending_amount|isk_format_full }}</td>
+                                    <td>
+                                        <a href="{% url 'aapayout:fleet_detail' pool.fleet.pk %}" class="btn btn-sm btn-primary">
+                                            {% translate "View" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> {% translate "No pending payouts at the moment" %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Payout Sessions (FC's fleets) -->
+    {% if recent_fleets %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>{% translate "Your Recent Payout Sessions" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>{% translate "Payout Name" %}</th>
+                                    <th>{% translate "Date" %}</th>
+                                    <th>{% translate "Status" %}</th>
+                                    <th>{% translate "Participants" %}</th>
+                                    <th class="text-end">{% translate "Total Value" %}</th>
+                                    <th>{% translate "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for fleet in recent_fleets %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'aapayout:fleet_detail' fleet.pk %}">
+                                            {{ fleet.name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ fleet.fleet_time|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        {% if fleet.status == 'draft' %}
+                                            <span class="badge bg-secondary">{{ fleet.get_status_display }}</span>
+                                        {% elif fleet.status == 'active' %}
+                                            <span class="badge bg-primary">{{ fleet.get_status_display }}</span>
+                                        {% elif fleet.status == 'completed' %}
+                                            <span class="badge bg-success">{{ fleet.get_status_display }}</span>
+                                        {% elif fleet.status == 'paid' %}
+                                            <span class="badge bg-info">{{ fleet.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ fleet.get_participant_count }}</td>
+                                    <td class="text-end">{{ fleet.get_total_loot_value|isk_format_full }}</td>
+                                    <td>
+                                        <a href="{% url 'aapayout:fleet_detail' fleet.pk %}" class="btn btn-sm btn-info">
+                                            {% translate "View" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Loot Pools Table (one line per fleet) -->
+    {% if recent_loot_pools %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% if can_view_all %}{% translate "Recent Payouts" %}{% else %}{% translate "Your Recent Payouts" %}{% endif %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>{% translate "Fleet" %}</th>
+                                    <th>{% translate "Date" %}</th>
+                                    {% if can_view_all %}<th>{% translate "FC" %}</th>{% endif %}
+                                    <th class="text-center">{% translate "Payouts" %}</th>
+                                    <th class="text-end">{% translate "Total Value" %}</th>
+                                    <th class="text-end">{% translate "Paid" %}</th>
+                                    <th>{% translate "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pool in recent_loot_pools %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'aapayout:fleet_detail' pool.fleet.pk %}">
+                                            {{ pool.fleet.name }}
+                                        </a>
+                                    </td>
+                                    <td><small>{{ pool.created_at|date:"Y-m-d H:i" }}</small></td>
+                                    {% if can_view_all %}
+                                    <td>{{ pool.fleet.fleet_commander.username }}</td>
+                                    {% endif %}
+                                    <td class="text-center">{{ pool.total_payouts }}</td>
+                                    <td class="text-end">{{ pool.total_value|isk_format_full }}</td>
+                                    <td class="text-end text-success">{{ pool.paid_amount|isk_format_full }}</td>
+                                    <td>
+                                        <a href="{% url 'aapayout:fleet_detail' pool.fleet.pk %}" class="btn btn-sm btn-info">
+                                            {% translate "View" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">{% translate "Showing last 10 payout sessions" %}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not pending_loot_pools and not recent_fleets and not recent_loot_pools %}
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h4>{% translate "Welcome to Loot Payouts!" %}</h4>
+                <p>{% translate "You don't have any payouts yet." %}</p>
+                {% if perms.aapayout.create_fleet %}
+                <p>{% translate "Click the 'Create Loot Payout' button in the top navigation bar to create your first payout." %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Payout Creation Modal -->
+{% if perms.aapayout.create_fleet %}
+<div class="modal fade" id="createFleetModal" tabindex="-1" aria-labelledby="createFleetModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createFleetModalLabel">{% translate "Create New Loot Payout" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'aapayout:fleet_create' %}" id="fleet-create-form">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="fleet_name" class="form-label">{% translate "Payout Name" %} <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="fleet_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="battle_report" class="form-label">{% translate "Battle Report URL" %}</label>
+                        <input type="url" name="battle_report" id="battle_report" class="form-control" placeholder="https://">
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">{% translate "Notes" %}</label>
+                        <textarea name="notes" id="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% translate "Create Loot Payout" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
