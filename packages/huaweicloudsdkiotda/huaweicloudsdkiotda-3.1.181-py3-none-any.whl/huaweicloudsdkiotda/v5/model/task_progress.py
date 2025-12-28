@@ -1,0 +1,311 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class TaskProgress:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'total': 'int',
+        'processing': 'int',
+        'success': 'int',
+        'fail': 'int',
+        'waitting': 'int',
+        'fail_wait_retry': 'int',
+        'stopped': 'int',
+        'removed': 'int'
+    }
+
+    attribute_map = {
+        'total': 'total',
+        'processing': 'processing',
+        'success': 'success',
+        'fail': 'fail',
+        'waitting': 'waitting',
+        'fail_wait_retry': 'fail_wait_retry',
+        'stopped': 'stopped',
+        'removed': 'removed'
+    }
+
+    def __init__(self, total=None, processing=None, success=None, fail=None, waitting=None, fail_wait_retry=None, stopped=None, removed=None):
+        r"""TaskProgress
+
+        The model defined in huaweicloud sdk
+
+        :param total: 子任务总个数。
+        :type total: int
+        :param processing: 正在执行的子任务个数。
+        :type processing: int
+        :param success: 执行成功的子任务个数。
+        :type success: int
+        :param fail: 执行失败的的子任务个数。
+        :type fail: int
+        :param waitting: 等待执行的子任务个数。
+        :type waitting: int
+        :param fail_wait_retry: 失败等待重试的子任务个数。
+        :type fail_wait_retry: int
+        :param stopped: 停止的子任务个数。
+        :type stopped: int
+        :param removed: 移除的子任务个数。
+        :type removed: int
+        """
+        
+        
+
+        self._total = None
+        self._processing = None
+        self._success = None
+        self._fail = None
+        self._waitting = None
+        self._fail_wait_retry = None
+        self._stopped = None
+        self._removed = None
+        self.discriminator = None
+
+        if total is not None:
+            self.total = total
+        if processing is not None:
+            self.processing = processing
+        if success is not None:
+            self.success = success
+        if fail is not None:
+            self.fail = fail
+        if waitting is not None:
+            self.waitting = waitting
+        if fail_wait_retry is not None:
+            self.fail_wait_retry = fail_wait_retry
+        if stopped is not None:
+            self.stopped = stopped
+        if removed is not None:
+            self.removed = removed
+
+    @property
+    def total(self):
+        r"""Gets the total of this TaskProgress.
+
+        子任务总个数。
+
+        :return: The total of this TaskProgress.
+        :rtype: int
+        """
+        return self._total
+
+    @total.setter
+    def total(self, total):
+        r"""Sets the total of this TaskProgress.
+
+        子任务总个数。
+
+        :param total: The total of this TaskProgress.
+        :type total: int
+        """
+        self._total = total
+
+    @property
+    def processing(self):
+        r"""Gets the processing of this TaskProgress.
+
+        正在执行的子任务个数。
+
+        :return: The processing of this TaskProgress.
+        :rtype: int
+        """
+        return self._processing
+
+    @processing.setter
+    def processing(self, processing):
+        r"""Sets the processing of this TaskProgress.
+
+        正在执行的子任务个数。
+
+        :param processing: The processing of this TaskProgress.
+        :type processing: int
+        """
+        self._processing = processing
+
+    @property
+    def success(self):
+        r"""Gets the success of this TaskProgress.
+
+        执行成功的子任务个数。
+
+        :return: The success of this TaskProgress.
+        :rtype: int
+        """
+        return self._success
+
+    @success.setter
+    def success(self, success):
+        r"""Sets the success of this TaskProgress.
+
+        执行成功的子任务个数。
+
+        :param success: The success of this TaskProgress.
+        :type success: int
+        """
+        self._success = success
+
+    @property
+    def fail(self):
+        r"""Gets the fail of this TaskProgress.
+
+        执行失败的的子任务个数。
+
+        :return: The fail of this TaskProgress.
+        :rtype: int
+        """
+        return self._fail
+
+    @fail.setter
+    def fail(self, fail):
+        r"""Sets the fail of this TaskProgress.
+
+        执行失败的的子任务个数。
+
+        :param fail: The fail of this TaskProgress.
+        :type fail: int
+        """
+        self._fail = fail
+
+    @property
+    def waitting(self):
+        r"""Gets the waitting of this TaskProgress.
+
+        等待执行的子任务个数。
+
+        :return: The waitting of this TaskProgress.
+        :rtype: int
+        """
+        return self._waitting
+
+    @waitting.setter
+    def waitting(self, waitting):
+        r"""Sets the waitting of this TaskProgress.
+
+        等待执行的子任务个数。
+
+        :param waitting: The waitting of this TaskProgress.
+        :type waitting: int
+        """
+        self._waitting = waitting
+
+    @property
+    def fail_wait_retry(self):
+        r"""Gets the fail_wait_retry of this TaskProgress.
+
+        失败等待重试的子任务个数。
+
+        :return: The fail_wait_retry of this TaskProgress.
+        :rtype: int
+        """
+        return self._fail_wait_retry
+
+    @fail_wait_retry.setter
+    def fail_wait_retry(self, fail_wait_retry):
+        r"""Sets the fail_wait_retry of this TaskProgress.
+
+        失败等待重试的子任务个数。
+
+        :param fail_wait_retry: The fail_wait_retry of this TaskProgress.
+        :type fail_wait_retry: int
+        """
+        self._fail_wait_retry = fail_wait_retry
+
+    @property
+    def stopped(self):
+        r"""Gets the stopped of this TaskProgress.
+
+        停止的子任务个数。
+
+        :return: The stopped of this TaskProgress.
+        :rtype: int
+        """
+        return self._stopped
+
+    @stopped.setter
+    def stopped(self, stopped):
+        r"""Sets the stopped of this TaskProgress.
+
+        停止的子任务个数。
+
+        :param stopped: The stopped of this TaskProgress.
+        :type stopped: int
+        """
+        self._stopped = stopped
+
+    @property
+    def removed(self):
+        r"""Gets the removed of this TaskProgress.
+
+        移除的子任务个数。
+
+        :return: The removed of this TaskProgress.
+        :rtype: int
+        """
+        return self._removed
+
+    @removed.setter
+    def removed(self, removed):
+        r"""Sets the removed of this TaskProgress.
+
+        移除的子任务个数。
+
+        :param removed: The removed of this TaskProgress.
+        :type removed: int
+        """
+        self._removed = removed
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, TaskProgress):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
