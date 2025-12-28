@@ -1,0 +1,200 @@
+Metadata-Version: 2.4
+Name: tliner
+Version: 0.3.1
+Summary: Timeliner 🌟 - AI's diary. Track AI agent work with markdown log
+Author-email: "sinai.io" <r@sinai.io>
+License: Proprietary
+Keywords: ai-agents,fastmcp,logging,markdown,mcp,milestones
+Requires-Python: >=3.11
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: fastmcp==2.12.2
+Requires-Dist: loguru==0.7.3
+Requires-Dist: mdx-breakless-lists==1.0.1
+Requires-Dist: mdx-truly-sane-lists==1.3
+Requires-Dist: mkdocs-awesome-nav==3.2.0
+Requires-Dist: mkdocs-gen-files==0.5.0
+Requires-Dist: mkdocs-material==9.6.22
+Requires-Dist: mkdocs==1.6.1
+Requires-Dist: pydantic==2.11.7
+Requires-Dist: python-frontmatter==1.1.0
+Requires-Dist: typer==0.17.4
+Provides-Extra: dev
+Requires-Dist: pytest-mock==3.15.0; extra == 'dev'
+Requires-Dist: pytest==8.4.2; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Timeliner
+
+Auto-documenting memory layer for AI coding agents. Timeliner logs development sessions as timestamped markdown files, giving perfect recall of past decisions, implementations, and context.
+
+## Feature Highlights
+
+- **Zero-friction logging** - easy-save work via `/save` command
+- **Markdown storage** - Human-readable logs
+- **Integration** - Works with Claude Code, RooCode, and other MCP-enabled tools
+- **Rich context** - Capture outcomes, tags, metadata (PRs, commits, issues)
+
+
+## Use Cases
+
+**Software Development:**
+- Document decisions and rationale during coding sessions
+- Track refactoring steps
+- Log implementation progress
+
+**Research & Learning:**
+- Maintain experiment logs with results and insights
+- Learning journal
+- Track hypothesis
+
+## Installation
+
+### Automatic Setup for Claude Code
+
+Run the installer in your project root:
+```bash
+uvx --from tliner@latest tliner-install
+```
+
+Documents stored in `docs/timeline/` by default. Customize via [Environment Variables](#environment-variables)
+
+See [details below](#claude-code-modes).
+
+### Manual Setup for other MCP Tools
+
+See [Manual Installation](#manual-installation) below.
+
+## Quick Start
+
+### Using the `/save` Command
+
+1. Run `/save` in your Agent Tool, when you feel you have made significant progress or decisions.
+2. File will be created/updated in your configured `TIMELINER_WORK_FOLDER` (`docs/timeline/` by default).
+
+### Using the `/report` Command
+
+Generate work reports analyzing your Timeline: `/report [topic] [time_period]`
+
+**Examples:**
+- `/report authentication bug last 48 hours` - Find work on authentication in recent files
+- `/report yesterday` - Generate summary of all work yesterday
+
+The report groups work into distinct approaches, showing implementation attempts, outcomes, and current status.
+
+### Using the `/load` Command
+
+Restore previous work into context. Universal retrieval: `/load [topic | task_id ] [time_period]`
+
+**Examples:**
+- `/load 20251204T182649.123456Z` - Load exact task or step by ID
+- `/load last week` - Load all work from last week
+- `/load MkDocs work since Monday` - Topic + time filter
+- `/load` - Continues from last saved task (remembers context)
+
+## Configuration
+
+### Environment Variables
+- `TIMELINER_WORK_FOLDER`: Storage directory (default: `work/docs`)
+-  add envvar to `.claude/settings.json` or `.claude/settings.local.json` :
+```json
+{ 
+  "env": { "TIMELINER_WORK_FOLDER": "info/mydocs"  } 
+}
+```
+
+## Documentation Browser (Experimental in v0.2.0)
+
+Your timeline files automatically become a searchable doc-UI. Enable MkDocs by adding the `--mkdocs` flag to the "args" in your MCP server configuration.:
+
+**In `.mcp.json`:**
+```json
+{
+  "mcpServers": {
+    "timeliner": {
+      "command": "uvx",
+      "args": ["tliner@latest", "serve", "--mkdocs"],
+      "env": {"TIMELINER_WORK_FOLDER": "${PWD}/docs/timeline"}
+    }
+  }
+}
+```
+
+Opens your browser to a live-updating docs site. Every time you save work, the site refreshes. Search anything, jump between tasks, copy file paths—it's all there.
+
+**Quick tips:**
+- Click task IDs or file paths to copy them
+- Use the search box to find past work instantly
+- "Open in Editor" buttons work with VSCode, Cursor, Zed, and 14 other editors
+
+That's it. Write markdown, get docs.
+
+>  **Note**: This feature is experimental and disabled by default.
+
+---
+
+## Advanced Usage
+
+### CLI Commands
+
+For manual inspection and debugging:
+
+```bash
+# List all tasks
+TIMELINER_WORK_FOLDER="${PWD}/docs/timeline" uvx tliner@latest task-list
+
+# Show all steps for a task
+TIMELINER_WORK_FOLDER="${PWD}/docs/timeline" uvx tliner@latest task-show <task_id>
+
+# Run MCP server manually
+TIMELINER_WORK_FOLDER="${PWD}/docs/timeline" uvx tliner@latest serve
+```
+
+### Archiving Tasks
+
+Got too many tasks cluttering your timeline? Just toss old ones into year-month folders like `2025_09`, `2025_10`, etc.
+
+Everything still works—searches, retrieval, CLI commands—but now your root stays clean and MkDocs shows them organized by month. It's like filing papers in dated folders, except the computer remembers where everything is.
+
+### Claude Code Modes
+
+- Two modes available: **plugin** and **standalone**
+- Install script detects Claude CLI:
+  - If Claude CLI available → installs as plugin (*recommended*)
+  - If not → falls back to standalone mode
+
+**1. Plugin mode** (default when Claude detected):
+- Adds `sinai-io/ai-plugins` marketplace
+- Installs `tliner` plugin with `/tliner:save`, `/tliner:load`, `/tliner:report` commands
+
+**2. Standalone mode** (deprecated, force with `--standalone` or `-w`):
+```bash
+uvx --from tliner@latest tliner-install --standalone
+uvx --from tliner@latest tliner-install -w custom/path
+```
+- Configures `.mcp.json` directly
+- Creates `/save`, `/load`, `/report` in `.claude/commands/`
+- Use when you want full control or custom work folder
+
+
+### Manual Installation
+
+Add/create to `.mcp.json` in the root folder of your project:
+
+```json
+{
+  "mcpServers": {
+    "timeliner": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["tliner@latest", "serve"],
+      "env": {"TIMELINER_WORK_FOLDER": "${PWD}/docs/timeline"}
+    }
+  }
+}
+```
+
+Copy commands from our repo to `.claude/commands/`: 
+- [save.md](https://raw.githubusercontent.com/sinai-io/ai-plugins/refs/heads/main/plugins/tliner/commands/save.md)
+- [load.md](https://raw.githubusercontent.com/sinai-io/ai-plugins/refs/heads/main/plugins/tliner/commands/load.md)
+- [report.md](https://raw.githubusercontent.com/sinai-io/ai-plugins/refs/heads/main/plugins/tliner/commands/report.md)
+
