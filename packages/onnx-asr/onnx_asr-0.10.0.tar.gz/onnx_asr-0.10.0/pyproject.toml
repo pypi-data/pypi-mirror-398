@@ -1,0 +1,147 @@
+[project]
+name = "onnx-asr"
+dynamic = ["version"]
+description = "Automatic Speech Recognition in Python using ONNX models"
+authors = [{ name = "Ilya Stupakov", email = "istupakov@gmail.com" }]
+keywords = ["asr", "speech recognition", "onnx", "stt"]
+dependencies = ["numpy>=1.21.6"]
+requires-python = ">=3.10"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Free Threading :: 2 - Beta",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Documentation = "https://github.com/istupakov/onnx-asr#readme"
+"Release notes" = "https://github.com/istupakov/onnx-asr/releases"
+Issues = "https://github.com/istupakov/onnx-asr/issues"
+Source = "https://github.com/istupakov/onnx-asr"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project.optional-dependencies]
+cpu = ["onnxruntime>=1.18.1"]
+gpu = ["onnxruntime-gpu>=1.18.1"]
+hub = ["huggingface-hub"]
+
+[project.scripts]
+onnx-asr = "onnx_asr.cli:run"
+
+[dependency-groups]
+build = [
+    "onnx>=1.20.0",
+    "onnxscript>=0.5.7",
+    "torch>=2.9.1",
+    "torchaudio>=2.9.1",
+]
+asrs = [
+    "kaldi-native-fbank>=1.22.3",
+    "nemo-toolkit[asr]>=2.6.0",
+    "openai-whisper>=v20250625",
+]
+tests = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "onnxruntime>=1.23.2",
+    { include-group = "build" },
+    { include-group = "asrs" },
+]
+dev = [
+    "ruff>=0.14.10",
+    "mypy>=1.19.1",
+    "hatchling>=1.28.0",
+    "ipykernel>=7.1.0",
+    "ipywidgets>=8.1.8",
+    { include-group = "tests" },
+]
+
+[tool.uv]
+override-dependencies = ["numpy<2.4"]
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchaudio = { index = "pytorch" }
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build]
+only-packages = true
+
+[tool.hatch.build.targets.wheel]
+dependencies = ["uv"]
+artifacts = ["/src/onnx_asr/preprocessors/*.onnx"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+pretty = true
+untyped_calls_exclude = "onnxruntime"
+exclude = ['^preprocessors.', '^tests.preprocessors.']
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime.*"]
+follow_untyped_imports = true
+implicit_reexport = true
+
+[tool.ruff]
+line-length = 130
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "A001",
+    "A002",
+    "ANN204",
+    "ARG002",
+    "ARG004",
+    "D203",
+    "D213",
+    "COM812",
+    "PLR",
+    "PLW2901",
+    "S101",
+    "S105",
+    "SLF001",
+    "TC",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "D", "PGH003", "PLR0911", "PLR2004"]
+"preprocessors/*" = ["ANN", "D", "F821", "N802", "N806"]
+"*.ipynb" = ["ANN", "D", "ERA", "RUF001", "T"]
+
+[tool.pytest]
+filterwarnings = [
+    "ignore::DeprecationWarning:onnxscript.*",
+    "ignore::DeprecationWarning:sys.*",
+]
