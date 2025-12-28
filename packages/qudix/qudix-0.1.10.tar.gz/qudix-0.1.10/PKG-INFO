@@ -1,0 +1,238 @@
+Metadata-Version: 2.4
+Name: qudix
+Version: 0.1.10
+Summary: Terminal-based text editor with mouse-driven toolbar actions.
+Author: Sahil Pethe
+License: Apache-2.0 OR MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: LICENSE-APACHE
+License-File: LICENSE-MIT
+License-File: NOTICE
+Requires-Dist: prompt_toolkit<3.1,>=3.0.43
+Provides-Extra: release
+Requires-Dist: build>=1; extra == "release"
+Requires-Dist: twine>=4; extra == "release"
+Requires-Dist: wheel>=0.41; extra == "release"
+Dynamic: license-file
+
+# Qudix
+
+Qudix is a lightweight terminal-based text editor that brings a modern editing experience to your command line. With mouse support, intuitive toolbar buttons, and familiar keyboard shortcuts, it makes text editing in the terminal feel natural and efficient. Derived from the highlighted letters in “[Qu]ick e[di]t ne[x]t.”
+
+
+## Features
+
+### Core Editing
+- **Undo/Redo** – Full undo and redo support to easily revert or reapply changes
+- **Cut/Copy/Paste** – Standard clipboard operations that work with your system clipboard
+- **Delete** – Quick deletion of selected text or current line
+- **Mouse Selection** – Click and drag to select text across lines, just like a GUI editor
+- **Keyboard Selection** – Automatic line selection when no text is selected for quick operations
+
+### User Interface
+- **Interactive Toolbar** – Clickable buttons for common editing actions at the top of the screen
+- **Line Numbers** – Built-in line numbers for easy navigation
+- **Scrollbar** – Visual scrollbar for large files
+- **Status Bar** – Shows current file path, save status, and action feedback
+- **File Creation Dialog** – Convenient popup window to create new files when launched without a path
+
+### System Integration
+- **Cross-Platform Clipboard** – Seamless integration with macOS, Windows, and Linux system clipboards
+- **SSH Clipboard Support** – Copy/cut operations transfer text to your host machine's clipboard over SSH using OSC52
+- **File Operations** – Save with `Ctrl+S` and track unsaved changes automatically
+- **Unsaved Changes Warning** – Prevents accidental data loss by prompting before exit
+
+### SSH Clipboard (OSC52)
+
+When running Qudix over SSH, clipboard operations automatically use [OSC52 escape sequences](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands) to transfer text to your host machine's clipboard. This works on **all platforms** (macOS, Linux, Windows) as long as your terminal emulator supports OSC52.
+
+**Supported terminals:**
+- iTerm2, kitty, WezTerm, Alacritty
+- Windows Terminal
+- foot, st (suckless terminal)
+- tmux (requires `set -g set-clipboard on`)
+- Many others with OSC52 support
+
+**How it works:**
+- **Copy/Cut** → Text is sent to your host clipboard via OSC52
+- **Paste** → Use your terminal's native paste (`Ctrl+Shift+V`, `Cmd+V`, or right-click) which uses bracketed paste mode
+
+**Note:** OSC52 read (paste from host) is not supported by most terminals for security reasons. For pasting from your host clipboard into Qudix over SSH, use your terminal's built-in paste functionality.
+
+## Installation
+
+Recommended: install with pipx to avoid interfering with system packages.
+
+### macOS
+
+```bash
+brew install pipx
+pipx ensurepath
+pipx install qudix
+```
+
+### Linux
+
+- Ubuntu 23.04+:
+
+```bash
+sudo apt update
+sudo apt install pipx
+pipx ensurepath
+pipx install qudix
+```
+
+- Fedora:
+
+```bash
+sudo dnf install pipx
+pipx ensurepath
+pipx install qudix
+```
+
+- Arch Linux:
+
+```bash
+sudo pacman -S python-pipx
+pipx ensurepath
+pipx install qudix
+```
+
+- Other distros (via pip user install):
+
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+pipx install qudix
+```
+
+### Windows
+
+- With Scoop:
+
+```powershell
+scoop install pipx
+pipx ensurepath
+pipx install qudix
+```
+
+- With Python/pip:
+
+```powershell
+py -m pip install --user pipx
+# Then open a new terminal or run:
+.\pipx.exe ensurepath
+pipx install qudix
+```
+
+## Usage
+
+Launch the editor in two ways:
+
+**Create a new file** (popup dialog will appear):
+```bash
+qudix
+```
+
+**Open an existing file or create one at a specific path**:
+```bash
+qudix /path/to/file/filename.txt
+```
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+S` | Save file |
+| `Ctrl+X` | Exit editor (prompts if unsaved) |
+| `Esc` | Return focus to text area |
+| `Ctrl+Home` | Jump to top of file |
+| `Backspace` | Delete character or selection |
+
+**Mouse Controls:**
+- Click anywhere to position cursor
+- Click and drag to select text
+- Click toolbar buttons to perform actions
+- Scroll wheel to navigate through file
+
+## Build Instructions
+
+If you want to develop locally or produce installable artifacts:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd qudix
+
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# 1) Editable install for development (does NOT create files in dist/)
+pip install -e .
+
+# Run the CLI to test
+qudix path/to/file.txt
+```
+
+Editable installs register the entry point so you can run `qudix`, but they do not build wheels/sdists in `dist/`.
+
+### Build distributables (wheel and sdist)
+
+```bash
+# Ensure build tooling is available
+python -m pip install -U build wheel
+
+# Optionally clean previous artifacts
+rm -rf dist/*  # On Windows PowerShell: Remove-Item dist\* -Force
+
+# Build both sdist (.tar.gz) and wheel (.whl)
+python -m build
+
+# Artifacts are now in ./dist/
+ls dist
+```
+
+### Install the built wheel for local testing
+
+- macOS/Linux:
+```bash
+python -m pip install --force-reinstall dist/qudix-<version>-py3-none-any.whl
+```
+
+- Windows (Command Prompt/PowerShell):
+```powershell
+py -3.11 -m pip install --force-reinstall dist\qudix-<version>-py3-none-any.whl
+```
+
+Then run `qudix` (ensure your environment’s Scripts/bin directory is on PATH). If the command isn’t found on Windows, try:
+
+```powershell
+%LOCALAPPDATA%\Programs\Python\Python311\Scripts\qudix.exe  # Adjust for your Python version
+```
+
+### Notes for Windows
+
+- `pip install -e .` will not populate `dist/`. Use `python -m build` to generate artifacts.
+- Prefer `py -3.11 -m ...` to target a specific Python when multiple are installed.
+- If testing on a clean machine, consider `pipx` for isolation:
+  - `py -m pip install --user pipx` then `pipx ensurepath`
+  - `pipx install dist\qudix-<version>-py3-none-any.whl`
+
+
+## Development
+
+The project uses a standard `src/` layout with the main application code in `src/qudix/app.py`. It's built on top of [prompt_toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit), which provides the terminal UI framework.
+
+### Project Structure
+```
+src/qudix/
+  ├── __init__.py
+  └── app.py         # Main application entry point
+```
+
+## License
+
+This project is dual-licensed under Apache-2.0 OR MIT. You may use it under the terms of either license at your option. See `LICENSE`, `LICENSE-APACHE`, and `LICENSE-MIT` for details.
