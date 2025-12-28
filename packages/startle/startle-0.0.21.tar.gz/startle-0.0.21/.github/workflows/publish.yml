@@ -1,0 +1,33 @@
+name: publish
+run-name: ${{ github.actor }} is building startle
+on:
+  release:
+    types:
+      - published
+jobs:
+  publish:
+    name: "Publish"
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.10
+            3.11
+            3.12
+            3.13
+      - name: Install
+        run: pip install hatch .[test]
+      - name: Run tests
+        run: hatch test --all
+      - name: Build dist
+        run: hatch build
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+
