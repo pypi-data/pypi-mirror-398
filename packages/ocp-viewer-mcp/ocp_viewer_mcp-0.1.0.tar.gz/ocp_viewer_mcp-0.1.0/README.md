@@ -1,0 +1,141 @@
+# OCP Viewer MCP Server
+
+[![PyPI version](https://badge.fury.io/py/ocp-viewer-mcp.svg)](https://badge.fury.io/py/ocp-viewer-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+An MCP (Model Context Protocol) server that captures screenshots from the [OCP CAD Viewer](https://github.com/bernhard-42/vscode-ocp-cad-viewer), allowing AI assistants like [Cursor](https://cursor.sh) to "see" your 3D CAD models.
+
+## What it does
+
+When working with CAD tools like [CadQuery](https://github.com/CadQuery/cadquery) or [Build123d](https://github.com/gumyr/build123d), you can display models in the OCP CAD Viewer using `show()`. This MCP server lets you ask an AI assistant to capture what's currently displayed, enabling visual feedback and AI-assisted CAD development.
+
+**Example workflow:**
+1. You're designing a part in a Jupyter notebook with CadQuery
+2. You run `show(my_part)` to display it in the OCP viewer
+3. You ask the AI: *"capture the current view - does this geometry look correct?"*
+4. The AI captures a screenshot and can analyze the 3D model visually
+
+## Installation
+
+```bash
+pip install ocp-viewer-mcp
+```
+
+**Requirements:**
+- Python 3.10+
+- [OCP CAD Viewer](https://marketplace.visualstudio.com/items?itemName=bernhard-42.ocp-cad-viewer) VS Code/Cursor extension
+- [ocp-vscode](https://pypi.org/project/ocp-vscode/) Python package (for `show()` function)
+
+## Configuration
+
+### Cursor
+
+Add to your `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "ocp-viewer": {
+      "command": "python",
+      "args": ["-m", "ocp_viewer_mcp.server"]
+    }
+  }
+}
+```
+
+If you're using a virtual environment (recommended), specify the full Python path:
+
+```json
+{
+  "mcpServers": {
+    "ocp-viewer": {
+      "command": "/path/to/your/venv/bin/python",
+      "args": ["-m", "ocp_viewer_mcp.server"]
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "ocp-viewer": {
+      "command": "python",
+      "args": ["-m", "ocp_viewer_mcp.server"]
+    }
+  }
+}
+```
+
+## Usage
+
+1. **Open** your CadQuery/Build123d project in Cursor or VS Code
+2. **Start** the OCP CAD Viewer (Cmd+Shift+P → "OCP CAD Viewer: Open Viewer")
+3. **Display** a model using `show(your_model)` in a notebook or script
+4. **Ask** the AI to capture the view:
+   - "Capture the current OCP view"
+   - "Show me what the model looks like"
+   - "Take a screenshot of the CAD viewer"
+
+## Tool Reference
+
+### `capture_ocp_screenshot`
+
+Captures a screenshot of the OCP CAD Viewer.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `port` | integer | 3939 | The port where OCP viewer is running |
+| `wait_ms` | integer | 1000 | Milliseconds to wait for rendering |
+
+**Returns:** A PNG screenshot as a base64-encoded image.
+
+## Troubleshooting
+
+### "Could not connect to OCP viewer"
+- Make sure the OCP CAD Viewer is open in VS Code/Cursor
+- Check that the viewer backend is running (look for "Viewer backend started" in terminal)
+- Verify the port (default is 3939)
+
+### "ocp_vscode not installed"
+The MCP server needs `ocp-vscode` installed in the same Python environment:
+```bash
+pip install ocp-vscode
+```
+
+### Screenshot not capturing
+- Make sure a model is displayed (run `show(something)` first)
+- Try increasing `wait_ms` if the model is complex
+
+## Development
+
+```bash
+# Clone the repo
+git clone https://github.com/dmilad/ocp-viewer-mcp.git
+cd ocp-viewer-mcp
+
+# Install with Poetry
+poetry install
+
+# Run locally
+poetry run python -m ocp_viewer_mcp.server
+```
+
+## Contributing
+
+Contributions are welcome! Please open an issue first to discuss what you'd like to change.
+
+## License
+
+[MIT](LICENSE)
+
+## Related Projects
+
+- [OCP CAD Viewer](https://github.com/bernhard-42/vscode-ocp-cad-viewer) - The VS Code extension this MCP server integrates with
+- [CadQuery](https://github.com/CadQuery/cadquery) - Python parametric CAD scripting
+- [Build123d](https://github.com/gumyr/build123d) - Python CAD scripting with a builder pattern
+- [MCP](https://modelcontextprotocol.io/) - Model Context Protocol specification
