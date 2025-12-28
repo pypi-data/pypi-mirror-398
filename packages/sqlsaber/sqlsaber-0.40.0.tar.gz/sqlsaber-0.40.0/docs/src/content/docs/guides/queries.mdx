@@ -1,0 +1,225 @@
+---
+title: Running Queries
+description: Learn different ways to query your data with SQLsaber
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+SQLsaber offers multiple ways to query your database using natural language. This guide covers all the different query modes and their use cases.
+
+### Interactive Mode
+
+Ideal for back and forth conversations about your data.
+
+```bash
+saber
+```
+
+<script
+  src="https://asciinema.org/a/739399.js"
+  id="asciicast-739399"
+  async="true"
+></script>
+
+### Single Query Mode
+
+Run a one-off query without entering interactive mode:
+
+```bash
+saber "How many orders were placed last week?"
+```
+
+Useful for:
+
+- Shell scripting
+- Quick checks
+- Automated reporting
+
+### Stdin Mode
+
+Pipe queries from other commands or files:
+
+```bash
+# From echo
+echo "Count all active customers from last week" | saber
+
+# From file
+cat query.txt | saber
+
+# From other commands
+curl -s https://api.example.com/query | saber
+```
+
+Useful for:
+
+- Shell scripting
+- Batch processing
+- Integration with other tools
+- Automation
+
+### Features
+
+#### Slash Commands
+
+Special commands in interactive mode:
+
+- `/clear` - Clear conversation history
+- `/exit` or `/quit` - Exit SQLsaber
+- `/thinking on` - Enable extended thinking mode
+- `/thinking off` - Disable extended thinking mode
+
+```
+> /clear
+Conversation history cleared.
+
+> /thinking on
+✓ Thinking enabled
+
+> /exit
+Goodbye!
+```
+
+#### Table Autocomplete
+
+Type `@` followed by a table name to get autocomplete suggestions:
+
+```
+> Show me all records from @cus[TAB]
+> Show me all records from @customers
+```
+
+Supports schema-aware completions:
+
+```
+> @pub[TAB] → @public.customers
+```
+
+#### Extended Thinking Mode
+
+For complex queries requiring deeper reasoning, enable thinking mode to see step-by-step problem solving process.
+
+**In interactive mode:**
+
+```
+> /thinking on
+✓ Thinking enabled
+
+> Analyze sales trends and forecast next quarter
+💭 Thinking...
+[dim reasoning process appears here]
+[followed by final answer]
+
+> /thinking off
+✓ Thinking disabled
+```
+
+**For single queries:**
+
+```bash
+# Enable thinking for complex analysis
+saber --thinking "Compare performance across regions with seasonal adjustments"
+
+# Disable for simple queries
+saber --no-thinking "How many users do we have?"
+```
+
+**Default configuration:**
+
+Thinking is disabled by default. To change this, edit `~/.config/sqlsaber/model_config.json`:
+
+```json
+{
+  "model": "anthropic:claude-sonnet-4-20250514",
+  "thinking_enabled": true
+}
+```
+
+<Aside type="note">
+Extended thinking is supported for Anthropic, OpenAI, Google, and Groq reasoning models.
+</Aside>
+
+#### Dangerous Mode
+
+By default, SQLsaber only allows read-only SELECT queries. To enable write operations, use the `--allow-dangerous` flag:
+
+```bash
+# Single query with write access
+saber --allow-dangerous "Insert a new user with email test@example.com"
+
+# Interactive mode with write access
+saber --allow-dangerous
+```
+
+<Aside type="caution">
+This mode allows INSERT, UPDATE, DELETE, CREATE, and ALTER operations. Use with caution as these can modify your data.
+</Aside>
+
+**What's allowed in dangerous mode:**
+- DML: INSERT, UPDATE, DELETE, MERGE, REPLACE
+- DDL: CREATE, ALTER
+
+**What's always blocked (even in dangerous mode):**
+- DROP, TRUNCATE (destructive operations)
+- Transaction control (BEGIN, COMMIT, ROLLBACK)
+- Security operations (GRANT, REVOKE)
+- Database operations (ATTACH, DETACH)
+
+### Database Selection
+
+#### Using Default
+
+If you have a default database configured:
+
+```bash
+saber "Show me sales data"
+```
+
+#### Specifying Database by Name
+
+Use a configured database connection:
+
+```bash
+saber -d prod-db "What's our revenue this month?"
+```
+
+#### Using Files Directly
+
+Work with SQLite, DuckDB, or CSV files directly:
+
+```bash
+# SQLite file
+saber -d "./data/sales.db" "Top selling products"
+
+# DuckDB file
+saber -d "./data/warehouse.duckdb" "Latest partitions"
+
+# CSV file
+saber -d "./customers.csv" "How many customers per state?"
+```
+
+#### Connection Strings
+
+Use connection strings for temporary connections:
+
+```bash
+saber -d "postgresql://user:pass@host:5432/db" "Count all users"
+```
+
+### Connection Issues
+
+```bash
+# Test the connection
+saber db test my-database
+
+# Check database list
+saber db list
+```
+
+### What's Next?
+
+Now that you know how to query effectively:
+
+1. [Set up memory](/guides/memory) for better context
+2. [Learn about conversation threads](/guides/threads)
+3. [Explore the command reference](/reference/commands)
+4. [Configure advanced database settings](/guides/database-setup)
