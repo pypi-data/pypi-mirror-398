@@ -1,0 +1,55 @@
+version: 1
+send_anonymous_usage_stats: false
+project_id: "tap-grib"
+default_environment: test
+venv:
+  backend: uv
+environments:
+  - name: test
+plugins:
+  extractors:
+    - name: tap-grib
+      namespace: tap_grib
+      pip_url: -e .
+      capabilities:
+        - state
+        - catalog
+        - discover
+        - about
+        - stream-maps
+      settings:
+        - name: paths
+          kind: array
+          description: >
+            List of GRIB file paths or glob patterns.
+      config:
+        paths:
+          # - path: ./data/test.grib
+          #   ignore_fields:
+          #     - ensemble
+          #     - grid_type
+          #     - centre
+          #     - edition
+
+          # - path: ./data/icon-d2*.grib2
+          #   table_name: icon_d2
+          #   bboxes:
+          #     - [46, 11, 45, 12]
+          #   skip_past: true
+          #   # ignore_fields:
+          #   #   - ensemble
+          #   #   - grid_type
+          #   #   - centre
+          #   #   - edition
+
+          - path: s3://local-data/*.grib
+            ignore_fields:
+              - ensemble
+              - grid_type
+              - centre
+              - edition
+
+  loaders:
+    - name: target-jsonl
+      variant: andyh1203
+      pip_url: target-jsonl
