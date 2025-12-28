@@ -1,0 +1,124 @@
+"""A collection of Broker-specific exceptions."""
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class BrokerError(Exception):
+    """Base class for Broker exceptions."""
+
+    error_code = 1
+
+    def __init__(self, message="An unhandled exception occured!"):
+        # Log the exception if the logger is set to DEBUG
+        if logger.level == logging.DEBUG and isinstance(message, Exception):
+            logger.exception(message)
+        self.message = message
+        logger.error(f"{self.__class__.__name__}: {self.message}")
+
+
+class AuthenticationError(BrokerError):
+    """Raised when authentication with a provider or Host fails."""
+
+    error_code = 5
+
+
+class PermissionError(BrokerError):
+    """Raised when the user does not have permission to perform an action."""
+
+    error_code = 6
+
+
+class ProviderError(BrokerError):
+    """Raised when a provider-specific error occurs."""
+
+    error_code = 7
+
+    def __init__(self, provider=None, message="Unspecified exception"):
+        self.message = f"{provider} encountered the following error: {message}"
+        super().__init__(message=self.message)
+
+
+class ConfigurationError(BrokerError):
+    """Raised when a Broker configuration error occurs."""
+
+    error_code = 8
+
+
+class NotImplementedError(BrokerError):
+    """Raised when a method or function has not been implemented."""
+
+    error_code = 9
+
+
+class HostError(BrokerError):
+    """Raised when a Host-specific error occurs."""
+
+    error_code = 10
+
+    def __init__(self, host=None, message="Unspecified exception"):
+        if host:
+            self.message = f"{host.hostname or host.name}: {message}"
+        super().__init__(message=self.message)
+
+
+class ContainerBindError(BrokerError):
+    """Raised when a problem occurs at the container's bind level."""
+
+    error_code = 11
+
+
+class BeakerBindError(BrokerError):
+    """Raised when a problem occurs at the Beaker bind level."""
+
+    error_code = 12
+
+
+class UserError(BrokerError):
+    """Raised when a user causes an otherwise unclassified error."""
+
+    error_code = 13
+
+
+class ForemanBindError(BrokerError):
+    """Raised when a problem occurs at the Foreman bind level."""
+
+    error_code = 14
+
+
+class ParamikoBindError(BrokerError):
+    """Raised when a problem occurs at the Paramiko bind level."""
+
+    error_code = 15
+
+
+class ScenarioError(BrokerError):
+    """Raised when a problem occurs during scenario execution."""
+
+    error_code = 16
+
+    def __init__(self, message="Scenario execution failed", step_name=None, scenario_name=None):
+        """Initialize ScenarioError with optional context.
+
+        Args:
+            message: The error message
+            step_name: Name of the step where the error occurred (optional)
+            scenario_name: Name of the scenario being executed (optional)
+        """
+        self.step_name = step_name
+        self.scenario_name = scenario_name
+
+        # Build a contextual message
+        parts = []
+        if scenario_name:
+            parts.append(f"Scenario '{scenario_name}'")
+        if step_name:
+            parts.append(f"step '{step_name}'")
+
+        if parts:
+            self.message = f"{' '.join(parts)}: {message}"
+        else:
+            self.message = message
+
+        super().__init__(message=self.message)
