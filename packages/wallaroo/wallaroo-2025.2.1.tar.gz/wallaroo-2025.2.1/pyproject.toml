@@ -1,0 +1,213 @@
+[build-system]
+# if you are seeing odd dependency / env errors, try `python3 -m hatch env prune`
+requires = ["hatchling>=1.27.0", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+# Metadata about the project. This is the source of truth for the version.
+[project]
+name = "wallaroo"
+description = "Wallaroo.ai model management API client"
+dynamic = ["version"]
+readme = "public_README.md"
+urls.Homepage = "https://www.wallaroo.ai/"
+license = { text = "UNKNOWN" }
+requires-python = ">=3.10"
+authors = [{ name = "Wallaroo.ai", email = "hello@wallaroo.ai" }]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+  # Core data science packages with Python version-specific requirements
+  "numpy == 1.26.0",
+  "pandas == 2.2.0",
+  "pyarrow == 14.0.1",
+  
+  # Visualization packages
+  "matplotlib == 3.7.3",
+  "seaborn == 0.13.2",
+  
+  # Data handling and serialization
+  "appdirs == 1.4.4",
+  "polars == 0.18.15",
+  "python_dateutil == 2.8.2",
+  "PyYAML == 6.0.1",
+  
+  # API and networking
+  "gql == 3.5.0",
+  "httpx>=0.20.0,<0.28.0",  # Required by ML Ops client
+  "httpx-retries == 0.4.0",
+  "PyJWT == 2.4.0",
+  "tenacity == 8.0.1",
+  
+  # Development and utilities
+  "ipython == 7.31.1",
+  "attrs >= 21.3.0",
+  "pydantic == 2.11.7",  # Required by mac imports
+  "rich == 13.7.1",
+
+  # openai completions capabilites
+  "openai == 1.78.1"
+]
+
+[tool.hatch.envs.default.overrides]
+env.CI.system-packages = { value = true, if = ["true"] }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
+[tool.hatch]
+metadata.allow-direct-references = true
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "..", version_scheme = "post-release", local_scheme = "no-local-version" }
+tag-pattern = "^v?(?P<version>[0-9\\.]+)"
+fallback-version = "2025.2.0"
+
+[tool.hatch.build]
+ignore-vcs = true
+exclude = ["wallaroo/graphql"]
+artifacts = ["./wallaroo/wallaroo_ml_ops_api_client"]
+
+[tool.hatch.build.force-include]
+"../api/graphql" = "wallaroo/graphql"
+"../conductor/model-auto-conversion/mac/mac" = "wallaroo/mac"
+"../conductor/pydata-util/pydata_util" = "wallaroo/pydata_util"
+
+[tool.hatch.build.sources]
+"wallaroo/mac" = "mac"
+"wallaroo/pydata_util" = "pydata_util"
+
+[tool.hatch.envs.test]
+env-exclude = ["WALLAROO*"]
+dependencies = [
+  "httpx>=0.20.0,<0.28.0",
+  "pytest == 8.3.3",
+  "freezegun == 1.5.1",
+  "pytest-mock == 3.14.0",
+  "pytest-snapshot== 0.9.0",
+  "pytest-asyncio == 0.24.0",
+  "respx == 0.22.0",
+  # Required for mypy type checking
+  "mypy == 1.8.0",
+  "types-PyYAML == 6.0",
+  "types-python-dateutil == 2.8.2",
+  "types-requests == 2.25.1",
+  # Required for linting and formatting
+  "ruff == 0.6.2",
+  # Required for cov
+  "pytest-cov == 5.0.0",
+]
+
+# This environment is for Sphinx documentation.
+[tool.hatch.envs.docs]
+dependencies = [
+  "google-cloud-storage==2.3.0",
+  "IPython==7.24.1",
+  "kubernetes==17.17.0",
+  "myst_parser==0.15.1",
+  "nbsphinx==0.8.6",
+  "sgqlc==14.0",
+  "sphinx==4.5.0",
+  "jinja2==3.1.1",
+  "sphinx-markdown-builder==0.5.5",
+]
+
+# This environment is for pdoc documentation.
+[tool.hatch.envs.pdoc]
+dependencies = ["pdoc == 15.0.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["./wallaroo"]
+
+# https://docs.python.org/3/distutils/sourcedist.html#specifying-the-files-to-distribute
+[tool.hatch.build.targets.sdist]
+exclude = ["dist", ".pytest_cache"]
+
+[tool.hatch.envs.docs.scripts]
+sphinx = "python -m sphinx docs/source docs/build"
+md = "python -m sphinx -M markdown docs/source docs/build"
+
+[tool.hatch.envs.pdoc.scripts]
+serve = "python -m pdoc wallaroo --logo https://images.squarespace-cdn.com/content/v1/5fb9935f9e259c7340e1c158/09742b2e-4129-4aa2-9b91-e50a8efc2e11/Wallaroo+Horizontal+White+Text+Medium.png?format=1500w"
+#build = "python -m pdoc -o html wallaroo --logo https://images.squarespace-cdn.com/content/v1/5fb9935f9e259c7340e1c158/09742b2e-4129-4aa2-9b91-e50a8efc2e11/Wallaroo+Horizontal+White+Text+Medium.png?format=1500w"
+build = "python -m pdoc -t docs/templates -o docs/html wallaroo !wallaroo._ !wallaroo.object --logo https://images.squarespace-cdn.com/content/v1/5fb9935f9e259c7340e1c158/09742b2e-4129-4aa2-9b91-e50a8efc2e11/Wallaroo+Horizontal+White+Text+Medium.png?format=1500w"
+
+[tool.hatch.envs.test.scripts]
+unit = "python -m pytest unit_tests {args}"
+snapshot = "python -m pytest --snapshot-update unit_tests {args}"
+cov = "pytest --cov=wallaroo unit_tests"
+install_types = "python -m mypy --install-types wallaroo"
+typecheck = "python -m mypy wallaroo"
+format = "python -m ruff format --check wallaroo"
+fix_format = "python -m ruff format wallaroo"
+lint = "python -m ruff check wallaroo"
+fix_lint = "python -m ruff check --fix wallaroo"
+
+[tool.pytest.ini_options]
+filterwarnings = ['ignore::DeprecationWarning']
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "__init__.py",
+    "unit_tests/(?!assays_v2/)",
+    "wallaroo/wallaroo_ml_ops_api_client",
+    "wallaroo/graphql",
+    "wallaroo/records"
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.10
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+select = ["E", "F", "I"]
+ignore = ["W505", "E501", "E101"]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "EM", "ERA", "EXE", "FBT", "ICN", "INP", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PTH", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "TRY", "UP", "YTT"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+force-wrap-aliases = true
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# Useful hack for forcing python to recognize a package.
+# [tool.hatch.envs.test.env-vars]
+# PYTHONPATH = "{env:PYTHONPATH:.}:./wallaroo-ml-ops-api-client:../api"

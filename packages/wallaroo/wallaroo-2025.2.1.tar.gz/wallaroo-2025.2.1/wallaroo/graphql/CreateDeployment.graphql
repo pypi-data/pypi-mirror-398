@@ -1,0 +1,24 @@
+mutation CreateDeployment($deploy_id: String!, $pipeline_id: bigint, $deployed: Boolean, $engine_config: jsonb) {
+    insert_deployment(
+        objects: {
+            deployed: $deployed,
+            deploy_id: $deploy_id,
+            pipeline_id: $pipeline_id,
+            engine_config:  $engine_config}
+        on_conflict: {
+            constraint: deployment_pipeline_id_key,
+            update_columns: [updated_at, deployed, engine_config]
+        }
+    ) {
+        returning {
+            id
+            deployed
+            deployment_name: deploy_id
+            engine_config
+            created_at
+            updated_at
+            node_selector
+            updated_by
+        }
+    }
+}
