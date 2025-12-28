@@ -1,0 +1,180 @@
+Metadata-Version: 2.4
+Name: ib-async-mcp
+Version: 0.1.1
+Summary: MCP server wrapping ib_async for Interactive Brokers API
+Project-URL: Homepage, https://github.com/atomcp-ai/ib-async-mcp
+Project-URL: Repository, https://github.com/atomcp-ai/ib-async-mcp
+Project-URL: Issues, https://github.com/atomcp-ai/ib-async-mcp/issues
+Author: atomcp-ai
+License: MIT
+Keywords: api,ib-async,interactive-brokers,mcp,trading
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: ib-async>=1.0.0
+Requires-Dist: mcp>=1.0.0
+Description-Content-Type: text/markdown
+
+# ib-async-mcp
+
+MCP (Model Context Protocol) server wrapping [ib_async](https://github.com/ib-api-reloaded/ib_async) for Interactive Brokers API.
+
+## Features
+
+- **Connection Management**: Connect/disconnect to TWS or IB Gateway
+- **Account Data**: Account values, summary, portfolio, positions, P&L
+- **Contracts**: Create and qualify contracts (stocks, options, futures, forex, crypto, etc.)
+- **Market Data**: Real-time quotes and historical data
+- **Orders**: Place, modify, cancel orders (market, limit, stop, stop-limit)
+- **Options**: Option chains, implied volatility, option pricing
+- **Scanners**: Market scanners with various criteria
+- **News**: News providers and articles
+
+## Prerequisites
+
+- Python 3.10+
+- Interactive Brokers TWS or IB Gateway running with API enabled
+- API port configured (default: 7497 for TWS, 4001 for Gateway)
+
+## Installation
+
+```bash
+cd ib-async-mcp
+uv sync
+```
+
+## Usage
+
+### Running the Server
+
+```bash
+uv run ib-async-mcp
+```
+
+### MCP Configuration
+
+Add to your MCP client configuration (e.g., `.kiro/settings/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "ib-async": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ib-async-mcp", "run", "ib-async-mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+Or using uvx (after publishing):
+
+```json
+{
+  "mcpServers": {
+    "ib-async": {
+      "command": "uvx",
+      "args": ["ib-async-mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+## Available Tools
+
+### Connection
+- `connect` - Connect to TWS/Gateway
+- `disconnect` - Disconnect
+- `is_connected` - Check connection status
+
+### Account
+- `get_accounts` - List managed accounts
+- `get_account_values` - Account values (balance, margin, etc.)
+- `get_account_summary` - Account summary
+- `get_portfolio` - Portfolio with market values
+- `get_positions` - All positions
+- `get_pnl` - Profit and loss
+
+### Contracts
+- `create_contract` - Create a contract
+- `qualify_contracts` - Qualify contracts (fill conId)
+- `get_contract_details` - Detailed contract info
+- `search_symbols` - Search for symbols
+
+### Market Data
+- `get_market_data` - Real-time snapshot
+- `get_historical_data` - Historical bars
+- `get_head_timestamp` - Earliest available data
+
+### Orders
+- `place_order` - Place new order
+- `cancel_order` - Cancel order
+- `cancel_all_orders` - Cancel all orders
+- `get_open_orders` - List open orders
+- `get_open_trades` - List open trades
+- `get_executions` - Execution reports
+- `get_fills` - Order fills
+- `what_if_order` - Check margin impact
+
+### Options
+- `get_option_chain` - Option chain
+- `calculate_implied_volatility` - Calculate IV
+- `calculate_option_price` - Calculate option price
+
+### Scanners
+- `get_scanner_parameters` - Available scanner params
+- `run_scanner` - Run market scanner
+
+### News
+- `get_news_providers` - List news providers
+- `get_news_article` - Get article
+- `get_historical_news` - Historical headlines
+
+### Utility
+- `get_current_time` - TWS server time
+
+## Example Usage
+
+```
+# Connect first
+connect(host="127.0.0.1", port=7497, client_id=1)
+
+# Get account info
+get_accounts()
+get_portfolio()
+
+# Get market data
+get_market_data(contract_type="stock", symbol="AAPL")
+
+# Get historical data
+get_historical_data(
+    contract_type="stock",
+    symbol="SPY",
+    duration="5 D",
+    bar_size="1 hour"
+)
+
+# Place an order
+place_order(
+    contract_type="stock",
+    symbol="AAPL",
+    action="BUY",
+    quantity=100,
+    order_type="limit",
+    limit_price=150.00
+)
+```
+
+## License
+
+MIT
+
+## Disclaimer
+
+This software is not affiliated with Interactive Brokers Group, Inc. Use at your own risk.
