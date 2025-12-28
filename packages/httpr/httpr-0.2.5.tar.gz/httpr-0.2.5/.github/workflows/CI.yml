@@ -1,0 +1,390 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Lint and format check - runs early on PRs to catch issues fast
+  lint:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format check
+        run: uv run ruff format --check .
+      - name: Mypy type check
+        run: uv run mypy httpr/
+      - name: Rust fmt check
+        run: cargo fmt --check
+      - name: Rust clippy
+        run: cargo clippy -- -D warnings
+
+  # Fast test job - runs on PRs, main branch pushes, and tag pushes with Python version matrix
+  test:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+      - name: Build and test
+        # PYO3_USE_ABI3_FORWARD_COMPATIBILITY allows transitive dependencies (like rpds-py)
+        # that use older PyO3 versions to build from source on Python 3.14+
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
+        run: |
+          uv sync --extra dev
+          uv run maturin develop
+          uv run pytest
+
+  # Docs build test - runs on PRs to catch broken docs early
+  docs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Build docs
+        run: |
+          uv sync --extra docs
+          uv run mkdocs build --strict
+
+  # Build jobs - run only on tags or manual dispatch
+  linux:
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-22.04
+            target: x86_64
+          - runner: ubuntu-22.04
+            target: x86
+          - runner: ubuntu-24.04-arm
+            target: aarch64
+          - runner: ubuntu-22.04
+            target: armv7
+          # - runner: ubuntu-22.04
+          #   target: s390x
+          # - runner: ubuntu-22.04
+          #   target: ppc64le
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Set version
+        uses: ./.github/actions/set-version
+        with:
+          run-number: ${{ github.run_number }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.13t -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.platform.target }}
+          path: dist
+      - name: pytest
+        if: ${{ matrix.platform.target == 'x86_64' || matrix.platform.target == 'aarch64' }}
+        shell: bash
+        env:
+          RUSTC_WRAPPER: ""
+        run: |
+          set -e
+          uv sync --extra dev --find-links dist --reinstall
+          uv run pytest
+      # Skip pytest on armv7 - QEMU emulation is 20x+ slower than native.
+      # Tests already run on x86_64 and aarch64 which provides sufficient coverage.
+
+  musllinux:
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-22.04
+            target: x86_64
+          - runner: ubuntu-22.04
+            target: x86
+          - runner: ubuntu-24.04-arm
+            target: aarch64
+          # - runner: ubuntu-22.04
+          #   target: armv7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Set version
+        uses: ./.github/actions/set-version
+        with:
+          run-number: ${{ github.run_number }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: musllinux_1_2
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.13t -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: musllinux_1_2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-musllinux-${{ matrix.platform.target }}
+          path: dist
+      - name: pytest
+        if: ${{ matrix.platform.target == 'x86_64' || matrix.platform.target == 'aarch64' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: alpine:latest
+          options: -v ${{ github.workspace }}:/io -w /io
+          run: |
+            set -e
+            apk add python3 python3-dev build-base libffi-dev curl
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+            uv sync --extra dev --find-links dist --reinstall
+            uv run pytest
+
+  windows:
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    strategy:
+      matrix:
+        platform:
+          - runner: windows-latest
+            target: x64
+          - runner: windows-latest
+            target: x86
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: ${{ matrix.platform.target }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Set version
+        uses: ./.github/actions/set-version
+        with:
+          run-number: ${{ github.run_number }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.13t -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.platform.target }}
+          path: dist
+      - name: pytest
+        shell: bash
+        env:
+          RUSTC_WRAPPER: ""
+        run: |
+          set -e
+          uv sync --extra dev --find-links dist --reinstall
+          uv run pytest
+
+  macos:
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-15
+            target: x86_64
+          - runner: macos-14
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Set version
+        uses: ./.github/actions/set-version
+        with:
+          run-number: ${{ github.run_number }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i python3.13t -i python3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: dist
+      - name: pytest
+        env:
+          RUSTC_WRAPPER: ""
+        run: |
+          set -e
+          uv sync --extra dev --find-links dist --reinstall
+          uv run pytest
+
+  sdist:
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Set version
+        uses: ./.github/actions/set-version
+        with:
+          run-number: ${{ github.run_number }}
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  release:
+    name: Release
+    environment: pypi
+    runs-on: ubuntu-latest
+    # Release only on tag pushes or manual dispatch
+    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+    needs: [linux, musllinux, windows, macos, sdist]
+    permissions:
+      # Use to sign the release artifacts
+      id-token: write
+      # Used to upload release artifacts
+      contents: write
+      # Used to generate artifact attestation
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "wheels-*/*"
+      - name: Publish to PyPI
+        # Publish on tag pushes or manual dispatch
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --non-interactive --skip-existing wheels-*/*
+
+  benchmark:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    needs: [linux]
+    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+      - name: Install dependencies
+        run: uv sync --extra benchmark --find-links ./ --reinstall
+      - name: Start Uvicorn server
+        run: |
+          uv run uvicorn benchmark.server:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+      - name: Run benchmark
+        run: uv run python benchmark/benchmark.py
+      - name: Generate and commit benchmark image
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          uv run python benchmark/generate_image.py
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add *.jpg
+          if ! git diff --quiet --cached; then
+            git commit -m "Update benchmark image for ${{ github.ref_name }}"
+            # Push to main branch explicitly (handles detached HEAD state from tag checkout)
+            git push origin HEAD:main
+          else
+            echo "No changes to commit"
+          fi
