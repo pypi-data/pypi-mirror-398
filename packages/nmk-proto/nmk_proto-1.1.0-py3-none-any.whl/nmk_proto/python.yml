@@ -1,0 +1,107 @@
+# Code generation for Python projects
+config:
+
+    # Contribute to generated Python files
+    pythonGeneratedSrcFiles:
+        __resolver__: nmk_proto.python.OutputPythonFilesFinder
+        params:
+            folder: ${protoFolder}
+            input_files: ${protoInputFiles}
+            src_folders: ${protoPythonSrcFolders}
+
+    # Copied proto files
+    protoPythonCopiedFiles:
+        __resolver__: nmk_proto.python.OutputProtoFilesFinder
+        params:
+            folder: ${protoFolder}
+            input_files: ${protoInputFiles}
+            src_folders: ${protoPythonSrcFolders}
+
+    # Generated python modules
+    protoPythonSrcFolders:
+        __resolver__: nmk_proto.python.OutputFoldersFinder
+        params:
+            input_subdirs: ${protoUniqueInputSubDirs}
+    protoPythonSrcFoldersWildcard:
+        __resolver__: nmk_proto.python.OutputFoldersFinderWithWildcard
+        params:
+            input_subdirs: ${protoUniqueInputSubDirs}
+
+    # Generated init file template
+    protoPythonGeneratedInitTemplate: ${BASEDIR}/templates/init.py.jinja
+
+    # Link to root venv dir (to be used for proto files packed as python packages)
+    protoPythonNmkRoot: ${PROJECTDIR_NMK}/protos
+    protoDeps:
+        - ${protoPythonNmkRoot}
+
+    # Extra options for python files generation
+    protoPythonExtraArgs: []
+
+    # git: ignore generated files
+    gitIgnoredFiles:
+        - ${protoPythonSrcFolders}
+
+    # ruff + coverage: ignore generated files
+    pythonProjectFileItems:
+        tool:
+            ruff:
+                lint:
+                    exclude:
+                        - ${protoPythonSrcFoldersWildcard}
+            coverage:
+                run:
+                    omit:
+                        - ${protoPythonSrcFoldersWildcard}
+
+    # Add GRPC dependencies to generated package
+    pythonPackageRequirements:
+        - grpcio
+        - protobuf
+
+tasks:
+
+    # Installed python packages folder (create link to venv)
+    proto.link:
+        description: Create installed packages folder link
+        emoji: file_folder
+        silent: true
+        output: ${protoPythonNmkRoot}
+        builder: nmk_proto.python.ProtoLinkBuilder
+
+    # Generate Python files
+    proto.gen.py:
+        description: Generate python code
+        emoji: ":pencil:.:snake:"
+        deps:
+            - proto.link
+        appendToDeps:
+            # In case of python projet, run before code format task...
+            - py.format
+            # Otherwise, this is just a setup task (it will be skipped anyway)
+            - setup
+        if: ${pythonGeneratedSrcFiles}   # Only if python generated files are expected
+        input:
+            - ${protoInputFiles}
+        output:
+            - ${pythonGeneratedSrcFiles}
+            - ${protoPythonCopiedFiles}
+        builder: nmk_proto.python.ProtoPythonBuilder
+        params:
+            init_template: ${protoPythonGeneratedInitTemplate}
+            all_input_subdirs: ${protoAllInputSubDirs}
+            options: ${protoPathOptions}
+            src_folders: ${protoPythonSrcFolders}
+            extra_args: ${protoPythonExtraArgs}
+
+    # Verify generated python files
+    proto.check.py:
+        description: Check generated python code
+        emoji: ":pencil:.:magnifying_glass_tilted_left:"
+        appendToDeps:
+            - tests
+        if: ${pythonGeneratedSrcFiles}  # Only if python generated files are expected
+        unless: ${protoDisableCheck}    # Only if not disabled by variable
+        builder: nmk_proto.python.ProtoPythonChecker
+        params:
+            src_folders: ${protoPythonSrcFolders}
