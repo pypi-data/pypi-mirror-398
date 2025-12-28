@@ -1,0 +1,206 @@
+Metadata-Version: 2.4
+Name: hhg
+Version: 0.0.27
+Summary: Hybrid file search — semantic + keyword matching
+Project-URL: Homepage, https://github.com/nijaru/hygrep
+Project-URL: Repository, https://github.com/nijaru/hygrep
+Author: nijaru
+License-Expression: MIT
+License-File: LICENSE
+Keywords: cli,code,grep,search,semantic
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing :: Filters
+Requires-Python: <3.14,>=3.11
+Requires-Dist: huggingface-hub>=0.20
+Requires-Dist: numpy>=1.24
+Requires-Dist: omendb>=0.0.14
+Requires-Dist: onnxruntime>=1.16
+Requires-Dist: pathspec>=0.11
+Requires-Dist: rich>=13.0
+Requires-Dist: tokenizers>=0.15
+Requires-Dist: tree-sitter-bash>=0.23
+Requires-Dist: tree-sitter-c-sharp>=0.23
+Requires-Dist: tree-sitter-c>=0.23
+Requires-Dist: tree-sitter-cpp>=0.23
+Requires-Dist: tree-sitter-css>=0.25
+Requires-Dist: tree-sitter-elixir>=0.3
+Requires-Dist: tree-sitter-go>=0.23
+Requires-Dist: tree-sitter-hcl>=1.2
+Requires-Dist: tree-sitter-html>=0.23
+Requires-Dist: tree-sitter-java>=0.23
+Requires-Dist: tree-sitter-javascript>=0.23
+Requires-Dist: tree-sitter-json>=0.24
+Requires-Dist: tree-sitter-julia>=0.23
+Requires-Dist: tree-sitter-kotlin>=1.0
+Requires-Dist: tree-sitter-lua>=0.2
+Requires-Dist: tree-sitter-php>=0.23
+Requires-Dist: tree-sitter-python>=0.23
+Requires-Dist: tree-sitter-ruby>=0.23
+Requires-Dist: tree-sitter-rust>=0.23
+Requires-Dist: tree-sitter-sql>=0.3
+Requires-Dist: tree-sitter-svelte>=1.0
+Requires-Dist: tree-sitter-swift>=0.0.1
+Requires-Dist: tree-sitter-toml>=0.7
+Requires-Dist: tree-sitter-typescript>=0.23
+Requires-Dist: tree-sitter-yaml>=0.7
+Requires-Dist: tree-sitter-zig>=1.0
+Requires-Dist: tree-sitter>=0.24
+Requires-Dist: typer>=0.9
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# hhg (hybrid grep)
+
+**Hybrid file search — semantic + keyword matching**
+
+```bash
+pip install hhg
+hhg build ./src
+hhg "authentication flow" ./src
+```
+
+## What it does
+
+Search code and text using natural language. Combines semantic understanding with keyword matching (BM25) for accurate results:
+
+```bash
+$ hhg build ./src                    # Build index first
+Found 40 files (0.0s)
+✓ Indexed 646 blocks from 40 files (34.2s)
+
+$ hhg "error handling" ./src         # Then search
+api_handlers.ts:127 function errorHandler
+  function errorHandler(err: Error, req: Request, res: Response, next: NextFunc...
+
+errors.rs:7 class AppError
+  pub enum AppError {
+      Database(DatabaseError),
+
+2 results (0.52s)
+```
+
+## Why hhg over grep?
+
+grep finds exact text. hhg understands what you're looking for.
+
+| Query            | grep finds                | hhg finds                     |
+| ---------------- | ------------------------- | ----------------------------- |
+| "error handling" | Comments mentioning it    | `errorHandler()`, `AppError`  |
+| "authentication" | Strings containing "auth" | `login()`, `verify_token()`   |
+| "database"       | Config files, comments    | `Connection`, `query()`, `Db` |
+
+**Hybrid search** combines semantic understanding (finds related concepts) with BM25 keyword matching (finds exact terms). Best of both worlds.
+
+Use grep/ripgrep for exact strings (`TODO`, `FIXME`, import statements).
+Use hhg when you want implementations, not mentions.
+
+## Install
+
+Requires Python 3.11-3.13 (onnxruntime lacks 3.14 support).
+
+```bash
+pip install hhg
+# or
+uv tool install hhg
+# or
+pipx install hhg
+```
+
+The embedding model ([jina-code-int8](https://huggingface.co/nijaru/jina-code-int8)) downloads on first use (~154MB).
+
+## Usage
+
+```bash
+hhg build [path]                # Build/update index (required first)
+hhg "query" [path]              # Semantic search
+hhg status [path]               # Check index status
+hhg list [path]                 # List all indexes under path
+hhg clean [path]                # Delete index
+hhg clean [path] -r             # Delete index and all sub-indexes
+
+# Options
+hhg -n 5 "error handling" .     # Limit results
+hhg --json "auth" .             # JSON output for scripts/agents
+hhg -l "config" .               # List matching files only
+hhg -t py,js "api" .            # Filter by file type
+hhg --exclude "tests/*" "fn" .  # Exclude patterns
+hhg --exclude "*.md" "api" .   # Code only (exclude docs)
+
+# Model
+hhg model                       # Check if model is installed
+hhg model install               # Download model (auto-downloads on first use)
+```
+
+**Note:** Options go before positional args, or use `--` separator:
+
+```bash
+hhg --exclude "*.md" "api" .   # Options first
+hhg "api" . -- --exclude "*.md" # Or use -- separator
+```
+
+## Output
+
+Default:
+
+```
+src/auth.py:42 function login
+  def login(user, password):
+      """Authenticate user and create session."""
+      ...
+```
+
+JSON (`--json`):
+
+```json
+[
+  {
+    "file": "src/auth.py",
+    "type": "function",
+    "name": "login",
+    "line": 42,
+    "end_line": 58,
+    "content": "def login(user, password): ...",
+    "score": 0.87
+  }
+]
+```
+
+Compact JSON (`--json --compact`): Same fields without `content`.
+
+## How it Works
+
+```
+Query → Embed → Hybrid search (semantic + BM25) → Results
+                        ↓
+             Requires 'hhg build' first (.hhg/)
+             Auto-updates stale files on search
+```
+
+## Supported Files
+
+**Code** (22 languages): Bash, C, C++, C#, Elixir, Go, Java, JavaScript, JSON, Kotlin, Lua, Mojo, PHP, Python, Ruby, Rust, Svelte, Swift, TOML, TypeScript, YAML, Zig
+
+**Text**: Markdown, plain text, RST — smart chunking with header context for docs, blog posts, research papers
+
+## Development
+
+```bash
+git clone https://github.com/nijaru/hygrep && cd hygrep
+pixi install && pixi run build-ext && pixi run test
+```
+
+## License
+
+MIT
