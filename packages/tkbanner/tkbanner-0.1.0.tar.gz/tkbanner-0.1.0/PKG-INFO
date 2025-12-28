@@ -1,0 +1,222 @@
+Metadata-Version: 2.4
+Name: tkbanner
+Version: 0.1.0
+Summary: Animated video banner for tkinter
+Author: Alexei54
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Pillow
+Dynamic: license-file
+
+Бібліотека tkbanner підтримує автоматичне визначення параметрів без необхідності явно їх задавати.
+Якщо певний параметр не передано під час створення VideoBanner, він буде взятий безпосередньо з відеофайлу.
+
+Ця логіка реалізована у banner.py та extractor.py.
+
+FPS
+
+Якщо fps=None, бібліотека:
+
+отримує FPS відео через ffprobe
+
+використовує його для відтворення кадрів і синхронізації аудіо
+
+Delay (затримка між кадрами)
+
+Якщо delay не задано, він автоматично обчислюється з FPS:
+
+delay = 1000 / fps
+
+Якщо FPS недоступний або дорівнює 0 — використовується безпечне значення за замовчуванням (40 мс)
+
+Таким чином, відтворення завжди має коректний таймінг навіть без ручних налаштувань.
+
+Розміри кадру (width / height)
+
+Якщо width або height не задані:
+
+бібліотека визначає реальну ширину та висоту відео через ffprobe
+
+кадри відображаються в оригінальній роздільній здатності
+
+Аудіо параметри
+
+Якщо аудіо увімкнене (music=True):
+
+sample_rate та channels беруться з параметрів конструктора
+
+якщо їх не змінювати, використовуються стандартні значення (44100 Hz, 2 канали)
+
+Загальний принцип
+
+Якщо параметр не переданий явно, tkbanner намагається:
+
+Взяти значення з відеофайлу
+
+Або обчислити його автоматично
+
+Або використати безпечне значення за замовчуванням
+
+Це дозволяє використовувати VideoBanner з мінімальною кількістю аргументів без втрати коректної роботи.
+
+ось приклади
+
+перший приклад:
+
+ads = True
+def on_banner_click():
+    global ads
+    if ads:
+        webbrowser.open("https://www.youtube.com/watch?v=xrtwJZ7hrp4&list=RDMMg6SuqTF_SU8&index=27")
+        banner.set_banner(video_path="video/ads_1.mp4")
+        ads = False
+    elif not ads:
+        webbrowser.open("https://www.pygame.org/news")
+        banner.set_banner(video_path="video/ads.mp4")
+        ads = True
+
+
+banner = VideoBanner(
+    master=root,
+    video_path="video/ads.mp4",      # Замініть на шлях до свого відео
+    fps=20,
+    width=400,
+    height=250,
+    music = True,
+    loop=True,
+    lazy_loading=True,
+    on_click=on_banner_click
+)
+
+banner.place(x = 50,y = 240)
+banner.start()
+
+Тож я використав свою бібліотеку у власній програмі для показу реклами. Це, звичайно, тестовий код для мене: там не показується реальна реклама, а лише її імітація.
+
+другий приклад:
+
+from tkinter import *
+from tkbanner import VideoBanner
+
+root = Tk()
+root.title("🎬 VideoBanner Player Demo")
+root.state("zoomed")
+root.configure(bg="#222")
+
+width = root.winfo_screenwidth()
+height = root.winfo_screenheight()
+
+banner = VideoBanner(
+    master=root,
+    video_path="video/ads_2.mp4", # Замініть на шлях до свого відео
+    width=width,
+    height=height-165,
+    fps=15,
+    loop=False,
+    music=True,
+    lazy_loading = True,
+    one_frame=True,
+    delay=None
+)
+banner.pack()
+
+user_dragging = False  # прапорець — користувач тягне повзунок
+
+def toggle_play():
+    """Старт або стоп."""
+    if banner.running:
+        banner.stop()
+        btn_play.config(text="⏸")
+    else:
+        banner.start()
+        btn_play.config(text="▶️")
+
+
+def move_left():
+    """Перемотка назад на 5 сек."""
+    mov_left = 5 * banner.fps
+    banner.left(mov_left)
+    update_info()
+
+
+def move_right():
+    """Перемотка вперед на 10 сек."""
+    mov_right = 10 * banner.fps
+    banner.right(mov_right)
+    update_info()
+
+music_not_none = True
+
+def none_music():
+    global music_not_none
+    if music_not_none:
+        banner.stop_audio()
+        music_not_none = False
+    else:
+        banner.start_audio()
+        music_not_none = True
+
+def update_info():
+    """Оновлює інфо про кадр і повзунок без втручання у синхронізацію."""
+    if banner.frames:
+        total = len(banner.frames)
+        if scale_pos.cget("to") != total - 1:
+            scale_pos.config(to=total - 1)
+        val = banner.current_frame_index
+
+        # не рухати повзунок, якщо користувач сам тягне його
+        if not user_dragging:
+            scale_pos.set(val)        
+    root.after(100, update_info)  # оновлення рідше, щоб не навантажувати CPU
+
+
+def on_scale_press(event):
+    """Користувач почав тягнути повзунок."""
+    global user_dragging
+    user_dragging = True
+
+def on_scale_release(event):
+    """Користувач відпустив повзунок — перемотати до вибраного кадру."""
+    global user_dragging
+    user_dragging = False
+    val = scale_pos.get()
+    banner.to_switch(int(val))
+
+
+controls = Frame(root, bg="#222")
+controls.pack(pady=10)
+
+btn_left = Button(controls, text="⏪", width=10, command=move_left)
+btn_left.grid(row=0, column=1, padx=10)
+
+btn_play = Button(controls, text="▶️", width=10, command=toggle_play)
+btn_play.grid(row=0, column=2, padx=10)
+
+btn_right = Button(controls, text="⏩", width=10, command=move_right)
+btn_right.grid(row=0, column=3, padx=10)
+
+btn_music = Button(controls, text = "🔇", width=5, command = none_music)
+btn_music.grid(row=0, column=4, padx=10)
+
+scale_pos = Scale(
+    root,
+    from_=1,
+    to=len(banner.frames),
+    orient=HORIZONTAL,
+    length=width-100,
+    bg="#333",
+    fg="white",
+    troughcolor="#555",
+    highlightthickness=0,
+)
+scale_pos.pack()
+
+scale_pos.bind("<ButtonPress-1>", on_scale_press)
+scale_pos.bind("<ButtonRelease-1>", on_scale_release)
+
+update_info()
+
+root.mainloop()
+
+в цьому коді я створив відео плеєр
