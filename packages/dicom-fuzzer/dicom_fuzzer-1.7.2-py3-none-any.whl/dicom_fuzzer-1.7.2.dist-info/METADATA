@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: dicom-fuzzer
+Version: 1.7.2
+Summary: A professional-grade DICOM fuzzing tool for healthcare security testing
+Project-URL: Homepage, https://github.com/Dashtid/dicom-fuzzer
+Project-URL: Documentation, https://github.com/Dashtid/dicom-fuzzer/tree/main/docs
+Project-URL: Repository, https://github.com/Dashtid/dicom-fuzzer.git
+Project-URL: Bug Tracker, https://github.com/Dashtid/dicom-fuzzer/issues
+Project-URL: Changelog, https://github.com/Dashtid/dicom-fuzzer/blob/main/CHANGELOG.md
+Author-email: David Dashti <david@dashti.se>
+License: MIT
+License-File: LICENSE
+Keywords: cybersecurity,dicom,fuzzing,healthcare,medical-imaging,pacs,security,vulnerability-testing
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Healthcare Industry
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: Medical Science Apps.
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.11
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydicom>=2.4.0
+Requires-Dist: pynetdicom>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: structlog>=23.0.0
+Requires-Dist: tqdm>=4.66.0
+Provides-Extra: all
+Requires-Dist: matplotlib>=3.5.0; extra == 'all'
+Requires-Dist: plotly>=5.0.0; extra == 'all'
+Requires-Dist: prometheus-client>=0.21.0; extra == 'all'
+Requires-Dist: pynetdicom[apps]>=2.0.0; extra == 'all'
+Requires-Dist: redis>=5.2.0; extra == 'all'
+Requires-Dist: seaborn>=0.12.0; extra == 'all'
+Provides-Extra: differential
+Requires-Dist: python-gdcm>=3.0.0; (platform_system != 'Windows') and extra == 'differential'
+Provides-Extra: distributed
+Requires-Dist: redis>=5.2.0; extra == 'distributed'
+Provides-Extra: metrics
+Requires-Dist: prometheus-client>=0.21.0; extra == 'metrics'
+Provides-Extra: network
+Requires-Dist: pynetdicom[apps]>=2.0.0; extra == 'network'
+Provides-Extra: viz
+Requires-Dist: matplotlib>=3.5.0; extra == 'viz'
+Requires-Dist: plotly>=5.0.0; extra == 'viz'
+Requires-Dist: seaborn>=0.12.0; extra == 'viz'
+Description-Content-Type: text/markdown
+
+# DICOM Fuzzer
+
+Security testing framework for DICOM medical imaging systems. Identifies vulnerabilities in PACS servers, medical imaging viewers, and DICOM parsers through automated fuzzing.
+
+[![CI](https://github.com/Dashtid/DICOM-Fuzzer/actions/workflows/ci.yml/badge.svg)](https://github.com/Dashtid/DICOM-Fuzzer/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Dashtid/DICOM-Fuzzer/branch/main/graph/badge.svg)](https://codecov.io/gh/Dashtid/DICOM-Fuzzer)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+## Installation
+
+```bash
+git clone https://github.com/Dashtid/DICOM-Fuzzer.git
+cd DICOM-Fuzzer
+uv sync
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+```
+
+## Quick Start
+
+```bash
+# Basic fuzzing
+dicom-fuzzer input.dcm -c 100 -o ./artifacts/output
+
+# With target application testing
+dicom-fuzzer input.dcm -c 1000 -t ./viewer.exe --timeout 10
+
+# Generate HTML report
+dicom-fuzzer report ./artifacts/output --format html
+```
+
+## Features
+
+**Fuzzing**
+
+- Mutation-based and grammar-aware DICOM fuzzing
+- **CVE-based security mutations enabled by default** (12+ real CVEs)
+- Coverage-guided fuzzing with corpus management
+- 3D series fuzzing (CT/MRI volumetric data)
+- Network protocol fuzzing (DIMSE, TLS)
+
+**Analysis**
+
+- Automatic crash detection and deduplication
+- Crash triaging with severity/exploitability scoring
+- Test case minimization (delta debugging)
+- Stability tracking for non-deterministic behavior
+
+**Integration**
+
+- CLI with 10+ subcommands
+- Python API for custom workflows
+- Docker targets (DCMTK, Orthanc)
+- CI/CD pipeline ready
+
+## CLI Reference
+
+```bash
+dicom-fuzzer --help              # Main help
+dicom-fuzzer fuzz --help         # Fuzzing options
+dicom-fuzzer report --help       # Report generation
+dicom-fuzzer corpus --help       # Corpus management
+dicom-fuzzer tls --help          # TLS/auth testing
+dicom-fuzzer differential --help # Cross-parser testing
+```
+
+See [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) for full command documentation.
+
+## Python API
+
+```python
+from dicom_fuzzer.core.mutator import DicomMutator
+from dicom_fuzzer.core.fuzzing_session import FuzzingSession
+import pydicom
+
+session = FuzzingSession(output_dir="./artifacts/output")
+mutator = DicomMutator()
+dataset = pydicom.dcmread("input.dcm")
+
+for i in range(100):
+    fuzzed = mutator.mutate(dataset)
+    fuzzed.save_as(f"artifacts/output/fuzz_{i:04d}.dcm")
+
+session.save_report()
+```
+
+## Project Structure
+
+```
+dicom-fuzzer/
+├── dicom_fuzzer/    # Main package
+├── tests/           # Test suite (2000+ tests)
+├── tools/           # Scripts, examples, generators
+├── configs/         # Docker, targets, seeds
+├── docs/            # Documentation
+└── artifacts/       # Runtime output (gitignored)
+```
+
+## Documentation
+
+- [Quick Start Guide](docs/QUICKSTART.md)
+- [CLI Reference](docs/CLI_REFERENCE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [FDA Compliance](docs/FDA_COMPLIANCE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+## Security
+
+This tool is for authorized security testing only. See [SECURITY.md](SECURITY.md).
+
+## License
+
+MIT - see [LICENSE](LICENSE)
