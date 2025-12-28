@@ -1,0 +1,83 @@
+Metadata-Version: 2.4
+Name: deltachat2
+Version: 0.9.0
+Summary: Client library for Delta Chat core JSON-RPC interface
+Author-email: adbenitez <adb@merlinux.eu>
+Project-URL: Homepage, https://github.com/adbenitez/deltachat2
+Keywords: deltachat
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: full
+Requires-Dist: deltachat-rpc-server>=2.35.0; extra == "full"
+Provides-Extra: dev
+Requires-Dist: deltachat-rpc-server; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: isort; extra == "dev"
+Requires-Dist: pylint; extra == "dev"
+Requires-Dist: pylama; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Dynamic: license-file
+
+# Delta Chat client library for Python
+
+[![Latest Release](https://img.shields.io/pypi/v/deltachat2.svg)](https://pypi.org/project/deltachat2)
+[![CI](https://github.com/adbenitez/deltachat2/actions/workflows/python-ci.yml/badge.svg)](https://github.com/adbenitez/deltachat2/actions/workflows/python-ci.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+Client library for Delta Chat core JSON-RPC interface
+
+## Install
+
+```sh
+pip install deltachat2
+```
+
+To use this library, you need to have `deltachat-rpc-server` program installed,
+you can install it together with this library with:
+
+```sh
+pip install deltachat2[full]
+```
+
+## Usage
+
+Example echo-bot written with deltachat2:
+
+```python
+from deltachat2 import events, run_bot_cli
+
+hooks = events.HookCollection()
+
+@hooks.on(events.RawEvent)
+def log_event(bot, accid, event):
+    bot.logger.info(event)
+
+@hooks.on(events.NewMessage)
+def echo(bot, accid, event):
+    msg = event.msg
+    bot.rpc.misc_send_text_message(accid, msg.chat_id, msg.text)
+
+if __name__ == "__main__":
+    run_bot_cli(hooks)
+```
+
+Save the above code in a `echobot.py` file and run it with Python:
+
+```
+python echobot.py --email bot@example.com --password MyPassword
+```
+
+Then write to the bot address using your Delta Chat client to test it is working.
+
+## Developing bots faster ⚡
+
+If what you want is to develop bots, you probably should use this library together with
+[deltabot-cli-py](https://github.com/deltachat-bot/deltabot-cli-py/), it takes away the
+repetitive process of creating the bot CLI and let you focus on writing your message
+processing logic.
