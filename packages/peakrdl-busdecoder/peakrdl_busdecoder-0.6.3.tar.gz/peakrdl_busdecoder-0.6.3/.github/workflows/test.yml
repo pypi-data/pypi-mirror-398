@@ -1,0 +1,62 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  workflow_call:
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: verilator/verilator:latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Check Verilator version
+        run: verilator --version
+      
+      - name: Install Python development packages
+        run: |
+          apt-get update && apt-get install -y python3-dev libpython3-dev
+      
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --group test
+      
+      - name: Run tests
+        run: uv run pytest tests/ --cov=peakrdl_busdecoder --cov-report=xml --cov-report=term
+      
+      - name: Upload coverage to Coveralls
+        if: matrix.python-version == '3.12'
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv pip install coveralls
+          uv run coveralls --service=github
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
