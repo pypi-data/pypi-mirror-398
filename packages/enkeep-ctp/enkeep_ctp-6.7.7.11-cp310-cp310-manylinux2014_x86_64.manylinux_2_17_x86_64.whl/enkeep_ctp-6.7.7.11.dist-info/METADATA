@@ -1,0 +1,111 @@
+Metadata-Version: 2.1
+Name: enkeep_ctp
+Version: 6.7.7.11
+Summary: CTP gateway for enkeep_trade quant trading framework.
+Keywords: quant,quantitative,investment,trading,algotrading,ctp
+License: MIT
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: Chinese (Simplified)
+Project-URL: Homepage, https://www.enkeep.com
+Requires-Python: >=3.10
+Requires-Dist: pybind11>=2.13.6
+Description-Content-Type: text/markdown
+
+# enkeep框架的CTP底层接口
+
+## 说明
+
+基于CTP期货版的6.7.7接口封装开发，接口中自带的是【穿透式实盘环境】的dll文件。
+
+# tips:
+
+## 打包
+windows:
+```
+pip install build
+
+python -m build .
+```
+
+linux:
+使用 cibuildwheel 自动化构建
+如果你希望自动化整个流程，可以使用 cibuildwheel，它支持多平台自动构建和打包。
+
+```
+pip install cibuildwheel
+
+cibuildwheel --output-dir dist
+```
+## 发布
+
+先安装一下 twine：
+
+```
+python -m pip install twine
+twine upload dist/* 
+ 
+
+# 推送到 coding-pypi
+twine upload -r coding-pypi dist/* 
+```
+没有账户去注册一个  https://pypi.org/
+
+
+## 使用
+
+以脚本方式启动（script/run.py）：
+
+```
+from enkeep_trade.event import EventEngine
+from enkeep_trade.trader.engine import MainEngine
+from enkeep_trade.trader.ui import MainWindow, create_qapp
+
+from enkeep_ctp import CtpGateway
+
+
+def main():
+    """主入口函数"""
+    qapp = create_qapp()
+
+    event_engine = EventEngine()
+    main_engine = MainEngine(event_engine)
+    main_engine.add_gateway(CtpGateway)
+    
+    main_window = MainWindow(main_engine, event_engine)
+    main_window.showMaximized()
+
+    qapp.exec()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## Mac系统支持
+
+由于新版本CTP的Mac系统API项目结构发生了较大变化，改为了使用framework目录的结构，因此无法再直接从PyPI下载预编译好的wheel二进制包进行安装。
+
+用户需要克隆（或下载）本仓库的源代码到本地后自行编译安装，具体命令如下：
+
+```
+git clone https://github.com/vnpy/enkeep_ctp.git
+
+cd enkeep_ctp
+
+pip3 install .
+```
+
+相关注意事项如下：
+
+源码编译需要依赖XCode开发工具中的C++编译器，请务必先安装好。
