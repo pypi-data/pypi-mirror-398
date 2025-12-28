@@ -1,0 +1,310 @@
+# AGENTS ドキュメント
+
+自動生成日時: {{ timestamp }}
+
+このドキュメントは、AIコーディングエージェントがプロジェクト内で効果的に作業するための指示とコンテキストを提供します。
+
+---
+
+
+<!-- MANUAL_START:description -->
+<!-- MANUAL_END:description -->
+{{ description }}
+
+**使用技術**: {{ languages|join(', ') }}
+
+{%- if project_structure %}
+## プロジェクト構造
+```
+{{ project_structure }}
+```
+{%- endif %}
+
+{%- if key_features %}
+## 主要機能
+
+{%- for feature in key_features %}
+- {{ feature }}
+{%- endfor %}
+{%- endif %}
+
+{%- if architecture %}
+## アーキテクチャ
+
+<!-- MANUAL_START:architecture -->
+<!-- MANUAL_END:architecture -->
+{{ architecture }}
+{%- endif %}
+
+---
+
+## 開発環境のセットアップ
+
+<!-- MANUAL_START:setup -->
+<!-- MANUAL_END:setup -->
+### 前提条件
+
+{%- if "python" in languages %}
+- Python 3.12以上
+{%- endif %}
+{%- if javascript %}
+- Node.js 18以上
+{%- endif %}
+{%- if go %}
+- Go 1.21以上
+{%- endif %}
+
+### 依存関係のインストール
+
+{%- if "python" in languages %}
+#### Python依存関係
+
+```bash
+{%- if package_managers.python == "uv" %}
+uv sync
+{%- elif package_managers.python == "poetry" %}
+poetry install
+{%- elif package_managers.python == "conda" %}
+conda env create -f environment.yml
+{%- else %}
+pip install -r requirements.txt
+{%- endif %}
+```
+{%- endif %}
+
+{%- if "javascript" in languages or "typescript" in languages %}
+#### {{ "TypeScript" if "typescript" in languages else "JavaScript" }}依存関係
+
+```bash
+{%- if package_managers.javascript == "pnpm" %}
+pnpm install
+{%- elif package_managers.javascript == "yarn" %}
+yarn install
+{%- else %}
+npm install
+{%- endif %}
+```
+{%- endif %}
+
+{%- if "go" in languages %}
+#### Go依存関係
+
+```bash
+{%- if package_managers.go == "dep" %}
+dep ensure
+{%- elif package_managers.go == "glide" %}
+glide install
+{%- else %}
+go mod download
+{%- endif %}
+```
+{%- endif %}
+
+### LLM環境のセットアップ
+
+{%- if llm_mode == "api" or llm_mode == "both" %}
+#### APIを使用する場合
+
+1. **APIキーの取得と設定**
+
+   - OpenAI APIキーを取得: https://platform.openai.com/api-keys
+   - 環境変数に設定: `export OPENAI_API_KEY=your-api-key-here`
+
+2. **API使用時の注意事項**
+   - APIレート制限に注意してください
+   - コスト管理のために使用量を監視してください
+{%- endif %}
+
+{%- if llm_mode == "local" or llm_mode == "both" %}
+#### ローカルLLMを使用する場合
+
+1. **ローカルLLMのインストール**
+
+   - Ollamaをインストール: https://ollama.ai/
+   - モデルをダウンロード: `ollama pull llama3`
+   - サービスを起動: `ollama serve`
+
+2. **ローカルLLM使用時の注意事項**
+   - モデルが起動していることを確認してください
+   - ローカルリソース（メモリ、CPU）を監視してください
+{%- endif %}
+
+---
+
+
+## ビルドおよびテスト手順
+
+### ビルド手順
+
+{%- if build_commands %}
+{{ build_commands }}
+{%- else %}
+ビルド手順は設定されていません。
+{%- endif %}
+
+### テスト実行
+
+{%- if test_commands %}
+{{ test_commands }}
+{%- else %}
+テストコマンドは設定されていません。
+{%- endif %}
+
+{%- if scripts %}
+## コマンド
+
+プロジェクトで利用可能なスクリプト:
+
+| コマンド | 説明 |
+| --- | --- |
+{%- for name, script_info in scripts.items() %}
+| `{{ name }}` | {{ script_info.description if script_info.description else script_info.command }} |
+{%- endfor %}
+
+{%- for name, script_info in scripts.items() %}
+{%- if script_info.options and script_info.options|length > 0 %}
+
+### `{{ name }}` のオプション
+
+| オプション | 説明 |
+| --- | --- |
+{%- for option in script_info.options %}
+| `{{ option.name }}` | {{ option.help }} |
+{%- endfor %}
+{%- endif %}
+
+{%- if script_info.subcommands and script_info.subcommands|length > 0 %}
+
+### `{{ name }}` のサブコマンド
+
+| サブコマンド | 説明 |
+| --- | --- |
+{%- for subcmd_name, subcmd_info in script_info.subcommands.items() %}
+| `{{ name }} {{ subcmd_name }}` | {{ subcmd_info.help }} |
+{%- endfor %}
+
+{%- for subcmd_name, subcmd_info in script_info.subcommands.items() %}
+{%- if subcmd_info.options and subcmd_info.options|length > 0 %}
+
+#### `{{ name }} {{ subcmd_name }}` のオプション
+
+| オプション | 説明 |
+| --- | --- |
+{%- for opt in subcmd_info.options %}
+| `{{ opt.name }}` | {{ opt.help }} |
+{%- endfor %}
+{%- endif %}
+
+{%- if subcmd_info.subcommands and subcmd_info.subcommands|length > 0 %}
+
+#### `{{ name }} {{ subcmd_name }}` のサブコマンド
+
+| サブコマンド | 説明 |
+| --- | --- |
+{%- for nested_name, nested_info in subcmd_info.subcommands.items() %}
+| `{{ name }} {{ subcmd_name }} {{ nested_name }}` | {{ nested_info.help }} |
+{%- endfor %}
+
+{%- for nested_name, nested_info in subcmd_info.subcommands.items() %}
+{%- if nested_info.options and nested_info.options|length > 0 %}
+
+##### `{{ name }} {{ subcmd_name }} {{ nested_name }}` のオプション
+
+| オプション | 説明 |
+| --- | --- |
+{%- for nopt in nested_info.options %}
+| `{{ nopt.name }}` | {{ nopt.help }} |
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+---
+
+## コーディング規約
+
+<!-- MANUAL_START:other -->
+<!-- MANUAL_END:other -->
+{%- if coding_standards.formatter %}
+### フォーマッター
+
+- **{{ coding_standards.formatter }}** を使用
+{%- if coding_standards.formatter == "black" %}
+  ```bash
+  black .
+  ```
+{%- elif coding_standards.formatter == "prettier" %}
+  ```bash
+  npx prettier --write .
+  ```
+{%- endif %}
+{%- endif %}
+
+{%- if coding_standards.linter %}
+### リンター
+
+- **{{ coding_standards.linter }}** を使用
+{%- if coding_standards.linter == "ruff" %}
+  ```bash
+  ruff check .
+  ruff format .
+  ```
+{%- endif %}
+{%- endif %}
+
+{%- if coding_standards.style_guide %}
+### スタイルガイド
+
+- {{ coding_standards.style_guide }} に準拠
+{%- endif %}
+
+---
+
+## プルリクエストの手順
+
+<!-- MANUAL_START:pr -->
+<!-- MANUAL_END:pr -->
+1. **ブランチの作成**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **変更のコミット**
+   - コミットメッセージは明確で説明的に
+   - 関連するIssue番号を含める
+
+3. **テストの実行**
+   ```bash
+   {%- if raw_test_commands %}
+   {%- for cmd in raw_test_commands %}
+   {{ cmd }}
+   {%- endfor %}
+   {%- else %}
+   # テストコマンドを実行
+   {%- endif %}
+   ```
+
+4. **プルリクエストの作成**
+   - タイトル: `[種類] 簡潔な説明`
+   - 説明: 変更内容、テスト結果、関連Issueを記載
+
+{%- if troubleshooting %}
+---
+
+## トラブルシューティング
+
+{{ troubleshooting }}
+{%- endif %}
+
+{%- if custom_instructions %}
+---
+
+{{ custom_instructions }}
+{%- endif %}
+
+---
+
+*このAGENTS.mdは自動生成されています。最終更新: {{ timestamp }}*

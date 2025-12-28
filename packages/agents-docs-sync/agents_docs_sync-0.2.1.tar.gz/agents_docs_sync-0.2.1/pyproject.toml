@@ -1,0 +1,152 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agents-docs-sync"
+version = "0.2.1"
+description = "コミットするごとにテスト実行・ドキュメント生成・AGENTS.md の自動更新を行うパイプライン"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "塩ハム(d)", email = "shiohamu029@gmail.com"},
+]
+keywords = [
+    "documentation",
+    "automation",
+    "ci-cd",
+    "github-actions",
+    "api-documentation",
+    "readme-generator",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+# ランタイム依存関係（アルファベット順）
+dependencies = [
+    "anthropic>=0.74.1",
+    "hnswlib>=0.7.0",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.0",
+    "openai>=2.8.1",
+    "outlines>=1.2.8",
+    "psutil>=5.9.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.3",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+]
+
+[project.scripts]
+agents_docs_sync = "docgen.docgen:main"
+agents-docs-sync = "docgen.docgen:main"
+
+[tool.uv]
+default-groups = ["default"]
+
+[dependency-groups]
+# テスト用の依存関係
+test = [
+    "pytest>=9.0.1",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+]
+
+# 開発用の依存関係（テストを含む）
+default = [
+    {include-group = "test"},
+]
+
+# 開発ツール用の依存関係（lint、ライセンス確認など）
+dev = [
+    {include-group = "default"},
+    "mypy>=1.19.1",
+    "pip-licenses>=5.0.0",
+    "radon>=6.0.1",
+    "ruff>=0.6.0",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["docgen"]
+include = [
+    "docgen/config.toml.sample",
+    "docgen/templates/**",
+    "docgen/hooks/**",
+    "docgen/prompts/**",
+]
+
+# ============================================================================
+# Ruff 設定 (リンター & フォーマッター)
+# ============================================================================
+[tool.ruff]
+include = ["*.py", "**/*.py"]
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    "__pycache__",
+    "htmlcov",
+    ".cache",
+    "dist",
+    "build",
+    "docgen/.cache",
+]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# 有効にするルールセット
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+# 無視するルール
+ignore = [
+    "E501",  # line too long (formatterで処理)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "E402",  # module level import not at top of file (プロジェクト構造上必要)
+    "E722",  # do not use bare `except` (既存コードの互換性維持)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# テストファイルではassert文の使用を許可
+"tests/**/*" = ["S101"]
+# 設定ファイルではハードコードされたパスを許可
+"docgen/config_manager.py" = ["S105"]
+# ドキュメント生成では複雑なロジックを許可
+"docgen/generators/**/*.py" = ["C901"]
+# コレクターでは未使用変数とバージョン依存を許可
+"docgen/collectors/**/*.py" = ["B007", "UP036"]
+# パーサーではバージョン依存を許可
+"docgen/generators/parsers/**/*.py" = ["UP036"]
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["docgen"]
+force-sort-within-sections = true
+split-on-trailing-comma = true
