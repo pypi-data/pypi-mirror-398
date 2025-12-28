@@ -1,0 +1,186 @@
+Metadata-Version: 2.4
+Name: geofinder-icgc
+Version: 2.3.0
+Summary: Geocodificador asíncrono para Cataluña usando el servicio ICGC
+Author-email: ICGC <qgis.openicgc@icgc.cat>, Goalnefesh <goalnefesh@protonmail.com>
+Maintainer-email: Goalnefesh <goalnefesh@protonmail.com>
+License: GPL-2.0-or-later
+Project-URL: Homepage, https://github.com/jccamel/geofinder-icgc
+Project-URL: Documentation, https://www.icgc.cat/es/Herramientas-y-visores/Herramientas/Geocodificador-ICGC
+Project-URL: Repository, https://github.com/jccamel/geofinder-icgc
+Project-URL: Original Project, https://github.com/OpenICGC/QgisPlugin
+Project-URL: Issues, https://github.com/jccamel/geofinder-icgc/issues
+Keywords: geocoding,catalonia,icgc,gis,coordinates,pelias,reverse-geocoding,async,fastapi,mcp
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: FastAPI
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pydantic>=2.0
+Requires-Dist: httpx>=0.27.0
+Provides-Extra: gdal
+Requires-Dist: GDAL>=3.0; extra == "gdal"
+Provides-Extra: pyproj
+Requires-Dist: pyproj>=3.0; extra == "pyproj"
+Provides-Extra: all
+Requires-Dist: pyproj>=3.0; extra == "all"
+Provides-Extra: mcp
+Requires-Dist: fastmcp>=2.13.0; extra == "mcp"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-cov>=4.1; extra == "dev"
+Requires-Dist: pytest-mock>=3.11; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.5; extra == "dev"
+Requires-Dist: fastmcp>=2.13.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.3; extra == "docs"
+Dynamic: license-file
+
+# <img src="assets/pics/geofinder-logo 192x192.jpg" alt="GeoFinder Logo" width="50" height="50"> GeoFinder-ICGC
+
+> **Geocodificador para Cataluña** usando el servicio del ICGC (Institut Cartogràfic i Geològic de Catalunya).
+> 🔄 API dual: Async nativo + wrappers sync para scripts simples.
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-yellow.svg)](LICENSE)
+
+---
+
+**GeoFinder-ICGC** es un geocodificador avanzado para Cataluña diseñado para ser robusto, rápido y fácil de usar.
+
+## 🚀 Instalación
+
+
+```bash
+# Instalación básica
+pip install geofinder-icgc
+
+# Con soporte para transformación de coordenadas (recomendado)
+pip install geofinder-icgc[pyproj]
+
+# Con soporte para servidor MCP (integración con IA)
+pip install geofinder-icgc[mcp]
+```
+
+## 📖 Inicio Rápido
+
+### Uso Síncrono (Scripts sencillos)
+```python
+from geofinder import GeoFinder
+
+gf = GeoFinder()
+results = gf.find_sync("Barcelona")
+
+for r in results:
+    print(f"{r.nom} ({r.nomTipus}) - {r.x}, {r.y}")
+```
+
+### Uso Asíncrono (Alto rendimiento)
+```python
+import asyncio
+from geofinder import GeoFinder
+
+async def main():
+    async with GeoFinder() as gf:
+        results = await gf.find("Diagonal 100, Barcelona")
+        print(f"Encontrados: {len(results)}")
+
+asyncio.run(main())
+```
+
+## 🔍 Manual de Funcionalidades
+
+### 1. Búsqueda General (`find` / `find_sync`)
+Detecta automáticamente el tipo de búsqueda según la entrada:
+- **Topónimos:** `"Montserrat"`, `"Girona"`
+- **Direcciones:** `"Carrer Aragó 50, Barcelona"`, `"Gran Via 123"`
+- **Coordenadas:** `"430000 4580000 EPSG:25831"`, `"2.17 41.38 EPSG:4326"`
+- **Carreteras:** `"C-32 km 10"`
+- **Rectángulos:** `"X1 Y1 X2 Y2"`
+
+### 2. Geocodificación Inversa (`find_reverse` / `find_reverse_sync`)
+Encuentra lugares o direcciones a partir de coordenadas.
+```python
+# Soporta EPSG:25831 (por defecto) y EPSG:4326 (GPS)
+results = await gf.find_reverse(430000, 4580000)
+```
+
+### 3. Autocompletado (`autocomplete` / `autocomplete_sync`)
+Ideal para implementar buscadores en tiempo real.
+```python
+suggestions = await gf.autocomplete("Barcel")
+```
+
+### 4. Búsqueda de Proximidad (`search_nearby`)
+Encuentra lugares en un radio determinado alrededor de un punto de referencia.
+```python
+# Busca todo en un radio de 2km de la Sagrada Família
+nearby = await gf.search_nearby("Sagrada Família, Barcelona", radius_km=2.0)
+```
+
+### 5. Procesamiento por Lotes (`find_batch` / `find_reverse_batch`)
+Ejecuta múltiples consultas en paralelo optimizando la concurrencia.
+```python
+queries = ["Barcelona", "Girona", "Lleida", "Tarragona"]
+batch_results = await gf.find_batch(queries, max_concurrency=10)
+```
+
+### 6. Obtención de Respuestas con Metadatos (`find_response`)
+Devuelve un objeto `GeoResponse` que incluye los resultados y metadatos de rendimiento como el tiempo de ejecución.
+
+## ⚙️ Configuración
+
+El constructor de `GeoFinder` permite ajustar el comportamiento de la librería:
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `timeout` | `int` | Tiempo máximo de espera (defecto: 5s). |
+| `cache_size` | `int` | Capacidad de la caché LRU (defecto: 128). |
+| `cache_ttl` | `int` | Tiempo de vida de la caché en segundos (defecto: 3600). |
+| `max_retries` | `int` | Número de reintentos en caso de fallo (defecto: 3). |
+| `verify_ssl` | `bool` | Verificar certificados SSL (defecto: True). |
+
+
+---
+
+## 📚 Documentación
+
+- [COOKBOOK.md](COOKBOOK.md) - Tutoriales y ejemplos prácticos
+- [README-DEV.md](README-DEV.md) - Guía de desarrollo
+- [README-MCP.md](README-MCP.md) - Servidor MCP
+- [README-ARQ.md](README-ARQ.md) - Arquitectura técnica
+
+---
+
+## 📚 Recursos
+
+- [Documentación ICGC](https://www.icgc.cat/es/Herramientas-y-visores/Herramientas/Geocodificador-ICGC)
+- [Repositorio GitHub](https://github.com/jccamel/geofinder-icgc)
+- [Issues](https://github.com/jccamel/geofinder-icgc/issues)
+- [Model Context Protocol](https://modelcontextprotocol.io) (para MCP)
+
+---
+
+
+## ⚖️ Licencia
+
+Distribuido bajo la licencia **GPL-2.0-or-later**. Basado en el trabajo original del ICGC adaptado para uso standalone.
+
+---
+© 2025 ICGC / Adaptado por Goalnefesh
+
+Els petits canvis son poderosos 🤘 
