@@ -1,0 +1,151 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static modern_admin %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'modern_admin/css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1>{% trans 'Dashboard' %}</h1>
+        <p>{% trans 'Welcome back! Here\'s what\'s happening with your data today.' %}</p>
+    </div>
+    
+    <div class="dashboard-stats-grid" id="dashboard-widgets">
+    </div>
+    
+    <div class="dashboard-grid">
+        <div class="activity-timeline">
+            <div class="chart-header">
+                <h3 class="chart-title">{% trans 'Recent Activity' %}</h3>
+            </div>
+            <div id="recent-actions-list" class="activity-list"></div>
+        </div>
+        
+        <div class="quick-actions-card">
+            <div class="chart-header">
+                <h3 class="chart-title">{% trans 'Quick Actions' %}</h3>
+            </div>
+            <div class="quick-actions-list">
+                {% if app_list %}
+                    {% for app in app_list|slice:":5" %}
+                        {% for model in app.models|slice:":1" %}
+                            {% if model.add_url %}
+                                <a href="{{ model.add_url }}" class="quick-action-item">
+                                    <div class="quick-action-icon">➕</div>
+                                    <div class="quick-action-content">
+                                        <div class="quick-action-title">{% trans 'Add' %} {{ model.name }}</div>
+                                        <div class="quick-action-desc">{% trans 'Create a new record' %}</div>
+                                    </div>
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3 class="chart-title">{% trans 'Statistics Overview' %}</h3>
+        </div>
+        <div class="chart-body">
+            <div class="chart-placeholder">
+                <div style="text-align: center; z-index: 1; position: relative;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                    <div>{% trans 'Chart visualization will be displayed here' %}</div>
+                    <div style="font-size: 0.875rem; color: var(--md-admin-text-tertiary); margin-top: 0.5rem;">
+                        {% trans 'Install Chart.js or similar library to enable charts' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/admin/dashboard-data/')
+        .then(response => response.json())
+        .then(data => {
+            const widgetsContainer = document.getElementById('dashboard-widgets');
+            if (data.widgets && data.widgets.length > 0) {
+                const icons = ['📊', '👥', '📦', '💰', '📈', '🔔', '📝', '⭐'];
+                const colors = [
+                    'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                    'linear-gradient(135deg, #10b981, #06b6d4)',
+                    'linear-gradient(135deg, #f59e0b, #ef4444)',
+                    'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                ];
+                
+                data.widgets.forEach((widget, index) => {
+                    const widgetEl = document.createElement('div');
+                    widgetEl.className = 'stat-card';
+                    const icon = icons[index % icons.length];
+                    const color = colors[index % colors.length];
+                    
+                    widgetEl.innerHTML = `
+                        <div class="stat-card-header">
+                            <span class="stat-card-title">${widget.title}</span>
+                            <div class="stat-card-icon" style="background: ${color}; color: white;">${icon}</div>
+                        </div>
+                        <div class="stat-card-value">${widget.count !== undefined ? widget.count.toLocaleString() : '-'}</div>
+                        ${widget.url ? `
+                            <div class="stat-card-footer">
+                                <a href="${widget.url}" class="stat-card-link">
+                                    View All →
+                                </a>
+                            </div>
+                        ` : ''}
+                    `;
+                    widgetsContainer.appendChild(widgetEl);
+                });
+            }
+            
+            const actionsList = document.getElementById('recent-actions-list');
+            if (data.recent_actions && data.recent_actions.length > 0) {
+                const getInitials = (name) => {
+                    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                };
+                const getTimeAgo = (dateString) => {
+                    const date = new Date(dateString);
+                    const now = new Date();
+                    const diffInSeconds = Math.floor((now - date) / 1000);
+                    if (diffInSeconds < 60) return '{% trans "Just now" %}';
+                    const diffInMinutes = Math.floor(diffInSeconds / 60);
+                    if (diffInMinutes < 60) return diffInMinutes + 'm {% trans "ago" %}';
+                    const diffInHours = Math.floor(diffInMinutes / 60);
+                    if (diffInHours < 24) return diffInHours + 'h {% trans "ago" %}';
+                    const diffInDays = Math.floor(diffInHours / 24);
+                    return diffInDays + 'd {% trans "ago" %}';
+                };
+                const actionsHTML = data.recent_actions.map(action => `
+                    <div class="activity-item">
+                        <div class="activity-avatar">
+                            <div class="avatar">${getInitials(action.user)}</div>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-text">
+                                <strong>${action.user}</strong> ${action.action_flag.toLowerCase()} <strong>${action.object_repr}</strong>
+                            </div>
+                            <div class="activity-meta">
+                                <span class="activity-time">
+                                    <span>🕐</span>
+                                    ${getTimeAgo(action.action_time)}
+                                </span>
+                                ${action.url ? `<a href="${action.url}" style="color: var(--md-admin-primary); text-decoration: none;">View →</a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                actionsList.className = 'activity-list';
+                actionsList.innerHTML = actionsHTML;
+            }
+        })
+        .catch(error => console.error('Error loading dashboard data:', error));
+});
+</script>
+{% endblock %}

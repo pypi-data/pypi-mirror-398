@@ -1,0 +1,60 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static admin_urls admin_list %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'modern_admin/css/change_list.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="change-list-container">
+    <div class="change-list-header">
+        <div class="header-actions">
+            {% if has_add_permission %}
+                <a href="{% url cl.opts|admin_urlname:'add' %}" class="add-button">
+                    {% trans 'Add' %} {{ cl.opts.verbose_name }}
+                </a>
+            {% endif %}
+        </div>
+        
+        <div class="search-filters-bar">
+            {% block search %}{% search_form cl %}{% endblock %}
+            {% block date_hierarchy %}{% date_hierarchy cl %}{% endblock %}
+        </div>
+    </div>
+    
+    <div class="change-list-content">
+        <div class="filters-sidebar" id="filters-sidebar">
+            {% block filters %}
+                {% if cl.has_filters %}
+                    <div class="filter-section">
+                        <h3>{% trans 'Filter' %}</h3>
+                        {% for spec in cl.filter_specs %}
+                            {% admin_list_filter cl spec %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endblock %}
+        </div>
+        
+        <div class="results-container">
+            <form id="changelist-form" method="post" action="" novalidate>
+                {% csrf_token %}
+                
+                {% if cl.formset %}
+                    <div>{{ cl.formset.management_form }}</div>
+                {% endif %}
+                
+                {% block result_list %}
+                    {% result_list cl %}
+                {% endblock %}
+                
+                {% block pagination %}
+                    {% pagination cl %}
+                {% endblock %}
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

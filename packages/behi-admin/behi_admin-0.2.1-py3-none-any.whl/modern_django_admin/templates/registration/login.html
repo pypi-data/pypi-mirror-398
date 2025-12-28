@@ -1,0 +1,100 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static modern_admin %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'modern_admin/css/login.css' %}">
+{% endblock %}
+
+{% block bodyclass %}login{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-box">
+        <div class="login-header">
+            <div class="login-logo">
+                <span>🚀</span>
+            </div>
+            <h1 class="login-title">{% trans 'Welcome Back' %}</h1>
+            <p class="login-subtitle">{% trans 'Sign in to your account to continue' %}</p>
+        </div>
+
+        {% if form.errors %}
+            <div class="errornote">
+                {% if form.errors.items|length == 1 %}
+                    {% trans "Please enter the correct username and password for a staff account. Note that both fields may be case-sensitive." %}
+                {% else %}
+                    {% trans "Please enter the correct username and password for a staff account." %}
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if user.is_authenticated %}
+            <div class="errornote">
+                {% blocktrans with username=user.get_username %}
+                    You are authenticated as {{ username }}, but are not authorized to access this page. Would you like to log out and log in again as a different user?
+                {% endblocktrans %}
+            </div>
+        {% endif %}
+
+        <form action="{{ app_path }}" method="post" id="login-form" class="login-form">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="{{ form.username.id_for_label }}" class="form-label">
+                    {% trans 'Username' %}
+                </label>
+                {{ form.username }}
+                {% if form.username.errors %}
+                    <div class="form-error">
+                        <span>⚠️</span>
+                        {{ form.username.errors.0 }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.password.id_for_label }}" class="form-label">
+                    {% trans 'Password' %}
+                </label>
+                {{ form.password }}
+                {% if form.password.errors %}
+                    <div class="form-error">
+                        <span>⚠️</span>
+                        {{ form.password.errors.0 }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <input type="hidden" name="next" value="{{ next }}">
+
+            {% url 'admin_password_reset' as password_reset_url %}
+            {% if password_reset_url %}
+                <div class="password-reset-link">
+                    <a href="{{ password_reset_url }}">{% trans 'Forgotten your password or username?' %}</a>
+                </div>
+            {% endif %}
+
+            <div class="submit-row">
+                <button type="submit" class="submit-button">
+                    <span>{% trans 'Sign In' %}</span>
+                    <span>→</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const inputs = document.querySelectorAll('.form-input');
+    inputs.forEach(input => {
+        input.classList.add('form-input');
+    });
+});
+</script>
+{% endblock %}

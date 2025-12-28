@@ -1,0 +1,51 @@
+{% load i18n %}
+
+<fieldset class="field-group module aligned {{ fieldset.classes }}">
+    {% if fieldset.name %}
+        <div class="field-group-header">
+            <h2 class="field-group-title">{{ fieldset.name }}</h2>
+            {% if fieldset.description %}
+                <p class="field-group-description">{{ fieldset.description|safe }}</p>
+            {% endif %}
+        </div>
+    {% endif %}
+    
+    {% if fieldset.description %}
+        <div class="field-group-description">
+            {{ fieldset.description|safe }}
+        </div>
+    {% endif %}
+    
+    {% for line in fieldset %}
+        <div class="form-row{% if line.fields|length == 1 and line.errors %} errors{% endif %}{% if not line.has_visible_field %} hidden{% endif %}{% for field in line %}{% if field.field.name %} field-{{ field.field.name }}{% endif %}{% endfor %}">
+            {% for field in line %}
+                <div class="form-field{% if not line.fields|length == 1 %} field-box{% if field.field.name %} field-{{ field.field.name }}{% endif %}{% if not field.is_readonly and field.errors %} errors{% endif %}{% if field.field.is_hidden %} hidden{% endif %}{% elif field.is_checkbox %} checkbox-row{% endif %}">
+                    {% if not line.fields|length == 1 and not field.is_readonly %}
+                        <label class="field-label{% if field.field.field.required %} required{% endif %}" for="{{ field.field.id_for_label }}">
+                            {{ field.field.label }}
+                        </label>
+                    {% endif %}
+                    
+                    {% if field.is_readonly %}
+                        <div class="readonly-field">{{ field.contents }}</div>
+                    {% else %}
+                        {{ field.field }}
+                        {% if field.field.help_text %}
+                            <div class="field-help">{{ field.field.help_text|safe }}</div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if field.field.errors %}
+                        <div class="field-errors">
+                            <ul>
+                                {% for error in field.field.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+</fieldset>
