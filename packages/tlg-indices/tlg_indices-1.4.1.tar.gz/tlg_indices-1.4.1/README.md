@@ -1,0 +1,98 @@
+# Disclaimer
+
+This repository makes no claim to ownership of the contents of the original TLG CD-ROM, which are owned by the University of California, Irvine. It is an independent effort to facilitate study of texts and does not represent or imply endorsement by the University of California, Irvine or the TLG project.
+
+# About
+
+This Python package facilitates the browsing of the indices of the old TLG CD-ROMs. It expects that texts have been processed by the `tlgu` package ([tlgu homepage](https://tlgu.carmen.gr/), [rehosted code](https://github.com/cltk/grc_software_tlgu)), which offers a variety of ways to convert the Beta Code of the original files into Unicode text files.
+
+# Install
+
+Install from PyPI with:
+
+```bash
+pip install tlg-indices
+```
+
+# Practical use example
+
+See also `practical_use_example.py`.
+
+```python
+from tlg_indices.text_cleaning import tlg_plaintext_cleanup
+from tlg_indices.tlgu import tlgu_convert_corpus
+from tlg_indices.file_utils import assemble_tlg_works_filepaths
+
+# Convert entire TLG corpus into author files
+conveted_tlg_dir: str = "~/Downloads/tlg-works"
+tlgu_convert_corpus(
+    orig_txt_dir="~/tlg/TLG_E",
+    target_txt_dir=conveted_tlg_dir,
+    corpus="tlg",
+    grouping="work",
+)
+
+# Get filepaths of converted TLG works
+tlg_works_filepaths: list[str] = assemble_tlg_works_filepaths(
+    corpus_dir=conveted_tlg_dir
+)
+# print("TLG works filepaths:", tlg_works_filepaths)
+
+# Open files
+for filepath in tlg_works_filepaths:
+    print(f"Processing: {filepath}")
+    with open(filepath, "r") as file:
+        content = file.read()
+    content = tlg_plaintext_cleanup(content)
+    # print(f"Cleaned content of {filepath}: {content[:100]}")  # Print first 100 characters of cleaned content
+
+    # Do further processing with cleaned content
+    # ...
+
+```
+
+# Usage overview
+
+The main entry point is the utility functions in `src/tlg_indices/utils.py`, which expose prebuilt indices and convenience lookups. The quickest way to see how to call these helpers is in `tlg_index_examples.py`, which demonstrates:
+
+- Reading index data (epithets, geographies, dates, and author/work mappings).
+- Looking up authors by epithet or geography, and reversing those lookups.
+- Looking up works by author and retrieving a single work title.
+- Sorting and querying date ranges using `ParsedDate` and `get_dates_in_range()`.
+
+For a runnable walkthrough, open `tlg_index_examples.py` and follow the patterns there.
+
+PHI5 index helpers live in `src/tlg_indices/phi5_index_utils.py`, with a runnable tour in `phi5_examples.py`. These cover:
+
+- Author id/name lookups and reverse lookups for PHI5.
+- Author-to-work id mappings for PHI5.
+- Resolving author ids from work ids.
+
+File access utilities live in `src/tlg_indices/file_utils.py`. Use `file_access_examples.py` for runnable examples of:
+
+- `assemble_tlg_author_filepaths()` and `assemble_tlg_works_filepaths()`.
+- `assemble_phi5_author_filepaths()` and `assemble_phi5_works_filepaths()`.
+
+# Converting Beta Code with `tlgu`
+
+If you have Beta Code files from the original TLG/PHI distributions, you can convert them using the `tlgu` wrapper in this package. See `tlgu_examples.py` for runnable examples of:
+
+- Converting a single file into an author-level file (`grouping="author"`).
+- Splitting a single file into work-level files (`grouping="work"`).
+- Converting an entire corpus for either grouping.
+
+Open `tlgu_examples.py` and adjust the file paths for your local setup.
+
+
+# Development
+
+## Type checking
+
+`% uv run mypy *.py src/`
+
+## Packaging
+
+```bash
+% uv build --no-sources
+% uv publish --token "pypi-xxxxxxxxxxxxxxxx"
+```
