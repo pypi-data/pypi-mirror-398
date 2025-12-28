@@ -1,0 +1,223 @@
+Metadata-Version: 2.4
+Name: data-rentgen
+Version: 0.4.5
+Summary: Data.Rentgen REST API + Kafka consumer
+Author-email: MWS Data Bridge <onetools@mts.ru>
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/MobileTeleSystems/data-rentgen
+Project-URL: Documentation, https://data-rentgen.readthedocs.io/
+Project-URL: Source, https://github.com/MobileTeleSystems/data-rentgen
+Project-URL: CI/CD, https://github.com/MobileTeleSystems/data-rentgen/actions
+Project-URL: Tracker, https://github.com/MobileTeleSystems/data-rentgen/issues
+Keywords: Lineage,FastAPI,REST,FastStream
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: Pydantic
+Classifier: Framework :: Pydantic :: 2
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Typing :: Typed
+Requires-Python: >=3.12
+Description-Content-Type: text/x-rst
+License-File: LICENSE.txt
+Requires-Dist: pydantic~=2.12.5
+Requires-Dist: pydantic-settings~=2.12.0
+Requires-Dist: typing-extensions~=4.15.0
+Requires-Dist: alembic~=1.17.2
+Requires-Dist: sqlalchemy~=2.0.44
+Requires-Dist: sqlalchemy-utils~=0.42.0
+Requires-Dist: greenlet<3.4.0,>=3.2.4
+Requires-Dist: pyyaml~=6.0.3
+Requires-Dist: python-json-logger~=4.0.0
+Requires-Dist: coloredlogs~=15.0.1
+Requires-Dist: uuid6~=2025.0.0
+Requires-Dist: python-dateutil~=2.9.0.post0
+Requires-Dist: packaging~=25.0
+Requires-Dist: cachetools~=6.2.2
+Provides-Extra: server
+Requires-Dist: fastapi<0.128.0,>=0.123.10; extra == "server"
+Requires-Dist: starlette~=0.50.0; extra == "server"
+Requires-Dist: uvicorn<0.41,>=0.38; extra == "server"
+Requires-Dist: starlette-exporter~=0.23.0; extra == "server"
+Requires-Dist: asgi-correlation-id~=4.3.4; extra == "server"
+Requires-Dist: pyjwt~=2.10.1; extra == "server"
+Requires-Dist: itsdangerous~=2.2.0; extra == "server"
+Requires-Dist: python-multipart~=0.0.20; extra == "server"
+Requires-Dist: python-keycloak~=5.8.1; extra == "server"
+Provides-Extra: consumer
+Requires-Dist: faststream[cli,kafka]~=0.6.3; extra == "consumer"
+Requires-Dist: cramjam~=2.11.0; extra == "consumer"
+Provides-Extra: http2kafka
+Requires-Dist: fastapi<0.128.0,>=0.123.10; extra == "http2kafka"
+Requires-Dist: starlette~=0.50.0; extra == "http2kafka"
+Requires-Dist: uvicorn<0.41,>=0.38; extra == "http2kafka"
+Requires-Dist: starlette-exporter~=0.23.0; extra == "http2kafka"
+Requires-Dist: asgi-correlation-id~=4.3.4; extra == "http2kafka"
+Requires-Dist: faststream[cli,kafka]~=0.6.3; extra == "http2kafka"
+Requires-Dist: cramjam~=2.11.0; extra == "http2kafka"
+Provides-Extra: postgres
+Requires-Dist: asyncpg~=0.31.0; extra == "postgres"
+Provides-Extra: gssapi
+Requires-Dist: gssapi~=1.10.0; extra == "gssapi"
+Provides-Extra: seed
+Requires-Dist: faker<39.1,>=38.2; extra == "seed"
+Dynamic: license-file
+
+.. _readme:
+
+|Logo|
+
+.. |Logo| image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/_static/logo_wide.svg
+    :alt: Data.Rentgen logo
+    :target: https://github.com/MobileTeleSystems/data-rentgen
+
+|Repo Status| |Docker image| |PyPI| |PyPI License| |PyPI Python Version| |Documentation|
+|Build Status| |Coverage| |pre-commit.ci|
+
+.. |Repo Status| image:: https://www.repostatus.org/badges/latest/wip.svg
+    :target: https://www.repostatus.org/#wip
+.. |Docker image| image:: https://img.shields.io/docker/v/mtsrus/data-rentgen?sort=semver&label=docker
+    :target: https://hub.docker.com/r/mtsrus/data-rentgen
+.. |PyPI| image:: https://img.shields.io/pypi/v/data-rentgen
+    :target: https://pypi.org/project/data-rentgen/
+.. |PyPI License| image:: https://img.shields.io/pypi/l/data-rentgen.svg
+    :target: https://github.com/MobileTeleSystems/data-rentgen/blob/develop/LICENSE.txt
+.. |PyPI Python Version| image:: https://img.shields.io/pypi/pyversions/data-rentgen.svg
+    :target: https://badge.fury.io/py/data-rentgen
+.. |Documentation| image:: https://readthedocs.org/projects/data-rentgen/badge/?version=stable
+    :target: https://data-rentgen.readthedocs.io/
+.. |Build Status| image:: https://github.com/MobileTeleSystems/data-rentgen/workflows/Tests/badge.svg
+    :target: https://github.com/MobileTeleSystems/data-rentgen/actions
+.. |Coverage| image:: https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/
+    MTSOnGithub/03e73a82ecc4709934540ce8201cc3b4/raw/data-rentgen_badge.json
+    :target: https://github.com/MobileTeleSystems/data-rentgen/actions
+.. |pre-commit.ci| image:: https://results.pre-commit.ci/badge/github/MobileTeleSystems/data-rentgen/develop.svg
+    :target: https://results.pre-commit.ci/latest/github/MobileTeleSystems/data-rentgen/develop
+
+What is Data.Rentgen?
+---------------------
+
+Data.Rentgen is a Data Motion Lineage service, compatible with `OpenLineage <https://openlineage.io/>`_ specification.
+
+Currently we support consuming lineage from:
+
+* Apache Spark
+* Apache Airflow
+* Apache Hive
+* Apache Flink
+* dbt
+
+**Note**: service is under active development, so it doesn't have stable API for now.
+
+Goals
+-----
+
+* Collect lineage events produced by OpenLineage clients & integrations.
+* Store operation-grained events for better detalization.
+* Provide API for fetching both job/run ↔ dataset lineage and dataset ↔ dataset lineage.
+
+Features
+--------
+
+* Support consuming large amounts of lineage events, use Apache Kafka as event buffer.
+* Store data in tables partitioned by event timestamp, to speed up lineage graph resolution.
+* Lineage graph is build with user-specified time boundaries.
+* Lineage graph can be build with different granularity. e.g. merge all individual Spark commands into Spark applicationId or Spark applicationName.
+* Column-level lineage support.
+* Authentication support.
+
+Non-goals
+---------
+
+* This is **not** a Data Catalog. DataRentgen doesn't track dataset schema change, owner and so on. Use `Datahub <https://datahubproject.io/>`_ or `OpenMetadata <https://open-metadata.org/>`_ instead.
+* Static Data Lineage like view → table is not supported.
+
+Limitations
+-----------
+
+* OpenLineage have integrations with Trino, Debezium and some other lineage sources. DataRentgen support may be added later.
+* DataRentgen parses only limited set of OpenLineage facets, and doesn't store custom facets. This can be changed in future.
+
+.. documentation
+
+Documentation
+-------------
+
+See https://data-rentgen.readthedocs.io/
+
+Screenshots
+-----------
+
+Lineage graph
+~~~~~~~~~~~~~
+
+Dataset-level lineage graph
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/entities/dataset_lineage.png
+    :alt: Dataset-level lineage graph
+
+Dataset column-level lineage graph
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/entities/dataset_column_lineage.png
+    :alt: Dataset column-level lineage graph
+
+Job-level lineage graph
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/entities/job_lineage.png
+    :alt: Job-level lineage graph
+
+Run-level lineage graph
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/entities/run_lineage.png
+    :alt: Job-level lineage graph
+
+Datasets
+~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/entities/dataset_list.png
+    :alt: Datasets list
+
+Runs
+~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/entities/run_list.png
+    :alt: Runs list
+
+Spark application
+~~~~~~~~~~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/integrations/spark/job_details.png
+    :alt: Spark application details
+
+Spark run
+~~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/integrations/spark/run_details.png
+    :alt: Spark run details
+
+Spark command
+~~~~~~~~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/integrations/spark/operation_details.png
+    :alt: Spark command details
+
+Hive query
+~~~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/integrations/hive/operation_details.png
+    :alt: Hive query details
+
+Airflow DagRun
+~~~~~~~~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/integrations/airflow/dag_run_details.png
+    :alt: Airflow DagRun details
+
+Airflow TaskInstance
+~~~~~~~~~~~~~~~~~~~~~
+
+.. image:: https://raw.githubusercontent.com/MobileTeleSystems/data-rentgen/02b53eeafcec3f28b437b8bcc699f419071d1af0/docs/integrations/airflow/task_run_details.png
+    :alt: Airflow TaskInstance details
