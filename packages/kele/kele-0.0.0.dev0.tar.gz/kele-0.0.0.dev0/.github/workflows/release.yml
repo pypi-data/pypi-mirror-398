@@ -1,0 +1,155 @@
+name: wheels
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  build:
+    if: >
+      github.event_name == 'release' || 
+      (
+        (github.event_name == 'push' || github.event_name == 'pull_request') &&
+        contains(join(github.event.commits.*.message, ' '), '[build]') &&
+        !contains(join(github.event.commits.*.message, ' '), '[skip build]')
+      )
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux (manylinux + musllinux). Rust is installed inside the container via CIBW_BEFORE_ALL_LINUX.
+          - os: ubuntu-latest
+            name: linux-x86_64
+            linux_arch: x86_64
+
+          - os: ubuntu-latest
+            name: linux-aarch64
+            linux_arch: aarch64
+
+          # Windows: build both 64-bit (AMD64) and 32-bit (x86) wheels.
+          # We split these into separate jobs so each can set the correct Rust target for PyO3.
+          - os: windows-latest
+            name: windows-amd64
+            win_arch: AMD64
+            rust_target: x86_64-pc-windows-msvc
+
+          - os: windows-latest
+            name: windows-x86
+            win_arch: x86
+            rust_target: i686-pc-windows-msvc
+
+          # macOS (arm64): ensure the extension links with dynamic_lookup so Python symbols resolve at runtime.
+          - os: macos-latest
+            name: macos-arm64
+            rust_target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout (normal)
+        if: ${{ github.event_name != 'release' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout (release tag)
+        if: ${{ github.event_name == 'release' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup MSVC (Windows x86)
+        if: ${{ matrix.os == 'windows-latest' && matrix.win_arch == 'x86' }}
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Setup Rust (Windows/macOS)
+        if: ${{ matrix.os != 'ubuntu-latest' }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install i686 toolchain (Windows x86 only)
+        if: ${{ matrix.os == 'windows-latest' && matrix.win_arch == 'x86' }}
+        shell: bash
+        run: rustup toolchain install stable-i686-pc-windows-msvc
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - run: python -m pip install -U pip cibuildwheel[uv]
+
+      - name: Build wheels (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        env:
+          # release 全量；push 精简（并且按 job 的 arch 精确到 win32 / win_amd64）
+          CIBW_BUILD: >-
+            ${{ github.event_name == 'release'
+                && (matrix.win_arch == 'AMD64'
+                    && 'cp313-win_amd64 cp314-win_amd64'
+                    || 'cp313-win32 cp314-win32')
+                || (matrix.win_arch == 'AMD64'
+                    && 'cp313-win_amd64'
+                    || 'cp313-win32') }}
+
+          # 用 uv 加速（可选）
+          CIBW_BUILD_FRONTEND: "build[uv]"
+
+          # Windows: pick which arch to build in this job.
+          CIBW_ARCHS_WINDOWS: ${{ matrix.win_arch }}
+
+          # Windows: match Rust target to the Python interpreter architecture (fixes 64-bit Rust vs 32-bit Python).
+          CIBW_ENVIRONMENT_WINDOWS: >-
+            PYTHONUTF8=1
+            RUSTUP_TOOLCHAIN=${{ matrix.win_arch == 'x86' && 'stable-i686-pc-windows-msvc' || 'stable' }}
+
+        run: python -m cibuildwheel --output-dir dist
+
+      - name: Set up QEMU (Linux aarch64)
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.linux_arch == 'aarch64' && contains(join(github.event.commits.*.message, ' '), '[aarch64]') }}
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build wheels (Linux/macOS)
+        if: ${{ (matrix.name == 'linux-x86_64') || (matrix.name == 'linux-aarch64' && contains(join(github.event.commits.*.message, ' '), '[aarch64]') )}}
+        env:
+          # release 全量；push 精简
+          CIBW_BUILD: ${{ (github.event_name == 'release' && 'cp313-* cp314-*') || 'cp313-*' }}
+
+          # 用 uv 加速（可选）
+          CIBW_BUILD_FRONTEND: "build[uv]"
+
+          # Linux: choose target architecture for this job (x86_64 / aarch64).
+          CIBW_ARCHS_LINUX: ${{ matrix.os == 'ubuntu-latest' && matrix.linux_arch || '' }}
+          
+          # Rust：manylinux 容器里装 rustup（官方建议）
+          CIBW_BEFORE_ALL_LINUX: "curl -sSf https://sh.rustup.rs | sh -s -- -y"
+
+          # Linux: musllinux needs crt-static disabled to build PyO3 cdylib; safe for manylinux too.
+          CIBW_ENVIRONMENT_LINUX: >-
+            PATH=$HOME/.cargo/bin:$PATH
+            RUSTFLAGS="-C target-feature=-crt-static"
+
+          # macOS: ensure Python symbols (e.g. _PyBaseObject_Type) are resolved at runtime.
+          CIBW_ENVIRONMENT_MACOS: >-
+            RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup"
+
+          # 如遇到 macOS 最低版本问题，可按需提高（cibuildwheel 文档提示 Rust 最低 10.12）
+          # CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=10.12"
+        run: python -m cibuildwheel --output-dir dist
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: wheels-${{ matrix.name }}
+          path: dist/*
+          retention-days: 7
