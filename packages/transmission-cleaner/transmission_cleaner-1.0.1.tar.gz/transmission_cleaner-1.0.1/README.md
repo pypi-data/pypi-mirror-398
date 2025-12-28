@@ -1,0 +1,195 @@
+# Transmission Cleaner
+
+[![PyPI - Version](https://img.shields.io/pypi/v/transmission-cleaner)](https://pypi.org/project/transmission-cleaner/)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/transmission-cleaner)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+
+A comprehensive CLI tool for maintaining your Transmission torrents.
+
+- 🔗 **Find torrents without hardlinks** - Identify torrents that aren't hardlinked to media libraries (Sonarr, Radarr, etc.)
+- ‼️ **Manage errored torrents** - Find and clean up torrents with errors (unregistered, tracker issues, etc.)
+- 🗑️ **Detect orphaned files** - Discover files in your download directories that aren't tracked by any torrent
+
+## Support
+Unit tests ran against all of the following combinations
+- Python versions: 3.10 up to 3.14
+- OS: macOS, Linux, windows
+- Transmission v4
+
+## Installation
+
+### Quick Install (Recommended)
+
+If you haven't yet, [install uv](https://docs.astral.sh/uv/getting-started/installation/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`). It's a massive painkiller for the python management headache.
+
+```bash
+# Using uv (recommended for CLI tools)
+uv tool install transmission-cleaner
+
+# Or from source
+git clone https://github.com/flying-sausages/transmission-cleaner.git
+cd transmission-cleaner
+uv tool install .
+```
+
+## Usage
+
+The tool is organized into subcommands, each targeting a specific maintenance task:
+
+```bash
+transmission-cleaner <command> [options]
+```
+
+### Commands Overview
+
+- `hardlinks` - Find and manage torrents without hardlinks to other files
+- `errors` - Find and manage torrents with error status
+- `orphans` - Find and manage files not tracked by any torrent
+
+All commands require authentication to the transmission RPC server. You can either:
+- Use default RPC settings for local installs and use the `--username` and `--password` settings
+- Point to your local daemon's config and supply a `--password`,
+- Override the RPC defaults
+
+Run any command with `--help` for detailed options.
+
+### 1. Hardlinks Command
+
+Find torrents whose files don't have hardlinks elsewhere on your system. Perfect for cleaning up after media that's been deleted from your library.
+
+```bash
+# List torrents without hardlinks
+transmission-cleaner hardlinks --username USER --password PASSWORD
+```
+
+**Options:**
+- `-d, --directory` - Filter by download directory (substring match)
+- `-t, --tracker` - Filter by announce URL (substring match)
+- `--min-days` - Minimum days of active seeding (default: 7)
+- `--action` - Action to perform: `list` (default), `interactive`, `delete` (with data), `remove` (torrent only)
+
+### 2. Errors Command
+
+Find and manage torrents with error status, such as unregistered torrents or tracker failures. Includes cross-seed detection to prevent accidental data loss.
+
+```bash
+# List all torrents with errors
+transmission-cleaner errors --username USER --password PASSWORD
+```
+
+**Options:**
+- `-d, --directory` - Filter by download directory (substring match)
+- `-t, --tracker` - Filter by announce URL (substring match)
+- `--min-days` - Minimum days of active seeding (default: 7)
+- `--error-pattern` - Filter by error message pattern (e.g., "Unregistered")
+- `--skip-cross-seed` - Skip cross-seed detection (allows data deletion even if cross-seeded)
+- `--action` - Action to perform: `list` (default), `interactive`, `delete` (with data), `remove` (torrent only)
+
+**Cross-Seed Protection:** By default, the errors command checks if torrent data is shared with other active torrents. If cross-seeding is detected, the `delete` action will only remove the torrent entry, protecting the shared data.
+
+### 3. Orphans Command
+
+Find files in your download directories that aren't tracked by any torrent. Useful for cleaning up leftover files from deleted torrents or manual downloads.
+
+```bash
+# List orphaned files in a directory
+transmission-cleaner orphans \
+--username USER --password PASSWORD \
+--directory /path/to/downloads
+```
+
+**Options:**
+- `-d, --directory` - Directory to scan (required)
+- `--include-hidden` - Include hidden files (files starting with .)
+- `--action` - Action to perform: `list` (default), `interactive`, `delete`
+
+**Note:** The orphans scanner automatically excludes:
+- Symlinks (to prevent scanning outside the target directory)
+- System files (.DS_Store, Thumbs.db, etc.)
+- .torrent files
+- Hidden files (unless `--include-hidden` is specified)
+
+### Authentication Options
+
+All commands support the same authentication options:
+
+```bash
+--settings-file PATH     # Path to Transmission settings.json file
+--protocol {http,https}  # Protocol to use (default: http)
+--username USERNAME      # Transmission username
+--password PASSWORD      # Transmission password (required)
+--host HOST             # Transmission host (default: 127.0.0.1)
+--port PORT             # Transmission port (default: 9091)
+--rpc-path PATH             # Transmission RPC path (default: /transmission/rpc)
+```
+
+**Example with settings file:**
+```bash
+transmission-cleaner hardlinks \
+  --settings-file ~/.config/transmission-daemon/settings.json \
+  --password YOUR_PASSWORD
+```
+
+### Arrs Setup Suggestion
+
+For automated cleanup with Sonarr/Radarr:
+
+1. Have something (Plex/Maintainerr/etc.) automatically delete media
+2. Set `Unmonitor Deleted Episodes` to True in your arr
+3. In the arr's download client settings, set a `Category` value (e.g., "Sonarr" or "Radarr")
+4. Test the tool manually:
+   ```bash
+   transmission-cleaner hardlinks \
+     --settings-file ~/.config/transmission-daemon/settings.json \
+     --password YOUR_PASSWORD \
+     --directory Sonarr \
+     --action list
+   ```
+5. Add to crontab for daily cleanup at 3am:
+   ```cron
+   0 3 * * * transmission-cleaner hardlinks --settings-file ~/.config/transmission-daemon/settings.json --password YOUR_PASSWORD --directory Sonarr --action delete >> /var/log/transmission-cleaner.log 2>&1
+   ```
+
+### Action Modes
+
+All commands support these action modes:
+
+- **list** (default) - Display matching items without making changes
+- **interactive** - Prompt for confirmation before each action
+- **delete** - Remove torrent with data from disk
+- **remove** - Remove torrent from client only (keeps data)
+
+Short forms: `l` for list, `i` for interactive, `d` for delete, `r` for remove
+
+## Safety Notes
+
+- **Always test with `--action list` first** to see what would be affected
+- **Use interactive mode** when unsure about automatic removal
+- **Backup your data** before performing bulk deletions
+- **Cross-seed protection** in the errors command helps prevent data loss for shared files
+- The tool requires direct filesystem access to check hardlinks and scan directories
+- Orphans scanner excludes symlinks to prevent scanning outside target directories
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Development
+
+```bash
+# Set up the project
+uv sync
+
+# Run linting
+ruff check .
+
+# Run type checking
+basedpyright
+
+# Run tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov
+```
