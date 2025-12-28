@@ -1,0 +1,164 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ObsInfo:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'bucket': 'str',
+        'object': 'str',
+        'region': 'str'
+    }
+
+    attribute_map = {
+        'bucket': 'bucket',
+        'object': 'object',
+        'region': 'region'
+    }
+
+    def __init__(self, bucket=None, object=None, region=None):
+        r"""ObsInfo
+
+        The model defined in huaweicloud sdk
+
+        :param bucket: OBS的bucket名称
+        :type bucket: str
+        :param object: OBS对象路径
+        :type object: str
+        :param region: 桶所在区域
+        :type region: str
+        """
+        
+        
+
+        self._bucket = None
+        self._object = None
+        self._region = None
+        self.discriminator = None
+
+        self.bucket = bucket
+        self.object = object
+        if region is not None:
+            self.region = region
+
+    @property
+    def bucket(self):
+        r"""Gets the bucket of this ObsInfo.
+
+        OBS的bucket名称
+
+        :return: The bucket of this ObsInfo.
+        :rtype: str
+        """
+        return self._bucket
+
+    @bucket.setter
+    def bucket(self, bucket):
+        r"""Sets the bucket of this ObsInfo.
+
+        OBS的bucket名称
+
+        :param bucket: The bucket of this ObsInfo.
+        :type bucket: str
+        """
+        self._bucket = bucket
+
+    @property
+    def object(self):
+        r"""Gets the object of this ObsInfo.
+
+        OBS对象路径
+
+        :return: The object of this ObsInfo.
+        :rtype: str
+        """
+        return self._object
+
+    @object.setter
+    def object(self, object):
+        r"""Sets the object of this ObsInfo.
+
+        OBS对象路径
+
+        :param object: The object of this ObsInfo.
+        :type object: str
+        """
+        self._object = object
+
+    @property
+    def region(self):
+        r"""Gets the region of this ObsInfo.
+
+        桶所在区域
+
+        :return: The region of this ObsInfo.
+        :rtype: str
+        """
+        return self._region
+
+    @region.setter
+    def region(self, region):
+        r"""Sets the region of this ObsInfo.
+
+        桶所在区域
+
+        :param region: The region of this ObsInfo.
+        :type region: str
+        """
+        self._region = region
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ObsInfo):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
