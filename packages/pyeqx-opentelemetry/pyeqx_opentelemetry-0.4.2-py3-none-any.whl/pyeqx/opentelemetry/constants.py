@@ -1,0 +1,5 @@
+DEFAULT_OTLP_PROTOCOL = "grpc"
+DEFAULT_OTLP_ENDPOINT = "localhost:4317"
+
+DEFAULT_OTLP_TRACE_HTTP_ENDPOINT = "http://localhost:4318/v1/traces"
+DEFAULT_OTLP_METRIC_HTTP_ENDPOINT = "http://localhost:4318/v1/metrics"
