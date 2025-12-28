@@ -1,0 +1,258 @@
+from typing import Dict, List
+
+import numpy as np
+from fastapi import APIRouter, HTTPException
+
+from quick_pp.app.backend.schemas.porosity import InputData
+from quick_pp.app.backend.schemas.porosity_shale import InputData as ShalePorosityInput
+from quick_pp.lithology.sand_silt_clay import SandSiltClay
+from quick_pp.porosity import (
+    density_porosity,
+    estimate_shale_porosity,
+    neu_den_xplot_poro,
+    rho_matrix,
+)
+
+router = APIRouter(prefix="/porosity", tags=["Porosity"])
+
+
+def _validate_points(input_dict: dict, required_points: List[str]):
+    for k in required_points:
+        if input_dict.get(k) is not None and len(input_dict[k]) != 2:
+            raise ValueError(
+                f"{k} must be a tuple of 2 elements: (neutron porosity, bulk density)"
+            )
+
+
+def _safe_float(val):
+    """
+    Safely convert a value to float for API output.
+    If the value is complex, returns the real part as float.
+    If conversion fails, returns 0.0 to maintain API contract.
+    """
+    try:
+        if isinstance(val, complex):
+            return float(val.real)
+        return float(val)
+    except Exception:
+        return 0.0  # fallback to 0.0 for API contract
+
+
+@router.post(
+    "/den",
+    summary="Estimate Density Porosity (PHID)",
+    description=(
+        """
+        Estimate Density Porosity (PHID) using the density porosity method.
+
+        The `InputData` Pydantic model includes:
+        - data: List of measurement objects, each with:
+            - nphi (float): Neutron porosity value.
+            - rhob (float): Bulk density value.
+        - dry_sand_point: Tuple[float, float] - Reference point for dry sand (nphi, rhob).
+        - dry_silt_point: Tuple[float, float] - Reference point for dry silt (nphi, rhob).
+        - dry_clay_point: Tuple[float, float] - Reference point for dry clay (nphi, rhob).
+        - fluid_point: Tuple[float, float] - Reference point for fluid (nphi, rhob).
+        - wet_clay_point: Optional[Tuple[float, float]] - Reference point for wet clay (nphi, rhob), optional.
+        - silt_line_angle: float - Angle parameter for the silt line.
+        - method: Optional[str] - Crossplot model or method to use (used in /neu_den endpoint).
+        """
+    ),
+    operation_id="estimate_density_porosity",
+)
+async def estimate_phit_den(inputs: InputData) -> List[Dict[str, float]]:
+    """
+    Estimates density porosity (PHID) for a set of input data using a sand-silt-clay (SSC) model.
+    This asynchronous function receives input containing neutron porosity (nphi) and bulk density (rhob) measurements,
+    along with reference points for dry sand, silt, clay, fluid, and optionally wet clay. It validates the input points,
+    constructs an SSC model, estimates lithology fractions (sand, silt, clay), computes matrix density, and finally
+    calculates density porosity for each data point.
+    Args:
+        inputs (InputData): Input data object containing:
+            - data: List of measurements, each with 'nphi' and 'rhob' attributes.
+            - dry_sand_point, dry_silt_point, dry_clay_point: Reference points for dry sand, silt, and clay (tuples).
+            - fluid_point: Reference point for fluid (tuple).
+            - wet_clay_point (optional): Reference point for wet clay (tuple or None).
+            - silt_line_angle: Angle parameter for the silt line.
+            - Other required fields as defined in InputData.
+            The request body is validated and an example is provided via the EXAMPLE constant.
+    Returns:
+        List[Dict[str, float]]: A list of dictionaries, each containing the estimated density porosity value
+        for a data point, with the key "PHID".
+    Raises:
+        ValidationError: If required reference points are missing or invalid.
+        Any exceptions raised by the SandSiltClay model or utility functions.
+    Technical Details:
+        - Uses the SandSiltClay model to estimate lithology fractions (vsand, vsilt, vcld) from input nphi and rhob.
+        - Computes matrix density (rho_ma) for each data point using the estimated lithology fractions.
+        - Calculates density porosity (PHID) using the measured bulk density (rhob), computed matrix density (rho_ma),
+          and the fluid density (from inputs.fluid_point[1]).
+        - Returns the results as a list of dictionaries, each with a single key "PHID" and its corresponding value.
+    """
+    input_dict = inputs.model_dump()
+    _validate_points(input_dict, [k for k in input_dict if k.endswith("_point")])
+
+    nphi = np.array([d.nphi for d in inputs.data])
+    rhob = np.array([d.rhob for d in inputs.data])
+
+    ssc_model = SandSiltClay(
+        dry_sand_point=inputs.dry_sand_point,
+        dry_silt_point=inputs.dry_silt_point,
+        dry_clay_point=inputs.dry_clay_point,
+        fluid_point=inputs.fluid_point,
+        wet_clay_point=inputs.wet_clay_point
+        if inputs.wet_clay_point is not None
+        else (None, None),
+        silt_line_angle=inputs.silt_line_angle,
+    )
+    vsand, vsilt, vcld, _ = ssc_model.estimate_lithology(nphi, rhob)
+    rho_ma = [
+        rho_matrix(vs, vsi, vc) for vs, vsi, vc in zip(vsand, vsilt, vcld, strict=True)
+    ]
+    phid = [
+        density_porosity(rhb, rhma, inputs.fluid_point[1])
+        for rhb, rhma in zip(rhob, rho_ma, strict=True)
+    ]
+    return [{"PHID": float(val)} for val in phid]
+
+
+@router.post(
+    "/neu_den",
+    summary="Estimate Total Porosity (PHIT)",
+    description=(
+        """
+        Estimate Total Porosity (PHIT) using neutron-density crossplot analysis.
+
+        The `InputData` Pydantic model includes:
+        - data: List of measurement objects, each with:
+            - nphi (float): Neutron porosity value.
+            - rhob (float): Bulk density value.
+        - dry_sand_point: Tuple[float, float] - Reference point for dry sand (nphi, rhob).
+        - dry_silt_point: Tuple[float, float] - Reference point for dry silt (nphi, rhob).
+        - dry_clay_point: Tuple[float, float] - Reference point for dry clay (nphi, rhob).
+        - fluid_point: Tuple[float, float] - Reference point for fluid (nphi, rhob).
+        - wet_clay_point: Optional[Tuple[float, float]] - Reference point for wet clay (nphi, rhob), optional.
+        - silt_line_angle: float - Angle parameter for the silt line.
+        - method: Optional[str] - Crossplot model or method to use (used in /neu_den endpoint).
+        """
+    ),
+    operation_id="estimate_total_porosity",
+)
+async def estimate_phit_neu_den(inputs: InputData) -> List[Dict[str, float]]:
+    """
+    This asynchronous endpoint receives input data containing neutron porosity (NPHI) and bulk density (RHOB)
+    measurements, along with reference points for dry sand, silt, clay, and fluid, and applies a crossplot
+    porosity estimation method.
+    Parameters:
+        inputs (InputData):
+            The input data object, expected as a request body, containing:
+                - data: List of measurement objects, each with 'nphi' (neutron porosity) and 'rhob' (bulk density).
+                - method: The crossplot model or method to use for porosity estimation.
+                - dry_sand_point: Reference point for dry sand in the crossplot.
+                - dry_silt_point: Reference point for dry silt in the crossplot.
+                - dry_clay_point: Reference point for dry clay in the crossplot.
+                - fluid_point: Reference point for fluid in the crossplot.
+    Returns:
+        List[Dict[str, float]]:
+            A list of dictionaries, each containing the estimated total porosity ('PHIT') value for the corresponding
+            input data point.
+    Raises:
+        ValidationError: If required reference points are missing or invalid in the input data.
+    Notes:
+        - The function validates that all required crossplot reference points are present.
+        - The porosity estimation is performed using the `neu_den_xplot_poro` function, which implements the
+          neutron-density crossplot algorithm.
+        - The output is formatted as a list of dictionaries for compatibility with API responses.
+    """
+    input_dict = inputs.model_dump()
+    _validate_points(input_dict, [k for k in input_dict if k.endswith("_point")])
+
+    nphi = np.array([d.nphi for d in inputs.data])
+    rhob = np.array([d.rhob for d in inputs.data])
+
+    ssc_model = SandSiltClay(
+        dry_sand_point=inputs.dry_sand_point,
+        dry_silt_point=inputs.dry_silt_point,
+        dry_clay_point=inputs.dry_clay_point,
+        fluid_point=inputs.fluid_point,
+        silt_line_angle=inputs.silt_line_angle,
+    )
+    vsand, vsilt, vclay, _ = ssc_model.estimate_lithology(nphi, rhob)
+
+    phit = neu_den_xplot_poro(
+        nphi,
+        rhob,
+        model=inputs.method,
+        dry_min1_point=inputs.dry_sand_point,
+        dry_silt_point=inputs.dry_silt_point,
+        dry_clay_point=inputs.dry_clay_point,
+        fluid_point=inputs.fluid_point,
+    )
+
+    rho_ma = rho_matrix(vsand=vsand, vsilt=vsilt, vclay=vclay)
+    phid = density_porosity(rhob, rho_ma, inputs.fluid_point[1])
+    phit_shale = estimate_shale_porosity(nphi, phid)
+    vclb = vclay * phit_shale
+    phie = phit - vclb
+
+    return [
+        {"PHIT": float(val), "PHIE": float(e)}
+        for val, e in zip(phit, phie, strict=True)
+    ]
+
+
+@router.post(
+    "/shale_porosity",
+    summary="Estimate Shale Porosity",
+    description=(
+        """
+        Estimate shale porosity from neutron porosity and total porosity.
+
+        Input model: ShalePorosityInput (see quick_pp.app.backend.schemas.porosity_shale.InputData).
+
+        Request body must be a JSON object with the following fields:
+        - data: list of objects, each with keys 'nphi' (float, required) and 'phit' (float, required)
+
+        Example:
+        {
+            'data': [
+                {'nphi': 0.35, 'phit': 0.22},
+                {'nphi': 0.40, 'phit': 0.18}
+            ]
+        }
+        """
+    ),
+    operation_id="estimate_shale_porosity",
+)
+async def estimate_shale_porosity_(
+    inputs: ShalePorosityInput,
+) -> List[Dict[str, float]]:
+    """
+    Estimate shale porosity for each input record.
+
+    Args:
+        inputs (ShalePorosityInput): Input data containing neutron porosity (nphi) and total porosity (phit).
+    Returns:
+        List[Dict[str, float]]: List of dictionaries with the estimated shale porosity under the key 'PHIT_SH'.
+    Technical Details:
+        - Converts input data to numpy arrays for vectorized calculation.
+        - Calls estimate_shale_porosity with nphi and phit arrays.
+        - The function computes shale porosity as nphi - phit, clipped between 0.01 and 1.0.
+        - Handles both scalar and array results, always returning a list of dicts.
+        - Uses _safe_float to ensure all outputs are valid floats.
+        - Raises HTTPException with status 400 on any error.
+    """
+    input_dict = inputs.model_dump()
+    try:
+        nphi = np.array([d["nphi"] for d in input_dict["data"]], dtype=np.float64)
+        phit = np.array([d["phit"] for d in input_dict["data"]], dtype=np.float64)
+        phit_sh = estimate_shale_porosity(nphi, phit)
+        if np.isscalar(phit_sh):
+            result_list = [_safe_float(phit_sh)]
+        else:
+            result_list = [_safe_float(val) for val in np.asarray(phit_sh).flatten()]
+        return [{"PHIT_SH": val} for val in result_list]
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error processing request: {e}"
+        ) from e
