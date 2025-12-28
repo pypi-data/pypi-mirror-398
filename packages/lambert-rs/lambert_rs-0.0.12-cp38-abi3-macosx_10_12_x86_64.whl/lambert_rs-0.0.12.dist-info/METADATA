@@ -1,0 +1,657 @@
+Metadata-Version: 2.4
+Name: lambert-rs
+Version: 0.0.12
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Physics
+Summary: Rust + PyO3 implementation of the Izzo Lambert solver
+Keywords: lambert,orbital-mechanics,astrodynamics,rust
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/yourusername/lambert_rust
+Project-URL: Repository, https://github.com/yourusername/lambert_rust
+Project-URL: Documentation, https://github.com/yourusername/lambert_rust#readme
+
+# lambert_rs
+
+High-performance Rust + PyO3 implementation of the Izzo Lambert solver with advanced optimization capabilities.
+
+## Installation
+
+### From PyPI
+
+```bash
+pip install lambert-rs
+```
+
+**Dependencies**: No required dependencies. The package optionally uses `pandas` if available for `optimize_lambert_nm_multi_array` (returns DataFrame), otherwise returns a dictionary.
+
+## Features
+
+- **Fast Lambert Problem Solving**: Vectorized batch processing with parallel execution
+- **Multiple Solution Methods**: Single solutions, grid search, and Nelder-Mead optimization
+- **Delta-V Calculations**: Automatic computation of transfer impulses
+- **Two-Body Propagation**: Universal variable formulation for orbit propagation
+- **Transfer Optimization**: Find optimal departure/arrival times minimizing delta-v
+- **Rendezvous Optimization**: Optimize for full rendezvous (two burns) or transfer only (one burn)
+
+## Quick Start
+
+### Basic Lambert Problem
+
+Solve a single Lambert problem:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Initial and final positions (km)
+r1 = np.array([7000., 0., 0.])
+r2 = np.array([0., -8000., 0.])
+
+# Time of flight (seconds)
+tof = 3600.0
+
+# Solve Lambert problem
+sol = lambert_rs.lambert_izzo_single(
+    r1, r2, tof,
+    max_rev=0,        # Maximum number of revolutions
+    retrograde=False, # Prograde transfer
+    mu=398600.4418,  # Earth's gravitational parameter (km^3/s^2)
+    tol=1e-8,        # Tolerance
+    maxiter=50       # Maximum iterations
+)
+
+# Get the first valid solution
+if sol.valid[0]:
+    v1 = sol.v1[0]
+    v2 = sol.v2[0]
+    print(f"v1: {v1} km/s")
+    print(f"v2: {v2} km/s")
+```
+
+### Batch Processing
+
+Process multiple Lambert problems in parallel:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Multiple position pairs: shape (N, 3)
+r1_batch = np.array([
+    [7000., 0., 0.],
+    [8000., 0., 0.],
+    [9000., 0., 0.],
+])
+
+r2_batch = np.array([
+    [0., -8000., 0.],
+    [0., -9000., 0.],
+    [0., -10000., 0.],
+])
+
+# Multiple time-of-flight values
+tof_array = np.array([3600., 7200., 10800.])
+
+# Solve all combinations
+sol = lambert_rs.lambert_izzo_vec(
+    r1_batch, r2_batch, tof_array,
+    max_rev=0,
+    retrograde=False,
+    mu=398600.4418,
+    tol=1e-8,
+    maxiter=50
+)
+
+# Results shape: (N, num_tof, num_solutions, 3)
+print(f"v1 shape: {sol.v1.shape}")
+print(f"v2 shape: {sol.v2.shape}")
+print(f"valid shape: {sol.valid.shape}")
+```
+
+### Delta-V Calculations
+
+Calculate transfer impulses for rendezvous:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Initial and target states: [x, y, z, vx, vy, vz]
+s1 = np.array([7000., 0., 0., 0., 7.5, 0.])  # Initial state
+s2 = np.array([0., -8000., 0., 8.0, 0., 0.])  # Target state
+
+# Time of flight
+tof = 3600.0
+
+# Calculate delta-v for all solutions
+dv1_mag, dv2_mag, dv_total, valid, dv1_vec, dv2_vec = lambert_rs.lambert_izzo_vec_dv(
+    s1, s2, tof,
+    max_rev=0,
+    retrograde=False,
+    mu=398600.4418,
+    tol=1e-8,
+    maxiter=50
+)
+
+# Find best solution (minimum total delta-v)
+if np.any(valid):
+    best_idx = np.nanargmin(dv_total[valid])
+    print(f"Best delta-v: {dv_total[best_idx]:.3f} km/s")
+    print(f"First burn: {dv1_vec[best_idx]} km/s")
+    print(f"Second burn: {dv2_vec[best_idx]} km/s")
+```
+
+### Reentry Check
+
+Filter out solutions that would reenter Earth's atmosphere:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Positions that might result in a reentry trajectory
+r1 = np.array([7000., 0., 0.])  # km
+r2 = np.array([0., -8000., 0.])  # km
+tof = 1800.0  # Short time of flight might cause reentry
+
+# Solve without reentry check
+sol_no_check = lambert_rs.lambert_izzo_single(
+    r1, r2, tof,
+    max_rev=0,
+    retrograde=False,
+    mu=398600.4418,
+    reentry_check=False  # Default: don't check for reentry
+)
+
+# Solve with reentry check enabled
+sol_with_check = lambert_rs.lambert_izzo_single(
+    r1, r2, tof,
+    max_rev=0,
+    retrograde=False,
+    mu=398600.4418,
+    reentry_check=True  # Filter out solutions that would reenter
+)
+
+print(f"Solutions without check: {np.sum(sol_no_check.valid)} valid")
+print(f"Solutions with check: {np.sum(sol_with_check.valid)} valid")
+
+# The reentry check marks solutions as invalid if the perigee radius
+# would be below Earth's surface (6378.137 km)
+```
+
+### Find Best Delta-V Solution
+
+Automatically find the best solution (prograde or retrograde):
+
+```python
+import numpy as np
+import lambert_rs
+
+# States: shape (..., 6) for batch processing
+s1 = np.array([7000., 0., 0., 0., 7.5, 0.])
+s2 = np.array([0., -8000., 0., 8.0, 0., 0.]) 
+
+# Time of flight (can be scalar or array)
+tof = np.array([3600., 7200., 10800.])
+
+# Full rendezvous: minimize total delta-v (dv1 + dv2)
+# Use this when you need to match both position AND velocity at the target
+dv1_rend, dv2_rend, dv_total_rend, valid_rend, dv1_vec_rend, dv2_vec_rend = lambert_rs.lambert_izzo_best_dv(
+    s1, s2, tof,
+    max_rev=0,
+    mu=398600.4418,
+    tol=1e-8,
+    maxiter=50,
+    rendezvous=True  # Default: minimize dv1 + dv2
+)
+
+# Transfer-only: minimize first impulse (dv1 only)
+# Use this when you only need to reach the target position (not matching velocity)
+dv1_trans, dv2_trans, dv_total_trans, valid_trans, dv1_vec_trans, dv2_vec_trans = lambert_rs.lambert_izzo_best_dv(
+    s1, s2, tof,
+    max_rev=0,
+    mu=398600.4418,
+    tol=1e-8,
+    maxiter=50,
+    rendezvous=False  # Minimize dv1 only
+)
+
+# Automatically selects best solution (prograde or retrograde)
+print(f"Rendezvous total delta-v: {dv_total_rend} km/s")
+print(f"Transfer-only total delta-v: {dv1_trans} km/s")
+```
+
+### Two-Body Orbit Propagation
+
+Propagate an orbit using universal variable formulation:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Initial state: [x, y, z, vx, vy, vz] (km, km/s)
+initial_state = np.array([7000., 0., 0., 0., 7.5, 0.])
+
+# Propagation time (seconds)
+dt = 3600.0
+
+# Propagate
+r_final, v_final = lambert_rs.kepler_universal_2body_py(initial_state, dt)
+
+print(f"Final position: {r_final} km")
+print(f"Final velocity: {v_final} km/s")
+```
+
+### Transfer Optimization (Grid Search)
+
+Find optimal departure and arrival times using grid search:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Source and target initial states
+source_state = np.array([7000., 0., 0., 0., 7.5, 0.])
+target_state = np.array([0., -8000., 0., 8.0, 0., 0.]) 
+
+# Time bounds: (min_departure, max_arrival) in seconds
+time_bounds = (0., 86400.)  # 24 hours
+dt_step = 3600.0  # 1 hour steps
+
+# Find optimal transfer
+sol = lambert_rs.optimize_lambert_transfer_py(
+    source_state, target_state,
+    time_bounds, dt_step,
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # retrograde=False  # Optional: default is False
+)
+
+print(f"Optimal departure time: {sol.t0:.1f} s")
+print(f"Optimal arrival time: {sol.tf:.1f} s")
+print(f"Minimum delta-v: {sol.cost:.3f} km/s")
+print(f"First burn: {sol.dv1} km/s")
+print(f"Second burn: {sol.dv2} km/s")
+```
+
+### Transfer Grid (All Solutions)
+
+Get all transfer solutions in a time window:
+
+```python
+import numpy as np
+import lambert_rs
+
+source_state = np.array([7000., 0., 0., 0., 7.5, 0.])
+target_state = np.array([0., -8000., 0., 8.0, 0., 0.]) 
+
+time_bounds = (0., 86400.)
+dt_step = 3600.0
+
+# Get all solutions
+sols = lambert_rs.optimize_lambert_transfer_grid_py(
+    source_state, target_state,
+    time_bounds, dt_step,
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # retrograde=False  # Optional: default is False
+)
+
+# Plot or analyze all solutions
+import matplotlib.pyplot as plt
+plt.scatter(sols.t0, sols.tf, c=sols.cost, cmap='viridis')
+plt.colorbar(label='Delta-V (km/s)')
+plt.xlabel('Departure Time (s)')
+plt.ylabel('Arrival Time (s)')
+plt.show()
+```
+
+### Nelder-Mead Optimization
+
+Use gradient-free optimization to find optimal transfer:
+
+```python
+import numpy as np
+import lambert_rs
+
+source_state = np.array([7000., 0., 0., 0., 7.5, 0.])
+target_state = np.array([0., -8000., 0., 8.0, 0., 0.]) 
+
+time_bounds = (0., 86400.)
+
+# Optimize for transfer (single burn)
+# Automatically selects best solution from both prograde and retrograde
+sol = lambert_rs.optimize_lambert_nm_py(
+    source_state, target_state,
+    time_bounds,
+    max_rev=0,
+    optimize_rendezvous=False  # Transfer only (one burn)
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # max_iters=None,  # Optional: default is None (uses 1000 internally)
+    # initial_guess=None  # Optional: (t0, tf) guess
+)
+
+print(f"Optimal times: t0={sol.t0:.1f} s, tf={sol.tf:.1f} s")
+print(f"Cost (delta-v): {sol.cost:.3f} km/s")
+print(f"First burn: {sol.dv1} km/s")
+
+# Optimize for rendezvous (two burns)
+# Automatically selects best solution from both prograde and retrograde
+sol = lambert_rs.optimize_lambert_nm_py(
+    source_state, target_state,
+    time_bounds,
+    max_rev=0,
+    optimize_rendezvous=True,  # Full rendezvous (two burns)
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # max_iters=None,  # Optional: default is None (uses 1000 internally)
+)
+
+print(f"Rendezvous cost: {sol.cost:.3f} km/s")
+print(f"First burn: {sol.dv1} km/s")
+print(f"Second burn: {sol.dv2} km/s")
+```
+
+### Multi-Start Optimization
+
+Find multiple local optima using parallel multi-start optimization:
+
+```python
+import numpy as np
+import lambert_rs
+
+source_state = np.array([7000., 0., 0., 0., 7.5, 0.])
+target_state = np.array([0., -8000., 0., 8.0, 0., 0.]) 
+
+time_bounds = (0., 86400.)
+
+# Run multiple optimizers in parallel
+# Automatically selects best solution from both prograde and retrograde for each optimizer
+sols = lambert_rs.optimize_lambert_nm_multi_py(
+    source_state, target_state,
+    time_bounds,
+    max_rev=0,
+    optimize_rendezvous=True,
+    num_solvers=10,        # Number of parallel optimizers
+    return_best_only=False, # Return all solutions
+    remove_duplicates=True,  # Remove duplicate solutions
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # max_iters=None,  # Optional: default is None (uses 1000 internally)
+)
+
+# Analyze all solutions
+print(f"Found {len(sols.cost)} solutions")
+print(f"Best cost: {np.min(sols.cost):.3f} km/s")
+print(f"Worst cost: {np.max(sols.cost):.3f} km/s")
+
+# Get the best solution
+best_idx = np.argmin(sols.cost)
+print(f"\nBest solution:")
+print(f"  Times: t0={sols.t0[best_idx]:.1f} s, tf={sols.tf[best_idx]:.1f} s")
+print(f"  Cost: {sols.cost[best_idx]:.3f} km/s")
+print(f"  First burn: {sols.dv1[best_idx]} km/s")
+print(f"  Second burn: {sols.dv2[best_idx]} km/s")
+```
+
+### Array-based Multi-Start Optimization
+
+For analyzing multiple source and target states simultaneously, use `optimize_lambert_nm_multi_array`:
+
+```python
+import numpy as np
+import lambert_rs
+
+# Generate arrays of source and target states
+# Example: 100 source states and 20 target states
+num_sources = 100
+num_targets = 20
+
+# Create random orbital states (in practice, these would be your actual states)
+source_states = np.random.randn(num_sources, 6) * 1000  # [N, 6] array
+target_states = np.random.randn(num_targets, 6) * 1000  # [M, 6] array
+
+# Time bounds for optimization
+time_bounds = (0.0, 86400.0)  # 0 to 1 day in seconds
+
+# Run optimization for all combinations
+# This will compute 100 * 20 = 2000 combinations
+result = lambert_rs.optimize_lambert_nm_multi_array(
+    source_states, target_states,
+    time_bounds,
+    max_rev=0,
+    optimize_rendezvous=True,
+    num_solvers=10,        # Number of parallel optimizers per combination
+    return_best_only=True, # Return only best solution per [i,j] combination
+    remove_duplicates=True,
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # max_iters=None,  # Optional: default is None (uses 1000 internally)
+)
+
+# Result is a pandas DataFrame if pandas is available, otherwise a dictionary
+# Columns/keys:
+# - source_idx: index of source state (0 to num_sources-1)
+# - target_idx: index of target state (0 to num_targets-1)
+# - t0: departure time [s]
+# - tf: arrival time [s]
+# - cost: total delta-v [km/s]
+# - dv1_x, dv1_y, dv1_z: first burn impulse components [km/s]
+# - dv2_x, dv2_y, dv2_z: second burn impulse components [km/s]
+
+# If pandas is available, result is a DataFrame
+try:
+    import pandas as pd
+    if isinstance(result, pd.DataFrame):
+        print(f"Total solutions: {len(result)}")
+        print(f"\nBest solution:")
+        best = result.sort_values("cost").head(1)
+        print(best)
+        
+        # Find best solution for each source state
+        best_per_source = result.sort_values("cost").groupby("source_idx").first()
+        print(f"\nBest solution per source state:")
+        print(best_per_source)
+        
+        # Filter solutions with cost < 5 km/s
+        low_cost = result[result["cost"] < 5.0]
+        print(f"\nSolutions with cost < 5 km/s: {len(low_cost)}")
+except ImportError:
+    pass
+
+# If pandas is not available, result is a dictionary
+if isinstance(result, dict):
+    import numpy as np
+    print(f"Total solutions: {len(result['cost'])}")
+    
+    # Find best solution
+    best_idx = np.argmin(result['cost'])
+    print(f"\nBest solution:")
+    print(f"  source_idx: {result['source_idx'][best_idx]}")
+    print(f"  target_idx: {result['target_idx'][best_idx]}")
+    print(f"  cost: {result['cost'][best_idx]:.3f} km/s")
+    
+    # Filter solutions with cost < 5 km/s
+    cost_array = np.array(result['cost'])
+    low_cost_mask = cost_array < 5.0
+    print(f"\nSolutions with cost < 5 km/s: {np.sum(low_cost_mask)}")
+
+# When return_best_only=False, you can get multiple solutions per [i,j] combination
+result_all = lambert_rs.optimize_lambert_nm_multi_array(
+    source_states, target_states,
+    time_bounds,
+    max_rev=0,
+    optimize_rendezvous=True,
+    num_solvers=10,
+    return_best_only=False, # Return all solutions per [i,j] combination
+    remove_duplicates=True,
+    # mu=398600.4418,  # Optional: default is 398600.4418 (Earth)
+    # max_iters=None,  # Optional: default is None (uses 1000 internally)
+)
+
+# Analyze all solutions for a specific source-target pair
+if isinstance(result_all, dict):
+    import numpy as np
+    source_idx = 0
+    target_idx = 5
+    mask = (np.array(result_all['source_idx']) == source_idx) & \
+           (np.array(result_all['target_idx']) == target_idx)
+    indices = np.where(mask)[0]
+    costs = np.array(result_all['cost'])[indices]
+    sorted_indices = indices[np.argsort(costs)]
+    print(f"\nAll solutions for source[{source_idx}] -> target[{target_idx}]:")
+    for idx in sorted_indices:
+        print(f"  cost: {result_all['cost'][idx]:.3f} km/s, "
+              f"t0: {result_all['t0'][idx]:.1f} s, tf: {result_all['tf'][idx]:.1f} s")
+else:
+    # pandas DataFrame
+    source_0_target_5 = result_all[
+        (result_all["source_idx"] == 0) & (result_all["target_idx"] == 5)
+    ]
+    print(f"\nAll solutions for source[0] -> target[5]:")
+    print(source_0_target_5.sort_values("cost"))
+```
+
+## API Reference
+
+### Core Functions
+
+- **`lambert_izzo_single(r1, r2, tof, max_rev, retrograde, mu, tol, maxiter)`**
+  - Solve a single Lambert problem
+  - Returns: `LambertSolutionArray` object with fields:
+    - `v1`: Velocity at r1 [km/s] - shape (n, 3)
+    - `v2`: Velocity at r2 [km/s] - shape (n, 3)
+    - `tof`: Time of flight [s] - shape (n,)
+    - `num_revs`: Number of revolutions - shape (n,)
+    - `path_flag`: Path flag - shape (n,)
+    - `valid`: Whether solution is valid - shape (n,)
+    - `retrograde`: Whether solution uses retrograde motion - shape (n,)
+
+- **`lambert_izzo_vec(r1, r2, tof, max_rev, retrograde, mu, tol, maxiter)`**
+  - Vectorized batch processing
+  - Returns: `LambertSolutionArray` object with same fields as above
+
+- **`lambert_izzo_vec_dv(s1, s2, tof, max_rev, retrograde, mu, tol, maxiter)`**
+  - Calculate delta-v for transfers
+  - Returns: `(dv1_mag, dv2_mag, dv_total, valid, dv1_vec, dv2_vec)`
+
+- **`lambert_izzo_best_dv(s1, s2, tof, max_rev, mu, tol, maxiter, rendezvous)`**
+  - Automatically find best solution (prograde or retrograde)
+  - `rendezvous=True` (default): Minimize total delta-v (dv1 + dv2) for full rendezvous
+  - `rendezvous=False`: Minimize first impulse (dv1) for transfer-only missions
+  - Returns: `(dv1_mag, dv2_mag, dv_total, valid, dv1_vec, dv2_vec)`
+
+### Propagation
+
+- **`kepler_universal_2body_py(init_state_vec, dt_sec)`**
+  - Two-body orbit propagation using universal variables
+  - Returns: `(r_final, v_final)`
+
+### Optimization
+
+- **`optimize_lambert_transfer_py(source_state, target_state, time_bounds, dt_step, mu=398600.4418, retrograde=False)`**
+  - Grid search for optimal transfer
+  - Parameters:
+    - `source_state`: Initial state vector [6] (position + velocity)
+    - `target_state`: Target state vector [6] (position + velocity)
+    - `time_bounds`: Tuple `(min_departure_time, max_arrival_time)` [s]
+    - `dt_step`: Time step for grid search [s]
+    - `mu`: Gravitational parameter [km³/s²] (default: 398600.4418 for Earth)
+    - `retrograde`: Whether to allow retrograde transfers (default: False)
+  - Returns: `OptimizedLambertSolutionPy` object with fields:
+    - `t0`: Departure time [s]
+    - `tf`: Arrival time [s]
+    - `cost`: Total delta-v [km/s]
+    - `dv1`: First burn impulse [km/s] - shape (3,)
+    - `dv2`: Second burn impulse [km/s] - shape (3,)
+
+- **`optimize_lambert_transfer_grid_py(source_state, target_state, time_bounds, dt_step, mu=398600.4418, retrograde=False)`**
+  - Get all grid search solutions
+  - Parameters: Same as `optimize_lambert_transfer_py`
+  - Returns: `OptimizedLambertSolutionArray` object with fields:
+    - `t0`: Departure times [s] - shape (n,)
+    - `tf`: Arrival times [s] - shape (n,)
+    - `cost`: Total delta-v [km/s] - shape (n,)
+    - `dv1`: First burn impulses [km/s] - shape (n, 3)
+    - `dv2`: Second burn impulses [km/s] - shape (n, 3)
+
+- **`optimize_lambert_nm_py(source_state, target_state, time_bounds, max_rev, optimize_rendezvous, mu=398600.4418, max_iters=None, initial_guess=None)`**
+  - Nelder-Mead optimization
+  - Automatically selects best solution from both prograde and retrograde transfers
+  - Parameters:
+    - `source_state`: Initial state vector [6] (position + velocity)
+    - `target_state`: Target state vector [6] (position + velocity)
+    - `time_bounds`: Tuple `(min_departure_time, max_arrival_time)` [s]
+    - `max_rev`: Maximum number of revolutions to consider
+    - `optimize_rendezvous`: If True, optimize for full rendezvous (both burns); if False, optimize for transfer only (first burn)
+    - `mu`: Gravitational parameter [km³/s²] (default: 398600.4418 for Earth)
+    - `max_iters`: Maximum iterations (default: None, uses 1000 internally)
+    - `initial_guess`: Optional tuple `(t0, tf)` for initial guess [s]
+  - Returns: `OptimizedLambertSolutionPy` object (same fields as `optimize_lambert_transfer_py`)
+
+- **`optimize_lambert_nm_multi_py(source_state, target_state, time_bounds, max_rev, optimize_rendezvous, num_solvers, return_best_only, remove_duplicates, mu=398600.4418, max_iters=None)`**
+  - Multi-start parallel optimization
+  - Automatically selects best solution from both prograde and retrograde transfers for each optimizer
+  - Parameters:
+    - `source_state`: Initial state vector [6] (position + velocity)
+    - `target_state`: Target state vector [6] (position + velocity)
+    - `time_bounds`: Tuple `(min_departure_time, max_arrival_time)` [s]
+    - `max_rev`: Maximum number of revolutions to consider
+    - `optimize_rendezvous`: If True, optimize for full rendezvous (both burns); if False, optimize for transfer only (first burn)
+    - `num_solvers`: Number of parallel optimizers to spawn
+    - `return_best_only`: If True, return only the best solution; if False, return all solutions
+    - `remove_duplicates`: If True, remove duplicate solutions that converged to the same point
+    - `mu`: Gravitational parameter [km³/s²] (default: 398600.4418 for Earth)
+    - `max_iters`: Maximum iterations (default: None, uses 1000 internally)
+  - Returns: `OptimizedLambertSolutionArray` object (same fields as `optimize_lambert_transfer_grid_py`)
+
+- **`optimize_lambert_nm_multi_array(source_state, target_state, time_bounds, max_rev, optimize_rendezvous, num_solvers, return_best_only, remove_duplicates, mu=398600.4418, max_iters=None)`**
+  - Array-based multi-start optimization for multiple source and target states
+  - Parameters:
+    - `source_state`: Array of shape `[N, 6]` where N is any number of source states
+    - `target_state`: Array of shape `[M, 6]` where M is any number of target states
+    - `time_bounds`: Tuple `(min_departure_time, max_arrival_time)` [s]
+    - `max_rev`: Maximum number of revolutions to consider
+    - `optimize_rendezvous`: If True, optimize for full rendezvous (both burns); if False, optimize for transfer only (first burn)
+    - `num_solvers`: Number of parallel optimizers to spawn per combination
+    - `return_best_only`: If True, return only the best solution per [i,j] combination; if False, return all solutions
+    - `remove_duplicates`: If True, remove duplicate solutions that converged to the same point
+    - `mu`: Gravitational parameter [km³/s²] (default: 398600.4418 for Earth)
+    - `max_iters`: Maximum iterations (default: None, uses 1000 internally)
+  - Computes all N×M combinations in parallel
+  - Automatically selects best solution from both prograde and retrograde transfers for each optimizer
+  - Returns: 
+    - **pandas DataFrame** (if pandas is available) with columns:
+      - `source_idx`: Index of source state (0 to N-1)
+      - `target_idx`: Index of target state (0 to M-1)
+      - `t0`: Departure time [s]
+      - `tf`: Arrival time [s]
+      - `cost`: Total delta-v [km/s]
+      - `dv1_x`, `dv1_y`, `dv1_z`: First burn impulse components [km/s]
+      - `dv2_x`, `dv2_y`, `dv2_z`: Second burn impulse components [km/s]
+    - **Dictionary** (if pandas is not available) with the same keys as DataFrame columns, each containing a list of values
+  - When `return_best_only=True`: One row/entry per [i,j] source-target combination
+  - When `return_best_only=False`: Multiple rows/entries per [i,j] combination (all solutions)
+
+## Performance
+
+- **Parallel Processing**: Automatically uses N-1 CPU cores for batch operations
+- **Vectorized Operations**: Efficient NumPy array operations
+- **Rust Performance**: Core algorithms implemented in Rust for maximum speed
+
+## Units
+
+- **Positions**: kilometers (km)
+- **Velocities**: kilometers per second (km/s)
+- **Time**: seconds (s)
+- **Gravitational Parameter (mu)**: km³/s²
+  - Earth: 398600.4418 km³/s²
