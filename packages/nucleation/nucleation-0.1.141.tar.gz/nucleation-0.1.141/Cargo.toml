@@ -1,0 +1,103 @@
+[package]
+name = "nucleation"
+version = "0.1.141"
+edition = "2021"
+description = "A high-performance Minecraft schematic parser and utility library"
+authors = ["Nano nano@schem.at"]
+license = "AGPL-3.0-only"
+repository = "https://github.com/Schem-at/Nucleation"
+readme = "README.md"
+keywords = ["minecraft", "schematic", "parser", "voxel"]
+categories = ["game-development", "parser-implementations", "wasm"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+ffi = []
+serde = []
+wasm = [
+    "wasm-bindgen",
+    "js-sys",
+    "web-sys",
+    "serde-wasm-bindgen",
+    "console_error_panic_hook",
+]
+python = ["pyo3/extension-module"]
+# New PHP feature
+php = ["ext-php-rs"]
+# Redstone simulation support
+simulation = [
+    "mchprs_redpiler",
+    "mchprs_redstone",
+    "mchprs_world",
+    "mchprs_blocks",
+]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+quartz_nbt = "0.2.9"
+flate2 = "1.1.2"
+log = "0.4.22"
+console = "0.15.8"
+insign = "0.1.1"
+blockpedia = { version = "0.1.7", default-features = false, features = ["wasm"] }
+
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hematite-nbt = "*"
+tracing = "0.1.40"
+thiserror = "1.0.63"
+
+# WASM-specific dependencies
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"], optional = true }
+js-sys = { version = "0.3.70", optional = true }
+serde-wasm-bindgen = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console"] }
+console_error_panic_hook = { version = "0.1", optional = true }
+rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] }
+
+# Python dependencies
+maturin = { version = "1", optional = true, default-features = false }
+pyo3 = { version = "0.25.0", optional = true, features = ["extension-module"] }
+
+# PHP dependencies
+ext-php-rs = { version = "0.13.1", optional = true }
+
+bytemuck = "1.23.1"
+
+# Simulation (MCHPRS) dependencies - optional
+# Note: These are git dependencies and will be excluded from crates.io publish
+# Using Nano112's MCHPRS fork with custom IO support and bug fixes
+# Networking is disabled to avoid WASM compatibility issues
+# Rev 541c0b2: Latest bug fixes from Nano112's MCHPRS fork
+mchprs_redpiler = { git = "https://github.com/Nano112/MCHPRS.git", rev = "541c0b2e96857a6abaa567755c3fbb6c7f5be971", optional = true }
+mchprs_redstone = { git = "https://github.com/Nano112/MCHPRS.git", rev = "541c0b2e96857a6abaa567755c3fbb6c7f5be971", optional = true }
+mchprs_world = { git = "https://github.com/Nano112/MCHPRS.git", rev = "541c0b2e96857a6abaa567755c3fbb6c7f5be971", optional = true, default-features = false }
+mchprs_blocks = { git = "https://github.com/Nano112/MCHPRS.git", rev = "541c0b2e96857a6abaa567755c3fbb6c7f5be971", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+num-complex = "0.4"
+base64 = "0.22"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "performance_test"
+harness = false
+
+[profile.bench]
+debug = true
+
+[profile.release]
+lto = true
+opt-level = 3
+
+# Patch for MCHPRS compatibility
+[patch.crates-io]
+hematite-nbt = { git = "https://github.com/StackDoubleFlow/hematite_nbt" }

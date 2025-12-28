@@ -1,0 +1,270 @@
+name: Nucleation CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get current version
+        id: version
+        run: |
+          VERSION=$(grep -m1 'version = ' Cargo.toml | cut -d '"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Found version: $VERSION"
+
+      - name: Check if version changed
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" =~ ^refs/heads/(main|master)$ ]]; then
+            if git diff HEAD^ HEAD --name-only | grep -q "Cargo.toml"; then
+              OLD_VERSION=$(git show HEAD^:Cargo.toml | grep -m1 'version = ' | cut -d '"' -f2)
+              CURRENT_VERSION=$(grep -m1 'version = ' Cargo.toml | cut -d '"' -f2)
+              if [[ "$OLD_VERSION" != "$CURRENT_VERSION" ]]; then
+                echo "should_release=true" >> $GITHUB_OUTPUT
+              else
+                echo "should_release=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run tests
+        run: |
+          cargo test  # Test default (no features)
+          cargo test --features simulation  # Test simulation feature
+      
+      - name: Setup Python for build test
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Test Python build
+        run: |
+          pip install maturin
+          maturin build --features python,simulation
+  build-wasm:
+    needs: [test, check-version]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build Rust
+        run: cargo build --release  # Build default (what crates.io will build)
+      - name: Build WASM
+        run: |
+          chmod +x ./build-wasm.sh
+          ./build-wasm.sh
+      - name: Organize output
+        run: |
+          mkdir -p release-artifacts
+          cp -r pkg/* release-artifacts/
+          cp target/release/libnucleation.* release-artifacts/ || true
+          cp README.md LICENSE release-artifacts/
+      - name: Upload nucleation WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nucleation-wasm-v${{ needs.check-version.outputs.version }}-web
+          path: release-artifacts
+
+  build-nucleation:
+    needs: [ test, check-version ]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: so
+            platform: linux-x64
+            cross: false
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            ext: so
+            platform: linux-arm64
+            cross: true  # Enable cross-compilation
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            ext: dylib
+            platform: macos-x64
+            cross: false
+          - os: macos-14
+            target: aarch64-apple-darwin
+            ext: dylib
+            platform: macos-arm64
+            cross: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      # Cross-compilation setup for ARM64 Linux
+      - name: Install cross-compilation tools (ARM64 Linux)
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          
+          # Configure Cargo for cross-compilation
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << EOF
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          
+          [env]
+          CC_aarch64_unknown_linux_gnu = "aarch64-linux-gnu-gcc"
+          CXX_aarch64_unknown_linux_gnu = "aarch64-linux-gnu-g++"
+          AR_aarch64_unknown_linux_gnu = "aarch64-linux-gnu-ar"
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER = "aarch64-linux-gnu-gcc"
+          EOF
+
+      - name: Build nucleation native library
+        env:
+          # Set cross-compilation environment variables
+          CC: ${{ matrix.cross && 'aarch64-linux-gnu-gcc' || '' }}
+          CXX: ${{ matrix.cross && 'aarch64-linux-gnu-g++' || '' }}
+          AR: ${{ matrix.cross && 'aarch64-linux-gnu-ar' || '' }}
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.cross && 'aarch64-linux-gnu-gcc' || '' }}
+        run: cargo build --release --target ${{ matrix.target }} --features ffi
+
+      - name: Move nucleation library output
+        run: |
+          mkdir -p release-artifacts
+          cp target/${{ matrix.target }}/release/libnucleation.${{ matrix.ext }} release-artifacts/libnucleation-${{ matrix.platform }}.${{ matrix.ext }}
+
+      - name: Upload nucleation library artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nucleation-v${{ needs.check-version.outputs.version }}-${{ matrix.platform }}
+          path: release-artifacts
+
+
+  publish:
+    needs: [check-version, build-wasm, build-nucleation]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download nucleation WASM
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nucleation-wasm-v${{ needs.check-version.outputs.version }}-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Download all nucleation native libraries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nucleation-v${{ needs.check-version.outputs.version }}-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Publish to crates.io
+        uses: actions-rs/cargo@v1
+        with:
+          command: publish
+          args: --allow-dirty --no-default-features --token ${{ secrets.CRATES_IO_TOKEN }}
+        continue-on-error: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Update and Publish npm package
+        run: |
+          cd release-artifacts
+          node -e "
+            const fs = require('fs');
+            const path = './package.json';
+            const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+            pkg.version = '${{ needs.check-version.outputs.version }}';
+            pkg.description = 'A high-performance Minecraft schematic parser and utility library';
+            pkg.repository = { type: 'git', url: 'https://github.com/Schem-at/Nucleation' };
+            pkg.homepage = 'https://github.com/Schem-at/Nucleation';
+            pkg.author = 'Nano <nano@schem.at>';
+            pkg.license = 'AGPL-3.0-only';
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2));
+          "
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install maturin & Publish
+        run: |
+          pip install maturin
+          maturin publish --features python,simulation --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: Release v${{ needs.check-version.outputs.version }}
+          generate_release_notes: true
+          files: release-artifacts/**
