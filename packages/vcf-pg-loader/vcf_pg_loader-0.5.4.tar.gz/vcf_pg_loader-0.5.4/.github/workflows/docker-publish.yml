@@ -1,0 +1,46 @@
+# DEPRECATED: Primary Docker publishing is now handled by release.yml workflow.
+# This workflow serves as a fallback for manual tag pushes or release events
+# triggered outside the release.yml workflow.
+# See: .github/workflows/release.yml (build-and-push-docker job)
+name: Publish Docker image
+
+on:
+  release:
+    types: [published]
+  push:
+    tags: ['v*']
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/zacharyr41/vcf-pg-loader
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
