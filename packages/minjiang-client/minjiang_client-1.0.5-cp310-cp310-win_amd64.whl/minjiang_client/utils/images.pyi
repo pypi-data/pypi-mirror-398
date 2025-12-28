@@ -1,0 +1,3 @@
+from PIL import ImageOps as ImageOps
+
+def compress_image_to_128(input_path, background_color=(255, 255, 255)): ...
