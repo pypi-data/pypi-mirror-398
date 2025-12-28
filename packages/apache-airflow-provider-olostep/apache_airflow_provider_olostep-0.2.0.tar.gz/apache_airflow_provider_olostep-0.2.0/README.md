@@ -1,0 +1,296 @@
+# Apache Airflow Provider for Olostep
+
+[![PyPI version](https://badge.fury.io/py/apache-airflow-provider-olostep.svg)](https://pypi.org/project/apache-airflow-provider-olostep/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/pypi/pyversions/apache-airflow-provider-olostep.svg)](https://pypi.org/project/apache-airflow-provider-olostep/)
+
+Official Apache Airflow provider for [Olostep](https://olostep.com) - the API to search, extract, and structure web data at scale.
+
+## Features
+
+- 🔗 **Native Airflow Integration** - First-class connection type with UI support
+- 📄 **Scrape Operator** - Extract content from single URLs
+- 📦 **Batch Operator** - Process multiple URLs efficiently
+- 🕷️ **Crawl Operator** - Crawl entire websites
+- 🗺️ **Map Operator** - Discover all URLs on a website
+- ❓ **Ask Operator** - Get AI-powered answers about web pages
+- ⏱️ **Sensors** - Wait for async jobs to complete
+- 🎨 **Templating Support** - Use Jinja templates for dynamic values
+
+## Installation
+
+```bash
+pip install apache-airflow-provider-olostep
+```
+
+## Quick Start
+
+### 1. Create an Airflow Connection
+
+**Via the Airflow UI:**
+
+1. Go to **Admin > Connections**
+2. Click **+ Add a new record**
+3. Configure:
+   - **Connection Id**: `olostep_default`
+   - **Connection Type**: `Olostep`
+   - **Password**: Your Olostep API key
+
+**Via CLI:**
+
+```bash
+airflow connections add olostep_default \
+    --conn-type olostep \
+    --conn-password "your-api-key-here"
+```
+
+**Via Environment Variable:**
+
+```bash
+export AIRFLOW_CONN_OLOSTEP_DEFAULT='{"conn_type": "olostep", "password": "your-api-key"}'
+```
+
+### 2. Get Your API Key
+
+Sign up at [olostep.com](https://olostep.com) and get your API key from the dashboard.
+
+### 3. Create Your First DAG
+
+```python
+from datetime import datetime
+from airflow import DAG
+from airflow_provider_olostep.operators.scrape import OlostepScrapeOperator
+
+with DAG(
+    dag_id="olostep_quickstart",
+    start_date=datetime(2024, 1, 1),
+    schedule_interval="@daily",
+    catchup=False,
+) as dag:
+    
+    scrape = OlostepScrapeOperator(
+        task_id="scrape_example",
+        url="https://example.com",
+        formats=["markdown", "text"],
+    )
+```
+
+## Available Components
+
+### Operators
+
+| Operator | Description |
+|----------|-------------|
+| `OlostepScrapeOperator` | Scrape a single URL |
+| `OlostepBatchOperator` | Batch scrape multiple URLs |
+| `OlostepCrawlOperator` | Crawl a website |
+| `OlostepMapOperator` | Create a sitemap |
+| `OlostepAskOperator` | Ask questions about a webpage |
+
+### Sensors
+
+| Sensor | Description |
+|--------|-------------|
+| `OlostepBatchSensor` | Wait for batch job completion |
+| `OlostepCrawlSensor` | Wait for crawl job completion |
+
+### Hook
+
+| Hook | Description |
+|------|-------------|
+| `OlostepHook` | Low-level API access |
+
+## Examples
+
+### Scrape a Single Page
+
+```python
+from airflow_provider_olostep.operators.scrape import OlostepScrapeOperator
+
+scrape = OlostepScrapeOperator(
+    task_id="scrape_page",
+    url="https://news.ycombinator.com",
+    formats=["markdown", "text", "links"],
+    wait_for=2000,  # Wait 2 seconds for JS rendering
+)
+```
+
+### Batch Scrape Multiple URLs
+
+```python
+from airflow_provider_olostep.operators.batch import OlostepBatchOperator
+
+batch = OlostepBatchOperator(
+    task_id="batch_scrape",
+    urls=[
+        "https://example.com/page1",
+        "https://example.com/page2",
+        "https://example.com/page3",
+    ],
+    formats=["markdown"],
+    wait_for_completion=True,  # Block until all pages are scraped
+)
+```
+
+### Discover and Scrape Website
+
+```python
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow_provider_olostep.operators.map import OlostepMapOperator
+from airflow_provider_olostep.operators.batch import OlostepBatchOperator
+from airflow_provider_olostep.sensors.batch import OlostepBatchSensor
+
+with DAG("discover_and_scrape", ...) as dag:
+    
+    # Step 1: Discover all product pages
+    discover = OlostepMapOperator(
+        task_id="discover_urls",
+        url="https://shop.example.com",
+        include_patterns=["/products/**"],
+        max_urls=100,
+    )
+    
+    # Step 2: Start batch scrape
+    def start_batch(**context):
+        from airflow_provider_olostep.hooks.olostep import OlostepHook
+        urls = context["ti"].xcom_pull(task_ids="discover_urls", key="urls")
+        hook = OlostepHook()
+        result = hook.batch_scrape(urls=urls[:50], formats=["markdown"])
+        return result.get("batch_id") or result.get("id")
+    
+    batch = PythonOperator(
+        task_id="start_batch",
+        python_callable=start_batch,
+    )
+    
+    # Step 3: Wait for completion
+    wait = OlostepBatchSensor(
+        task_id="wait_for_batch",
+        batch_id="{{ ti.xcom_pull(task_ids='start_batch') }}",
+        poke_interval=30,
+        timeout=3600,
+        mode="reschedule",
+    )
+    
+    discover >> batch >> wait
+```
+
+### Ask Questions About Pages
+
+```python
+from airflow_provider_olostep.operators.ask import OlostepAskOperator
+
+ask = OlostepAskOperator(
+    task_id="get_pricing",
+    url="https://example.com/pricing",
+    question="What is the price of the enterprise plan?",
+)
+```
+
+### Using Dynamic URLs with Templates
+
+```python
+scrape = OlostepScrapeOperator(
+    task_id="scrape_dynamic",
+    url="{{ var.value.target_url }}",  # From Airflow Variables
+    formats="{{ dag_run.conf.get('formats', ['markdown']) }}",
+)
+```
+
+## Using the Hook Directly
+
+For custom logic, use `OlostepHook`:
+
+```python
+from airflow.operators.python import PythonOperator
+from airflow_provider_olostep.hooks.olostep import OlostepHook
+
+def custom_scraping(**context):
+    hook = OlostepHook(olostep_conn_id="olostep_default")
+    
+    # Scrape with custom options
+    result = hook.scrape(
+        url="https://example.com",
+        formats=["markdown", "screenshot"],
+        wait_for=3000,
+        country="US",
+    )
+    
+    # Process results
+    markdown = result.get("markdown", "")
+    print(f"Scraped {len(markdown)} characters")
+    
+    return result
+
+task = PythonOperator(
+    task_id="custom_scrape",
+    python_callable=custom_scraping,
+)
+```
+
+## Configuration
+
+### Connection Options
+
+| Field | Description |
+|-------|-------------|
+| `Password` | Your Olostep API key (required) |
+| `Extra` | JSON with optional settings |
+
+**Extra JSON options:**
+
+```json
+{
+    "base_url": "https://api.olostep.com/v1",
+    "api_key": "alternative-location-for-key"
+}
+```
+
+### Operator Common Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `olostep_conn_id` | Airflow connection ID | `olostep_default` |
+| `formats` | Output formats (list) | `["markdown"]` |
+
+## Development
+
+### Local Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/olostep/airflow-provider-olostep.git
+cd airflow-provider-olostep
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+```
+
+### Running Airflow Locally
+
+See the [examples/local-airflow](./examples/local-airflow) directory for a Docker Compose setup.
+
+## Resources
+
+- 📖 [Olostep Documentation](https://docs.olostep.com)
+- 🔗 [API Reference](https://docs.olostep.com/api-reference)
+- ✈️ [Apache Airflow Documentation](https://airflow.apache.org/docs/)
+- 💬 [Discord Community](https://discord.gg/olostep)
+
+## Support
+
+- 📧 Email: support@olostep.com
+- 🐛 Issues: [GitHub Issues](https://github.com/olostep/airflow-provider-olostep/issues)
+- 📖 Docs: [docs.olostep.com](https://docs.olostep.com)
+
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
