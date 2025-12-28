@@ -1,0 +1,215 @@
+Metadata-Version: 2.4
+Name: tempestwx
+Version: 0.0.3
+Summary: Tempest SDK for Python
+Project-URL: repository, https://github.com/greylabel/tempestwx
+Author-email: Grant Gaudet <grant@greylabel.net>
+License: MIT
+License-File: LICENSE
+Keywords: api,tempest,weather
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: pydantic-settings>=2.11.0
+Requires-Dist: pydantic>=2.12.3
+Requires-Dist: python-dotenv>=1.1.1
+Description-Content-Type: text/markdown
+
+# Tempest
+
+Python SDK for the [Tempest API](https://apidocs.tempestwx.com/reference).
+
+## Installation
+
+Requires Python 3.11+.
+
+- From PyPI:
+
+```bash
+  pip install tempestwx
+```
+
+## Usage
+
+Ensure `TEMPEST_ACCESS_TOKEN` is set (via environment or `.env`).
+
+```python
+from tempestwx import Tempest
+
+# Recommended: Use context manager for automatic resource cleanup
+with Tempest() as twx:
+    stations = twx.stations()
+    print(stations)
+
+# Alternative: Manual resource management
+twx = Tempest()
+try:
+    stations = twx.stations()
+    print(stations)
+finally:
+    twx.close()
+```
+
+The client returns Pydantic models. Use `.model_dump()` to convert to `dict` when needed.
+
+### Configuration & Settings
+
+The client uses a deterministic cascade to resolve configuration:
+
+1. Library defaults (built‑in constants)
+2. `config.json` (first existing among: `$TEMPEST_CONFIG_PATH`, `./config.json`)
+3. `.env` file (loaded automatically once, without overriding already exported environment vars)
+4. Live environment variables (take precedence over `.env` values)
+5. Explicit parameters passed to `Tempest(...)` (highest precedence)
+
+Resolved values are materialized into an immutable `Settings` instance:
+
+```python
+from tempestwx.settings_loader import load_settings
+settings = load_settings()
+print(settings.api_uri, settings.token)
+```
+
+You can explicitly override when constructing the client:
+
+```python
+from tempestwx import Tempest
+
+with Tempest(token="OVERRIDE_TOKEN") as twx:
+    stations = twx.stations()
+```
+
+Or derive a modified settings object:
+
+```python
+from tempestwx.settings_loader import load_settings
+
+base = load_settings()
+custom = base.with_overrides(api_uri="https://example.test/api/")
+
+with Tempest(settings=custom) as twx:
+    stations = twx.stations()
+```
+
+### Environment Variables
+
+Supported variables:
+
+- `TEMPEST_ACCESS_TOKEN` – API auth token
+- `TEMPEST_API_URI` – Base API URI (defaults to `https://swd.weatherflow.com/swd/rest/`)
+- `TEMPEST_CONFIG_PATH` – Optional path to a JSON config file (fallbacks to `./config.json`)
+- Unit overrides (optional):
+  - `TEMPEST_DEFAULT_UNIT_TEMPERATURE`
+  - `TEMPEST_DEFAULT_UNIT_PRESSURE`
+  - `TEMPEST_DEFAULT_UNIT_WIND`
+  - `TEMPEST_DEFAULT_UNIT_DISTANCE`
+  - `TEMPEST_DEFAULT_UNIT_PRECIP`
+  - `TEMPEST_DEFAULT_UNIT_BRIGHTNESS`
+  - `TEMPEST_DEFAULT_UNIT_SOLAR_RADIATION`
+  - `TEMPEST_DEFAULT_UNIT_BUCKET_STEP_MINUTES`
+
+### .env Support
+
+If a `.env` file exists in the working directory, it is loaded automatically (without overriding already exported variables) the first time `load_settings()` runs.
+
+Example `.env`:
+
+```dotenv
+TEMPEST_ACCESS_TOKEN=your-token-here
+```
+
+### config.json example
+
+If present, values provide defaults that can be overridden by environment variables:
+
+```json
+{
+  "api_uri": "https://swd.weatherflow.com/swd/rest/",
+  "default_unit_temperature": "c",
+  "default_unit_pressure": "mb",
+  "default_unit_wind": "mps",
+  "default_unit_distance": "km",
+  "default_units_precip": "mm",
+  "default_units_brightness": "lux",
+  "default_units_solar_radiation": "w/m2",
+  "default_units_bucket_step_minutes": 1
+}
+```
+
+Note: tokens are not read from `config.json`. Use environment variables or `.env` for `TEMPEST_ACCESS_TOKEN`.
+
+### Reloading Settings
+
+Caching avoids repeated disk & env parsing. To pick up changes at runtime:
+
+```python
+from tempestwx.settings_loader import reload_settings
+reload_settings()  # clears cache and re-evaluates cascade
+```
+
+### Units Overrides
+
+You can supply partial unit overrides via `UnitsOverrides` (only fields you specify are changed):
+
+```python
+from tempestwx import Tempest
+from tempestwx.settings import UnitsOverrides
+from tempestwx.settings_loader import load_settings
+
+base = load_settings()
+custom = base.with_overrides(units_overrides=UnitsOverrides(temp="f", wind="mph"))
+
+with Tempest(settings=custom) as twx:
+    forecast = twx.better_forecast(station_id=12345)
+```
+
+### Token Context Override
+
+Temporarily swap tokens within a context:
+
+```python
+from tempestwx import Tempest
+
+with Tempest() as twx:
+    # Use default token
+    stations = twx.stations()
+
+    # Temporarily use different token
+    with twx.token_as("temporary-token"):
+        other_stations = twx.stations()
+
+    # Back to default token
+    more_stations = twx.stations()
+```
+
+### Async Usage
+
+All endpoints support async when the client is created with `asynchronous=True`:
+
+```python
+import asyncio
+from tempestwx import Tempest
+
+async def main():
+    # Use async context manager for proper cleanup
+    async with Tempest(asynchronous=True) as twx:
+        stations = await twx.stations()
+        print(stations)
+
+asyncio.run(main())
+```
+
+## Roadmap
+
+- OAuth Authorization Code (with PKCE) grant types
+- Additional Tempest APIs, e.g. TempestOne
+- Standalone documentation with MkDocs

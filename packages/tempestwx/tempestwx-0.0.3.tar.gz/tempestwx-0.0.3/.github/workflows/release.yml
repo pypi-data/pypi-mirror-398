@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # Publish on any tag starting with a `v`, e.g., v1.2.3
+      - v*
+
+jobs:
+  pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    # Environment and permissions trusted publishing.
+    environment:
+      # Environment must exist in the GitHub repository under Settings -> Environments
+      name: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+      # Verify tag matches pyproject.toml version
+      - name: Verify version
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          PROJECT_VERSION=$(uv version --short)
+          if [ "$TAG_VERSION" != "$PROJECT_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) doesn't match project version ($PROJECT_VERSION)"
+            exit 1
+          fi
+      - name: Package
+        run: uv run just package
+      - name: Smoke test wheel artifact
+        run: uv run just test-wheel
+      - name: Smoke test sdist artifact
+        run: uv run just test-source
+      - name: Release
+        run: uv run just release-package
