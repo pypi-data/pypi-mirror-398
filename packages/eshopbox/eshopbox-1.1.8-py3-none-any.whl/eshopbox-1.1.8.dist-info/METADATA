@@ -1,0 +1,1831 @@
+Metadata-Version: 2.4
+Name: eshopbox
+Version: 1.1.8
+Summary: Python SDK for EShopBox Shipping APIs
+Home-page: https://github.com/onesakib/eshopbox
+Author: Sakib Malik
+Author-email: Sakib Malik <sakibmaliknakur347@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/onesakib/eshopbox
+Project-URL: Documentation, https://eshopbox.readthedocs.io
+Project-URL: Repository, https://github.com/onesakib/eshopbox
+Keywords: eshopbox,shipping,logistics,api,sdk
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Requires-Dist: python-dateutil>=2.8.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=22.0; extra == "dev"
+Requires-Dist: isort>=5.0; extra == "dev"
+Requires-Dist: flake8>=5.0; extra == "dev"
+Requires-Dist: mypy>=0.990; extra == "dev"
+Requires-Dist: pre-commit>=2.20; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=5.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0; extra == "docs"
+Dynamic: license-file
+Dynamic: requires-python
+
+# EShopBox Python SDK
+
+A comprehensive Python SDK for integrating with EShopBox Shipping APIs.
+
+See the official [docs] for more info.
+
+[docs]: https://eshop.gitbook.io/eshopbox-developers
+
+## Installation
+
+```bash
+pip install eshopbox
+```
+
+## Quick Start
+
+```python
+from eshopbox import EShopBox
+
+sdk = EShopBox(
+    workspace="your-workspace",
+    client_id="your-client-id",
+    client_secret="your-client-secret",
+    refresh_token="your-refresh-token"
+)
+
+# Create an order
+order = sdk.orders.create({...})
+```
+
+## Documentation
+
+# create an Order
+
+```
+"""
+Example: Setup order using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_all_orders(sdk):
+    params = {
+        'filters': 'account=kashwork-ecommerce'
+    }
+    response = sdk.orders.get_all(page=1, **params)
+    print("Response: ", response)
+
+
+def get_order(sdk):
+    response = sdk.orders.get('OD119208447831346001')
+    print("Response: ", response)
+
+
+def create_order(sdk):
+    order = {
+        "externalChannelID": os.getenv('ESHOPBOX_EXTERNAL_CHANNEL_ID'),
+        "customerOrderNumber": "OD119208447831346002",
+        "orderDate": "2020-02-29 15:39:11",
+        "isCOD": "0",
+        "paymentType": "DebitCard",
+        "shipChargeAmount": 0,
+        "subtotal": 4049.09,
+        "orderTotal": 4049.09,
+        "balanceDue": 0,
+        "thirdPartyShipping": False,
+        "shippingAddress": {
+            "customerName": "Sakib Malik",
+            "addressLine1": "D151",
+            "addressLine2": "industrail Area",
+            "city": "mohali",
+            "state": "Punjab",
+            "postalCode": "160071",
+            "gstin": "27ABCGN5397X1XX",
+            "countryCode": "IN",
+            "countryName": "India",
+            "contactPhone": "xxxxxxxxxx",
+            "email": "xxxxxxxxxxxxxxx@gmail.com"
+        },
+        "billingAddress": {
+            "customerName": "Sakib Malik",
+            "addressLine1": "D151",
+            "addressLine2": "industrail Area",
+            "city": "mohali",
+            "state": "Punjab",
+            "postalCode": "160071",
+            "countryCode": "IN",
+            "countryName": "India",
+            "contactPhone": "xxxxxxxxxx",
+            "email": "xxxxxxxxxxxxxxx@gmail.com"
+        },
+        "items": [
+            {
+                "lineItemSequenceNumber": 100,
+                "itemID": "KW-100",
+                "sellerSkuOnChannel": "KW-123",
+                "productName": "Keyboard",
+                "quantity": 1,
+                "customerPrice": 4499,
+                "discount": 449.89,
+                "lineItemTotal": 4049.09,
+                "mrp": 6000,
+                "productAdditionalInfo": {
+                    "size": "",
+                    "color": "",
+                    "weight": 20.99,
+                    "height": 12.13,
+                    "length": 11.13,
+                    "width": 8.13,
+                    "taxPercentage": 12.00,
+                    "hsnCode": "HSN1324"
+                },
+                "productUrl": "https://kashwork.com/d/jewellery/imitation_jewellery/women_imitation_jewellery_/women_necklace_sets/dabka_jewellery_set/161291130/598744146",
+                "productImageUrl": "https://kw-live.s3.amazonaws.com/media/post_images/upload/product_pic_d4bda7fb-e2f1-4061-b2ef-e4a5bd7618b8.webp"
+            }
+        ]
+    }
+    response = sdk.orders.create(order)
+    print("Response: ", response)
+
+
+def update_order(sdk):
+    pass
+
+
+def cancel_order(sdk):
+    cancel_data = {
+        "externalChannelID": os.getenv('ESHOPBOX_EXTERNAL_CHANNEL_ID'),
+        "customerOrderNumber": "OD119208447831346002",
+        "actor": "xxxxxxxxxxxxxxx@gmail.com",
+        "reason": "Cancelled By Customer",
+        "cancellationTime": "2018-07-08 22:00:05",
+        "items": [
+            {
+                "lineItemSequenceNumber": 100,
+                "itemID": "KW-100",
+                "quantity": 1,
+                "productName": "Keyboard",
+                "remark": "cancelled by customer"
+            }
+        ]
+    }
+    response = sdk.orders.cancel(cancel_data)
+    print("Response: ", response)
+
+
+def get_invoice(sdk):
+    response = sdk.orders.get_invoice('OD119208447831346002')
+    print("Response: ", response)
+
+
+def main():
+    # Initialize SDK
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+
+    # get_all_orders(sdk)
+    # get_order(sdk)
+    # create_order(sdk)
+    # cancel_order(sdk)
+    get_invoice(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# inventory
+
+```
+"""
+Example: Manage Inventory using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def main():
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+
+    sku = "SKU1234"
+
+    print(f"Fetching inventory for {sku}...")
+    inventory = sdk.inventory.get_stock(sku)
+    print("Current stock:", inventory)
+
+    print(f"Updating inventory for {sku}...")
+    update_payload = {
+        "sku": sku,
+        "quantity": 25
+    }
+
+    updated = sdk.inventory.update_stock(update_payload)
+    print("Updated stock:", updated)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Order Status Update
+
+```
+"""
+Example: Track shipment using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def create_label_and_awb(sdk):
+    payload = {
+        "boxHeight": 2,
+        "boxLength": 2,
+        "boxWidth": 2,
+        "weight": 2,
+        "orderItems": [
+            {
+                "orderItemId": "49252941",
+                "invoiceNumber": "string",
+                "invoiceDate": "2017-01-02T08:12:53",
+                "taxRate": 0,
+                "centralGstPercentage": 0,
+                "compensationCessPercentage": 0,
+                "integratedGstPercentage": 0,
+                "stateGstPercentage": 0,
+                "unionTerritoryGstPercentage": 0
+            }
+        ]
+    }
+    order_status_update = sdk.order_status_update.create_label_and_awb(payload)
+    print(order_status_update)
+
+
+def get_awb_and_courier_name(sdk):
+    params = {
+        "orderItemIds": "49252941,49252802"
+    }
+    order_status_update = sdk.order_status_update.get_awb_and_courier_name(params)
+    print(order_status_update)
+
+
+def dispatch_shipment(sdk):
+    payload = {
+        "orderItems": [
+            {
+                "orderItemId": "49252941",
+                "quantity": 1,
+                "centralGstPercentage": 0,
+                "compensationCessPercentage": 0,
+                "integratedGstPercentage": 0,
+                "stateGstPercentage": 0,
+                "taxRate": 0,
+                "unionTerritoryGstPercentage": 0
+            }
+        ],
+        "selfShipping": {
+            "deliveryPartner": "ecomExpress",
+            "dispatchDate": "2017-01-02T08:12:53",
+            "invoiceDate": "2017-01-02T08:12:53",
+            "invoiceNumber": "string",
+            "tentativeDeliveryDate": "2017-01-02T08:12:53",
+            "trackingId": "123455"
+        }
+    }
+    order_status_update = sdk.order_status_update.dispatch_shipment(payload)
+    print(order_status_update)
+
+
+def courier_details_for_return(sdk):
+    order_status_update = sdk.order_status_update.courier_details_for_return("R2113455")
+    print(order_status_update)
+
+
+def update(sdk):
+    payload = {
+        "status_description": "Delivered",
+        "waybill": "1704610028453",
+        "cp_name": "Delhivery",
+        "status": "Delivered",
+        "status_code": 8,
+        "location": "GGN_DPC (Haryana)",
+        "additional": {
+            "latest_status": {
+                "status_description": "Delivered",
+                "remark": "Added to IST",
+                "status": "In Transit",
+                "status_code": 8,
+                "location": "GGN_DPC (Haryana)",
+                "timestamp": "2018-07-12T12:58:40.910000Z"
+            }
+        },
+        "timestamp": "2018-07-12T11:53:39.902000Z",
+        "remark": "Bagged at destination city PC"
+    }
+    order_status_update = sdk.order_status_update.update(payload)
+    print(order_status_update)
+
+
+def main():
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+
+    # create_label_and_awb(sdk)
+    # get_awb_and_courier_name(sdk)
+    # dispatch_shipment(sdk)
+    # courier_details_for_return(sdk)
+    update(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+
+```
+
+# Payment
+
+```
+"""
+Example: Setup Payment using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_payouts(sdk):
+    response = sdk.payments.get_payouts()
+    print(response)
+
+
+def get_payout(sdk):
+    params = {
+        "neftId": "neftId"
+    }
+    response = sdk.payments.get_payout(params)
+    print(response)
+
+
+def create_payout(sdk):
+    payload = {
+        "fundTransferDate": "2018-09-25 05:30:00",
+        "fundTransferAmount": 819901.7199999853,
+        "transactionId": "lime3",
+        "comments": "Limeroad Testing",
+        "ledgerGroupId": "limeroad",
+        "portalAccountId": 122,
+        "reportUrl": "https://cdn.filestackcontent.com/ckdksjkasl676678687as"
+    }
+    response = sdk.payments.create_payout(payload)
+    print(response)
+
+
+def update_fee(sdk):
+    payload = {
+        "portalId": 3,
+        "feeId": "40",
+        "feeName": None,
+        "isInclusiveTax": "0",
+        "inclusiveTaxPercentage": "63",
+        "chargedFee": "cancelled",
+        "chargedFeeCases": "",
+        "courierReturnedFee": "",
+        "courierReturnedPercent": "",
+        "customerReturnedFee": "",
+        "customerReturnedPercent": "",
+        "validityPeriod": "definite",
+        "validFrom": "2019-09-09",
+        "validTo": "2019-09-11",
+        "fee": [
+            {
+                "eventType": "shipped",
+                "eventSubType": "",
+                "partialPercentageValue": "",
+                "feeCharged": "CHARGED_FEE"
+            },
+            {
+                "eventType": "returned",
+                "eventSubType": "courier",
+                "partialPercentageValue": "",
+                "feeCharged": "REVERSED_FEE"
+            },
+            {
+                "eventType": "returned",
+                "eventSubType": "customer",
+                "partialPercentageValue": "",
+                "feeCharged": "REVERSED_FEE"
+            }
+        ],
+        "feeRules": [
+            {
+                "details": {
+                    "shippingZone": "regional"
+                },
+                "feeValues": [
+                    {
+                        "type": "fixed",
+                        "value": 2,
+                        "applicableOn": "Per Order",
+                        "id": 1
+                    }
+                ]
+            }
+        ],
+        "id": 603,
+        "ruleId": "5d7a4867ad0cf20001e527df",
+        "forRevision": True
+    }
+    response = sdk.payments.update_fee(payload)
+    print(response)
+
+
+def create_fee(sdk):
+    payload = {
+        "portalId": 2,
+        "feeId": "1",
+        "feeName": "",
+        "isInclusiveTax": "0",
+        "inclusiveTaxPercentage": "11",
+        "chargedFee": "cancelled",
+        "chargedFeeCases": "",
+        "courierReturnedFee": "",
+        "courierReturnedPercent": "",
+        "customerReturnedFee": "",
+        "customerReturnedPercent": "",
+        "fee": [
+            {
+                "eventType": "cancelled",
+                "eventSubType": "",
+                "feeCharged": "CHARGED_FEE"
+            }
+        ],
+        "feeRules": [
+            {
+                "details": {},
+                "feeRanges": [
+                    {
+                        "rangeType": "product selling price",
+                        "rangeTypeUnit": "INR",
+                        "minRange": 0,
+                        "maxRange": 100
+                    }
+                ],
+                "feeValues": [
+                    {
+                        "type": "fixed",
+                        "partitionRangeType": None,
+                        "value": 12,
+                        "applicableOn": "Per Order",
+                        "partitionRange": None
+                    }
+                ]
+            }
+        ],
+        "validFrom": "2019-09-01T00:00:00.000Z",
+        "feePortalId": "145",
+        "validityPeriod": "definite",
+        "ruleId": "5d7f2b78ad0cf200017cebbb"
+    }
+    response = sdk.payments.create_fee(payload)
+    print(response)
+
+
+def get_all_fee(sdk):
+    response = sdk.payments.get_all_fee()
+    print(response)
+
+
+def get_fee(sdk):
+    params = {
+        "feeName": "amazon",
+    }
+    response = sdk.payments.get_fee(params)
+    print(response)
+
+
+def get_all_transaction_rules(sdk):
+    response = sdk.payments.get_all_transaction_rules()
+    print(response)
+
+
+def get_transaction_rule(sdk):
+    params = {
+        "channelId": 12,
+    }
+    response = sdk.payments.get_transaction_rule(params)
+    print(response)
+
+
+def create_transaction_rule(sdk):
+    payload = {
+        "ruleName": "TR2",
+        "channelId": "12",
+        "feeId": [
+            "1",
+            "3",
+            "5"
+        ],
+        "dueDays": "7",
+        "settlementType": "weekly",
+        "settlementDates": "",
+        "settlementWeekdays": "Thursday",
+        "transactionRuleId": "",
+        "status": "",
+        "portalId": 2,
+        "transactionId": 3
+    }
+    response = sdk.payments.create_transaction_rule(payload)
+    print(response)
+
+
+def update_transaction_rule(sdk):
+    payload = {
+        "channelId": "262",
+        "feeId": [
+            "33"
+        ],
+        "dueDays": "4",
+        "settlementType": "weekly",
+        "settlementDates": "2",
+        "settlementWeekdays": "Monday,Tuesday",
+        "transactionRuleId": "47",
+        "status": True,
+        "ruleName": "abcd",
+        "transactionId": 3
+    }
+    response = sdk.payments.update_transaction_rule(payload)
+    print(response)
+
+
+def main():
+    # Initialize SDK
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+    # get_payouts(sdk)
+    # get_payout(sdk)
+    # create_payout(sdk)
+    # update_fee(sdk)
+    # create_fee(sdk)
+    # get_all_fee(sdk)
+    # get_fee(sdk)
+    # get_all_transaction_rules(sdk)
+    get_transaction_rule(sdk)
+    # create_transaction_rule(sdk)
+    # update_transaction_rule(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Products
+
+```
+"""
+Example: Setup Products using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_all(sdk):
+    params = {
+        "fields": "12",
+        "ids": "12"
+    }
+    response = sdk.products.get_all(params)
+    print(response)
+
+
+def get(sdk):
+    response = sdk.products.get("kw-12")
+    print(response)
+
+
+def create(sdk):
+    product_data = {
+        "type": "BASE",
+        "sku": "73682939-172882-32",
+        "groupCode": "73682939-172882",
+        "vertical": "APL",
+        "brand": "Kapas Kraft",
+        "description": "Rust Regular Fit Bundi",
+        "specification": [
+            "Fragile",
+            "Dangerous",
+            "Liquid"
+        ],
+        "additionalNames": {
+            "ean": "89027189271829",
+            "upc": "87162143127",
+            "gtin": "8276174829301",
+            "others": [
+                "57182_Brown_32"
+            ]
+        }
+    }
+    response = sdk.products.create(product_data)
+    print(response)
+
+
+def update(sdk):
+    product_data = {
+        "imageUrl": "https://cdn.filestackcontent.com/hdYluVCqSADCASjjjcuaeC.png",
+        "mrp": 1499.0,
+        "unitPrice": 799.0,
+        "hsnCode": "6101112",
+        "weight": 167.0,
+        "dimensionLength": 5.0,
+        "dimensionWidth": 5.0,
+        "dimensionHeight": 5.0,
+        "dimensionUnit": "cm"
+    }
+    response = sdk.products.update("73682939-172882-32", product_data)
+    print(response)
+
+
+def delete(sdk):
+    response = sdk.products.delete("73682939-172882-32")
+    print(response)
+
+
+def merge_product(sdk):
+    payload = {
+        "fromProductESIN": "dgdfgfd",
+        "toProductESIN": "sdkdgl"
+    }
+    response = sdk.products.merge_product(payload)
+    print(response)
+
+
+def product_availability(sdk):
+    payload = {
+        "esin": "0SGAT12SG25F",
+        "channelCode": "CH1234",
+        "availability": False
+    }
+    response = sdk.products.product_availability(payload)
+    print(response)
+
+
+def get_all_brands(sdk):
+    response = sdk.products.get_all_brands()
+    print(response)
+
+
+def get_brand(sdk):
+    response = sdk.products.get_brand("1429")
+    print(response)
+
+
+def create_brand(sdk):
+    payload = {
+        "brandName": "SAKIB",
+        "verticals": [
+            {
+                "verticalId": "1",
+                "verticalName": "apparels",
+                "verticalCode": "apl",
+                "mainImage": "abc.jpg",
+                "hoverImage": "abc.jpg"
+            },
+            {
+                "verticalId": "2",
+                "verticalName": "footwear",
+                "verticalCode": "ftq",
+                "mainImage": "abc.jpg",
+                "hoverImage": "abc.jpg"
+            }
+        ],
+        "accountId": "123",
+        "brandCode": "ABC123",
+        "brandStatus": "1",
+        "webSiteLink": "http://Kapas Kraft",
+        "brandLogoImage": "Kpas Kraft logo.jpg",
+        "tmRegistrationStatus": "abc",
+        "tmCertificateScannedCopy": "URL",
+        "tAckNo": "1",
+        "tmRegistrationNo": "123",
+        "tmRegistrationDate": "2019-03-20 00:00:00",
+        "tmAckCert": "URL"
+    }
+    response = sdk.products.create_brand(payload)
+    print(response)
+
+
+def update_brand(sdk):
+    payload = {
+        "brandName": "SAKIB",
+        "verticals": [
+            {
+                "verticalId": "1",
+                "verticalName": "apparels",
+                "verticalCode": "apl",
+                "mainImage": "abc.jpg",
+                "hoverImage": "abc.jpg"
+            },
+            {
+                "verticalId": "2",
+                "verticalName": "footwear",
+                "verticalCode": "ftq",
+                "mainImage": "abc.jpg",
+                "hoverImage": "abc.jpg"
+            }
+        ],
+        "accountId": "XXX",
+        "brandCode": "ABC123",
+        "brandStatus": "1",
+        "webSiteLink": "XXXXXXXXXXXX Kraft",
+        "brandLogoImage": "Kpas Kraft logo.jpg",
+        "tmRegistrationStatus": "abc",
+        "tmCertificateScannedCopy": "URL",
+        "tAckNo": "1",
+        "tmRegistrationNo": "123",
+        "tmRegistrationDate": "2019-03-20 00:00:00",
+        "tmAckCert": "URL"
+    }
+    response = sdk.products.update_brand('6312', payload)
+    print(response)
+
+
+def get_inventory_for_given_product_v1(sdk):
+    payload = {
+        "skus": [
+            "kw-100"
+        ]
+    }
+    response = sdk.products.get_inventory_for_given_product_v1(payload)
+    print(response)
+
+
+def get_inventory_for_given_product_v2(sdk):
+    params = {
+        "page": 1
+    }
+    response = sdk.products.get_inventory_for_given_product_v2(params)
+    print(response)
+
+
+def get_inventory_summary(sdk):
+    params = {
+        "warehouseId": 1
+    }
+    response = sdk.products.get_inventory_summary(params)
+    print(response)
+
+
+def main():
+    # Initialize SDK
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+    # get_all(sdk)
+    # get(sdk)
+    # create(sdk)
+    # update(sdk)
+    # delete(sdk)
+    # merge_product(sdk)
+    # product_availability(sdk)
+    # get_all_brands(sdk)
+    # get_brand(sdk)
+    # create_brand(sdk)
+    # update_brand(sdk)
+    # get_inventory_for_given_product_v1(sdk)
+    # get_inventory_for_given_product_v2(sdk)
+    get_inventory_summary(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Rate Calculator
+
+```
+"""
+Example: Setup Rate Calculator using EShopBox
+"""
+
+import os
+from eshopbox.client import EShopBox
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def rate_calculator(sdk):
+    payload = {
+        "journeyType": "forward",
+        "pickupPincode": "160071",
+        "dropPincode": "247342",
+        "orderWeight": "500",
+        "length": "12",
+        "width": "12",
+        "height": "33",
+        "paymentMethod": "Prepaid",
+        "doorstepQc": False
+    }
+    response = sdk.rate_calculator.calculate(payload)
+    print("Response: ", response)
+
+
+def main():
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+    rate_calculator(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Serviceability
+
+```
+"""
+Example: Setup Serviceability using EShopBox
+"""
+
+import os
+from eshopbox.client import EShopBox
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_serviceability_pin_code_based(sdk):
+    payload = {
+        "dropPincode": "160071",
+        "pickupPincode": "247342",
+        "deadWeight": 500,
+        "length": 12,
+        "height": 10,
+        "width": 8,
+        "isCod": False
+    }
+    response = sdk.serviceability.pincodeserviceability(payload)
+    print("Response: ", response)
+
+
+def get_productserviceability(sdk):
+    payload = {
+        "dropPincode": "160071",
+        "productId": "sakib"
+    }
+    response = sdk.serviceability.productserviceability(payload)
+    print("Response: ", response)
+
+
+def get_checkpincodeserviceability(sdk):
+    payload = {
+        "deliveryPincode": "160071",
+        "pickupPincode": "247342"
+    }
+    response = sdk.serviceability.checkpincodeserviceability(payload)
+    print("Response: ", response)
+
+
+def get_get_bulk_pin_code_serviceability(sdk):
+    params = {
+        "shippingMode": "standard"
+    }
+    response = sdk.serviceability.bulkPincodeServiceability(params)
+    print("Response: ", response)
+
+
+def main():
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+    # get_serviceability_pin_code_based(sdk)
+    # get_productserviceability(sdk)
+    # get_checkpincodeserviceability(sdk)
+    get_get_bulk_pin_code_serviceability(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Shipment
+
+```
+"""
+Example: Track shipment using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_all_shipments(sdk):
+    shipments = sdk.shipments.get_all()
+    print(shipments)
+
+
+def get_shipment(sdk):
+    shipment = sdk.shipments.get("OD119208447831346000-4380-3659")
+    print(shipment)
+
+
+def create_shipment(sdk):
+    payload = {
+        "customerOrderNumber": "OD119208447831346000",
+        "vendorOrderNumber": "OD119208447831346000",
+        "externalShipmentID": "300884672-5-87",
+        "externalWarehouseID": "W4585",
+        "externalChannelID": "{{externalChannelID}}",
+        "defaultWarehouseCode": "2022",
+        "orderDate": "2020-03-18 15:52:38",
+        "portal_id": 12,
+        "paymentType": "COD",
+        "expectedShipDate": None,
+        "externalManifestNumber": None,
+        "channelManifestNumber": None,
+        "order_id": 1576882,
+        "channel_id": 271,
+        "warehouse_id": 21,
+        "channel_account_id": None,
+        "account_id": 6,
+        "region": "Local",
+        "picklistCode": None,
+        "invoiceNumber": "SESI1687",
+        "boxType": "UNKNOWN",
+        "isPriorityShipment": "0",
+        "isGift": "0",
+        "invoice_url": "",
+        "invoiceDate": "2020-03-19 00:00:00",
+        "label_url": "https://pyck-res-bucket.s3.amazonaws.com:443/DELHIVERY/2020-03-18/2098310486496.pdf",
+        "labels": "",
+        "shippingInfo": [],
+        "boxAdditionalRecommendation": [],
+        "dimension_length": "10",
+        "dimension_width": "20",
+        "dimension_height": "12",
+        "weight": "1231",
+        "trackingID": "2098310486496",
+        "packageID": "",
+        "barcode": "",
+        "courierName": "Delhivery",
+        "created_at": "2020-03-18 21:22:57",
+        "updated_at": "2020-03-19 01:54:20",
+        "status": "intransit",
+        "remarks": "shipment picked up from client location",
+        "customerName": "Sakib Malik",
+        "customerContactNumber": "xxxxxxxxxx",
+        "email": "xxxxxxxxxxxxxxx@gmail.com",
+        "channelSlug": "blackberrys",
+        "status_updated_at": "2020-03-19 14:50:29",
+        "status_log": {
+            "intransit": "2020-03-19 14:50:29",
+            "dispatched": "2020-03-19 06:30:34",
+            "packed": "2020-03-19 01:54:23",
+            "created": "2020-03-18 21:22:57"
+        },
+        "orderExternalCreatedAt": "2020-03-18 21:22:52",
+        "shippingAddress": {
+            "customerName": "Sakib Malik",
+            "addressLine1": "D151",
+            "addressLine2": "industrail Area",
+            "city": "Mohali",
+            "state": "Punjab",
+            "postalCode": "160071",
+            "countryCode": "IN",
+            "countryName": "India",
+            "contactPhone": "xxxxxxxxxx",
+            "email": "xxxxxxxxxxxxxxx@gmail.com"
+        },
+        "id": 1583574,
+        "isCOD": "1",
+        "track_payload": {
+            "clickPostTrackData": {
+                "status": "In Transit",
+                "clickpost_status_description": "InTransit",
+                "waybill": "2098310486496",
+                "account_code": "Delhivery Surface",
+                "location": "Gurgaon_Bilaspur_P (Haryana)",
+                "clickpost_status_code": 5,
+                "remark": "Shipment Picked Up from Client Location",
+                "cp_id": 4,
+                "timestamp": "2020-03-19T13:48:28Z",
+                "additional": {
+                    "latest_status": {
+                        "clickpost_status_bucket_description": "In transit",
+                        "clickpost_status_description": "InTransit",
+                        "reference_number": "BLCK103443-271-49",
+                        "clickpost_status_bucket": 3,
+                        "status": "In Transit",
+                        "location": "Gurgaon_Bilaspur_P (Haryana)",
+                        "clickpost_status_code": 5,
+                        "remark": "Shipment Picked Up from Client Location",
+                        "timestamp": "2020-03-19T13:48:28Z"
+                    },
+                    "destination_hub_inscan_ts": None,
+                    "courier_partner_edd": None,
+                    "is_rvp": None
+                }
+            }
+        },
+        "packed_date": "2020-03-19 01:54:23",
+        "items": [
+            {
+                "id": 49252802,
+                "lineItemSequenceNumber": 112988,
+                "orderItemID": "OD119208447831346000-49252802",
+                "itemID": "DB9U03FMGWZ",
+                "sku": "2316W3I7KID",
+                "productName": "Pace Barnes",
+                "quantity": 1,
+                "customerPrice": 4499,
+                "discount": 449.89,
+                "lineItemTotal": 4049.09,
+                "taxRate": 12,
+                "taxAmount": 0,
+                "giftMessage": "",
+                "giftLabelContent": "",
+                "cancellationReason": "",
+                "cancellationTime": "0000-00-00 00:00:00",
+                "original_order_item_id": None,
+                "isVirtualKit": "0",
+                "productAdditionalInfo": {
+                    "size": None,
+                    "color": None,
+                    "weight": 20.99,
+                    "height": 12.13,
+                    "length": 11.13,
+                    "width": 8.13,
+                    "taxPercentage": 12,
+                    "hsnCode": "HSN1324",
+                    "productDetails": {
+                        "hsnCode": "HSN1324",
+                        "dimensionHeight": 12.13,
+                        "dimensionLength": 11.13,
+                        "description": "Pace Barnes",
+                        "weight": 20.99,
+                        "mrp": 6000,
+                        "dimensionWidth": 8.13,
+                        "type": "BASE",
+                        "taxCode": "ESBGST9",
+                        "imageUrl": "https://s3-eu-west-1.amazonaws.com/imagebucketeshopbox/Uzip/219045371-1-40/1.JPG",
+                        "accountSlug": "kashwork-ecommerce",
+                        "sku": "ABD-123",
+                        "esin": "2316W3I7KID",
+                        "status": "DRAFT",
+                        "weightUnit": "g"
+                    }
+                },
+                "productImageUrl": "https://s3-eu-west-1.amazonaws.com/imagebucketeshopbox/Uzip/219045371-1-40/1.JPG",
+                "productUrl": "https://montecarlo.auperator.co/product/edit-product/BBAPLMC144105_44",
+                "invoiceTotal": 4049.09,
+                "shippingCharges": 0,
+                "giftWrapCharges": 0,
+                "cashOnDeliveryCharges": 0
+            }
+        ],
+    }
+    shipment = sdk.shipments.create(payload)
+    print(shipment)
+
+
+def update(sdk):
+    shipment = sdk.shipments.update("OD119208447831346000-4380-3659", "dispatched")
+    print(shipment)
+
+
+def main():
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+    # get_all_shipments(sdk)
+    # get_shipment(sdk)
+    # create_shipment(sdk)
+    update(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Webhook
+
+```
+"""
+Example: Setup webhook using EShopBox
+"""
+
+import os
+from eshopbox.client import EShopBox
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_all_webhooks(sdk):
+    print("Getting all webhooks...")
+    response = sdk.webhooks.list()
+    print("Webhooks retrieved successfully!")
+    print(response)
+
+
+def get_webhooks(sdk, id):
+    print("Getting specific webhooks...")
+    response = sdk.webhooks.get(id)
+    print("Webhooks retrieved successfully!")
+    print(response)
+
+
+def create_webhooks(sdk):
+    print("Creating webhook...")
+    webhook_data = {
+        "resource": "user_invitation",
+        "eventType": "POST",
+        "eventSubType": "created",
+        "version": "v1",
+        "externalChannelID": os.getenv('ESHOPBOX_EXTERNAL_CHANNEL_ID', ''),
+        "webhookUrl": "https://api-dev.kashwork.com/api/shipping/eshopbox/webhook",
+        "webhookMethod": "POST",
+        "accountSlug": os.getenv('ESHOPBOX_WORKSPACE', '')
+    }
+    response = sdk.webhooks.create(webhook_data)
+    print("Webhook created successfully!")
+    print(response)
+
+
+def update_webhooks(sdk, id):
+    print("Updating webhook...")
+    webhook_data = {
+        "id": id,
+        "resource": "channel_inventory",
+        "eventType": "POST",
+        "eventSubType": "created",
+        "version": "v1",
+        "externalChannelID": os.getenv('ESHOPBOX_EXTERNAL_CHANNEL_ID', ''),
+        "webhookUrl": "https://api-dev.kashwork.com/api/shipping/eshopbox/webhook",
+        "webhookMethod": "POST",
+        "accountSlug": os.getenv('ESHOPBOX_WORKSPACE', '')
+    }
+    response = sdk.webhooks.update(webhook_data)
+    print("Webhook updated successfully!")
+    print(response)
+
+
+def main():
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+
+    # get_all_webhooks(sdk)
+    # get_webhooks(sdk, '105322')
+    # create_webhooks(sdk)
+    update_webhooks(sdk, '105322')
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+# Wrapper
+
+```
+"""
+Example: Setup Wrapper using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def order(sdk):
+    payload = {
+        "channelId": os.getenv('ESHOPBOX_EXTERNAL_CHANNEL_ID'),
+        "customerOrderId": "OD119208447831346001",
+        "shipmentId": "OD119208447831346001-4380-3659",
+        "orderDate": "2024-01-01 09:00:00",
+        "isCOD": True,
+        "invoiceTotal": 4049.09,
+        "shippingMode": "Eshopbox Standard",
+        "invoice": {
+            "number": "C00011323A000002",
+            "date": "2024-01-04 09:00:00"
+        },
+        "ewaybillNumber": "123422267332",
+        "balanceDue": 0,
+        "shippingAddress": {
+            "customerName": "Sakib Malik",
+            "addressLine1": "D151",
+            "addressLine2": "industrail Area",
+            "city": "Mohali",
+            "state": "Punjab",
+            "postalCode": "160071",
+            "countryCode": "IN",
+            "country": "India",
+            "contactPhone": "xxxxxxxxxx",
+            "email": "xxxxxxxxxxxxxxx@gmail.com",
+            "gstin": "344633257673"
+        },
+        "billingIsShipping": True,
+        "billingAddress": {
+            "customerName": "Sakib Malik",
+            "addressLine1": "D151",
+            "addressLine2": "industrail Area",
+            "city": "Mohali",
+            "state": "Punjab",
+            "postalCode": "160071",
+            "countryCode": "IN",
+            "countryName": "India",
+            "contactPhone": "xxxxxxxxxx",
+            "email": "xxxxxxxxxxxxxxx@gmail.com"
+        },
+        "items": [
+            {
+                "id": 49252941,
+                "lineItemSequenceNumber": 100,
+                "orderItemID": "OD119208447831346001-49252941",
+                "itemID": "KW-100",
+                "sku": "23YCU3I7KIF",
+                "productName": "Keyboard",
+                "quantity": 1,
+                "customerPrice": 4499,
+                "discount": 449.89,
+                "lineItemTotal": 4049.09,
+                "taxRate": 12,
+                "taxAmount": 0,
+                "giftMessage": "",
+                "giftLabelContent": "",
+                "cancellationReason": "",
+                "cancellationTime": "0000-00-00 00:00:00",
+                "original_order_item_id": None,
+                "isVirtualKit": "0",
+                "productAdditionalInfo": {
+                    "size": None,
+                    "color": None,
+                    "weight": 20.99,
+                    "height": 12.13,
+                    "length": 11.13,
+                    "width": 8.13,
+                    "taxPercentage": 12,
+                    "hsnCode": "HSN1324",
+                    "productDetails": {
+                        "hsnCode": "HSN1324",
+                        "dimensionHeight": 12.13,
+                        "dimensionLength": 11.13,
+                        "description": "Keyboard",
+                        "weight": 20.99,
+                        "mrp": 6000,
+                        "dimensionWidth": 8.13,
+                        "type": "BASE",
+                        "taxCode": "ESBGST9",
+                        "imageUrl": "https://kw-live.s3.amazonaws.com/media/post_images/upload/product_pic_d4bda7fb-e2f1-4061-b2ef-e4a5bd7618b8.webp",
+                        "accountSlug": "kashwork-ecommerce",
+                        "sku": "KW-123",
+                        "esin": "23YCU3I7KIF",
+                        "status": "DRAFT",
+                        "weightUnit": "g"
+                    }
+                },
+                "productImageUrl": "https://kw-live.s3.amazonaws.com/media/post_images/upload/product_pic_d4bda7fb-e2f1-4061-b2ef-e4a5bd7618b8.webp",
+                "productUrl": "https://kashwork.com/d/jewellery/imitation_jewellery/women_imitation_jewellery_/women_necklace_sets/dabka_jewellery_set/161291130/598744146",
+                "invoiceTotal": 4049.09,
+                "shippingCharges": 0,
+                "giftWrapCharges": 0,
+                "cashOnDeliveryCharges": 0
+            }
+        ],
+        "shipmentDimension": {
+            "length": 13.12,
+            "breadth": 15.32,
+            "height": 56.39,
+            "weight": 201.23
+        },
+        "pickupLocation": {
+            "locationCode": "MCFL00395",
+            "locationName": "TEST Warehouse",
+            "companyName": "TEST",
+            "contactPerson": "SAM",
+            "contactNumber": "898898989",
+            "addressLine1": "Khasra no 5/16/2,17, Near Subash Chowk, Sohana Road Village Behrampur",
+            "addressLine2": "Khasra no 5/16/2,17, Near Subash Chowk",
+            "city": "Gurgaon",
+            "state": "HARYANA",
+            "country": "India",
+            "pincode": "121005",
+            "gstin": "06AAFCM7888Q1ZE"
+        },
+        "package": {
+            "type": "box",
+            "code": "PC20240613141533",
+            "description": "Test1",
+            "length": 45.00,
+            "breadth": 54.13,
+            "height": 45.22,
+            "weight": 45.80
+        }
+    }
+    response = sdk.wrapper.order(payload)
+    print("Response: ", response)
+
+
+def shipping_return(sdk):
+    payload = {
+        "channelId": "KAPAS KRAFT",
+        "customerOrderId": "OD119208447831346000",
+        "shipmentId": "2313ewqwre",
+        "orderDate": "2020-02-29 15:39:11",
+        "isCOD": True,
+        "invoiceTotal": 4049.09,
+        "shippingMode": "Standard",
+        "invoice": {
+            "number": "C00011323A000002",
+            "date": "2023-06-02 15:39:11"
+        },
+        "ewaybillNumber": "",
+        "shippingAddress": {
+            "locationCode": "MCFL00395",
+            "locationName": "TEST Warehouse",
+            "companyName": "TEST",
+            "contactPerson": "SAM",
+            "contactNumber": "898898989",
+            "addressLine1": "Khasra no 5/16/2,17, Near Subash Chowk, Sohana Road Village Behrampur",
+            "addressLine2": "Khasra no 5/16/2,17, Near Subash Chowk",
+            "city": "Gurgaon",
+            "pincode": "121005",
+            "state": "HARYANA",
+            "country": "India",
+            "gstin": "06AAFCM7888Q1ZE"
+        },
+        "items": [
+            {
+                "itemID": "DB9U03FMGWZ",
+                "productTitle": "Pace Barnes",
+                "quantity": 1,
+                "itemTotal": 4049.09,
+                "hsn": "122132",
+                "mrp": 2345.98,
+                "discount": 123,
+                "taxPercentage": 12.00,
+                "returnReason": "TEST",
+                "ean": "2342534",
+                "length": 12,
+                "breadth": 18,
+                "height": 23,
+                "weight": 100,
+                "qcDetails": {
+                    "qc_color": "red",
+                    "qc_brand": "duke",
+                    "qc_serial_no": "212324235",
+                    "qc_ean_barcode": "sdsrewrt",
+                    "qc_size": "22",
+                    "qc_product_name": "TEST",
+                    "qc_product_image": "IMG.png",
+                    "qcParamsToCheck": [
+                        "check_price_tag",
+                        "check_packaging_box",
+                        "check_damaged",
+                        "check_used"
+                    ]
+                }
+            }
+        ],
+        "returnDimension": {
+            "length": 13.12,
+            "breadth": 15.32,
+            "height": 56.39,
+            "weight": 201.23
+        },
+        "pickupLocation": {
+            "customerName": "John Doe",
+            "addressLine1": "Kapas Kraft Apparels Limited",
+            "addressLine2": "Banglore",
+            "city": "bengluru",
+            "state": "Karnataka",
+            "pincode": "560005",
+            "country": "India",
+            "contactPhone": "9998889998",
+            "email": "johndoe@gmail.com"
+        }
+    }
+    response = sdk.wrapper.shipping_return(payload)
+    print("Response: ", response)
+
+
+def cancel_tracking(sdk):
+    payload = {
+        "trackingId": "1231244"
+    }
+    response = sdk.wrapper.cancel_tracking(payload)
+    print("Response: ", response)
+
+
+def tracking_details(sdk):
+    response = sdk.wrapper.tracking_details("OD119208447831346000-4380-3659")
+    print("Response: ", response)
+
+
+def webhook_register(sdk):
+    payload = {
+        "resource": "channel_inventory",
+        "eventType": "POST",
+        "eventSubType": "updated",
+        "version": "v1",
+        "externalChannelID": "TEST",
+        "webhookUrl": "https://webhook.testurl.com/fake-subscription-url2",
+        "webhookMethod": "POST",
+        "webhookHeaders": {
+            "x-api-key": "test1234",
+            "sample-header-key": "test875876",
+            "authorization": "Bearer abcdef123456",
+            "custom-header": "customValue",
+            "content-type": "application/json"
+        }
+    }
+
+    response = sdk.wrapper.webhook_register(payload, ProxyHost="your_proxy_host_value")
+    print("Response: ", response)
+
+
+def main():
+    # Initialize SDK
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+    # order(sdk)
+    # shipping_return(sdk)
+    # cancel_tracking(sdk)
+    # tracking_details(sdk)
+    webhook_register(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+
+```
+
+# Settings
+
+```
+"""
+Example: Setup Settings using EShopBox
+"""
+
+from eshopbox import EShopBox
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def get_portals(sdk):
+    response = sdk.settings.get_portals()
+    print(response)
+
+
+def create_workspace(sdk):
+    data = {
+        "data": {
+            "accountSlug": "eshop",
+            "accountName": "Eshopbox"
+        }
+    }
+    response = sdk.settings.create_workspace(data)
+    print(response)
+
+
+def get_all_workspace(sdk):
+    params = {
+        "page": 1,
+        "limit": 10
+    }
+    response = sdk.settings.get_all_workspace(params)
+    print(response)
+
+
+def get_workspace(sdk):
+    response = sdk.settings.get_workspace()
+    print(response)
+
+
+def update_workspace(sdk):
+    data = {
+        "data": {
+            "accountSlug": "eshop",
+            "accountName": "XXXXXXXX"
+        }
+    }
+    response = sdk.settings.update_workspace(data)
+    print(response)
+
+
+def create_sales_channel(sdk):
+    data = {
+        "data": {
+            "portalId": 1,
+            "integrationModelId": 1,
+            "channelAccountId": 1,
+            "fulfillmentChannels": [
+                {
+                    "warehouseId": 1
+                },
+                {
+                    "warehouseId": 2
+                }
+            ]
+        }
+    }
+    response = sdk.settings.create_sales_channel(data)
+    print(response)
+
+
+def update_sales_channel(sdk):
+    data = {
+        "data": {
+            "portalId": 1,
+            "integrationModelId": 1,
+            "channelAccountId": 1,
+            "fulfillmentChannels": [
+                {
+                    "warehouseId": 1
+                },
+                {
+                    "warehouseId": 2
+                }
+            ]
+        }
+    }
+    response = sdk.settings.update_sales_channel(1, data)
+    print(response)
+
+
+def get_all_sales_channel(sdk):
+    response = sdk.settings.get_all_sales_channel()
+    print(response)
+
+
+def get_sales_channel(sdk):
+    response = sdk.settings.get_sales_channel(4801)
+    print(response)
+
+
+def create_fc_submission(sdk):
+    data = {
+        "data": {
+            "warehouseId": "1",
+            "warehouseName": "TCNS Banglore",
+            "externalWmsAccountId": "1",
+            "facility": "BDBLR108",
+            "operatingModel": "consignment",
+            "requestDocuments": {
+                "gstCertificateUrl": "http://abc.com/1.jpg",
+                "signatureUrl": "http://abc.com/2.jpg",
+                "companyLogoUrl": "http://abc.com/3.jpg"
+            }
+        }
+    }
+    response = sdk.settings.create_fc_submission(data)
+    print(response)
+
+
+def get_all_fc_submission(sdk):
+    response = sdk.settings.get_all_fc_submission()
+    print(response)
+
+
+def get_fc_submission(sdk):
+    response = sdk.settings.get_fc_submission(1)
+    print(response)
+
+
+def create_contact(sdk):
+    data = {
+        "data": {
+            "contactCode": "1234",
+            "contactName": "ABC",
+            "contactEmail": "XXXXXXXXXXXXX",
+            "contactPhone": "1234567890",
+            "contactType": "seller",
+            "contactAddress": "ABC"
+        }
+    }
+    response = sdk.settings.create_contact(data)
+    print(response)
+
+
+def update_fc_submission(sdk):
+    data = {
+        "data": {
+            "warehouseId": "1",
+            "warehouseName": "TCNS Banglore",
+            "externalWmsAccountId": "1",
+            "facility": "BDBLR108",
+            "operatingModel": "consignment",
+            "requestDocuments": {
+                "gstCertificateUrl": "XXXXXXXXXXXXXXXXXXXX",
+                "signatureUrl": "XXXXXXXXXXXXXXXXXXXX",
+                "companyLogoUrl": "XXXXXXXXXXXXXXXXXXXX"
+            }
+        }
+    }
+    response = sdk.settings.update_fc_submission(1, data)
+    print(response)
+
+
+def get_all_contact(sdk):
+    response = sdk.settings.get_all_contact()
+    print(response)
+
+
+def get_contact(sdk):
+    params = {
+        "contactCode": "1234"
+    }
+    response = sdk.settings.get_contact(params)
+    print(response)
+
+
+def update_contact(sdk):
+    data = {
+        "data": {
+            "contactCode": "1234",
+            "contactName": "ABC",
+            "contactEmail": "XXXXXXXXXXXXX",
+            "contactPhone": "1234567890",
+            "contactType": "seller",
+            "contactAddress": "ABC"
+        }
+    }
+    response = sdk.settings.update_contact("1234", data)
+    print(response)
+
+
+def create_team_member(sdk):
+    data = {
+        "data": {
+            "userId": 1,
+            "portalId": 1,
+            "integrationModelId": 1,
+            "channelAccountId": 1,
+            "warehouseId": 1
+        }
+    }
+    response = sdk.settings.create_team_member(data)
+    print(response)
+
+
+def update_team_member(sdk):
+    data = {
+        "data": {
+            "userId": 1,
+            "portalId": 1,
+            "integrationModelId": 1,
+            "channelAccountId": 1,
+            "warehouseId": 1
+        }
+    }
+    response = sdk.settings.update_team_member(1, data)
+    print(response)
+
+
+def get_team_member(sdk):
+    response = sdk.settings.get_team_member(1)
+    print(response)
+
+
+def get_all_team_member(sdk):
+    response = sdk.settings.get_all_team_member()
+    print(response)
+
+
+def main():
+    # Initialize SDK
+    sdk = EShopBox(
+        workspace=os.getenv('ESHOPBOX_WORKSPACE', ''),
+        client_id=os.getenv('ESHOPBOX_CLIENT_ID', ''),
+        client_secret=os.getenv('ESHOPBOX_SECRET_ID', ''),
+        refresh_token=os.getenv('ESHOPBOX_REFRESH_TOKEN', '')
+    )
+
+    # get_portals(sdk)
+    # create_workspace(sdk)
+    # get_all_workspace(sdk)
+    # get_workspace(sdk)
+    # update_workspace(sdk)
+    # create_sales_channel(sdk)
+    # update_sales_channel(sdk)
+    # get_all_sales_channel(sdk)
+    # get_sales_channel(sdk)
+    # create_fc_submission(sdk)
+    # get_all_fc_submission(sdk)
+    # get_fc_submission(sdk)
+    # update_fc_submission(sdk)
+    # create_contact(sdk)
+    # get_all_contact(sdk)
+    # get_contact(sdk)
+    # update_contact(sdk)
+    # create_team_member(sdk)
+    # update_team_member(sdk)
+    # get_team_member(sdk)
+    get_all_team_member(sdk)
+
+
+if __name__ == "__main__":
+    main()
+
+
+```
+
+## License
+
+MIT License
+
+
+Copyright (c) 2025 Sakib Malik
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
