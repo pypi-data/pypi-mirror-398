@@ -1,0 +1,251 @@
+# AnyKernel
+
+**Zero-config inference OS for local LLMs.** AnyKernel automatically detects your hardware and loads the optimal inference backend - MLX for Apple Silicon, vLLM for NVIDIA GPUs, or llama.cpp for universal support.
+
+## Why AnyKernel?
+
+```python
+# Same code runs optimally on ANY hardware
+from anykernel import Session
+
+with Session("meta-llama/Llama-2-7b-chat-hf") as session:
+    print(session.chat("Hello!"))
+    # Apple Silicon → MLX (fastest)
+    # NVIDIA GPU → vLLM (high throughput)
+    # CPU → llama.cpp (universal)
+```
+
+No CUDA setup. No dtype selection. No kernel compilation. **It just works.**
+
+## Supported Backends
+
+| Backend | Platform | Model Formats | Best For |
+|---------|----------|---------------|----------|
+| **MLX** | Apple Silicon | safetensors | M1/M2/M3 Macs |
+| **vLLM** | NVIDIA GPU | safetensors, GPTQ, AWQ | High throughput |
+| **llama.cpp** | All | GGUF | Universal fallback |
+
+## Installation
+
+```bash
+# Core package (no backend)
+pip install anykernel
+
+# With specific backend
+pip install anykernel[llama]     # llama.cpp (CPU/CUDA/Metal)
+pip install anykernel[mlx]       # MLX (Apple Silicon)
+pip install anykernel[vllm]      # vLLM (NVIDIA)
+
+# Convenience shortcuts
+pip install anykernel[cpu]       # Best for CPU-only
+pip install anykernel[apple]     # Best for Apple Silicon
+pip install anykernel[nvidia]    # Best for NVIDIA GPUs
+
+# Install all backends
+pip install anykernel[all]
+```
+
+### GPU-Optimized llama.cpp
+
+For GPU acceleration with llama.cpp:
+
+**NVIDIA GPU:**
+```bash
+CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall
+```
+
+**Apple Silicon:**
+```bash
+CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --force-reinstall
+```
+
+## Quickstart
+
+```python
+from anykernel import Session
+
+with Session("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF") as session:
+    response = session.chat("Why is the sky blue?")
+    print(response)
+```
+
+## Features
+
+- **Multi-Backend Support**: MLX, vLLM, llama.cpp - automatic selection
+- **Auto Hardware Detection**: CPU, NVIDIA GPU, Apple Silicon
+- **Auto Model Download**: Downloads and caches from HuggingFace
+- **Offline Support**: Works offline after first download
+- **Simple API**: Just `Session()` and `chat()`
+
+## Usage Examples
+
+### Automatic Backend Selection
+
+```python
+from anykernel import Session
+
+# AnyKernel picks the best backend for your hardware
+with Session("TheBloke/Mistral-7B-Instruct-v0.2-GGUF") as session:
+    print(session.backend_info)  # Shows which backend was selected
+    response = session.chat("Explain quantum computing.")
+    print(response)
+```
+
+### Force Specific Backend
+
+```python
+from anykernel import Session
+
+# Force llama.cpp even on Apple Silicon
+with Session("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF", backend="llama_cpp") as session:
+    response = session.chat("Hello!")
+```
+
+### Streaming Output
+
+```python
+from anykernel import Session
+
+with Session("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF") as session:
+    for token in session.chat("Write a haiku about coding.", stream=True):
+        print(token, end="", flush=True)
+    print()
+```
+
+### With System Prompt
+
+```python
+from anykernel import Session
+
+with Session("TheBloke/Llama-2-7B-Chat-GGUF") as session:
+    response = session.chat(
+        "What's the best way to learn programming?",
+        system_prompt="You are a helpful coding mentor."
+    )
+    print(response)
+```
+
+### Multi-turn Conversation
+
+```python
+from anykernel import Session
+
+with Session("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF") as session:
+    print(session.chat("My name is Alice."))
+    print(session.chat("What's my name?"))  # Remembers context
+
+    session.clear_history()  # Reset conversation
+```
+
+### Check Hardware & Backend
+
+```python
+from anykernel import Session
+
+with Session("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF") as session:
+    print("Hardware:", session.hardware_info)
+    print("Backend:", session.backend_info)
+    print("Available backends:", session.list_available_backends())
+```
+
+### Local Model File
+
+```python
+from anykernel import Session
+
+with Session("/path/to/my-model.gguf") as session:
+    response = session.generate("Once upon a time")
+    print(response)
+```
+
+## Supported Models
+
+### GGUF Models (llama.cpp)
+
+- `TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF` (small, fast)
+- `TheBloke/Llama-2-7B-Chat-GGUF`
+- `TheBloke/Llama-2-13B-Chat-GGUF`
+- `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`
+- `microsoft/Phi-3-mini-4k-instruct-gguf`
+
+### Safetensors Models (MLX, vLLM)
+
+- `meta-llama/Llama-2-7b-chat-hf`
+- `mistralai/Mistral-7B-Instruct-v0.2`
+- `microsoft/phi-2`
+
+For other models, specify the filename:
+
+```python
+Session("username/repo-GGUF", model_file="model.Q4_K_M.gguf")
+```
+
+## API Reference
+
+### Session
+
+```python
+Session(
+    model_id: str,              # HuggingFace ID or local path
+    model_file: str = None,     # Specific filename (optional)
+    backend: str = "auto",      # "auto", "llama_cpp", "mlx", "vllm"
+    log_level: str = "info"     # debug, info, warning, error
+)
+```
+
+**Methods:**
+
+- `chat(message, system_prompt=None, max_tokens=512, temperature=0.7, stream=False)`
+- `generate(prompt, max_tokens=512, temperature=0.7, stream=False)`
+- `clear_history()`
+- `list_available_backends()`
+
+**Properties:**
+
+- `hardware_info` - Detected hardware details
+- `backend_info` - Current backend details
+- `history` - Conversation history
+
+## Architecture
+
+```
+anykernel/
+├── backend/
+│   ├── base.py          # Abstract backend interface
+│   ├── selector.py      # Auto-select best backend
+│   ├── llama_cpp.py     # llama.cpp implementation
+│   ├── mlx_backend.py   # MLX implementation
+│   └── vllm_backend.py  # vLLM implementation
+├── session.py           # High-level API
+├── hardware.py          # Hardware detection
+└── utils/
+    ├── cache.py         # Model caching
+    └── logger.py        # Logging
+```
+
+## Requirements
+
+- Python 3.9+
+- huggingface-hub
+- At least one backend: llama-cpp-python, mlx, or vllm
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Development setup
+- Code style guidelines
+- Running tests
+- Pull request process
+
+### Developer Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Contributing Guide](CONTRIBUTING.md) | Setup, testing, PR process |
+| [Publishing to PyPI](docs/PUBLISHING.md) | Build and release workflow |
+| [Adding New Backends](docs/ADDING_BACKENDS.md) | Implement custom backends |
+
+## License
+
+MIT
