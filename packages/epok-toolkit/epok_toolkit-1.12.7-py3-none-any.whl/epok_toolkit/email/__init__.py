@@ -1,0 +1,1 @@
+from .email_async import send_email
