@@ -1,0 +1,56 @@
+# Tether
+<img width="1000" height="600" alt="Gemini_Generated_Image_xofloxxofloxxofl" src="https://github.com/user-attachments/assets/420a486f-1a09-4d72-a98b-22678abd0e75" />
+
+
+**Tether** is a Triton-powered framework for training and deploying **Spiking Transformers**. 
+
+We’ve solved the non-differentiability of discrete spikes by implementing a custom **Arctan Surrogate Gradient** in the autograd backward pass.
+
+## Key Features
+
+- **Fused LIF Kernel**: Manages membrane potential statefulness across temporal windows without global memory stalls, utilizing Triton for high-performance GPU execution.
+- **Linear Spike-Driven Attention**: Eliminates the $O(N^2)$ Softmax bottleneck, allowing for massive context windows with significantly lower energy per inference (Joules/op).
+- **Bit-Packing** (In Progress): Optimization for memory-efficient spike storage.
+- **Triton-Powered**: Leverages OpenAI's Triton language for custom CUDA kernels.
+
+## Installation
+
+This project is managed with `uv`.
+
+```bash
+uv sync
+```
+
+Or install dependencies manually:
+
+```bash
+pip install torch triton numpy
+```
+
+## Usage
+
+### Training a Spiking Language Model
+
+The `train_stories.py` script demonstrates training a **Spiking-LLM** on the TinyShakespeare dataset.
+
+```bash
+python train_stories.py
+```
+
+This will:
+1. Download the `input.txt` dataset.
+2. Initialize a Tether Spiking Transformer (4 layers, 8 heads).
+3. Train using the custom Arctan Surrogate Gradient.
+4. Generate sample text from the Spiking SNN.
+
+## Architecture
+
+- **`tether.kernels.lif`**: Custom Triton kernels for Leaky Integrate-and-Fire (LIF) forward and backward passes.
+- **`tether.functional.lif`**: PyTorch autograd function wrapping the Triton kernels.
+- **`tether.nn.attention`**: Linear Spike-Driven Attention mechanism.
+- **`tether.nn.block`**: Spiking Transformer Block implementation.
+
+## License
+
+[Apache-2.0](https://github.com/Khushiyant/tether/blob/main/LICENSE)
+
