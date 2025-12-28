@@ -1,0 +1,177 @@
+Metadata-Version: 2.4
+Name: brainunit
+Version: 0.1.3
+Summary: Physical Units and Unit-Aware Mathematical System for General-Purpose Brain Dynamics Modeling
+Author-email: BrainUnit Developers <chao.brain@qq.com>
+License-Expression: Apache-2.0
+Project-URL: homepage, https://github.com/chaobrain/brainunit
+Project-URL: repository, https://github.com/chaobrain/brainunit
+Project-URL: Bug Tracker, https://github.com/chaobrain/brainunit/issues
+Project-URL: Documentation, https://brainunit.readthedocs.io/
+Keywords: physical unit,physical quantity,brain modeling
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: typing_extensions
+Requires-Dist: saiunit==0.1.3
+Provides-Extra: testing
+Requires-Dist: pytest; extra == "testing"
+Provides-Extra: cpu
+Requires-Dist: jax[cpu]; extra == "cpu"
+Provides-Extra: cuda12
+Requires-Dist: jax[cuda12]; extra == "cuda12"
+Provides-Extra: cuda13
+Requires-Dist: jax[cuda13]; extra == "cuda13"
+Provides-Extra: tpu
+Requires-Dist: jax[tpu]; extra == "tpu"
+
+<h1 align='center'>BrainUnit</h1>
+<h2 align='center'>Physical units and unit-aware math system for general-purpose brain dynamics modeling</h2>
+
+<p align="center">
+  	<img alt="Header image of brainunit." src="https://raw.githubusercontent.com/chaobrain/saiunit/main/docs/_static/brainunit.png" width=30%>
+</p> 
+
+
+
+<p align="center">
+	<a href="https://pypi.org/project/brainunit/"><img alt="Supported Python Version" src="https://img.shields.io/pypi/pyversions/brainunit"></a>
+	<a href="https://github.com/chaobrain/brainunit/blob/main/LICENSE"><img alt="LICENSE" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"></a>
+    <a href='https://brainunit.readthedocs.io/?badge=latest'>
+        <img src='https://readthedocs.org/projects/brainunit/badge/?version=latest' alt='Documentation Status' />
+    </a>  	
+    <a href="https://badge.fury.io/py/brainunit"><img alt="PyPI version" src="https://badge.fury.io/py/brainunit.svg"></a>
+    <a href="https://pepy.tech/projects/brainunit"><img src="https://static.pepy.tech/badge/brainunit" alt="PyPI Downloads"></a>
+</p>
+
+
+
+
+[BrainUnit](https://github.com/chaobrain/brainunit) provides physical units and unit-aware mathematical system in JAX for brain dynamics modeling. It introduces rigoirous physical units into high-performance AI-driven abstract numerical computing. 
+
+BrainUnit is initially designed to enable unit-aware computations in brain dynamics modeling (see our [BDP ecosystem](https://ecosystem-for-brain-dynamics.readthedocs.io/)). However, its features and capacities can be applied to general domains in scientific computing and AI4Science. Starting in 2025/02, BrainUnit has been fully integrated into [SAIUnit](https://github.com/chaobrain/saiunit) (the **Unit** system for **S**cientific **AI**). 
+
+Functionalities are the same for both ``brainunit`` and ``saiunit``, and their functions and data structures are interoperable, sharing the same set of APIs, and eliminating any potential conflicts. This meas that 
+
+```python
+import brainunit as u
+```
+
+equals to 
+
+```python
+import saiunit as u
+```
+
+For users primarily engaged in general scientific computing, `saiunit` is likely the preferred choice. However, for those focused on brain modeling, we recommend `brainunit`, as it is more closely aligned with our specialized brain dynamics programming ecosystem.
+
+
+
+## Documentation
+
+The official documentation of BrainUnit is hosted on Read the Docs: [https://brainunit.readthedocs.io](https://brainunit.readthedocs.io)
+
+
+
+## Features
+
+`brainunit` can be seamlessly integrated into every aspect of our [brain modeling ecosystem](https://brainmodeling.readthedocs.io/), such as, the checkpointing of [braintools](https://github.com/chaobrain/braintools), the event-driven operators in [brainevent](https://github.com/chaobrain/brainevent), the state-based JIT compilation in [brainstate](https://github.com/chaobrain/brainstate), online learning rules in [brainscale](https://github.com/chaobrain/brainscale), or event more. 
+
+A quick example for this kind of integration:
+
+```python
+
+import braintools
+import brainevent
+import brainstate
+import brainunit as u
+
+
+class EINet(brainstate.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.n_exc = 3200
+        self.n_inh = 800
+        self.num = self.n_exc + self.n_inh
+        self.N = brainstate.nn.LIFRef(
+            self.num, V_rest=-60. * u.mV, V_th=-50. * u.mV, V_reset=-60. * u.mV,
+            tau=20. * u.ms, tau_ref=5. * u.ms,
+            V_initializer=brainstate.init.Normal(-55., 2., unit=u.mV)
+        )
+        self.E = brainstate.nn.AlignPostProj(
+            comm=brainstate.nn.EventFixedProb(self.n_exc, self.num, 0.02, 0.6 * u.mS),
+            syn=brainstate.nn.Expon.desc(self.num, tau=5. * u.ms),
+            out=brainstate.nn.COBA.desc(E=0. * u.mV),
+            post=self.N
+        )
+        self.I = brainstate.nn.AlignPostProj(
+            comm=brainstate.nn.EventFixedProb(self.n_inh, self.num, 0.02, 6.7 * u.mS),
+            syn=brainstate.nn.Expon.desc(self.num, tau=10. * u.ms),
+            out=brainstate.nn.COBA.desc(E=-80. * u.mV),
+            post=self.N
+        )
+
+    def update(self, t, inp):
+        with brainstate.environ.context(t=t):
+            spk = self.N.get_spike() != 0.
+            self.E(spk[:self.n_exc])
+            self.I(spk[self.n_exc:])
+            self.N(inp)
+            return self.N.get_spike()
+    
+    def save_checkpoint(self):
+        braintools.file.msgpack_save('states.msgpack', self.states())
+    
+```
+
+
+
+## Installation
+
+You can install ``brainunit`` via pip:
+
+```bash
+pip install brainunit --upgrade
+```
+
+
+## Citation
+
+If you use `brainunit` in your research, please consider citing the following paper:
+
+```bibtex
+@article{wang2025integrating,
+  title={Integrating physical units into high-performance AI-driven scientific computing},
+  author={Wang, Chaoming and He, Sichao and Luo, Shouwei and Huan, Yuxiang and Wu, Si},
+  journal={Nature Communications},
+  volume={16},
+  number={1},
+  pages={3609},
+  year={2025},
+  publisher={Nature Publishing Group UK London},
+  url={https://doi.org/10.1038/s41467-025-58626-4}
+}
+```
+
+
+
+## See also the ecosystem
+
+``brainunit`` is one part of our [brain modeling ecosystem](https://brainmodeling.readthedocs.io/). 
