@@ -1,0 +1,98 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline: Translator
+# Description: Multi-language translation with intelligent language routing
+#
+# This pipeline demonstrates the handoff pattern where a generic orchestrator
+# automatically routes translation requests to the appropriate language specialist
+# based on user intent.
+#
+# =============================================================================
+
+name: "Translator"
+description: "Intelligent multi-language translation pipeline with automatic specialist routing"
+
+# =============================================================================
+# AGENT REGISTRY
+# =============================================================================
+
+nodes:
+  - id: spanish_translator
+    config_file: agents/spanish_translator.yml
+  - id: english_translator
+    config_file: agents/english_translator.yml
+  - id: hindi_translator
+    config_file: agents/hindi_translator.yml
+
+# =============================================================================
+# HANDOFF PATTERN CONFIGURATION
+# =============================================================================
+#
+# Handoff Pattern:
+# - Generic orchestrator auto-generated from agent descriptions
+# - Routes to specialist based on LLM decision
+# - Automatically returns to orchestrator for final message
+#
+# Pattern Type: handoff (LLM-driven routing)
+# Orchestrator: Generic (auto-built from agent descriptions)
+# Handoffs: List of specialist agents available for routing
+#
+# HANDOFF
+# - type: handoff (required)
+# - orchestrator: "agent_id:protocol" (optional, uses generic if omitted)
+# - handoffs: list of specialist agents (required, >=1)
+#
+# Example:
+#   pattern:
+#     type: handoff
+#     handoffs:
+#       - node: specialist_a#       - node: specialist_b#
+# Notes:
+# - Orchestrator is auto-generated from agent descriptions
+# - Specialist agents should have agent_card.description in their YAML
+# - Orchestrator routes to specialist via "HANDOFF: <agent_id>" pattern
+# - Automatic return to orchestrator after specialist response
+#
+# =============================================================================
+
+pattern:
+  type: handoff
+  name: "Intelligent Multi-Language Translation"
+  description: |
+    ## Intelligent Multi-Language Translation
+    
+    This handoff pattern enables intelligent multi-language translation:
+    - **Generic Orchestrator** (auto-generated) analyzes user intent and routes to appropriate specialist
+    - **Spanish Translator** handles Spanish translation requests
+    - **English Translator** handles English translation requests
+    - **Hindi Translator** handles Hindi translation requests
+    
+    The orchestrator automatically routes translation requests to the appropriate language specialist based on the target language, then returns to the orchestrator for final message delivery. This pattern demonstrates LLM-driven routing without explicit conditional logic.
+
+  # No orchestrator specified = uses generic auto-generated orchestrator
+  # Optionally, specify custom orchestrator:
+  # orchestrator: "custom_orchestrator"
+
+  handoffs:
+    - node: spanish_translator
+    - node: english_translator
+    - node: hindi_translator
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+
+outputs:
+  final:
+    selectors: ["content"]
+    transform: |
+      ## Translation Result
+
+      {{ content }}
+
+      {% if '_handoff_info' in context and context._handoff_info.specialist %}
+      ---
+      **Translated to:** {{ context._handoff_info.target_language|default('the requested language') }}
+      **By:** {{ context._handoff_info.specialist }}
+      {% endif %}

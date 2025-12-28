@@ -1,0 +1,156 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Math Repeater"
+description: "A multi-agent pipeline that solves multiple math problems in parallel using repeat pattern. Extracts file path from user input, parses problems from file, solves each problem in parallel, and generates a comprehensive report."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of these constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#   - repeat: run same agent multiple times in parallel (new pattern)
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop | repeat
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - OR repeat: repeat configuration (required if using repeat pattern)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# REPEAT PATTERN (NEW)
+# - type: parallel (required)
+# - repeat (object, required): repeat configuration
+#   - repeat.node (str, required): agent node ID to repeat
+#   - repeat.instances (int | str, required): number of instances or expression
+#   - repeat.input_mapping (object, optional): input mapping with {{index}} variable
+#   - repeat.instance_id_template (str, optional): template for instance IDs
+#   - repeat.instance_context_key (str, optional): context variable name for instance metadata (default: "repeat_instance")
+#     Use this key in agent YAML to access {{instance_context_key.index}} and {{instance_context_key.instance_id}}
+#
+# LOOP
+# - type: loop (required)
+# - body: (step | sequential | parallel) (required)
+# - max_iterations: int (required, >=1)
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+nodes:
+  - id: math_repeater_parser
+    config_file: "agents/math_repeater_parser.yml"
+  - id: math_repeater_solver
+    config_file: "agents/math_repeater_solver.yml"
+  - id: math_repeater_report_generator
+    config_file: "agents/math_repeater_report_generator.yml"
+
+pattern:
+  type: sequential
+  name: "Math Problem Batch Processing Flow"
+  description: |
+    ## Math Problem Batch Processing Flow
+    
+    This sequential pattern orchestrates the complete batch math problem-solving workflow:
+    1. **Parser** extracts file path from user input and parses problems from the file
+    2. **Parallel Solver** processes all problems concurrently using the repeat pattern
+    3. **Report Generator** compiles a comprehensive report of all solutions
+    
+    The parallel repeat pattern enables efficient concurrent processing of multiple math problems, significantly reducing total processing time for batch operations.
+  steps:
+    - node: math_repeater_parser
+    - type: parallel
+      name: "Parallel Problem Solver"
+      description: |
+        ## Parallel Problem Processing
+        
+        This parallel repeat pattern processes multiple math problems concurrently:
+        - Each problem is solved independently by a solver instance
+        - All solvers run in parallel for maximum efficiency
+        - Results are collected and passed to the report generator
+        
+        The number of instances is dynamically determined by the parser's problem count.
+      repeat:
+        node: math_repeater_solver
+        instances: "math_repeater_parser.problem_count"
+        instance_context_key: "problem_instance"
+        input_mapping:
+          problem_text: "math_repeater_parser.problems[index]"
+          problem_index: "index"
+        instance_id_template: "{{node_id}}_{{index}}"
+    - node: math_repeater_report_generator
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates: []
+
+# =============================================================================
+# OUTPUTS CONFIGURATION
+# =============================================================================
+#
+# Pipeline output configuration for final and intermediate results
+#
+# Parameters:
+# - outputs.final (object, required): final pipeline output
+#   - outputs.final.node (str, required): agent ID that produces final output
+#   - outputs.final.selectors (list[str], optional): JSONPath selectors to extract specific fields
+#   - outputs.final.transform (str, optional): transformation expression
+# - outputs.intermediate (list[object], optional): intermediate outputs for debugging/monitoring
+#   - outputs.intermediate[].node (str, required): agent ID that produces intermediate output
+#   - outputs.intermediate[].selectors (list[str], optional): JSONPath selectors
+#   - outputs.intermediate[].transform (str, optional): transformation expression
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: math_repeater_report_generator
+    selectors: 
+      - report_md
+      - error
+    transform: "{{ value }}"
+

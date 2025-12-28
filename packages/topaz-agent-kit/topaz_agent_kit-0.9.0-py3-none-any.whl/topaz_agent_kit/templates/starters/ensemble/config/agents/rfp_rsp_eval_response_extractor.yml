@@ -1,0 +1,50 @@
+# =============================================================================
+# RESPONSE EXTRACTOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent extracts and structures data from a single supplier response PDF.
+# Multiple instances run in parallel, one per supplier PDF.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (adk|oak|maf|agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+# - lenient_parsing (bool, optional): Enable lenient parsing for malformed/incomplete JSON (default: false)
+#
+# =============================================================================
+id: rfp_rsp_eval_response_extractor
+type: oak
+model: "azure_openai"
+run_mode: "local"
+lenient_parsing: true
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rfp_rsp_eval_response_extractor
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["doc_extract", "sqlite"]
+      tools: ["doc_extract.*", "sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rfp_rsp_eval_response_extractor.jinja
+  inputs:
+    inline: |
+      Supplier response path: {{rfp_rsp_eval_folder_scanner.supplier_response_paths[supplier_loop.index]}}
+      Database path: {{rfp_rsp_eval_folder_scanner.base_folder}}/rfp_database.db
+      RFP data: {{rfp_rsp_eval_parser.rfp_data}}
+

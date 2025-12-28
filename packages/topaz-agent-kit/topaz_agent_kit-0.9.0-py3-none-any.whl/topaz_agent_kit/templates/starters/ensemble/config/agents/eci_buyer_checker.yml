@@ -1,0 +1,44 @@
+# =============================================================================
+# BUYER CHECKER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent checks buyer legitimacy by querying the buyer_registry table:
+# - Company registration status
+# - Domain age and alignment
+# - Risk flags
+#
+# =============================================================================
+id: eci_buyer_checker
+type: adk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/eci_buyer_checker
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/eci_buyer_checker.jinja
+  inputs:
+    inline: |
+      - Current Claim ID: {{current_claim.claim_id}}
+      - Extracted Data: {{extracted_data}}
+      - Project Directory: {{project_dir}}
+

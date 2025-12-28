@@ -1,0 +1,45 @@
+# =============================================================================
+# EXTERNAL DATA FETCHER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent fetches external data from database and files:
+# - Query buyer_news table for news articles related to the buyer
+# - Query risk_factors table for industry/region risk data
+# - Load Credit Bureau Report PDF
+#
+# =============================================================================
+id: tci_external_data_fetcher
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_external_data_fetcher
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite", "filesystem", "doc_extract"]
+      tools: ["sqlite.*", "fs_*", "doc_extract.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_external_data_fetcher.jinja
+  inputs:
+    inline: |
+      - Current Application ID: {{current_application.application_id}}
+      - Buyer ID: {{current_application.buyer_id}}
+      - Credit Bureau Report Path: {{current_application.credit_bureau_path}}
+      - Project Directory: {{project_dir}}
+

@@ -1,0 +1,42 @@
+# =============================================================================
+# FILE SELECTOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent selects the next unprocessed file from the list provided by the
+# folder scanner, checking the database to ensure the file hasn't been processed
+# in a previous iteration.
+#
+# =============================================================================
+id: invoice_match_pro_file_selector
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/invoice_match_pro_file_selector
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite_query"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/invoice_match_pro_file_selector.jinja
+  inputs:
+    inline: |
+      Unprocessed Files: {{unprocessed_files}}
+      Database Path: {{db_path}}
+
+

@@ -1,0 +1,47 @@
+# =============================================================================
+# SCENARIO SIMULATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent performs deterministic calculations (revenue, bills, peak load)
+# for each rate option using Python/MCP tools, not LLM reasoning.
+#
+# =============================================================================
+id: rate_case_scenario_simulator
+type: sk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_scenario_simulator
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_scenario_simulator.jinja
+  inputs:
+    inline: |
+      {# Pass raw data - LLM will find matching option from the array #}
+      - Selected Option ID: {{rate_option.selected_option_id}}
+      - All Rate Options: {{rate_option.rate_options_array | tojson if rate_option.rate_options_array else (rate_case_rate_designer.rate_options | tojson if rate_case_rate_designer.rate_options else '[]')}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Revenue Target: {{rate_case_data_summarizer.revenue_target | default(5.0)}}
+      - Run ID: {{rate_case_data_summarizer.run_id}}
+      - Project Directory: {{project_dir}}
+

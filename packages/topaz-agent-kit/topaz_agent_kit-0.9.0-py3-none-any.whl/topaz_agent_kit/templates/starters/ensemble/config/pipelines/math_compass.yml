@@ -1,0 +1,214 @@
+# =============================================================================
+# PIPELINE CONFIGURATION 
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Math Compass"
+description: "A multi-agentic pipeline that solves natural-language math problems through strategizing, calculating, and auditing"
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - body: (step | sequential | parallel) (required)
+# - max_iterations: int (required, >=1)
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+nodes:
+  - id: math_strategist
+    config_file: "agents/math_strategist.yml"
+  - id: math_calculator
+    config_file: "agents/math_calculator.yml"
+  - id: math_auditor
+    config_file: "agents/math_auditor.yml"
+
+pattern:
+  type: sequential
+  name: "Math Problem Solving Flow"
+  description: |
+    ## Math Problem Solving Flow
+    
+    This sequential pattern orchestrates the complete math problem-solving workflow:
+    1. **Strategist** analyzes the problem and breaks it into steps
+    2. **Complexity Router** determines if the problem is simple or complex
+    3. **Calculator** performs the mathematical computation
+    4. **Auditor** (optional) validates complex solutions
+    
+    The flow adapts based on problem complexity, ensuring efficient processing for simple problems while providing thorough validation for complex ones.
+  steps:
+    - node: math_strategist
+    
+    # SWITCH: Route based on complexity
+    - type: switch(len(math_strategist.steps) > 2)
+      name: "Complexity Router"
+      description: |
+        ## Problem Complexity Decision
+        
+        Routes the execution flow based on the number of steps identified by the strategist:
+        
+        - **Simple Problems (≤2 steps)**: Direct calculation without auditing
+        - **Complex Problems (>2 steps)**: Calculation followed by optional auditing
+        
+        For very complex problems (>4 steps), a human approval gate is required before auditing to ensure quality control.
+      cases:
+        false:  # Simple problem (≤2 steps)
+          - node: math_calculator
+        true:   # Complex problem (>2 steps)
+          - type: sequential
+            name: "Complex Calculation Flow"
+            description: |
+              ## Multi-Step Calculation Process
+              
+              For complex problems, this sequential flow ensures thorough processing:
+              1. **Calculator** performs the mathematical computation
+              2. **Approval Gate** (if >4 steps) requires human review before auditing
+              3. **Auditor** validates the calculation result
+              
+              This ensures accuracy and quality control for complex mathematical problems.
+            steps:
+              - node: math_calculator
+              - gate: approve_auditor
+                condition: "len(math_strategist.steps) > 4"
+                on_approve: continue
+                on_reject: stop
+              - node: math_auditor
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: approve_auditor
+    type: approval
+    title: "Approve sending to auditor"
+    description: |
+      ## Strategist Output
+      **Expression:** 
+      {{ math_strategist.expression | default('N/A') }}
+
+      **Steps ({{ math_strategist.steps|length | default(0) }}):**
+      {% if math_strategist.steps %}
+      {% for step in math_strategist.steps %}
+      {{ loop.index }}. {{ step }}
+      {% endfor %}
+      {% else %}
+      - No steps provided
+      {% endif %}
+      
+      {% if math_strategist.error %}
+      ⚠️ **Error:** {{ math_strategist.error }}
+      {% endif %}
+      
+      ---
+      
+      ## Calculator Output
+      **Result:** 
+      {{ math_calculator.result | default('N/A') }}
+      
+      **Rationale:** 
+      {{ math_calculator.rationale | default('No rationale provided') }}
+      
+      {% if math_calculator.error %}
+      ⚠️ **Error:** {{ math_calculator.error }}
+      {% endif %}
+      
+      ---
+      
+      Review the strategist's plan and calculator's result above. Approve to proceed with auditing, or reject to stop.
+      
+    timeout_ms: 30000
+    on_timeout: approve
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].id (str, required): unique output identifier
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  final:
+    transform: |
+      {% set step_count = results.math_strategist.steps|length %}
+      
+      {% if 'math_auditor' in results %}
+        # Complex Problem ({{ step_count }} steps)
+        ✅ Final Answer (Audited): {{ results.math_auditor.final_answer }}
+        
+        Validations:
+        - Strategist: {{ '✅' if results.math_auditor.strategist_validated else '❌' }}
+        - Calculator: {{ '✅' if results.math_auditor.calculator_validated else '❌' }}
+        
+        Complexity: {{ 'Medium (Auto-Audit)' if step_count <= 4 else 'High (Manual Review)' }}
+        Audit: ✅ {{ 'Automated' if step_count <= 4 else 'Manual Review' }}
+      {% else %}
+        # Simple Problem ({{ step_count }} steps)
+        📊 Calculated Result: {{ results.math_calculator.result }}
+        
+        Complexity: Low (No audit needed)
+        Audit: ⏭️ Skipped (Simple problem)
+      {% endif %}

@@ -1,0 +1,274 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Rate Case Filing Navigator Pipeline
+# Multi-agent system for utility rate case filing recommendations that designs
+# and evaluates new rate structures, demand response programs, EV programs, and
+# income-qualified programs. Uses customer feedback, usage data, demographics,
+# and pricing structures to generate rate prototypes, simulate scenarios, and
+# produce regulator-ready outputs.
+#
+# =============================================================================
+
+name: "Rate Case Filing Navigator"
+description: "Multi-agent pipeline for utility rate case filing recommendations that designs and evaluates new rate structures, demand response programs, EV programs, and income-qualified programs. Uses customer feedback, usage data, demographics, and pricing structures to generate rate prototypes, simulate scenarios, and produce regulator-ready outputs."
+
+# =============================================================================
+# NODES REGISTRY
+# =============================================================================
+nodes:
+  - id: rate_case_data_summarizer
+    config_file: "agents/rate_case_data_summarizer.yml"
+  - id: rate_case_rate_designer
+    config_file: "agents/rate_case_rate_designer.yml"
+  - id: rate_case_option_validator
+    config_file: "agents/rate_case_option_validator.yml"
+  - id: rate_case_scenario_simulator
+    config_file: "agents/rate_case_scenario_simulator.yml"
+  - id: rate_case_equity_assessor
+    config_file: "agents/rate_case_equity_assessor.yml"
+  - id: rate_case_state_comparator
+    config_file: "agents/rate_case_state_comparator.yml"
+  - id: rate_case_recommender
+    config_file: "agents/rate_case_recommender.yml"
+  - id: rate_case_narrative_generator
+    config_file: "agents/rate_case_narrative_generator.yml"
+  - id: rate_case_filing_artifacts_generator
+    config_file: "agents/rate_case_filing_artifacts_generator.yml"
+
+# =============================================================================
+# PATTERN CONFIGURATION
+# =============================================================================
+# Execution pattern: Sequential → Parallel Repeat (with nested sequential) → Sequential → HITL Gate → Sequential
+pattern:
+  type: sequential
+  name: "Rate Case Filing Navigator Workflow"
+  description: |
+    ## Rate Case Filing Navigator Workflow
+    
+    This sequential workflow orchestrates the complete rate case filing process:
+    1. **Data Summarization** validates and summarizes input datasets, including pre-computed customer segments
+    2. **Rate Design** generates exactly 5 high-quality rate/program design options (all targeting revenue within ±2% of the specified revenue growth target to ensure validation pass)
+    3. **Option Validation** validates options by running quick simulations to ensure realistic revenue and bill impacts (revenue within ±5 percentage points of the specified revenue growth target, bill ±10%)
+        - **Rate Option Validation** (HITL) allows user to select validated options or request retry to generate new options
+    4. **Parallel Analysis** processes each selected rate option through simulation, equity assessment, and state comparison
+    5. **Recommendation** ranks options and identifies tradeoffs with confidence scores
+        - **Rate Option Selection** (HITL) allows user to choose which option to proceed with for filing
+    6. **Narrative Generation** creates regulatory narrative for selected option
+    7. **Artifact Generation** produces filing-ready documents (reports)
+    
+    The pipeline ensures comprehensive analysis while maintaining efficiency through parallel processing of rate options. Options are pre-validated to ensure realistic impacts before detailed analysis.
+  steps:
+    # Step 1: Data Summarization (schema validation + dataset summary + segment reading)
+    - node: rate_case_data_summarizer
+      
+    # Step 2: Rate & Program Design (generates exactly 5 high-quality options)
+    - node: rate_case_rate_designer
+      condition: "rate_case_data_summarizer.normalized_data_ready == true"
+      on_false: stop
+    
+    # Step 3: Option Validation (validates options for realistic revenue/bill impacts)
+    - node: rate_case_option_validator
+    
+    # Step 3.5: HITL Gate - User selects validated options or requests retry
+    - gate: option_validation_gate
+      on_submit: continue
+      on_retry: retry_node  # Handle RETRY option selection
+      retry_target: "rate_case_rate_designer"  # Target node for retry
+      max_retries: 3  # Maximum retry attempts
+    
+    # Step 4: Parallel Repeat Block (for each selected rate option)
+    - type: parallel
+      name: "Rate Options Analysis"
+      description: |
+        ## Parallel Rate Option Analysis
+        
+        Processes each rate option through comprehensive analysis:
+        - **Scenario Simulation** (4a): Calculates revenue, bills, peak load (deterministic)
+        - **Equity Assessment** (4b) and **State Comparison** (4c): Run in parallel after simulation
+        
+        All rate options are processed concurrently for maximum efficiency.
+        
+        {%- if option_validation_gate.data.selected_options and rate_case_rate_designer.rate_options %}
+        ## Selected Rate Options
+        
+        | Option ID | Option Name | Description |
+        |-----------|------------|-------------|
+        {%- for selected_id in option_validation_gate.data.selected_options %}
+          {%- for opt in rate_case_rate_designer.rate_options %}
+            {%- if opt.option_id == selected_id %}
+        | {{ opt.option_id }} | {{ opt.option_name }} | {{ opt.description | default("N/A") }} |
+            {%- endif %}
+          {%- endfor %}
+        {%- endfor %}
+        
+        Processing {{ option_validation_gate.data.selected_options | length }} rate option(s) in parallel.
+        {%- endif %}
+      repeat:
+        type: sequential
+        name: "Rate Option Analysis Instances"
+        instances: "len(option_validation_gate.data.selected_options) if option_validation_gate.data.selected_options else 0"
+        # Throttle parallel fan-out to avoid Azure OpenAI token rate-limit (429) on smaller tiers.
+        # Keeps the "parallel repeat" structure but runs only N instances concurrently.
+        max_concurrency: 3
+        instance_id_template: "rate_option_{{index}}"
+        instance_context_key: "rate_option"
+        input_mapping:
+          # Map selected option ID from the gate selection
+          # The InstanceContextWrapper will replace [index] with the actual numeric index (0, 1, 2, etc.)
+          # Since the gate has context_key: "selected_options", the data is stored at option_validation_gate.data.selected_options
+          # So we use option_validation_gate.data.selected_options[index] which becomes option_validation_gate.data.selected_options[0], etc.
+          selected_option_id: "option_validation_gate.data.selected_options[index]"
+          selected_options_array: "option_validation_gate.data.selected_options"
+          # Pass the full rate_options array so the agent can find the matching option object
+          rate_options_array: "rate_case_rate_designer.rate_options"
+        description: |
+          ## Rate Option Analysis - Instance {{ index + 1 }}
+          
+          This instance processes rate option **{{ rate_option.selected_option_id if rate_option.selected_option_id else 'N/A' }}** through comprehensive analysis:
+          - **Scenario Simulation**: Calculates revenue, bills, and peak load impacts
+          - **Equity Assessment**: Analyzes equity impact and hardship risks
+          - **State Comparison**: Compares with existing rates in target and benchmark states
+          
+          {%- if rate_option.selected_option_id and rate_option.rate_options_array %}
+            {%- for opt in rate_option.rate_options_array %}
+              {%- if opt.option_id == rate_option.selected_option_id %}
+          ### Option Details
+          
+          | Field | Value |
+          |-------|-------|
+          | **Option ID** | {{ opt.option_id }} |
+          | **Option Name** | {{ opt.option_name }} |
+          | **Rate Type** | {{ opt.rate_type | default("N/A") }} |
+          | **Fixed Charge** | ${{ "%.2f" | format(opt.fixed_charge | default(0)) }} |
+          | **Energy Charge** | ${{ "%.3f" | format(opt.energy_charge | default(0)) }}/kWh |
+          {%- if opt.description %}
+          | **Description** | {{ opt.description }} |
+          {%- endif %}
+          {%- if opt.rationale %}
+          | **Rationale** | {{ opt.rationale }} |
+          {%- endif %}
+              {%- endif %}
+            {%- endfor %}
+          {%- endif %}
+        steps:
+          # 4a: Scenario Simulation (must run first)
+          - node: rate_case_scenario_simulator
+          # 4b and 4c: Run in parallel after 4a completes
+          - type: parallel
+            name: "Equity & State Comparison Analysis"
+            description: |
+              ## Concurrent Equity and Competitive Analysis
+              
+              Both analyses run in parallel after simulation completes:
+              - **Equity Assessment**: Analyzes equity impact and hardship risks
+              - **State Comparison**: Compares with existing rates in target and benchmark states
+              
+              These analyses are independent and can run simultaneously.
+            steps:
+              - node: rate_case_equity_assessor
+              - node: rate_case_state_comparator
+    
+    # Step 5: Recommendation & Optimization
+    - node: rate_case_recommender
+    
+    # Step 5.5: HITL Gate - User selects option
+    - gate: option_selection_gate
+      on_submit: continue
+    
+    # Step 6 Explainability & Regulatory Narrative (for selected option)
+    - node: rate_case_narrative_generator
+    
+    # Step 7: Filing Artifact Generation (for selected option)
+    - node: rate_case_filing_artifacts_generator
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: option_validation_gate
+    type: input
+    title: "Select Rate Options to Proceed"
+    description:
+      jinja: "hitl/rate_case_option_validation_gate.jinja"
+    fields:
+      - name: selected_options
+        label: "Select Options"
+        type: checkbox
+        required: false
+        options_source: "rate_case_option_validator.options"  # Dynamically pull options from validator output
+        default: "{{ (rate_case_option_validator.validation_summary.top_recommendations | map(attribute='option_id') | list if rate_case_option_validator.validation_summary and rate_case_option_validator.validation_summary.top_recommendations else []) | tojson }}"  # Pre-select top 3 ranked options as JSON array
+    context_key: "selected_options"  # Array of selected option IDs
+    preserve_feedback: false  # Don't preserve selected options for retry (simple retry, no feedback needed)
+    buttons:
+      submit:
+        label: "SUBMIT"
+        description: "Submit your selection and proceed with analysis"
+      retry:
+        label: "RETRY"
+        description: "Generate new rate options"
+    timeout_ms: 600000  # 10 minutes for user review
+    on_timeout: "default"  # Use validated options if timeout
+  
+  - id: option_selection_gate
+    type: selection
+    title: "Select Rate Option for Filing"
+    description:
+      jinja: "hitl/rate_case_option_selection_gate.jinja"
+    options_source: "rate_case_recommender.options"  # Dynamically pull options from recommender output (2-3 options)
+    default: "{{ rate_case_recommender.top_recommendation.option_id if rate_case_recommender.top_recommendation else (rate_case_recommender.recommendations[0].option_id if rate_case_recommender.recommendations and rate_case_recommender.recommendations | length > 0 else '') }}"
+    context_key: "selected_option_id"
+    buttons:
+      submit:
+        label: "SUBMIT"
+        description: "Submit your selection and proceed with filing artifact generation"
+    timeout_ms: 600000  # 10 minutes for user review
+    on_timeout: "default"  # Use recommended option if timeout
+
+# =============================================================================
+# OUTPUTS CONFIGURATION
+# =============================================================================
+#
+# Pipeline output configuration for final and intermediate results
+#
+# Parameters:
+# - outputs.final (object, required): final pipeline output
+#   - outputs.final.node (str, required): agent ID that produces final output
+#   - outputs.final.selectors (list[str], optional): JSONPath selectors to extract specific fields
+#   - outputs.final.transform (str, optional): transformation expression
+# - outputs.intermediate (list[object], optional): intermediate outputs for debugging/monitoring
+#   - outputs.intermediate[].node (str, required): agent ID that produces intermediate output
+#   - outputs.intermediate[].selectors (list[str], optional): JSONPath selectors
+#   - outputs.intermediate[].transform (str, optional): transformation expression
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: rate_case_filing_artifacts_generator
+    selectors:
+      - artifacts_generated
+      - consolidated_report_path
+      - report_view_link
+      - report_content
+      - summary
+    transform: "{{ value }}"
+

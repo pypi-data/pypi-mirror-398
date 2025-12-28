@@ -1,0 +1,97 @@
+# =============================================================================
+# GENERATION AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates a comprehensive job description in markdown format
+# including job title, description, required skills, qualifications, and salary range.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (agno|langgraph|crewai|adk)
+# - model (str, required): language model to use for this agent (e.g., "azure_openai", "ollama_qwen2.5:14b")
+# - model_overrides (object, optional): agent-specific model parameter overrides
+#   - model_overrides.temperature (float, optional): override model temperature (0.0-2.0)
+#   - model_overrides.max_tokens (int, optional): override model max_tokens
+#   - model_overrides.top_p (float, optional): override model top_p (0.0-1.0)
+#   - model_overrides.frequency_penalty (float, optional): override frequency penalty (-2.0 to 2.0)
+#   - model_overrides.presence_penalty (float, optional): override presence penalty (-2.0 to 2.0)
+#   - model_overrides.stop (list[str], optional): override stop sequences
+#   - model_overrides.* (any, optional): any other model-specific parameters
+# - streaming (object, optional): per-agent streaming behavior (default: enabled)
+#   - streaming.enabled (bool, optional): enable/disable token-level streaming for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+#
+# =============================================================================
+id: jd_architect_generator # Unique identifier for this agent
+type: adk # Agent framework type (agno, langgraph, crewai, adk)
+model: "azure_openai" # LLM model to use for this agent
+run_mode: "local" # Execution mode: "local" or "remote"
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+#
+# Remote service configuration for agent-to-agent communication.
+# If this section is present, the agent supports remote execution and will be
+# available as a service for other agents to call via A2A protocols.
+#
+# Remote parameters:
+# - url (str, required): A2A protocol endpoint URL
+# - timeout (int, optional): request timeout in milliseconds; default 30000
+# - retry_attempts (int, optional): number of retry attempts for failed requests; default 3
+#
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/jd_architect_generator
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# AGENT EXECUTION CONFIGURATION
+# =============================================================================
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+#
+# MCP configuration for external tool access.
+# If this section is present, the agent has access to MCP tools that provide
+# external capabilities like web search, data gathering, etc.
+#
+# MCP parameters:
+# - servers (list[object], required): list of MCP servers to connect to
+#   - servers[].url (str, required): MCP server URL (must be provided, no hardcoded fallbacks)
+#   - servers[].toolkits (list[str], required): list of toolkits available on this server
+#   - servers[].tools (list[str], required): list of tools to use from this server
+#     - Supports wildcard patterns: "math.*" (all math tools), "*.evaluate_*" (all evaluate tools)
+#     - Supports exact tool names: "math.addition", "browser.scrape_website"
+#
+# =============================================================================
+# No MCP tools needed for generator agent - uses LLM only
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+#
+# Agent prompt (instruction and inputs) with Jinja variable support
+#
+# - instruction: agent instruction content with Jinja variable support (exaclty one of the following must be specified)
+#   - instruction.inline: inline agent instruction content with Jinja variable support
+#   - instruction.file: prompt file path relative to project root
+#   - instruction.jinja: Jinja template path or inline template
+#
+# - inputs: agent input template with Jinja variable support (exaclty one of the following must be specified)
+#   - inputs.inline: inline agent input template with Jinja variable support
+#   - inputs.file: prompt file path relative to project root
+#   - inputs.jinja: Jinja template path or inline template
+#
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/jd_architect_generator.jinja
+  inputs:
+    inline: |
+      Job Role: {{job_role}}
+      Job Level: {{job_level}}
+      Structured Requirements: {{structured_requirements}}
+      Salary Range: USD {{salary_range_min}} - USD {{salary_range_max}}
+

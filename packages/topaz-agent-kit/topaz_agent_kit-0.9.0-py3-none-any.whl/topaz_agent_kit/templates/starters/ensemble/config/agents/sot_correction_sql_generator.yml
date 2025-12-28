@@ -1,0 +1,36 @@
+# =============================================================================
+# CORRECTION SQL GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates corrected SQL based on the correction plan.
+#
+# =============================================================================
+id: sot_correction_sql_generator
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_correction_sql_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_correction_sql_generator.jinja
+  inputs:
+    inline: |
+      - Original Question: {{current_question.question}}
+      - Correction Plan: {{sot_correction_query_planner.correction_plan}}
+      {# Use correction SQL if available (from previous correction iteration), otherwise use initial SQL #}
+      - Original SQL: {% if sot_correction_sql_generator and sot_correction_sql_generator.sql_query %}{{sot_correction_sql_generator.sql_query}}{% elif sot_sql_generator and sot_sql_generator.sql_query %}{{sot_sql_generator.sql_query}}{% endif %}
+      - Schema Info: {{sot_schema_linker.schema_info}}
+      - Relationships: {{sot_schema_linker.relationships}}
+      - Database ID: {{current_question.db_id}}
+

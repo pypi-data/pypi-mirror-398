@@ -1,0 +1,40 @@
+# =============================================================================
+# EMAIL SCANNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent scans the "AG/Pending" email folder and identifies unprocessed
+# emails by comparing with the ag_requests database table.
+#
+# =============================================================================
+id: ag_email_scanner
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/ag_email_scanner
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["email", "sqlite"]
+      tools: ["email.*", "sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/ag_email_scanner.jinja
+  inputs:
+    inline: |
+      - User Request: {{user_text}}
+      - Project Directory: {{project_dir}}
+

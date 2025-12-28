@@ -1,0 +1,46 @@
+# =============================================================================
+# OPTION VALIDATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent validates rate design options by running quick simulations to
+# estimate revenue and bill impacts. Options are validated if revenue change
+# is within ±5 percentage points of the revenue_target (default 5% YoY growth,
+# so revenue should be between 0% and 10% if target is 5%) and average bill
+# change is within ±10%.
+#
+# =============================================================================
+id: rate_case_option_validator
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_option_validator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_option_validator.jinja
+  inputs:
+    inline: |
+      - Rate Options: {{rate_case_rate_designer.rate_options}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Revenue Target: {{rate_case_data_summarizer.revenue_target | default(5.0)}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+

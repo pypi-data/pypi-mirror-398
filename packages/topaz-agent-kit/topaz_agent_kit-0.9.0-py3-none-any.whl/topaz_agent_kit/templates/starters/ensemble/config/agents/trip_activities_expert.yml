@@ -1,0 +1,40 @@
+# =============================================================================
+# TRIP ACTIVITIES EXPERT AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent finds activities and POIs near the destination.
+# Uses activities_search, activity_details, and pois_search MCP tools.
+#
+# =============================================================================
+id: trip_activities_expert
+type: oak
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/trip_activities_expert
+  timeout: 30000
+  retry_attempts: 3
+agent_card:
+  name: "Activities Expert"
+  description: "Finds activities and POIs near the destination"
+  capabilities:
+    streaming: true
+    state_transition_history: true
+  tags: ["activities", "travel"]
+
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["activities"]
+      tools: ["activities_search", "pois_search", "activity_details"]
+
+prompt:
+  instruction:
+    jinja: prompts/trip_activities_expert.jinja
+  inputs:
+    inline: |
+      activities_input: {{ activities_input }}
+      currencyCode: {{ currencyCode }}
+      max_results: {{ max_results }}
+

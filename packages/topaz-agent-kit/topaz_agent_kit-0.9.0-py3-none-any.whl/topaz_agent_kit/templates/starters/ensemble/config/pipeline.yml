@@ -1,0 +1,197 @@
+# =============================================================================
+# MAIN SECTION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+name: "Ensemble"
+description: "Multi-pipeline agentic workflows with intelligent intent-based routing and context sharing capabilities. Demonstrates modular architecture where different specialized workflows coexist in a single system. Features automatic pipeline selection based on user intent, enabling seamless transitions between different agentic processes."
+
+# =============================================================================
+# SERVERS SECTION - Server configuration
+# =============================================================================
+#
+# Server configurations for FastAPI and MCP servers
+#
+# Parameters:
+# - fastapi (object, required): FastAPI server configuration
+#   - fastapi.url (str, required): FastAPI server URL
+# - mcp (list, required): MCP servers configuration
+#   - mcp[].name (str, required): unique server name
+#   - mcp[].url (str, required): server URL
+#   - mcp[].model (str, required): model for this server
+#   - mcp[].transport (str, required): transport for this server
+#   - mcp[].embedding_model (str, optional): embedding model for this server
+#   - mcp[].db_path (str, optional): path to ChromaDB database for this server
+#
+# =============================================================================
+servers:
+  fastapi:
+    url: http://0.0.0.0:8090
+  mcp:
+    - name: topaz-mcp
+      url: http://0.0.0.0:8050
+      model: azure_openai
+      transport: streamable-http
+      db_path: "./data/chroma_db"
+      embedding_model: azure_openai_embedding
+
+# =============================================================================
+# INDEPENDENT AGENTS SECTION - Independent agents configuration
+# =============================================================================
+#
+# Defines the independent agents configuration for flat structure.
+#
+# Parameters:
+# - independent_agents (list[object], required): list of independent agents
+#   - independent_agents[].id (str, required): unique agent identifier
+#   - independent_agents[].config_file (str, required): path to agent configuration file relative to config/
+#
+# =============================================================================
+independent_agents:
+  - id: "content_analyzer"
+    config_file: "agents/content_analyzer.yml"
+  - id: "rag_query"
+    config_file: "agents/rag_query.yml"
+  - id: "content_extractor"
+    config_file: "agents/content_extractor.yml"
+  - id: "image_extractor"
+    config_file: "agents/image_extractor.yml"
+  - id: "web_search"
+    config_file: "agents/web_search.yml"
+
+# =============================================================================
+# PIPELINES SECTION - Pipeline configuration
+# =============================================================================
+#
+# Defines the pipelines configuration.
+#
+# Parameters:
+# - pipelines (list[object], required): list of pipelines
+#   - pipelines[].id (str, required): unique pipeline identifier
+#   - pipelines[].config_file (str, required): path to pipeline configuration file relative to config/
+#
+# =============================================================================
+pipelines:
+  - id: article_smith
+    config_file: "pipelines/article_smith.yml"
+  - id: math_compass
+    config_file: "pipelines/math_compass.yml"
+  - id: stock_analysis
+    config_file: "pipelines/stock_analysis.yml"
+  - id: reply_wizard
+    config_file: "pipelines/reply_wizard.yml"
+  - id: claim_processor
+    config_file: "pipelines/claim_processor.yml"
+  - id: ag_processor
+    config_file: "pipelines/ag_processor.yml"
+  - id: translator
+    config_file: "pipelines/translator.yml"
+  - id: haiku_writers_room
+    config_file: "pipelines/haiku_writers_room.yml"
+  - id: trip_planner
+    config_file: "pipelines/trip_planner.yml"
+  - id: legal_contract_analyzer
+    config_file: "pipelines/legal_contract_analyzer.yml"
+  - id: deal_closer
+    config_file: "pipelines/deal_closer.yml"
+  - id: eci_claims_vetter
+    config_file: "pipelines/eci_claims_vetter.yml"
+  - id: jd_architect
+    config_file: "pipelines/jd_architect.yml"
+  - id: complaint_wizard
+    config_file: "pipelines/complaint_wizard.yml"
+  - id: network_watchtower
+    config_file: "pipelines/network_watchtower.yml"
+  - id: provision_pro
+    config_file: "pipelines/provision_pro.yml"
+  - id: invoice_match_pro
+    config_file: "pipelines/invoice_match_pro.yml"
+  - id: rfp_response_evaluator
+    config_file: "pipelines/rfp_response_evaluator.yml"
+  - id: math_repeater
+    config_file: "pipelines/math_repeater.yml"
+  - id: enhanced_math_repeater
+    config_file: "pipelines/enhanced_math_repeater.yml"
+  - id: pipeline_math_repeater
+    config_file: "pipelines/pipeline_math_repeater.yml"
+  - id: tci_policy_risk_assessor
+    config_file: "pipelines/tci_policy_risk_assessor.yml"
+  - id: rate_case_filing_navigator
+    config_file: "pipelines/rate_case_filing_navigator.yml"
+  - id: sql_of_thought
+    config_file: "pipelines/sql_of_thought.yml"
+
+# =============================================================================
+# DATABASE SECTION - SQLite database configuration
+# =============================================================================
+#
+# Defines the chat database configuration.
+#
+## Parameters:
+# - chatdb_path (str, required): path to SQLite database file
+# - chromadb_path (str, optional): path to ChromaDB database file
+# - rag_files_path (str, optional): path to RAG file storage directory (for document/image ingestion)
+# - user_files_path (str, optional): path to user file storage directory (for session attachments)
+# - embedding_model (str, optional): embedding model to use for document and image ingestion
+# - vision_model (str, optional): vision model to use for image ingestion
+#
+# =============================================================================
+chatdb_path: "./data/chat.db"
+chromadb_path: "./data/chroma_db"
+rag_files_path: "./data/rag_files"
+user_files_path: "./data/user_files"
+embedding_model: azure_openai_embedding
+vision_model: azure_openai_vision
+
+# =============================================================================
+# ASSISTANT SECTION - Assistant configuration for routing
+# =============================================================================
+#
+# Assistant configuration
+#
+# Parameters:
+#   - id (str, required): unique assistant identifier
+#   - type (str, required): assistant type (adk, adk_agent)
+#   - model (str, optional): model to use for routing (inherits from settings.json)
+#   - prompt: custom prompt for LLM classification
+#     - prompt.instruction: custom prompt for LLM classification
+#       - instruction.inline (str, optional): inline prompt content with Jinja variable support
+#       - instruction.file (str, optional): prompt file path relative to project root
+#       - instruction.jinja (str, optional): Jinja template path or inline template
+#     - prompt.inputs (dict[str, str], optional): input variables for the prompt
+#       - inputs.inline (str, optional): inline prompt content with Jinja variable support
+#       - inputs.file (str, optional): prompt file path relative to project root
+#       - inputs.jinja (str, optional): Jinja template path or inline template
+#
+# =============================================================================
+assistant:
+  id: assistant
+  type: maf
+  model: azure_openai
+  prompt:
+    instruction:
+      jinja: prompts/assistant_intent_classifier.jinja
+
+# =============================================================================
+# ORCHESTRATOR SECTION - Orchestrator configuration for handoff pattern
+# =============================================================================
+#
+# Orchestrator configuration for virtual orchestrators in handoff patterns.
+# This sets the default model for all virtual orchestrators across pipelines.
+#
+# Parameters:
+#   - model (str, optional): model to use for orchestrator LLM calls
+#                            Defaults to "azure_openai" if not specified
+#
+# Notes:
+# - Virtual orchestrators are auto-generated from agent descriptions
+# - Individual pipelines can override this with pattern.model in their config
+# - This is a global default for all handoff patterns
+#
+# =============================================================================
+orchestrator:
+  model: azure_openai # Default model for all virtual orchestrators

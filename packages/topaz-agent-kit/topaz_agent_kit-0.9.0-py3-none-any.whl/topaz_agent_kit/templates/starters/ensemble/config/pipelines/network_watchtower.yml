@@ -1,0 +1,201 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Network Watchtower"
+description: "Network Watchtower is an end-to-end agentic workflow that automates network incident triage, root cause analysis, and resolution recommendations for network outages and performance issues. The process starts with a parser agent that extracts structured information from incident descriptions, followed by parallel execution of mock network data generation and severity classification. A root cause analyzer examines the generated network data to identify the likely cause of the incident. A resolution recommender then suggests actions with impact analysis. For high or critical severity incidents, a conditional selection gate allows users to decide whether to create a detailed change plan. If selected, a change planner generates a step-by-step change plan. Finally, a final response agent combines all recommendations and change plans (if applicable) into a complete incident response package."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# CONDITIONAL SEQUENTIAL
+# - type: sequential (required)
+# - condition (str, optional): boolean expression to evaluate before executing steps
+#   - Uses expression evaluator syntax
+#   - Example: "severity == 'high' OR severity == 'critical'"
+# - steps: list of (step | pattern) (required, >=1)
+#
+# NOTES
+# - Gate actions: on_approve, on_reject, on_continue, on_cancel, on_retry, on_timeout
+# - Gate actions can be: continue, stop, retry_node, skip_to_node
+# - Conditional steps only execute if condition evaluates to true
+#
+# =============================================================================
+
+nodes:
+  - id: network_watchtower_parser
+    config_file: "agents/network_watchtower_parser.yml"
+  - id: network_watchtower_mock_network_generator
+    config_file: "agents/network_watchtower_mock_network_generator.yml"
+  - id: network_watchtower_severity_classifier
+    config_file: "agents/network_watchtower_severity_classifier.yml"
+  - id: network_watchtower_root_cause_analyzer
+    config_file: "agents/network_watchtower_root_cause_analyzer.yml"
+  - id: network_watchtower_resolution_recommender
+    config_file: "agents/network_watchtower_resolution_recommender.yml"
+  - id: network_watchtower_change_planner
+    config_file: "agents/network_watchtower_change_planner.yml"
+  - id: network_watchtower_final_response
+    config_file: "agents/network_watchtower_final_response.yml"
+
+pattern:
+  type: sequential
+  name: "Network Incident Response Flow"
+  description: |
+    ## Network Incident Response Flow
+    
+    This sequential pattern orchestrates the complete network incident response workflow:
+    1. **Parser** extracts structured information from incident descriptions
+    2. **Parallel Data Collection** generates mock network data and classifies severity concurrently
+    3. **Root Cause Analyzer** examines network data to identify the likely cause
+    4. **Resolution Recommender** suggests actions with impact analysis
+    5. **Change Plan Selection Gate** (conditional) allows user to decide on change plan creation for high/critical incidents
+    6. **Change Planner** (conditional) generates step-by-step change plan if requested
+    7. **Final Response** combines all recommendations and change plans into a complete incident response package
+    
+    The workflow adapts based on incident severity, providing detailed change planning for high-priority incidents.
+  steps:
+    - node: network_watchtower_parser
+    - type: parallel
+      name: "Parallel Data Collection and Classification"
+      description: |
+        ## Concurrent Initial Processing
+        
+        This parallel pattern collects initial data and classifies severity concurrently:
+        - **Mock Network Generator** generates network topology and state data for analysis
+        - **Severity Classifier** classifies the incident severity (low, medium, high, critical)
+        
+        Both operations run simultaneously to maximize efficiency.
+      steps:
+        - node: network_watchtower_mock_network_generator
+        - node: network_watchtower_severity_classifier
+    - node: network_watchtower_root_cause_analyzer
+    - node: network_watchtower_resolution_recommender
+    - type: sequential
+      name: "High Severity Incident Flow"
+      description: |
+        ## Conditional Change Plan Decision
+        
+        This conditional sequential pattern handles high and critical severity incidents:
+        - Only executes for high or critical severity incidents
+        - **Change Plan Selection Gate** allows user to decide whether to create a detailed change plan
+        
+        Ensures proper escalation and planning for high-priority incidents.
+      condition: "severity == 'high' OR severity == 'critical'"
+      steps:
+        - gate: network_watchtower_change_plan_selection
+          on_continue: continue
+          on_cancel: continue
+    - type: sequential
+      name: "Change Plan Generation Flow"
+      description: |
+        ## Conditional Change Plan Creation
+        
+        This conditional sequential pattern generates a detailed change plan:
+        - Only executes if user selected to create a change plan
+        - **Change Planner** generates a step-by-step change plan for implementing recommended actions
+        
+        Provides detailed implementation guidance when requested by the user.
+      condition: "network_watchtower_change_plan_selection.selected_option == 'create_change_plan'"
+      steps:
+        - node: network_watchtower_change_planner
+    - node: network_watchtower_final_response
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, required): UI title for the gate
+#   - gates[].description (str, required): UI description (supports Jinja2 templates)
+#   - gates[].timeout_ms (int, optional): timeout in milliseconds
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: network_watchtower_change_plan_selection
+    type: selection
+    title: "Create Change Plan?"
+    description: "{{ root_cause_details | default('Root cause identified.') }} Recommended actions: {{ priority }} priority, estimated resolution: {{ estimated_resolution_time }}. Would you like to create a detailed change plan?"
+    timeout_ms: 300000
+    on_timeout: skip
+    options:
+      - value: "create_change_plan"
+        label: "Create Change Plan"
+        description: "Generate a detailed step-by-step change plan for implementing the recommended actions"
+      - value: "skip_change_plan"
+        label: "Skip Change Plan"
+        description: "Proceed without creating a detailed change plan"
+    context_key: "change_plan_decision"
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  intermediate:
+    - node: network_watchtower_root_cause_analyzer
+      selectors:
+        - primary_root_cause
+        - root_cause_details
+        - confidence
+    - node: network_watchtower_mock_network_generator
+      selectors:
+        - network_topology
+  final:
+    node: network_watchtower_final_response
+    selectors:
+      - final_response_package
+      - error
+    transform: "{{ value }}"
+

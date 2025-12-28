@@ -1,0 +1,89 @@
+## Supplier Comparison Summary
+
+{% if rfp_rsp_eval_comparison_analyzer.recommendations_summary %}
+### Recommendations
+
+{{ rfp_rsp_eval_comparison_analyzer.recommendations_summary }}
+
+{% endif %}
+
+### Supplier Rankings
+
+{% if rfp_rsp_eval_comparison_analyzer.rankings and rfp_rsp_eval_comparison_analyzer.rankings|length > 0 %}
+{% for ranking in rfp_rsp_eval_comparison_analyzer.rankings %}
+**Rank {{ ranking.rank }}:** {{ ranking.supplier_id | default('N/A') }}  
+**Total Score:** {{ ranking.weighted_total | default('N/A') }}
+
+{% if ranking.key_differentiators and ranking.key_differentiators|length > 0 %}
+**Key Differentiators:**
+{% for diff in ranking.key_differentiators %}
+- {{ diff }}
+{% endfor %}
+{% endif %}
+
+---
+
+{% endfor %}
+{% else %}
+Rankings are being generated...
+{% endif %}
+
+### Comparison Matrix
+
+{% if rfp_rsp_eval_comparison_analyzer.comparison_matrix %}
+#### Requirements Compliance
+
+{%- if rfp_rsp_eval_comparison_analyzer.comparison_matrix.requirements_compliance %}
+| Supplier | Coverage Score | Fully Compliant | Partially Compliant | Non-Compliant |
+|----------|----------------|-----------------|---------------------|---------------|
+{%- for supplier_id, compliance in rfp_rsp_eval_comparison_analyzer.comparison_matrix.requirements_compliance.items() %}
+| {{ supplier_id }} | {{ compliance.coverage_score | default('N/A') }}% | {{ compliance.fully_compliant | default(0) }} | {{ compliance.partially_compliant | default(0) }} | {{ compliance.non_compliant | default(0) }} |
+{%- endfor %}
+{%- endif %}
+
+#### Weighted Scores
+
+{%- if rfp_rsp_eval_comparison_analyzer.comparison_matrix.scores %}
+| Supplier | Technical | Pricing | Delivery | Compliance | Experience | References | **Total** |
+|----------|-----------|---------|----------|------------|------------|------------|-----------|
+{%- for supplier_id, scores in rfp_rsp_eval_comparison_analyzer.comparison_matrix.scores.items() %}
+| {{ supplier_id }} | {{ scores.technical_score | default('N/A') }} | {{ scores.pricing_score | default('N/A') }} | {{ scores.delivery_score | default('N/A') }} | {{ scores.compliance_score | default('N/A') }} | {{ scores.experience_score | default('N/A') }} | {{ scores.references_score | default('N/A') }} | **{{ scores.weighted_total | default('N/A') }}** |
+{%- endfor %}
+{%- endif %}
+
+#### Strengths & Weaknesses
+
+{% if rfp_rsp_eval_comparison_analyzer.strengths_weaknesses %}
+{% for supplier_id, sw in rfp_rsp_eval_comparison_analyzer.strengths_weaknesses.items() %}
+**{{ supplier_id }}** ({{ sw.relative_position | default('N/A') }})
+
+**Strengths:**
+{% if sw.strengths and sw.strengths|length > 0 %}
+{% for strength in sw.strengths %}
+- {{ strength }}
+{% endfor %}
+{% else %}
+- None identified
+{% endif %}
+
+**Weaknesses:**
+{% if sw.weaknesses and sw.weaknesses|length > 0 %}
+{% for weakness in sw.weaknesses %}
+- {{ weakness }}
+{% endfor %}
+{% else %}
+- None identified
+{% endif %}
+
+---
+
+{% endfor %}
+{% endif %}
+{% endif %}
+
+---
+
+**Review the supplier comparison matrix and rankings above. Use this gate to:**
+- **Approve** to proceed with generating the final evaluation report
+- **Reject** if the comparison analysis is incomplete, contains errors, or needs additional review before proceeding
+

@@ -1,0 +1,56 @@
+# =============================================================================
+# TRIP AGGREGATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent aggregates user selections into a coherent trip plan and summary.
+# No MCP tools - pure LLM aggregation.
+#
+# =============================================================================
+id: trip_aggregator
+type: langgraph
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/trip_aggregator
+  timeout: 30000
+  retry_attempts: 3
+agent_card:
+  name: "Trip Aggregator"
+  description: "Summarizes user selections into a final trip plan. No bookings or tool calls."
+  capabilities:
+    streaming: true
+    state_transition_history: true
+  tags: ["aggregator", "summary", "travel"]
+
+prompt:
+  instruction:
+    jinja: prompts/trip_aggregator.jinja
+  inputs:
+    inline: |
+      # Trip Request Context
+      User Request: {{ user_text }}
+      Currency: {{ currencyCode }}
+
+      # User Selections from HITL Gates
+      {% if flight_selection %}
+      Flight Selection:
+      {{ flight_selection }}
+      {% endif %}
+      
+      {% if hotel_selection %}
+      Hotel Selection:
+      {{ hotel_selection }}
+      {% endif %}
+      
+      {% if activity_selection %}
+      Activity Selections (IDs):
+      {{ activity_selection }}
+      {% endif %}
+
+      # Activities options for lookup (map IDs to labels/descriptions)
+      {% if trip_activities_expert and trip_activities_expert.activities_options %}
+      Activities Options:
+      {{ trip_activities_expert.activities_options }}
+      {% endif %}
+

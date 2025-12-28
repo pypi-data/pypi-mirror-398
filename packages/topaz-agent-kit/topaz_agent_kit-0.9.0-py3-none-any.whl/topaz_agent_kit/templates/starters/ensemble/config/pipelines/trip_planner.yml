@@ -1,0 +1,226 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline: Trip Planner
+# Description: Planner/Coordinator with conditional parallel domain agents
+#
+# =============================================================================
+
+name: "Trip Planner"
+description: "Plan trips end-to-end using Flights, Hotels, and Activities agents with conditional parallelism"
+
+# =============================================================================
+# NODES REGISTRY
+# =============================================================================
+
+nodes:
+  - id: trip_requester
+    config_file: "agents/trip_requester.yml"
+  - id: trip_flights_expert
+    config_file: "agents/trip_flights_expert.yml"
+  - id: trip_hotels_expert
+    config_file: "agents/trip_hotels_expert.yml"
+  - id: trip_activities_expert
+    config_file: "agents/trip_activities_expert.yml"
+  - id: trip_aggregator
+    config_file: "agents/trip_aggregator.yml"
+
+# =============================================================================
+# PATTERN
+# =============================================================================
+
+pattern:
+  type: sequential
+  name: "Trip Planning and Coordination Flow"
+  description: |
+    ## Trip Planning and Coordination Flow
+    
+    This sequential pattern orchestrates the complete trip planning workflow:
+    1. **Requester** parses the trip request and determines which domains are needed
+    2. **Clarification Loop** (conditional) collects additional details if needed
+    3. **Parallel Domain Experts** run flights, hotels, and activities experts concurrently with conditional execution
+    4. **Aggregator** combines all selections into a final trip summary
+    
+    The parallel pattern uses conditional execution to only run relevant domain experts based on the trip requirements, with each expert followed by an immediate selection gate for user approval.
+  steps:
+    # 1) Coordinator parses request and computes flags/slots
+    - node: trip_requester
+    # 2) Conversational clarification loop (single gate)
+    - gate: collect_clarification
+      condition: "trip_requester.clarification_needed == true"
+      on_submit: retry_node
+      retry_target: trip_requester
+      max_retries: 5
+      on_cancel: stop
+
+    # 3) EAGER: Parallel execution where each domain (expert + gate) runs independently
+    # Each gate appears as soon as its expert finishes (no waiting for all experts)
+    - type: parallel
+      name: "Parallel Domain Expert Execution"
+      description: |
+        ## Concurrent Domain Processing
+        
+        This parallel pattern runs domain experts concurrently with eager gate execution:
+        - **Flights Expert** (conditional) finds flight options if flights are needed
+        - **Hotels Expert** (conditional) finds hotel options if hotels are needed
+        - **Activities Expert** (conditional) finds activity options if activities are needed
+        
+        Each expert is followed immediately by a selection gate that appears as soon as the expert finishes, allowing users to approve selections without waiting for all experts to complete. Only domains marked as ready in the trip request are executed.
+      steps:
+        # Flights domain: Expert → Gate (appears immediately when expert finishes)
+        - type: sequential
+          name: "Flights Domain Flow"
+          description: |
+            ## Flights Selection Process
+            
+            This conditional sequential pattern handles flight selection:
+            1. **Flights Expert** searches for flight options matching the trip requirements
+            2. **Selection Gate** appears immediately when expert finishes, allowing user to choose preferred flights
+            
+            Only executes if flights are required for the trip.
+          condition: "trip_requester.flights_ready == true"
+          steps:
+            - node: trip_flights_expert
+            - gate: select_flights
+              condition: "trip_flights_expert.has_flights == true"
+              on_submit: continue
+              on_cancel: stop
+
+        # Hotels domain: Expert → Gate (appears immediately when expert finishes)
+        - type: sequential
+          name: "Hotels Domain Flow"
+          description: |
+            ## Hotels Selection Process
+            
+            This conditional sequential pattern handles hotel selection:
+            1. **Hotels Expert** searches for hotel options matching the trip requirements
+            2. **Selection Gate** appears immediately when expert finishes, allowing user to choose preferred hotels
+            
+            Only executes if hotels are required for the trip.
+          condition: "trip_requester.hotels_ready == true"
+          steps:
+            - node: trip_hotels_expert
+            - gate: select_hotels
+              condition: "trip_hotels_expert.has_hotels == true"
+              on_submit: continue
+              on_cancel: stop
+
+        # Activities domain: Expert → Gate (appears immediately when expert finishes)
+        - type: sequential
+          name: "Activities Domain Flow"
+          description: |
+            ## Activities Selection Process
+            
+            This conditional sequential pattern handles activity selection:
+            1. **Activities Expert** searches for activity options matching the trip requirements
+            2. **Selection Gate** appears immediately when expert finishes, allowing user to choose preferred activities
+            
+            Only executes if activities are required for the trip.
+          condition: "trip_requester.activities_ready == true"
+          steps:
+            - node: trip_activities_expert
+            - gate: select_activities
+              condition: "trip_activities_expert.has_activities == true"
+              on_submit: continue
+              on_cancel: stop
+
+    # 4) Final aggregation (produce summary only; no booking)
+    - node: trip_aggregator
+
+# =============================================================================
+# GATES
+# =============================================================================
+
+gates:
+  - id: collect_clarification
+    type: input
+    title: "One more detail to plan your trip"
+    description: "{{ trip_requester.clarification_prompt | default('Please provide missing details to continue.') }}"
+    fields:
+      - name: clarification_response
+        label: "Your answer"
+        type: textarea
+        required: false
+        validation:
+          min_length: 1
+          max_length: 2000
+    buttons:
+      submit:
+        label: "CONTINUE"
+        description: "Retry planner with your answer"
+      cancel:
+        label: "CANCEL"
+        description: "Cancel and stop pipeline"
+    context_key: "trip_clarifications"
+    context_strategy: append
+    timeout_ms: 90000
+    on_timeout: default
+    default: cancel
+
+  # User selection gates for choosing from expert options (direct from expert, no presenter)
+  - id: select_flights
+    type: selection
+    title: "Select Flight"
+    description: "Choose your preferred flight option"
+    options_source: "trip_flights_expert.flights_options"
+    buttons:
+      submit:
+        label: "CONFIRM"
+        description: "Confirm your flight selection"
+      cancel:
+        label: "CANCEL"
+        description: "Cancel and stop pipeline"
+    context_key: "flight_selection"
+    timeout_ms: 300000
+    on_timeout: default
+
+  - id: select_hotels
+    type: selection
+    title: "Select Hotel"
+    description: "Choose your preferred hotel option"
+    options_source: "trip_hotels_expert.hotels_options"
+    buttons:
+      submit:
+        label: "CONFIRM"
+        description: "Confirm your hotel selection"
+      cancel:
+        label: "CANCEL"
+        description: "Cancel and stop pipeline"
+    context_key: "hotel_selection"
+    timeout_ms: 300000
+    on_timeout: default
+
+  - id: select_activities
+    type: input
+    title: "Select Activities"
+    description: "Choose one or more activities (check all that apply)"
+    fields:
+      - name: selected_activities
+        label: "Select Activities"
+        type: checkbox
+        required: false
+        options_source: "trip_activities_expert.activities_options"
+    buttons:
+      submit:
+        label: "CONFIRM"
+        description: "Confirm your activity selections"
+      cancel:
+        label: "CANCEL"
+        description: "Cancel and stop pipeline"
+    context_key: "activity_selection"
+    timeout_ms: 300000
+    on_timeout: default
+    default: cancel
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+outputs:
+  final:
+    transform: |
+      # Trip Planner
+
+      {{ results.trip_aggregator | default('No summary available') }}
+

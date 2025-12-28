@@ -1,0 +1,1 @@
+# Stub templates for agent and service generation 

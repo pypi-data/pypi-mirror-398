@@ -1,0 +1,54 @@
+# =============================================================================
+# DOCUMENT EXTRACTOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent extracts structured data from all 7 seller-submitted PDF documents:
+# - Application Form PDF
+# - Buyer Financial Statements PDF
+# - Signed Supply Contract PDF
+# - Bank Reference Letter PDF
+# - Sanctions and Compliance Screening Report PDF (optional)
+# - Aged Debtors Report PDF (optional)
+# - Internal Credit Assessment Report PDF
+#
+# =============================================================================
+id: tci_document_extractor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_document_extractor
+  timeout: 120000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["doc_extract", "filesystem"]
+      tools: ["doc_extract.*", "fs_*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_document_extractor.jinja
+  inputs:
+    inline: |
+      - Current Application ID: {{current_application.application_id}}
+      - Application Form Path: {{current_application.application_form_path}}
+      - Financial Statements Path: {{current_application.financial_statements_path}}
+      - Supply Contract Path: {{current_application.supply_contract_path}}
+      - Bank Reference Path: {{current_application.bank_reference_path}}
+      - Sanctions Report Path: {{current_application.sanctions_report_path}}
+      - Aged Debtors Path: {{current_application.aged_debtors_path}}
+      - Internal Assessment Path: {{current_application.internal_assessment_path}}
+      - Project Directory: {{project_dir}}
+

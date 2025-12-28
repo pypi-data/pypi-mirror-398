@@ -1,0 +1,448 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# TCI Policy Risk Assessor Pipeline
+# Multi-agent system to assess trade credit insurance policy requests by extracting
+# data from seller-submitted documents, reviewing internal underwriting guidelines,
+# fetching external data, calculating comprehensive risk scores, and generating
+# underwriting recommendations.
+#
+# =============================================================================
+
+name: "TCI Policy Risk Assessor"
+description: "Automated trade credit insurance policy risk assessment with document extraction, external data fetching, risk factor analysis, and underwriting recommendation generation"
+
+# =============================================================================
+# NODES REGISTRY
+# =============================================================================
+nodes:
+  - id: tci_pending_applications_scanner
+    config_file: "agents/tci_pending_applications_scanner.yml"
+  - id: tci_document_extractor
+    config_file: "agents/tci_document_extractor.yml"
+  - id: tci_underwriting_manual_reviewer
+    config_file: "agents/tci_underwriting_manual_reviewer.yml"
+  - id: tci_external_data_fetcher
+    config_file: "agents/tci_external_data_fetcher.yml"
+  - id: tci_financial_health_assessor
+    config_file: "agents/tci_financial_health_assessor.yml"
+  - id: tci_payment_behavior_assessor
+    config_file: "agents/tci_payment_behavior_assessor.yml"
+  - id: tci_credit_rating_assessor
+    config_file: "agents/tci_credit_rating_assessor.yml"
+  - id: tci_contract_terms_assessor
+    config_file: "agents/tci_contract_terms_assessor.yml"
+  - id: tci_sanctions_compliance_assessor
+    config_file: "agents/tci_sanctions_compliance_assessor.yml"
+  - id: tci_industry_factors_assessor
+    config_file: "agents/tci_industry_factors_assessor.yml"
+  - id: tci_credit_bureau_assessor
+    config_file: "agents/tci_credit_bureau_assessor.yml"
+  - id: tci_bank_reference_assessor
+    config_file: "agents/tci_bank_reference_assessor.yml"
+  - id: tci_news_sentiment_assessor
+    config_file: "agents/tci_news_sentiment_assessor.yml"
+  - id: tci_risk_score_calculator
+    config_file: "agents/tci_risk_score_calculator.yml"
+  - id: tci_recommendation_generator
+    config_file: "agents/tci_recommendation_generator.yml"
+  - id: tci_results_recorder
+    config_file: "agents/tci_results_recorder.yml"
+  - id: tci_summary_reporter
+    config_file: "agents/tci_summary_reporter.yml"
+
+# =============================================================================
+# PATTERN CONFIGURATION
+# =============================================================================
+# Execution pattern: Sequential → Loop (with parallel processing) → Sequential
+pattern:
+  type: sequential
+  name: "TCI Policy Risk Assessment Workflow"
+  description: |
+    ## TCI Policy Risk Assessment Workflow
+    
+    This sequential workflow orchestrates the end-to-end policy risk assessment process:
+    1. **Scan** database for pending policy applications
+    2. **Process** each application through extraction, assessment, and decision routing
+    3. **Report** summary of all processed applications
+    
+    The pipeline ensures comprehensive risk analysis while maintaining efficiency through parallel processing of assessments.
+  steps:
+    # Step 1: Scan database for pending policy applications
+    - node: tci_pending_applications_scanner
+    
+    # Step 2: Loop through all pending applications
+    - type: loop
+      name: "Applications Processing Loop"
+      description: |
+        ## Iterative Application Processing
+        
+        Processes each pending application through the complete risk assessment workflow:
+        - Document extraction and data fetching
+        - Comprehensive risk factor assessment
+        - Risk score calculation and recommendation generation
+        - Human review and decision routing
+        - Results recording with appropriate workflow
+        
+        Continues until all pending applications are processed or safety limit is reached.
+        
+        {% if tci_pending_applications_scanner.pending_applications_list and tci_pending_applications_scanner.pending_applications_list | length > 0 %}
+        ## Pending Applications Summary
+        
+        | Application ID | Applicant (Seller) | Buyer | Requested Credit Limit | Requested Term |
+        |----------------|-------------------|-------|----------------------|----------------|
+        {%- for app in tci_pending_applications_scanner.pending_applications_list %}
+        | {{ app.application_id }} | {{ app.seller_name or 'N/A' }} | {{ app.buyer_name or 'N/A' }} | {%- if app.requested_amount %}{%- set sym = app.currency_symbol or '$' %}{%- if sym | length >= 3 %}{{ sym }} {{ app.requested_amount | format_currency }}{%- else %}{{ sym }}{{ app.requested_amount | format_currency }}{%- endif %}{%- else %}N/A{%- endif %} | {%- if app.requested_term_days %}{{ app.requested_term_days }} days{%- else %}N/A{%- endif %} |
+        {%- endfor %}
+        {% endif %}
+      condition: "tci_pending_applications_scanner.total_pending_count > 0"
+      iterate_over: "tci_pending_applications_scanner.pending_applications_list"
+      loop_item_key: "current_application"
+      termination:
+        max_iterations: 100  # Safety limit to prevent infinite loops
+      body:
+        type: sequential
+        name: "Single Application Assessment Flow"
+        description: |
+          ## Individual Application Risk Assessment Process
+          
+          Complete workflow for processing a single policy application:
+          1. Extract documents and fetch external data in parallel
+          2. Assess all risk factors concurrently
+          3. Calculate comprehensive risk score
+          4. Generate underwriting recommendation
+          5. Route to appropriate workflow based on human decision
+          6. Record final results
+          
+          {% if current_application %}
+          ## Current Application Details
+          
+          | Field | Value |
+          |-------|-------|
+          | Application ID | {{ current_application.application_id }} |
+          {%- if current_application.seller_name %}
+          | Applicant (Seller) | {{ current_application.seller_name }} |
+          {%- endif %}
+          {%- if current_application.seller_email %}
+          | Seller Email | {{ current_application.seller_email }} |
+          {%- endif %}
+          {%- if current_application.buyer_name %}
+          | Buyer | {{ current_application.buyer_name }} |
+          {%- endif %}
+          {%- if current_application.buyer_id %}
+          | Buyer ID | {{ current_application.buyer_id }} |
+          {%- endif %}
+          {%- if current_application.requested_amount %}
+          | Requested Credit Limit | {%- set sym = current_application.currency_symbol or '$' %}{%- if sym | length >= 3 %}{{ sym }} {{ current_application.requested_amount | format_currency }}{%- else %}{{ sym }}{{ current_application.requested_amount | format_currency }}{%- endif %} |
+          {%- endif %}
+          {%- if current_application.requested_term_days %}
+          | Requested Term | {{ current_application.requested_term_days }} days |
+          {%- endif %}
+          {% endif %}
+        steps:
+          # Step 2a: Parallel extraction and data fetching
+          - type: parallel
+            name: "Data Collection Phase"
+            description: |
+              ## Concurrent Data Gathering
+              
+              Collects all required data simultaneously:
+              - **Document Extractor**: Processes all 7 seller-submitted PDFs
+              - **Underwriting Manual Reviewer**: Analyzes internal guidelines
+              - **External Data Fetcher**: Retrieves news, risk factors, and credit bureau data
+              
+              All data sources are fetched in parallel to minimize latency.
+            steps:
+              - node: tci_document_extractor           # Extract all 7 seller-submitted PDFs
+              - node: tci_underwriting_manual_reviewer # Review internal underwriting manual
+              - node: tci_external_data_fetcher        # Fetch news, risk factors, credit bureau report
+          
+          # Step 2b: Parallel risk factor assessment (9 assessors)
+          - type: parallel
+            name: "Risk Factor Assessment"
+            description: |
+              ## Comprehensive Risk Analysis
+              
+              Assesses all risk dimensions concurrently:
+              - Financial health and stability
+              - Payment behavior patterns
+              - Credit rating and history
+              - Contract terms evaluation
+              - Sanctions compliance
+              - Industry-specific factors
+              - Credit bureau data
+              - Bank reference checks
+              - News sentiment analysis
+              
+              All 9 assessors run in parallel for maximum efficiency.
+            steps:
+              - node: tci_financial_health_assessor
+              - node: tci_payment_behavior_assessor
+              - node: tci_credit_rating_assessor
+              - node: tci_contract_terms_assessor
+              - node: tci_sanctions_compliance_assessor
+              - node: tci_industry_factors_assessor
+              - node: tci_credit_bureau_assessor
+              - node: tci_bank_reference_assessor
+              - node: tci_news_sentiment_assessor
+          
+          # Step 2c: Calculate weighted total risk score
+          - node: tci_risk_score_calculator
+          
+          # Step 2d: Generate preliminary underwriting recommendation
+          - node: tci_recommendation_generator
+          
+          # Step 2e: Human review and approval of recommendation
+          - gate: tci_recommendation_review_gate
+          
+          # Step 2f: Route to appropriate input gate based on decision
+          - type: switch(recommendation_decision.selection)
+            name: "Decision Routing"
+            description: |
+              ## Workflow Routing Based on Decision
+              
+              Routes the application to the appropriate workflow based on the human reviewer's decision:
+              - **Approve Recommended**: Direct recording with standard terms
+              - **Approve Modified**: Collect modified terms before recording
+              - **Reject**: Collect rejection reason before recording
+              - **Escalate**: Collect escalation details before recording
+              - **Request Info**: Collect information request before recording
+              
+              Each path ensures proper documentation and data collection before finalizing results.
+            cases:
+              approve_recommended:
+                # No additional input needed, proceed directly to results recorder
+                - node: tci_results_recorder
+              approve_modified:
+                # Collect modified terms from user
+                - type: sequential
+                  name: "Modified Terms Approval Flow"
+                  description: |
+                    ## Modified Terms Processing
+                    
+                    Collects modified credit limit and terms from the reviewer before recording the approved application with custom conditions.
+                  steps:
+                    - gate: tci_approve_modified_gate
+                    - node: tci_results_recorder
+              reject:
+                # Collect rejection reason from user
+                - type: sequential
+                  name: "Rejection Processing Flow"
+                  description: |
+                    ## Application Rejection Workflow
+                    
+                    Collects detailed rejection reason from the reviewer before recording the rejected application with proper documentation.
+                  steps:
+                    - gate: tci_reject_gate
+                    - node: tci_results_recorder
+              escalate:
+                # Collect escalation details from user
+                - type: sequential
+                  name: "Escalation Processing Flow"
+                  description: |
+                    ## Manual Review Escalation Workflow
+                    
+                    Collects escalation reason and notes for senior underwriter before recording the escalated application for manual review.
+                  steps:
+                    - gate: tci_escalate_gate
+                    - node: tci_results_recorder
+              request_info:
+                # Collect information request details from user
+                - type: sequential
+                  name: "Information Request Flow"
+                  description: |
+                    ## Additional Information Request Workflow
+                    
+                    Collects details about required additional information and priority level before recording the information request.
+                  steps:
+                    - gate: tci_request_info_gate
+                    - node: tci_results_recorder
+            default:
+              # Fallback to results recorder if decision is not recognized
+              - node: tci_results_recorder
+    
+    # Step 3: Generate summary report (after all applications processed)
+    - node: tci_summary_reporter
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: tci_recommendation_review_gate
+    type: selection
+    title: "TCI Policy Risk Assessment Review"
+    description:
+      jinja: "hitl/tci_recommendation_review_gate.jinja"
+    
+    options:
+      - value: "approve_recommended"
+        label: "Approve with Recommended Terms"
+        description: "Accept the recommendation with standard terms based on risk score"
+        color: "green"
+      
+      - value: "approve_modified"
+        label: "Approve with Modified Terms"
+        description: "Approve but with adjusted credit limit or additional conditions"
+        color: "amber"
+      
+      - value: "reject"
+        label: "Reject Application"
+        description: "Deny the policy application due to high risk or other concerns"
+        color: "red"
+      
+      - value: "request_info"
+        label: "Request Additional Information"
+        description: "Request more documentation or clarification before making a decision"
+        color: "amber"
+      
+      - value: "escalate"
+        label: "Escalate for Manual Review"
+        description: "Send to senior underwriter for detailed manual review"
+        color: "red"
+    
+    default: "{{ tci_recommendation_generator.recommended_decision_type if tci_recommendation_generator.recommended_decision_type else 'approve_recommended' }}"
+    context_key: "recommendation_decision"
+    timeout_ms: 30000
+    on_timeout: "default"
+  
+  - id: tci_approve_modified_gate
+    type: input
+    title: "Approve with Modified Terms"
+    description:
+      jinja: "hitl/tci_approve_modified_gate.jinja"
+    context_key: "approve_modified_data"
+    timeout_ms: 300000
+    on_timeout: "skip"
+    fields:
+      - name: approved_credit_limit
+        label: "Modified Credit Limit"
+        type: number
+        required: true
+      - name: approved_terms
+        label: "Modified Terms and Conditions"
+        type: textarea
+        required: true
+      - name: reason_for_modification
+        label: "Reason for Modification"
+        type: textarea
+        required: false
+    buttons:
+      submit:
+        label: "Submit"
+        description: "Submit modified terms and continue"
+  
+  - id: tci_reject_gate
+    type: input
+    title: "Reject Application"
+    description:
+      jinja: "hitl/tci_reject_gate.jinja"
+    context_key: "reject_data"
+    timeout_ms: 300000
+    on_timeout: "skip"
+    fields:
+      - name: rejection_reason
+        label: "Reason for Rejection"
+        type: textarea
+        required: true
+    buttons:
+      submit:
+        label: "Submit"
+        description: "Submit rejection reason and continue"
+  
+  - id: tci_escalate_gate
+    type: input
+    title: "Escalate for Manual Review"
+    description:
+      jinja: "hitl/tci_escalate_gate.jinja"
+    context_key: "escalate_data"
+    timeout_ms: 300000
+    on_timeout: "skip"
+    fields:
+      - name: escalation_reason
+        label: "Reason for Escalation"
+        type: textarea
+        required: true
+      - name: additional_notes
+        label: "Notes for Senior Underwriter"
+        type: textarea
+        required: false
+    buttons:
+      submit:
+        label: "Submit"
+        description: "Submit escalation details and continue"
+  
+  - id: tci_request_info_gate
+    type: input
+    title: "Request Additional Information"
+    description:
+      jinja: "hitl/tci_request_info_gate.jinja"
+    context_key: "request_info_data"
+    timeout_ms: 300000
+    on_timeout: "skip"
+    fields:
+      - name: information_request
+        label: "Information Needed"
+        type: textarea
+        required: true
+      - name: priority
+        label: "Priority"
+        type: select
+        required: false
+        default: "Medium"
+        options:
+          - value: "Low"
+            label: "Low"
+          - value: "Medium"
+            label: "Medium"
+          - value: "High"
+            label: "High"
+          - value: "Urgent"
+            label: "Urgent"
+    buttons:
+      submit:
+        label: "Submit"
+        description: "Submit information request and continue"
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: tci_summary_reporter
+    selectors:
+      - summary_report
+      - total_processed
+      - recommendations_breakdown
+      - average_risk_score
+    transform: "{{ summary_report if summary_report else 'No applications were processed in this run.' }}"
+

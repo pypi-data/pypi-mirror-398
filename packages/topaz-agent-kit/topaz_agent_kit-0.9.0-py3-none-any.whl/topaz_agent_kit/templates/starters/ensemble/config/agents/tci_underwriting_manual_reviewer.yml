@@ -1,0 +1,40 @@
+# =============================================================================
+# UNDERWRITING MANUAL REVIEWER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent reviews the internal underwriting manual PDF to extract relevant
+# guidelines, risk scoring criteria, and thresholds for policy assessment.
+#
+# =============================================================================
+id: tci_underwriting_manual_reviewer
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_underwriting_manual_reviewer
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["doc_extract", "filesystem"]
+      tools: ["doc_extract.*", "fs_*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_underwriting_manual_reviewer.jinja
+  inputs:
+    inline: |
+      - Project Directory: {{project_dir}}
+

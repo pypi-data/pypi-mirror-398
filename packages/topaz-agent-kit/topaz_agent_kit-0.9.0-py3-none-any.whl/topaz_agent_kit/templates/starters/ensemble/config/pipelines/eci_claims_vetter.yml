@@ -1,0 +1,246 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# ECI Claims Vetting Pipeline
+# Multi-agent system to vet insurance claims by extracting and validating data from uploaded documents,
+# assessing buyer legitimacy, verifying shipment details, and making risk-based decisions.
+#
+# =============================================================================
+
+name: "ECI Claims Vetter"
+description: "Automated insurance claims vetting with document extraction, validation, buyer verification, shipment validation, and risk-based decision making"
+
+# =============================================================================
+# NODES REGISTRY
+# =============================================================================
+nodes:
+  - id: eci_pending_claims_scanner
+    config_file: "agents/eci_pending_claims_scanner.yml"
+  - id: eci_claims_extractor
+    config_file: "agents/eci_claims_extractor.yml"
+  - id: eci_claim_validator
+    config_file: "agents/eci_claim_validator.yml"
+  - id: eci_buyer_checker
+    config_file: "agents/eci_buyer_checker.yml"
+  - id: eci_shipment_validator
+    config_file: "agents/eci_shipment_validator.yml"
+  - id: eci_policy_coverage_validator
+    config_file: "agents/eci_policy_coverage_validator.yml"
+  - id: eci_claim_history_lookup
+    config_file: "agents/eci_claim_history_lookup.yml"
+  - id: eci_decision_recommender
+    config_file: "agents/eci_decision_recommender.yml"
+  - id: eci_results_recorder
+    config_file: "agents/eci_results_recorder.yml"
+  - id: eci_summary_reporter
+    config_file: "agents/eci_summary_reporter.yml"
+
+# =============================================================================
+# PATTERN CONFIGURATION
+# =============================================================================
+# Execution pattern: Sequential → Loop (with parallel validators) → Sequential
+pattern:
+  type: sequential
+  name: "ECI Claims Vetting Workflow"
+  description: |
+    ## ECI Claims Vetting Workflow
+    
+    This sequential workflow orchestrates the end-to-end claims vetting process:
+    1. **Scan** database for pending claims
+    2. **Process** each claim through extraction, validation, and decision-making
+    3. **Report** summary of all processed claims
+    
+    The pipeline ensures thorough validation while maintaining efficiency through parallel processing of validation checks.
+  steps:
+    # Step 1: Scan database for pending claims
+    - node: eci_pending_claims_scanner
+    
+    # Step 2: Loop through all pending claims
+    - type: loop
+      name: "Claims Processing Loop"
+      description: |
+        ## Iterative Claim Processing
+        
+        Processes each pending claim through the complete vetting workflow:
+        - Document extraction from claim form, invoice, and bill of lading
+        - Parallel validation across multiple dimensions
+        - Risk assessment and decision recommendation
+        - Human review and approval
+        - Results recording
+        
+        Continues until all pending claims are processed or safety limit is reached.
+        
+        {% if eci_pending_claims_scanner.pending_claims_list and eci_pending_claims_scanner.pending_claims_list | length > 0 %}
+        ## Pending Claims Summary
+        
+        | Claim ID | Seller | Claimant | Claim Amount | Claim Reason |
+        |----------|--------|----------|-------------|-------------|
+        {%- for claim in eci_pending_claims_scanner.pending_claims_list %}
+        | {{ claim.claim_id }} | {{ claim.seller_name or 'N/A' }} | {{ claim.claimant_name or 'N/A' }} | {%- if claim.invoice_amount %}{%- set sym = claim.currency_symbol or '$' %}{%- if sym | length >= 3 %}{{ sym }} {{ claim.invoice_amount | format_currency }}{%- else %}{{ sym }}{{ claim.invoice_amount | format_currency }}{%- endif %}{%- else %}N/A{%- endif %} | {{ claim.claim_reason_category or 'N/A' }} |
+        {%- endfor %}
+        {% endif %}
+      condition: "eci_pending_claims_scanner.total_pending_count > 0"
+      iterate_over: "eci_pending_claims_scanner.pending_claims_list"
+      loop_item_key: "current_claim"
+      termination:
+        max_iterations: 100  # Safety limit to prevent infinite loops
+      body:
+        type: sequential
+        name: "Single Claim Processing Flow"
+        description: |
+          ## Individual Claim Vetting Process
+          
+          Complete workflow for processing a single claim:
+          1. Extract structured data from all submitted documents
+          2. Run parallel validations for speed and efficiency
+          3. Generate risk-based decision recommendation
+          4. Present findings for human review
+          5. Record final decision and results
+          
+          {% if current_claim %}
+          ## Current Claim Details
+          
+          | Field | Value |
+          |-------|-------|
+          | Claim ID | {{ current_claim.claim_id }} |
+          {%- if current_claim.policy_number %}
+          | Policy Number | {{ current_claim.policy_number }} |
+          {%- endif %}
+          {%- if current_claim.seller_name %}
+          | Seller | {{ current_claim.seller_name }} |
+          {%- endif %}
+          {%- if current_claim.buyer_name %}
+          | Buyer | {{ current_claim.buyer_name }} |
+          {%- endif %}
+          {%- if current_claim.claimant_name %}
+          | Claimant | {{ current_claim.claimant_name }} |
+          {%- endif %}
+          {%- if current_claim.invoice_amount %}
+          | Claim Amount | {%- set sym = current_claim.currency_symbol or '$' %}{%- if sym | length >= 3 %}{{ sym }} {{ current_claim.invoice_amount | format_currency }}{%- else %}{{ sym }}{{ current_claim.invoice_amount | format_currency }}{%- endif %} |
+          {%- endif %}
+          {%- if current_claim.claim_reason_category %}
+          | Claim Reason | {{ current_claim.claim_reason_category }} |
+          {%- endif %}
+          {%- if current_claim.invoice_date %}
+          | Invoice Date | {{ current_claim.invoice_date }} |
+          {%- endif %}
+          {% endif %}
+        steps:
+          # Extract data from all 3 PDF documents (current_claim is automatically available from loop)
+          - node: eci_claims_extractor
+          
+          # Parallel validation (for speed)
+          - type: parallel
+            name: "Parallel Validation Checks"
+            description: |
+              ## Concurrent Validation Assessment
+              
+              Runs all validation checks simultaneously for maximum efficiency:
+              - **Claim Validator**: Cross-document consistency checks
+              - **Buyer Checker**: Legitimacy and risk assessment
+              - **Shipment Validator**: Voyage and date verification
+              - **Policy Coverage Validator**: Coverage limits and eligibility
+              - **Claim History Lookup**: Historical claim pattern analysis
+              
+              All validators execute in parallel to minimize processing time.
+            steps:
+              - node: eci_claim_validator           # Validate cross-document consistency
+              - node: eci_buyer_checker             # Check buyer legitimacy
+              - node: eci_shipment_validator        # Validate shipment details
+              - node: eci_policy_coverage_validator  # Validate policy coverage
+              - node: eci_claim_history_lookup      # Validate claim history limits
+          
+          # Aggregate findings and recommend decision
+          - node: eci_decision_recommender
+          
+          # Human review and approval
+          - gate: eci_decision_gate
+          
+          # Record all results to database
+          - node: eci_results_recorder
+    
+    # Step 3: Generate summary report (after all claims processed)
+    - node: eci_summary_reporter
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: eci_decision_gate
+    type: selection
+    title: "ECI Claim Decision Review"
+    description:
+      jinja: "hitl/eci_decision_gate.jinja"
+    options:
+      - value: "approve"
+        label: "Approve Claim"
+        description: "Accept the claim as valid and proceed with payment"
+        color: "green"
+        badge: "Recommended"
+      
+      - value: "request_docs"
+        label: "Request Missing Documents"
+        description: "Additional documentation is needed before making a decision"
+        color: "amber"
+        badge: "Recommended"
+      
+      - value: "escalate"
+        label: "Escalate to SIU"
+        description: "Send to Special Investigations Unit for detailed review"
+        color: "red"
+        badge: "Recommended"
+      
+      - value: "reject"
+        label: "Reject Claim"
+        description: "Deny the claim due to validation failures or fraud concerns"
+        color: "red"
+        badge: "Recommended"
+    
+    default: "{{ eci_decision_recommender.recommended_decision }}"
+    context_key: "final_decision"
+    timeout_ms: 30000
+    on_timeout: default
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: eci_summary_reporter
+    selectors:
+      - summary_report
+      - total_processed
+      - decisions_breakdown
+      - average_risk_score
+    transform: "{{ summary_report if summary_report else 'No claims were processed in this run.' }}"
+

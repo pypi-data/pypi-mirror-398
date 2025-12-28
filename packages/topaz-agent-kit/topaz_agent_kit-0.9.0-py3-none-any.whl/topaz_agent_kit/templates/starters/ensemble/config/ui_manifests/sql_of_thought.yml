@@ -1,0 +1,76 @@
+# =============================================================================
+# MAIN SECTION 
+# =============================================================================
+#
+# - title (str, required): human-readable pipeline name
+# - subtitle (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+title: "SQL-of-Thought"
+subtitle: "SQL-of-Thought converts natural language questions into SQL queries using a multi-agent framework with guided error correction. The pipeline processes questions through schema linking, subproblem decomposition, Chain-of-Thought query planning, SQL generation, independent SQL review for logic errors, execution, and validation against gold standards. If execution fails or reviewer finds issues, a unified correction loop iteratively fixes the SQL using taxonomy-guided error analysis or reviewer feedback."
+
+# =============================================================================
+# AGENTS SECTION 
+# =============================================================================
+#
+# - id (str, required): unique agent identifier
+# - title (str, required): human-readable agent name
+# - subtitle (str, required): detailed description of agent purpose
+# - icon (str, required): path to agent icon image
+#
+# =============================================================================
+agents:
+  - id: "sot_question_loader"
+    title: "Question Loader"
+    subtitle: "Loads questions from the prepared questions_to_process.json file using MCP filesystem tools. Validates file structure, parses JSON content, and extracts question objects with index, database ID, natural language question text, and gold standard SQL for validation."
+    icon: "assets/sot_question_loader.svg"
+  - id: "sot_schema_linker"
+    title: "Schema Linker"
+    subtitle: "Identifies relevant tables and columns from the database schema needed to answer the natural language question. Uses Spider dataset tools to retrieve complete schema information including table names, column names, data types, primary keys, foreign keys, and relationships. Analyzes the question to determine which schema elements are required for query construction."
+    icon: "assets/sot_schema_linker.svg"
+  - id: "sot_subproblem_creator"
+    title: "Subproblem Creator"
+    subtitle: "Decomposes the natural language question into clause-wise SQL subproblems. Breaks down the question into structured components: SELECT clause (what to retrieve), FROM clause (which tables), WHERE clause (filtering conditions), JOIN clause (table relationships), GROUP BY clause (aggregations), HAVING clause (aggregate filters), ORDER BY clause (sorting), and LIMIT clause (result limits). Identifies dependencies between subproblems to guide query construction."
+    icon: "assets/sot_subproblem_creator.svg"
+  - id: "sot_query_planner"
+    title: "Query Planner"
+    subtitle: "Generates a detailed, step-by-step executable query plan using Chain-of-Thought reasoning. Uses a reasoning model to systematically think through: understanding the question, identifying data sources, determining filtering conditions, planning aggregations, planning sorting and limits, and synthesizing a coherent execution plan. Produces reasoning steps and a structured final plan with select, from, where, joins, group_by, having, order_by, and limit components."
+    icon: "assets/sot_query_planner.svg"
+  - id: "sot_sql_generator"
+    title: "SQL Generator"
+    subtitle: "Converts the detailed query plan into a valid, executable SQL query. Follows the plan's reasoning steps and structured components to generate syntactically correct SQL. Uses actual table and column names from the schema, ensures proper JOIN syntax for multiple tables, includes appropriate WHERE, GROUP BY, HAVING, ORDER BY clauses, and follows SQLite syntax rules (Spider dataset uses SQLite)."
+    icon: "assets/sot_sql_generator.svg"
+  - id: "sot_sql_reviewer"
+    title: "SQL Reviewer"
+    subtitle: "Independently reviews generated SQL queries to identify logic errors, semantic issues, and completeness problems before execution. Analyzes SQL for semantic correctness (does it logically answer the question?), completeness (are all requirements addressed?), and common logic errors (wrong GROUP BY, incorrect set operations, wrong filtering columns, missing DISTINCT, etc.). Provides structured feedback with issue categories, descriptions, suggestions, and locations. Triggers correction loop if significant issues are found."
+    icon: "assets/sot_sql_reviewer.svg"
+  - id: "sot_sql_executor"
+    title: "SQL Executor"
+    subtitle: "Executes the generated SQL query using SQLite MCP tools and Spider dataset tools. Retrieves the database file path using spider_dataset.get_database_path, executes the SQL using sqlite_query MCP tool with absolute paths, captures execution results or error information, and determines execution success or failure status. Returns structured results or detailed error messages for use by the correction loop."
+    icon: "assets/sot_sql_executor.svg"
+  - id: "sot_correction_query_planner"
+    title: "Correction Query Planner"
+    subtitle: "Analyzes SQL errors (both execution errors and logic errors) and generates a correction plan using Chain-of-Thought reasoning, error taxonomy, and reviewer feedback. For execution errors: loads error taxonomy JSON file using MCP tools to understand error categories (syntax_error, schema_mismatch, type_mismatch, join_error, aggregation_error, logical_error). For logic errors: uses reviewer feedback to understand issues and suggestions. Uses CoT reasoning to categorize the error, understand root cause, identify fix strategy, plan specific corrections, and verify the correction plan maintains original query intent."
+    icon: "assets/sot_correction_query_planner.svg"
+  - id: "sot_correction_sql_generator"
+    title: "Correction SQL Generator"
+    subtitle: "Generates corrected SQL query based on the detailed correction plan. Applies all specific changes identified in the correction plan (column name fixes, syntax corrections, join condition updates, etc.), ensures the corrected SQL addresses the original error, maintains the original query intent, and verifies syntax correctness. Produces a corrected SQL query ready for re-execution."
+    icon: "assets/sot_correction_sql_generator.svg"
+  - id: "sot_spider_validator"
+    title: "Spider Validator"
+    subtitle: "Compares generated SQL and execution results against the gold standard SQL for comprehensive validation. Performs exact match comparison (normalized SQL comparison), execution match comparison (executes gold SQL and compares results), error analysis (categorizes errors if execution failed), and calculates validation metrics including exact match rate, execution match rate, validation score, and detailed differences. Uses Spider dataset tools and SQLite MCP tools for validation."
+    icon: "assets/sot_spider_validator.svg"
+  - id: "sot_summary_reporter"
+    title: "Summary Reporter"
+    subtitle: "Aggregates all validation results from processed questions and generates a comprehensive final markdown report. Calculates summary metrics including total questions processed, exact match count and percentage, execution match count and percentage, average validation score, error distribution by type, and correction attempts statistics. Generates a well-formatted markdown report with executive summary, overall metrics, per-question results, error analysis, and recommendations. Saves the report to disk using MCP filesystem tools and includes browser-viewable report links."
+    icon: "assets/sot_summary_reporter.svg"
+
+# =============================================================================
+# INTERACTION DIAGRAM SECTION 
+# =============================================================================
+#
+# - interaction_diagram (str, required): path to interaction diagram image
+#
+# =============================================================================
+interaction_diagram: "assets/sql_of_thought_workflow.svg"
+

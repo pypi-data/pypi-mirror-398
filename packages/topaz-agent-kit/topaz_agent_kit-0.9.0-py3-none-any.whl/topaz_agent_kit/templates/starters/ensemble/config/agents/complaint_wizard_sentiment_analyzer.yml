@@ -1,0 +1,79 @@
+# =============================================================================
+# SENTIMENT ANALYZER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent analyzes complaint tone and urgency to determine sentiment,
+# urgency level, and whether escalation is recommended.
+#
+# =============================================================================
+id: complaint_wizard_sentiment_analyzer
+type: adk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+#
+# Remote service configuration for agent-to-agent communication.
+# If this section is present, the agent supports remote execution and will be
+# available as a service for other agents to call via A2A protocols.
+#
+# Remote parameters:
+# - url (str, required): A2A protocol endpoint URL
+# - timeout (int, optional): request timeout in milliseconds; default 30000
+# - retry_attempts (int, optional): number of retry attempts for failed requests; default 3
+#
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/complaint_wizard_sentiment_analyzer
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# AGENT EXECUTION CONFIGURATION
+# =============================================================================
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+#
+# MCP configuration for external tool access.
+# If this section is present, the agent has access to MCP tools that provide
+# external capabilities like web search, data gathering, etc.
+#
+# MCP parameters:
+# - servers (list[object], required): list of MCP servers to connect to
+#   - servers[].url (str, required): MCP server URL (must be provided, no hardcoded fallbacks)
+#   - servers[].toolkits (list[str], required): list of toolkits available on this server
+#   - servers[].tools (list[str], required): list of tools to use from this server
+#     - Supports wildcard patterns: "math.*" (all math tools), "*.evaluate_*" (all evaluate tools)
+#     - Supports exact tool names: "math.addition", "browser.scrape_website"
+#
+# =============================================================================
+# No MCP tools needed for sentiment analyzer agent - uses LLM only
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+#
+# Agent prompt (instruction and inputs) with Jinja variable support
+#
+# - instruction: agent instruction content with Jinja variable support (exaclty one of the following must be specified)
+#   - instruction.inline: inline agent instruction content with Jinja variable support
+#   - instruction.file: prompt file path relative to project root
+#   - instruction.jinja: Jinja template path or inline template
+#
+# - inputs: agent input template with Jinja variable support (exaclty one of the following must be specified)
+#   - inputs.inline: inline agent input template with Jinja variable support
+#   - inputs.file: prompt file path relative to project root
+#   - inputs.jinja: Jinja template path or inline template
+#
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/complaint_wizard_sentiment_analyzer.jinja
+  inputs:
+    inline: |
+      Complaint Type: {{complaint_type}}
+      Urgency Indicators: {{urgency_indicators}}
+      Original Complaint Context: {{user_text}}

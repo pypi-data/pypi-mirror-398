@@ -1,0 +1,42 @@
+# =============================================================================
+# MATH PROBLEM SOLVER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent solves a single math problem. It will be run multiple times in
+# parallel via repeat pattern, with each instance solving one problem.
+#
+# =============================================================================
+id: math_repeater_solver
+type: langgraph
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/math_repeater_solver
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+#
+# MCP tools for math operations (optional - can use LLM if MCP not available)
+#
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["math"]
+      tools: ["math.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    file: prompts/math_repeater_solver.jinja
+  inputs:
+    inline: |
+      Problem: {{problem_text}}
+      Problem Index: {{problem_index}}
+

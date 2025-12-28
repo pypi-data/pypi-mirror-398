@@ -1,0 +1,34 @@
+# =============================================================================
+# SQL GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent converts the query plan into a valid SQL query.
+#
+# =============================================================================
+id: sot_sql_generator
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_sql_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_sql_generator.jinja
+  inputs:
+    inline: |
+      - Question: {{current_question.question}}
+      - Query Plan: {{sot_query_planner.query_plan}}
+      - Schema Info: {{sot_schema_linker.schema_info}}
+      - Relationships: {{sot_schema_linker.relationships}}
+      - Database ID: {{current_question.db_id}}
+

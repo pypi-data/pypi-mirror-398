@@ -1,0 +1,48 @@
+# =============================================================================
+# SQL EXECUTOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent executes the generated SQL query using SQLite MCP tools.
+# Returns execution results or error information.
+#
+# =============================================================================
+id: sot_sql_executor
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_sql_executor
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_sql_executor.jinja
+  inputs:
+    inline: |
+      {# Use correction SQL if available (inside correction loop), otherwise use initial SQL #}
+      - SQL Query: {% if sot_correction_sql_generator and sot_correction_sql_generator.sql_query %}
+        {{sot_correction_sql_generator.sql_query}}
+      {% elif sot_sql_generator and sot_sql_generator.sql_query %}
+        {{sot_sql_generator.sql_query}}
+      {% else %}
+        (No SQL available)
+      {% endif %}
+      - Database Path: {{sot_schema_linker.database_path}}
+

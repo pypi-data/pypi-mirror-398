@@ -1,0 +1,43 @@
+# =============================================================================
+# SUMMARY REPORTER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent aggregates all validation results from processed questions and
+# generates a final markdown report saved to data/sot/reports/.
+#
+# =============================================================================
+id: sot_summary_reporter
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_summary_reporter
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["filesystem"]
+      tools: ["fs_write_file", "fs_makedirs"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_summary_reporter.jinja
+  inputs:
+    inline: |
+      - Total Questions: {{sot_question_loader.total_count}}
+      - Project Directory: {{project_dir}}
+      - Questions List: {{sot_question_loader.questions_list}}
+      - Validation Results: {{sot_spider_validator_instances}}
+

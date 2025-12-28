@@ -1,0 +1,193 @@
+**Application ID:** {{ current_application.application_id }}
+
+## Application Details
+
+| Field | Value |
+|-------|-------|
+| Application ID | {{ current_application.application_id }} |
+| Seller Name | {{ current_application.seller_name }} |
+| Seller Email | {{ current_application.seller_email }} |
+| Seller Address | {%- set seller_addr = current_application.seller_address if current_application.seller_address else (tci_document_extractor.extracted_data.application_form.applicant_details.address if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.applicant_details and tci_document_extractor.extracted_data.application_form.applicant_details.address else '') %}{%- set seller_post = current_application.seller_postcode if current_application.seller_postcode else (tci_document_extractor.extracted_data.application_form.applicant_details.postcode if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.applicant_details and tci_document_extractor.extracted_data.application_form.applicant_details.postcode else '') %}{%- if seller_addr %}{{ seller_addr }}{%- if seller_post %}, {{ seller_post }}{%- endif %}{%- else %}N/A{%- endif %} |
+| Seller Contact | {%- set seller_contact = current_application.seller_contact_name if current_application.seller_contact_name else (tci_document_extractor.extracted_data.application_form.applicant_details.contact_name if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.applicant_details and tci_document_extractor.extracted_data.application_form.applicant_details.contact_name else '') %}{%- set seller_pos = current_application.seller_position if current_application.seller_position else (tci_document_extractor.extracted_data.application_form.applicant_details.position if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.applicant_details and tci_document_extractor.extracted_data.application_form.applicant_details.position else '') %}{%- if seller_contact %}{{ seller_contact }}{%- if seller_pos %} ({{ seller_pos }}){%- endif %}{%- else %}N/A{%- endif %} |
+| Buyer Name | {{ current_application.buyer_name }} |
+| Buyer Address | {%- set buyer_addr = current_application.buyer_address if current_application.buyer_address else (tci_document_extractor.extracted_data.application_form.buyer_details.buyer_address if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.buyer_details and tci_document_extractor.extracted_data.application_form.buyer_details.buyer_address else '') %}{%- if buyer_addr %}{{ buyer_addr }}{%- else %}N/A{%- endif %} |
+| Buyer Registered Number | {%- set buyer_reg = current_application.buyer_registered_number if current_application.buyer_registered_number else (tci_document_extractor.extracted_data.application_form.buyer_details.registered_number if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.buyer_details and tci_document_extractor.extracted_data.application_form.buyer_details.registered_number else '') %}{%- if buyer_reg %}{{ buyer_reg }}{%- else %}N/A{%- endif %} |
+| Requested Amount | {%- if current_application.requested_amount %}{%- set currency_symbol = tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol else (tci_document_extractor.extracted_data.financial_statements.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency_symbol else '') %}{%- set currency = tci_document_extractor.extracted_data.application_form.contract_details.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency else (tci_document_extractor.extracted_data.financial_statements.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency else '') %}{%- if currency_symbol %}{%- if currency_symbol | length >= 3 %}{{ currency_symbol }} {{ current_application.requested_amount | format_currency }}{%- else %}{{ currency_symbol }}{{ current_application.requested_amount | format_currency }}{%- endif %}{%- else %}{{ current_application.requested_amount | format_currency }}{%- endif %}{%- if currency %} ({{ currency }}){%- endif %}{%- else %}N/A{%- endif %} |
+| Requested Term | {{ current_application.requested_term_days }} days |
+
+## Risk Factor Scores
+
+{% if tci_risk_score_calculator.risk_factors_table %}
+{{ tci_risk_score_calculator.risk_factors_table }}
+
+{% endif %}
+
+## Total Risk Score
+
+**Total Risk Score:** {%- set total_score = tci_risk_score_calculator.total_risk_score if tci_risk_score_calculator else None %}{% if total_score is not none %}{{ total_score | round(2) }}{% else %}N/A{% endif %} / 100
+**Risk Level:** {{ (tci_risk_score_calculator.risk_level if tci_risk_score_calculator else None) | default_if_none }}
+
+## Final Creditworthiness & Underwriting Recommendation
+
+{% if tci_recommendation_generator %}
+{# Use risk_score_calculator's total_risk_score directly (recommender should pass it through) #}
+{% set final_score = tci_risk_score_calculator.total_risk_score | round(2) if tci_risk_score_calculator and tci_risk_score_calculator.total_risk_score else (tci_recommendation_generator.final_risk_score | round(2) if tci_recommendation_generator.final_risk_score else None) %}
+{% set credit_color = final_score | credit_score_color if final_score is not none else "#6b7280" %}
+
+**Final Risk Score:** <span style="color: {{ final_score | credit_score_color }}; font-weight: bold;">{{ final_score | default_if_none }}</span> / 100
+
+{# Use risk_score_calculator's risk_level as creditworthiness (recommender should align with this) #}
+{% set creditworthiness_text = tci_risk_score_calculator.risk_level if tci_risk_score_calculator and tci_risk_score_calculator.risk_level else (tci_recommendation_generator.creditworthiness if tci_recommendation_generator.creditworthiness else '') %}
+**Creditworthiness:** <span style="color: {{ credit_color }}; font-weight: bold;">{{ creditworthiness_text | default_if_none }}</span>
+
+**Recommended Credit Limit:** {% if tci_recommendation_generator.recommended_credit_limit and current_application.requested_amount %}{% set currency_symbol = tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol else (tci_document_extractor.extracted_data.financial_statements.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency_symbol else '') %}{% set currency = tci_document_extractor.extracted_data.application_form.contract_details.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency else (tci_document_extractor.extracted_data.financial_statements.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency else '') %}{% set req_amt = current_application.requested_amount %}{% set rec_limit = tci_recommendation_generator.recommended_credit_limit %}{% if currency_symbol %}{{ currency_symbol }}{% endif %}{{ rec_limit | format_currency }}{% if currency %} ({{ currency }}){% endif %}{% if rec_limit < req_amt %} - slightly below requested {% if currency_symbol %}{{ currency_symbol }}{% endif %}{{ req_amt | format_currency }}{% if currency %} ({{ currency }}){% endif %} to mitigate observed risk factors{% endif %}{% else %}N/A{% endif %}
+
+**Underwriting Recommendation:** {{ (tci_recommendation_generator.underwriting_recommendation if tci_recommendation_generator else None) | default_if_none }}
+
+{% set recommended_decision_type = tci_recommendation_generator.recommended_decision_type if tci_recommendation_generator and tci_recommendation_generator.recommended_decision_type else None %}
+{% if recommended_decision_type %}
+  {% if recommended_decision_type == "approve_recommended" %}
+    {% set decision_color = "#22c55e" %}
+    {% set decision_label = "Approve with Recommended Terms" %}
+  {% elif recommended_decision_type == "approve_modified" %}
+    {% set decision_color = "#f59e0b" %}
+    {% set decision_label = "Approve with Modified Terms" %}
+  {% elif recommended_decision_type == "reject" %}
+    {% set decision_color = "#dc2626" %}
+    {% set decision_label = "Reject Application" %}
+  {% elif recommended_decision_type == "request_info" %}
+    {% set decision_color = "#f97316" %}
+    {% set decision_label = "Request Additional Information" %}
+  {% elif recommended_decision_type == "escalate" %}
+    {% set decision_color = "#ef4444" %}
+    {% set decision_label = "Escalate for Manual Review" %}
+  {% else %}
+    {% set decision_color = "#6b7280" %}
+    {% set decision_label = recommended_decision_type %}
+  {% endif %}
+**System Recommended Decision:** <span style="color: {{ decision_color }}; font-weight: bold; font-size: 1.1em;">{{ decision_label }}</span>
+{% endif %}
+
+{% set confidence_score = tci_recommendation_generator.confidence_score if tci_recommendation_generator and tci_recommendation_generator.confidence_score else None %}
+{% if confidence_score is not none %}
+  {% if confidence_score >= 80 %}
+    {% set confidence_color = "#22c55e" %} {# Green: High Confidence #}
+  {% elif confidence_score >= 60 %}
+    {% set confidence_color = "#84cc16" %} {# Light Green: Medium-High Confidence #}
+  {% elif confidence_score >= 40 %}
+    {% set confidence_color = "#f59e0b" %} {# Amber: Medium Confidence #}
+  {% elif confidence_score >= 20 %}
+    {% set confidence_color = "#f97316" %} {# Orange: Low Confidence #}
+  {% else %}
+    {% set confidence_color = "#ef4444" %} {# Red: Very Low Confidence #}
+  {% endif %}
+{% else %}
+  {% set confidence_color = "#6b7280" %} {# Gray: N/A #}
+{% endif %}
+**Confidence Score:** <span style="color: {{ confidence_color }}; font-weight: bold;">{{ confidence_score | default_if_none }}{%- if confidence_score is not none %}%{%- endif %}</span>
+{% else %}
+Recommendation is being generated...
+{% endif %}
+
+## Risk Factor Assessment Details
+
+<details>
+{% set fh_score = tci_financial_health_assessor.score if tci_financial_health_assessor and tci_financial_health_assessor.score is not none else None %}
+<summary><strong>💰 Financial Health Assessor - Detailed Checks</strong> (Score: <span style="color: {{ fh_score | credit_score_color }}; font-weight: bold;">{{ fh_score | default_if_none }}</span>/100, Weight: 22%)</summary>
+
+{% if tci_financial_health_assessor.checks_table %}
+{{ tci_financial_health_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set pb_score = tci_payment_behavior_assessor.score if tci_payment_behavior_assessor and tci_payment_behavior_assessor.score is not none else None %}
+<summary><strong>💳 Payment Behavior Assessor - Detailed Checks</strong> (Score: <span style="color: {{ pb_score | credit_score_color }}; font-weight: bold;">{{ pb_score | default_if_none }}</span>/100, Weight: 18%)</summary>
+
+{% if tci_payment_behavior_assessor.checks_table %}
+{{ tci_payment_behavior_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set cr_score = tci_credit_rating_assessor.score if tci_credit_rating_assessor and tci_credit_rating_assessor.score is not none else None %}
+<summary><strong>⭐ Credit Rating Assessor - Detailed Checks</strong> (Score: <span style="color: {{ cr_score | credit_score_color }}; font-weight: bold;">{{ cr_score | default_if_none }}</span>/100, Weight: 13%)</summary>
+
+{% if tci_credit_rating_assessor.checks_table %}
+{{ tci_credit_rating_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set ct_score = tci_contract_terms_assessor.score if tci_contract_terms_assessor and tci_contract_terms_assessor.score is not none else None %}
+<summary><strong>📄 Contract Terms Assessor - Detailed Checks</strong> (Score: <span style="color: {{ ct_score | credit_score_color }}; font-weight: bold;">{{ ct_score | default_if_none }}</span>/100, Weight: 9%)</summary>
+
+{% if tci_contract_terms_assessor.checks_table %}
+{{ tci_contract_terms_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set sc_score = tci_sanctions_compliance_assessor.score if tci_sanctions_compliance_assessor and tci_sanctions_compliance_assessor.score is not none else None %}
+<summary><strong>🛡️ Sanctions & Compliance Assessor - Detailed Checks</strong> (Score: <span style="color: {{ sc_score | credit_score_color }}; font-weight: bold;">{{ sc_score | default_if_none }}</span>/100, Weight: 4%)</summary>
+
+{% if tci_sanctions_compliance_assessor.checks_table %}
+{{ tci_sanctions_compliance_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set if_score = tci_industry_factors_assessor.score if tci_industry_factors_assessor and tci_industry_factors_assessor.score is not none else None %}
+<summary><strong>🏭 Industry & External Factors Assessor - Detailed Checks</strong> (Score: <span style="color: {{ if_score | credit_score_color }}; font-weight: bold;">{{ if_score | default_if_none }}</span>/100, Weight: 8%)</summary>
+
+{% if tci_industry_factors_assessor.checks_table %}
+{{ tci_industry_factors_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set cb_score = tci_credit_bureau_assessor.score if tci_credit_bureau_assessor and tci_credit_bureau_assessor.score is not none else None %}
+<summary><strong>📊 Credit Bureau Assessor - Detailed Checks</strong> (Score: <span style="color: {{ cb_score | credit_score_color }}; font-weight: bold;">{{ cb_score | default_if_none }}</span>/100, Weight: 8%)</summary>
+
+{% if tci_credit_bureau_assessor.checks_table %}
+{{ tci_credit_bureau_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set br_score = tci_bank_reference_assessor.score if tci_bank_reference_assessor and tci_bank_reference_assessor.score is not none else None %}
+<summary><strong>🏦 Bank Reference Assessor - Detailed Checks</strong> (Score: <span style="color: {{ br_score | credit_score_color }}; font-weight: bold;">{{ br_score | default_if_none }}</span>/100, Weight: 4%)</summary>
+
+{% if tci_bank_reference_assessor.checks_table %}
+{{ tci_bank_reference_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+{% set ns_score = tci_news_sentiment_assessor.score if tci_news_sentiment_assessor and tci_news_sentiment_assessor.score is not none else None %}
+<summary><strong>📰 News Sentiment Assessor - Detailed Checks</strong> (Score: <span style="color: {{ ns_score | credit_score_color }}; font-weight: bold;">{{ ns_score | default_if_none }}</span>/100, Weight: 10%)</summary>
+
+{% if tci_news_sentiment_assessor.checks_table %}
+{{ tci_news_sentiment_assessor.checks_table }}
+
+{% endif %}
+</details>
+
+Review all risk factor assessments and total risk score above, then select your decision.
+

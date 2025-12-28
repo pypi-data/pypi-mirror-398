@@ -1,0 +1,41 @@
+# =============================================================================
+# SQL REVIEWER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent independently reviews generated SQL queries to identify logic errors,
+# semantic issues, and completeness problems before execution.
+#
+# =============================================================================
+id: sot_sql_reviewer
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_sql_reviewer
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_sql_reviewer.jinja
+  inputs:
+    inline: |
+      - Question: {{current_question.question}}
+      {# Use correction SQL if available (inside correction loop), otherwise use initial SQL #}
+      {% if sot_correction_sql_generator and sot_correction_sql_generator.sql_query %}
+        - Generated SQL: {{sot_correction_sql_generator.sql_query}}
+      {% elif sot_sql_generator and sot_sql_generator.sql_query %}
+        - Generated SQL: {{sot_sql_generator.sql_query}}
+      {% else %}
+        - Generated SQL: (No SQL available)
+      {% endif %}
+      - Schema Info: {{sot_schema_linker.schema_info}}
+      - Relationships: {{sot_schema_linker.relationships}}
+

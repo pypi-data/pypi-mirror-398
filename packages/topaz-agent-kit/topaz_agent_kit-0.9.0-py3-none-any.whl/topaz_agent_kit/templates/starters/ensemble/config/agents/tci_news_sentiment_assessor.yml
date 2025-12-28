@@ -1,0 +1,39 @@
+# =============================================================================
+# NEWS SENTIMENT ASSESSOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent assesses the External News & Media risk factor (Weight: 10%) by
+# analyzing news articles from the database. Performs semantic sentiment
+# analysis and event extraction, assigns a score (0-100).
+#
+# =============================================================================
+id: tci_news_sentiment_assessor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_news_sentiment_assessor
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+# No MCP tools needed - uses data from tci_external_data_fetcher
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_news_sentiment_assessor.jinja
+  inputs:
+    inline: |
+      - News Articles Data: {{tci_external_data_fetcher.news_data}}
+      - Underwriting Guidelines: {{tci_underwriting_manual_reviewer.guidelines}}
+      - Project Directory: {{project_dir}}
+

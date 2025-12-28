@@ -1,0 +1,46 @@
+# =============================================================================
+# CLAIMS EXTRACTOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent extracts structured data from all 3 PDF documents:
+# - Claim Form PDF
+# - Invoice PDF
+# - Bill of Lading PDF
+#
+# =============================================================================
+id: eci_claims_extractor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/eci_claims_extractor
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["doc_extract", "filesystem"]
+      tools: ["doc_extract.*", "fs_*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/eci_claims_extractor.jinja
+  inputs:
+    inline: |
+      - Current Claim ID: {{current_claim.claim_id}}
+      - Claim Form Path: {{current_claim.claim_form_path}}
+      - Invoice Path: {{current_claim.invoice_path}}
+      - BOL Path: {{current_claim.bol_path}}
+      - Project Directory: {{project_dir}}
+

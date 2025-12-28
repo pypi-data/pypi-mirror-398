@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://topaz.ai/schemas/framework.schema.json",
+  "title": "Topaz Framework Configuration Schema",
+  "description": "Schema for framework configuration files (agno.yml, crewai.yml, langgraph.yml, adk.yml, oak.yml, sk.yml, maf.yml)",
+  "type": "object",
+  "required": ["name", "description", "mcp_integration", "models"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Framework name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Framework description"
+    },
+    "mcp_integration": {
+      "type": "object",
+      "required": ["transport", "tool_class", "params_class", "timeout"],
+      "properties": {
+        "transport": {
+          "type": "string",
+          "enum": ["streamable-http", "stdio", "sse"],
+          "description": "Transport protocol for MCP communication"
+        },
+        "tool_class": {
+          "type": "string",
+          "description": "Class for MCP tools (e.g., agno.tools.mcp.MCPTools)"
+        },
+        "params_class": {
+          "type": "string",
+          "description": "Class for MCP parameters (e.g., agno.tools.mcp.StreamableHTTPClientParams)"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Timeout for MCP tools in seconds (1-3600 seconds)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Model configurations for this framework",
+      "patternProperties": {
+        "^[a-zA-Z_][a-zA-Z0-9_]*$": {
+          "type": "object",
+          "required": ["class"],
+          "properties": {
+            "class": {
+              "type": "string",
+              "description": "Model class (e.g., agno.models.azure.openai_chat.AzureOpenAI)"
+            },
+            "parameters": {
+              "type": "object",
+              "description": "Model parameters (can include environment variable references like ${VAR_NAME})"
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "description": "Agent class for this framework"
+        }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Framework capabilities",
+      "additionalProperties": true
+    },
+    "features": {
+      "type": "object",
+      "description": "Framework-specific features",
+      "additionalProperties": true
+    },
+    "error_handling": {
+      "type": "object",
+      "description": "Error handling configuration",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,50 @@
+# =============================================================================
+# REPORT GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates a comprehensive evaluation report with scores, comparison,
+# and final recommendation.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (adk|oak|maf|agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+#
+# =============================================================================
+id: rfp_rsp_eval_report_generator
+type: maf
+model: "azure_openai"
+run_mode: "local"
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rfp_rsp_eval_report_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["filesystem"]
+      tools: ["fs_write_file", "fs_makedirs"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rfp_rsp_eval_report_generator.jinja
+  inputs:
+    inline: |
+      RFP Context: {{rfp_rsp_eval_parser.rfp_data}}
+      Comparison Matrix: {{rfp_rsp_eval_comparison_analyzer.comparison_matrix}}
+      Rankings: {{rfp_rsp_eval_comparison_analyzer.rankings}}
+      Recommendations Summary: {{rfp_rsp_eval_comparison_analyzer.recommendations_summary}}
+      Base Folder Path: {{rfp_rsp_eval_folder_scanner.base_folder}}
+

@@ -1,0 +1,42 @@
+# =============================================================================
+# SCHEMA LINKER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent identifies relevant tables and columns from the database schema
+# that are needed to answer the natural language question.
+#
+# =============================================================================
+id: sot_schema_linker
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_schema_linker
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.sql_of_thought.spider_dataset_tools
+  toolkits: ["spider_dataset"]
+  tools: ["spider_dataset.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_schema_linker.jinja
+  inputs:
+    inline: |
+      - Question: {{current_question.question}}
+      - Database ID: {{current_question.db_id}}
+      - Project Directory: {{project_dir}}
+

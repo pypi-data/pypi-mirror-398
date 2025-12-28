@@ -1,0 +1,43 @@
+# =============================================================================
+# PO LOOKUP AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent queries the SQLite database to find matching Purchase Order records
+# based on invoice data (PO reference, vendor name, invoice date).
+#
+# =============================================================================
+id: invoice_match_pro_po_lookup
+type: adk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/invoice_match_pro_po_lookup
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite_query", "sqlite_schema"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/invoice_match_pro_po_lookup.jinja
+  inputs:
+    inline: |
+      PO Reference: {{po_reference}}
+      Vendor Name: {{vendor_name}}
+      Invoice Date: {{invoice_date}}
+      Database Path: {{db_path}}
+
+

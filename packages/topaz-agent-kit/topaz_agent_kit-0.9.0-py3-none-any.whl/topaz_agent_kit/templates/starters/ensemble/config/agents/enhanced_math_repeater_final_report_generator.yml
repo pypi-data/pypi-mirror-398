@@ -1,0 +1,51 @@
+# =============================================================================
+# FINAL REPORT GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates a final aggregated report combining results from all
+# file report generators. It aggregates all file reports into a comprehensive
+# final report.
+#
+# =============================================================================
+id: enhanced_math_repeater_final_report_generator
+type: langgraph
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/enhanced_math_repeater_final_report_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    file: prompts/enhanced_math_repeater_final_report_generator.jinja
+  inputs:
+    inline: |
+      Folder Scanner Results:
+        File Count: {{enhanced_math_repeater_folder_scanner.file_count}}
+        Folder Path: {{enhanced_math_repeater_folder_scanner.folder_path}}
+      
+      {% if enhanced_math_repeater_file_report_generator_instances %}
+      File Report Generator Instance Results:
+      {% for instance_id, file_data in enhanced_math_repeater_file_report_generator_instances.items() %}
+      - {{instance_id}}:
+        File Name: {{file_data.enhanced_math_repeater_file_report_generator.file_name if file_data.enhanced_math_repeater_file_report_generator and file_data.enhanced_math_repeater_file_report_generator.file_name else 'N/A'}}
+        Report: {{file_data.enhanced_math_repeater_file_report_generator.report_md if file_data.enhanced_math_repeater_file_report_generator and file_data.enhanced_math_repeater_file_report_generator.report_md else 'N/A'}}
+        Total Problems: {{file_data.enhanced_math_repeater_file_report_generator.total_problems if file_data.enhanced_math_repeater_file_report_generator and file_data.enhanced_math_repeater_file_report_generator.total_problems is defined else 'N/A'}}
+        Solved Count: {{file_data.enhanced_math_repeater_file_report_generator.solved_count if file_data.enhanced_math_repeater_file_report_generator and file_data.enhanced_math_repeater_file_report_generator.solved_count is defined else 'N/A'}}
+      {% endfor %}
+      {% elif math_repeater_instances %}
+      Math Repeater Pipeline Instance Results:
+      {% for instance_id, instance_data in math_repeater_instances.items() %}
+      - {{instance_id}}:
+        Final Output: {{instance_data.parsed if instance_data.parsed else instance_data.result}}
+        Report: {{instance_data.nodes.math_repeater_report_generator.report_md if instance_data.nodes and instance_data.nodes.math_repeater_report_generator and instance_data.nodes.math_repeater_report_generator.report_md else 'N/A'}}
+        Total Problems: {{instance_data.nodes.math_repeater_report_generator.total_problems if instance_data.nodes and instance_data.nodes.math_repeater_report_generator and instance_data.nodes.math_repeater_report_generator.total_problems is defined else 'N/A'}}
+        Solved Count: {{instance_data.nodes.math_repeater_report_generator.solved_count if instance_data.nodes and instance_data.nodes.math_repeater_report_generator and instance_data.nodes.math_repeater_report_generator.solved_count is defined else 'N/A'}}
+      {% endfor %}
+      {% endif %}
+

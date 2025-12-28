@@ -1,0 +1,50 @@
+# =============================================================================
+# REQUIREMENTS EVALUATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent evaluates each supplier's response against RFP requirements,
+# assessing compliance and coverage. Used in repeat pattern for parallel processing.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (adk|oak|maf|agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+# - lenient_parsing (bool, optional): Enable lenient parsing for malformed/incomplete JSON (default: false)
+#
+# =============================================================================
+id: rfp_rsp_eval_requirements_evaluator
+type: maf
+model: "azure_openai"
+run_mode: "local"
+lenient_parsing: true
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rfp_rsp_eval_requirements_evaluator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rfp_rsp_eval_requirements_evaluator.jinja
+  inputs:
+    inline: |
+      RFP Requirements: {{rfp_rsp_eval_parser.rfp_data.requirements}}
+      Supplier Data: {{rfp_rsp_eval_response_extractor.supplier}}
+      Database Path: {{rfp_rsp_eval_folder_scanner.base_folder}}/rfp_database.db
+

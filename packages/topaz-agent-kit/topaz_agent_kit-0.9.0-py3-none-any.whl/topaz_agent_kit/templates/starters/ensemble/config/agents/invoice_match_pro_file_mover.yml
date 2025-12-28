@@ -1,0 +1,52 @@
+# =============================================================================
+# FILE MOVER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent moves invoice files to appropriate folders (approved/declined/clarification)
+# based on the match decision and updates the database with processing information.
+#
+# =============================================================================
+id: invoice_match_pro_file_mover
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/invoice_match_pro_file_mover
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite", "filesystem"]
+      tools: ["sqlite_execute", "fs_move_file", "fs_makedirs"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/invoice_match_pro_file_mover.jinja
+  inputs:
+    inline: |
+      File Path: {{current_file_path}}
+      Match Status: {{match_status}}
+      Recommendation: {{recommendation}}
+      Match Score: {{match_score}}
+      Invoice Number: {{invoice_number}}
+      Vendor Name: {{vendor_name}}
+      Invoice Date: {{invoice_date}}
+      Total Amount: {{total_amount}}
+      PO Number: {{po_number}}
+      SOW Number: {{sow_number}}
+      Base Folder: {{base_folder}}
+      Database Path: {{db_path}}
+      Run ID: {{run_id}}
+
+

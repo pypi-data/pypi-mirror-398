@@ -1,0 +1,252 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "SQL-of-Thought"
+description: "SQL-of-Thought is a multi-agentic pipeline that converts natural language questions into SQL queries using a guided error correction framework. The pipeline processes questions from the Spider 1.0 dataset through schema linking, subproblem decomposition, query planning with Chain-of-Thought reasoning, SQL generation, execution, and validation against gold standards. If execution fails, a correction loop with taxonomy-guided error analysis iteratively fixes the SQL until successful or maximum attempts are reached."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - body: (step | sequential | parallel) (required)
+# - max_iterations: int (required, >=1)
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+nodes:
+  - id: sot_question_loader
+    config_file: "agents/sot_question_loader.yml"
+  - id: sot_schema_linker
+    config_file: "agents/sot_schema_linker.yml"
+  - id: sot_subproblem_creator
+    config_file: "agents/sot_subproblem_creator.yml"
+  - id: sot_query_planner
+    config_file: "agents/sot_query_planner.yml"
+  - id: sot_sql_generator
+    config_file: "agents/sot_sql_generator.yml"
+  - id: sot_sql_reviewer
+    config_file: "agents/sot_sql_reviewer.yml"
+  - id: sot_sql_executor
+    config_file: "agents/sot_sql_executor.yml"
+  - id: sot_correction_query_planner
+    config_file: "agents/sot_correction_query_planner.yml"
+  - id: sot_correction_sql_generator
+    config_file: "agents/sot_correction_sql_generator.yml"
+  - id: sot_spider_validator
+    config_file: "agents/sot_spider_validator.yml"
+  - id: sot_summary_reporter
+    config_file: "agents/sot_summary_reporter.yml"
+
+pattern:
+  type: sequential
+  name: "SQL-of-Thought Processing Flow"
+  description: |
+    ## SQL-of-Thought Processing Flow
+    
+    This sequential pattern orchestrates the complete SQL-of-Thought workflow:
+    1. **Question Loader** loads questions from prepared file
+    2. **Loop** processes each question:
+       - Schema Linking identifies relevant tables/columns
+       - Subproblem breaks question into clause-wise subproblems
+       - Query Plan generates step-by-step plan using CoT
+       - Generator creates SQL query
+       - Executor runs SQL and captures results/errors
+       - **Correction Loop** (if execution failed) iteratively fixes SQL
+       - Validator compares against gold standard
+    3. **Summary Reporter** aggregates all results into final report
+    
+    The correction loop uses taxonomy-guided error analysis to systematically fix SQL errors.
+  steps:
+    - node: sot_question_loader
+    
+    - type: loop
+      condition: "sot_question_loader.total_count > 0"
+      iterate_over: "sot_question_loader.questions_list"
+      loop_item_key: "current_question"
+      # Enable accumulation of per-question agent outputs (e.g., validator results)
+      accumulate_results: true
+      termination:
+        max_iterations: 100
+      name: "Question Processing Loop"
+      description: |
+        ## Process Each Question
+        
+        This loop processes each question from the questions list.
+        
+        {% if sot_question_loader.questions_list %}
+        ## Questions to Process
+        
+        | Index | Database | Question | Gold SQL |
+        |-------|----------|----------|----------|
+        {%- for q in sot_question_loader.questions_list %}
+        | {{ q.index }} | {{ q.db_id }} | {{ q.question }} | {{ q.gold_sql }} |
+        {%- endfor %}
+        {% endif %}
+        
+        For each question in the list:
+        1. Link schema to identify relevant tables/columns
+        2. Decompose into subproblems
+        3. Generate query plan with CoT reasoning
+        4. Generate SQL query
+        5. Execute SQL (with correction loop if needed)
+        6. Validate against gold standard
+      body:
+        type: sequential
+        name: "Single Question Processing Flow"
+        description: |
+          ## Individual Question SQL Generation Process
+          
+          Complete workflow for processing a single question:
+          1. Link schema to identify relevant tables/columns
+          2. Decompose question into clause-wise subproblems
+          3. Generate query plan with Chain-of-Thought reasoning
+          4. Generate SQL query from the plan
+          5. Review SQL for logic errors and semantic issues
+          6. Execute SQL (only if reviewer passes)
+          7. Correction loop (if execution failed OR reviewer found issues)
+          8. Validate generated SQL against gold standard
+          
+          {% if current_question %}
+          ## Current Question Details
+          
+          | Field | Value |
+          |-------|-------|
+          | Question Index | {{ current_question.index }} |
+          | Database ID | {{ current_question.db_id }} |
+          | Question | {{ current_question.question }} |
+          | Gold SQL | {{ current_question.gold_sql }} |
+          {% endif %}
+        steps:
+          - node: sot_schema_linker
+          - node: sot_subproblem_creator
+          - node: sot_query_planner
+          - node: sot_sql_generator
+          - node: sot_sql_reviewer
+          
+          # Conditional Executor: Only runs if reviewer passes
+          - node: sot_sql_executor
+            condition: "sot_sql_reviewer.requires_correction == false"
+          
+          # Unified Correction Loop: Runs if execution failed OR reviewer found issues
+          # Uses IS NOT NULL check to safely verify executor ran before checking execution_failed
+          - type: loop
+            condition: "(sot_sql_reviewer.requires_correction == true) OR (sot_sql_executor.execution_failed IS NOT NULL AND sot_sql_executor.execution_failed == true)"
+            termination:
+              max_iterations: 3
+              condition: "(sot_sql_executor.execution_failed == false) AND (sot_sql_reviewer.requires_correction == false)"  # Exit early on success
+            loop_context_key: "correction_loop_iteration"
+            name: "SQL Correction Loop"
+            description: |
+              ## Unified Error Correction
+              
+              This loop runs if:
+              - SQL execution failed (syntax/schema errors), OR
+              - Reviewer found logic/semantic issues
+              
+              Correction process:
+              1. Analyzes error (execution error OR reviewer feedback)
+              2. Generates correction plan using taxonomy (for execution errors) or reviewer feedback (for logic errors)
+              3. Creates corrected SQL
+              4. Reviews corrected SQL for logic errors
+              5. Re-executes if reviewer passes (up to 3 attempts, exits early on success)
+            body:
+              type: sequential
+              steps:
+                - node: sot_correction_query_planner
+                - node: sot_correction_sql_generator
+                - node: sot_sql_reviewer
+                - node: sot_sql_executor
+                  # Run executor if reviewer passes OR if we're on the final iteration (to get execution results even if reviewer finds issues)
+                  condition: "(sot_sql_reviewer.requires_correction == false) OR (correction_loop_iteration.iteration >= correction_loop_iteration.max_iterations)"
+          
+          - node: sot_spider_validator
+    
+    - node: sot_summary_reporter
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].id (str, required): unique output identifier
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: sot_summary_reporter
+    selectors:
+      - report_path
+      - report_view_link
+      - summary_metrics
+      - error
+    transform: |
+      {% set reporter = results.sot_summary_reporter %}
+      {% if reporter.error %}
+      ❌ **Error**: {{ reporter.error }}
+      {% else %}
+      # SQL-of-Thought Pipeline Results
+      
+      {% if reporter.report_view_link %}
+      **Report**: [View full summary report]({{ reporter.report_view_link }})
+      {% else %}
+      **Report**: {{ reporter.report_path }}
+      {% endif %}
+      
+      ## Summary Metrics
+      - **Total Questions**: {{ reporter.summary_metrics.total_questions }}
+      - **Exact Match Rate**: {{ "%.1f%%" | format(reporter.summary_metrics.exact_match_rate * 100) }}
+      - **Execution Match Rate**: {{ "%.1f%%" | format(reporter.summary_metrics.execution_match_rate * 100) }}
+      - **Results Match Rate**: {{ "%.1f%%" | format(reporter.summary_metrics.results_match_rate * 100) }}
+      - **Average Score**: {{ "%.2f" | format(reporter.summary_metrics.average_score) }}
+      
+      See the full report for detailed per-question results and error analysis.
+      {% endif %}
+

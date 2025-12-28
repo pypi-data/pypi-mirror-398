@@ -1,0 +1,61 @@
+# =============================================================================
+# SPIDER VALIDATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent compares the generated SQL and execution results against the
+# gold standard SQL for validation metrics.
+#
+# =============================================================================
+id: sot_spider_validator
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_spider_validator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.sql_of_thought.spider_dataset_tools
+  toolkits: ["spider_dataset"]
+  tools: ["spider_dataset.get_gold_sql"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_spider_validator.jinja
+  inputs:
+    inline: |
+      - Question: {{current_question.question}}
+      - Original SQL: {% if sot_sql_generator and sot_sql_generator.sql_query %}{{sot_sql_generator.sql_query}}{% endif %}
+      - Corrected SQL: {% if sot_correction_sql_generator and sot_correction_sql_generator.sql_query %}{{sot_correction_sql_generator.sql_query}}{% endif %}
+      - Final SQL (executed): {% if sot_sql_executor and sot_sql_executor.sql_query %}{{sot_sql_executor.sql_query}}{% elif sot_correction_sql_generator and sot_correction_sql_generator.sql_query %}{{sot_correction_sql_generator.sql_query}}{% elif sot_sql_generator and sot_sql_generator.sql_query %}{{sot_sql_generator.sql_query}}{% endif %}
+      - Final Results: {% if sot_sql_executor and sot_sql_executor.execution_results %}{{sot_sql_executor.execution_results}}{% endif %}
+      - Gold SQL: {{current_question.gold_sql}}
+      {% if sot_sql_executor and sot_sql_executor.execution_error %}- Execution Error: {{sot_sql_executor.execution_error}}{% endif %}
+      - Database Path: {{sot_schema_linker.database_path}}
+      - Question Index: {{current_question.index}}
+      - Project Directory: {{project_dir}}
+      {% if sot_sql_reviewer %}- Reviewer Feedback: {{sot_sql_reviewer.reviewer_feedback}}{% endif %}
+      {% if sot_sql_reviewer %}- Reviewer Issues: {{sot_sql_reviewer.issues_found}}{% endif %}
+      {% if sot_correction_query_planner %}- Correction Plan: {{sot_correction_query_planner.correction_plan}}{% endif %}
+

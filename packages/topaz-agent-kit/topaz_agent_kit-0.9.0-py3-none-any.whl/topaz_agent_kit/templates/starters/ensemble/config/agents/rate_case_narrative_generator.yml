@@ -1,0 +1,49 @@
+# =============================================================================
+# NARRATIVE GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates regulator-friendly explanations, anticipates questions,
+# and provides justifications for the user-selected rate structure.
+#
+# =============================================================================
+id: rate_case_narrative_generator
+type: langgraph
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_narrative_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_narrative_generator.jinja
+  inputs:
+    inline: |
+      - Selected Option ID: {{option_selection_gate.selected_option_id.value}}
+      - Rate Design Options: {{rate_case_rate_designer.rate_options}}
+      - Recommendations: {{rate_case_recommender.recommendations}}
+      - Scoring Summary: {{rate_case_recommender.scoring_summary}}
+      - Customer Feedback Summary: {{rate_case_rate_designer.customer_feedback_summary}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Run ID: {{rate_case_data_summarizer.run_id}}
+      - Project Directory: {{project_dir}}
+      - Repeat Pattern Instances: {{rate_option_instances}}
+

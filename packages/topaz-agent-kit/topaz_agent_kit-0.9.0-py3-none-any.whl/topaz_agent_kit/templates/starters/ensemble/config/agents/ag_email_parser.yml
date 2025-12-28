@@ -1,0 +1,40 @@
+# =============================================================================
+# EMAIL PARSER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent extracts appeal/grievance letter content from email body and
+# attachments, and extracts key fields like member name, member ID, and
+# reference ID.
+#
+# =============================================================================
+id: ag_email_parser
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/ag_email_parser
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["email", "doc_extract"]
+      tools: ["email.*", "doc_extract.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/ag_email_parser.jinja
+  inputs:
+    inline: |
+      - Email ID: {{current_email_id}}
+

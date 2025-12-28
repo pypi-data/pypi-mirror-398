@@ -1,0 +1,204 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Provision Pro"
+description: "Provision Pro is an end-to-end agentic workflow that automates new service provisioning (internet, voice, cloud services) with capacity validation, configuration generation, and simulated execution. The process starts with a requirement parser that extracts structured service requirements from service orders. A selection gate allows users to choose the capacity scenario (no capacity, limited capacity, or good capacity) for testing different provisioning scenarios. A mock capacity checker generates capacity data based on the selected scenario. A configuration generator creates device configurations based on service requirements and capacity data. A config validator validates the generated configurations. After human approval, a provisioning simulator executes the provisioning steps and generates an execution log."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# CONDITIONAL SEQUENTIAL
+# - type: sequential (required)
+# - condition (str, optional): boolean expression to evaluate before executing steps
+#   - Uses expression evaluator syntax
+#   - Example: "severity == 'high' OR severity == 'critical'"
+# - steps: list of (step | pattern) (required, >=1)
+#
+# NOTES
+# - Gate actions: on_approve, on_reject, on_continue, on_cancel, on_retry, on_timeout
+# - Gate actions can be: continue, stop, retry_node, skip_to_node
+# - Conditional steps only execute if condition evaluates to true
+#
+# =============================================================================
+
+nodes:
+  - id: provision_pro_requirement_parser
+    config_file: "agents/provision_pro_requirement_parser.yml"
+  - id: provision_pro_mock_capacity_checker
+    config_file: "agents/provision_pro_mock_capacity_checker.yml"
+  - id: provision_pro_configuration_generator
+    config_file: "agents/provision_pro_configuration_generator.yml"
+  - id: provision_pro_config_validator
+    config_file: "agents/provision_pro_config_validator.yml"
+  - id: provision_pro_provisioning_simulator
+    config_file: "agents/provision_pro_provisioning_simulator.yml"
+  - id: provision_pro_final_response
+    config_file: "agents/provision_pro_final_response.yml"
+
+pattern:
+  type: sequential
+  name: "Service Provisioning Flow"
+  description: |
+    ## Service Provisioning Flow
+    
+    This sequential pattern orchestrates the complete service provisioning workflow:
+    1. **Requirement Parser** extracts structured service requirements from service orders
+    2. **Capacity Scenario Selection Gate** allows user to choose capacity scenario for testing
+    3. **Mock Capacity Checker** generates capacity data based on selected scenario
+    4. **Provisioning Flow** (conditional) only runs if capacity is available:
+       - **Configuration Generator** creates device configurations
+       - **Config Validator** validates the generated configurations
+       - **Approval Gate** allows human review before provisioning
+       - **Provisioning Simulator** (conditional) executes provisioning if approved
+    5. **Final Response** provides final response to user
+    
+    The workflow adapts based on capacity availability and includes human oversight before actual provisioning.
+  steps:
+    - node: provision_pro_requirement_parser
+    - gate: provision_pro_capacity_scenario_selection
+      on_no_capacity: continue
+      on_limited_capacity: continue
+      on_good_capacity: continue
+    - node: provision_pro_mock_capacity_checker
+    # Conditional provisioning branch - only runs if capacity is available
+    - type: sequential
+      name: "Capacity-Based Provisioning Flow"
+      description: |
+        ## Conditional Provisioning Process
+        
+        This conditional sequential pattern handles service provisioning when capacity is available:
+        - Only executes if capacity checker indicates capacity is available
+        - Generates and validates device configurations
+        - Requires human approval before executing provisioning
+        - Provisioning simulator only runs if explicitly approved
+        
+        Ensures proper validation and human oversight before provisioning services.
+      condition: "provision_pro_mock_capacity_checker.capacity_available == true"
+      steps:
+        - node: provision_pro_configuration_generator
+        - node: provision_pro_config_validator
+        - gate: provision_pro_approve_provisioning
+          on_approve: continue
+          on_reject: continue
+        # Provisioning simulator only runs if approval was granted
+        - node: provision_pro_provisioning_simulator
+          condition: "hitl.provision_pro_approve_provisioning.decision == 'approve'"
+    # Final response agent always runs to provide final response to user
+    - node: provision_pro_final_response
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, required): UI title for the gate
+#   - gates[].description (str, required): UI description (supports Jinja2 templates)
+#   - gates[].timeout_ms (int, optional): timeout in milliseconds
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: provision_pro_capacity_scenario_selection
+    type: selection
+    title: "Select Capacity Scenario"
+    description: "Choose the capacity scenario to test for this service provisioning request. This will determine what capacity data the system generates."
+    timeout_ms: 300000
+    on_timeout: default
+    default: "good_capacity"
+    options:
+      - value: "no_capacity"
+        label: "No Capacity Available"
+        description: "Simulate scenario where no capacity is available. Useful for testing capacity constraint handling and escalation workflows."
+      - value: "limited_capacity"
+        label: "Limited Capacity"
+        description: "Simulate scenario with limited resources. Some capacity exists but may require optimization or alternative configurations."
+      - value: "good_capacity"
+        label: "Good Capacity Available"
+        description: "Simulate scenario with ample capacity. All resources available for smooth provisioning."
+    context_key: "capacity_scenario"
+
+  - id: provision_pro_approve_provisioning
+    type: approval
+    title: "Approve Provisioning"
+    description: "{{ provision_pro_requirement_parser.service_type }} service for {{ provision_pro_requirement_parser.location }}. Capacity: {{ provision_pro_mock_capacity_checker.capacity_available }}. Configurations generated and validated. Ready to provision?"
+    timeout_ms: 300000
+    on_timeout: approve
+    context_key: "provisioning_approval"
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  intermediate:
+    - node: provision_pro_mock_capacity_checker
+      selectors:
+        - capacity_available
+        - network_capacity
+        - device_inventory
+    - node: provision_pro_configuration_generator
+      selectors:
+        - ont_config
+        - router_config
+        - network_config
+    - node: provision_pro_config_validator
+      selectors:
+        - validation_passed
+        - validation_results
+  final:
+    node: provision_pro_final_response
+    selectors:
+      - final_response_package
+      - error
+

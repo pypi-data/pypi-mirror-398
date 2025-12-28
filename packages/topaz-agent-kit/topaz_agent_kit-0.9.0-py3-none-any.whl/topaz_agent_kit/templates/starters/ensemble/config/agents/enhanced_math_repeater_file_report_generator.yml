@@ -1,0 +1,45 @@
+# =============================================================================
+# FILE REPORT GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates a report for a single file, aggregating all problem
+# solutions from that file. It will be run as part of the enhanced repeat
+# pattern, with each instance generating a report for one file.
+#
+# =============================================================================
+id: enhanced_math_repeater_file_report_generator
+type: langgraph
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/enhanced_math_repeater_file_report_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    file: prompts/enhanced_math_repeater_file_report_generator.jinja
+  inputs:
+    inline: |
+      File Reader Results:
+        File Name: {{enhanced_math_repeater_file_reader.file_name}}
+        Problem Count: {{enhanced_math_repeater_file_reader.problem_count}}
+        All Problems: {{enhanced_math_repeater_file_reader.problems}}
+      
+      {% if enhanced_math_repeater_problem_solver_instances %}
+      Problem Solver Instance Results:
+      {% for instance_id, solver_data in enhanced_math_repeater_problem_solver_instances.items() %}
+      - {{instance_id}}:
+        Problem Text: {{solver_data.problem_text if solver_data.problem_text else 'N/A'}}
+        Problem Index: {{solver_data.problem_index if solver_data.problem_index is defined else 'N/A'}}
+        Expression: {{solver_data.expression if solver_data.expression else 'N/A'}}
+        Answer: {{solver_data.answer if solver_data.answer else 'N/A'}}
+        Explanation: {{solver_data.explanation if solver_data.explanation else 'N/A'}}
+        Error: {{solver_data.error if solver_data.error else 'N/A'}}
+      {% endfor %}
+      {% endif %}
+

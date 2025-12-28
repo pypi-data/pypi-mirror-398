@@ -1,0 +1,43 @@
+# =============================================================================
+# SUMMARY REPORTER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates a summary report of all processed applications,
+# including statistics on total processed, recommendations breakdown, and
+# average risk scores.
+#
+# =============================================================================
+id: tci_summary_reporter
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_summary_reporter
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite", "filesystem"]
+      tools: ["sqlite.*", "fs_*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_summary_reporter.jinja
+  inputs:
+    inline: |
+      - Run ID: {{tci_pending_applications_scanner.run_id}}
+      - Project Directory: {{project_dir}}
+      - Currency Data (one per application in processing order): {% if tci_document_extractor %}{% if tci_document_extractor is iterable and tci_document_extractor is not string %}{% for doc_result in tci_document_extractor %}{% set currency_symbol = doc_result.extracted_data.application_form.contract_details.currency_symbol if doc_result.extracted_data and doc_result.extracted_data.application_form and doc_result.extracted_data.application_form.contract_details and doc_result.extracted_data.application_form.contract_details.currency_symbol else (doc_result.extracted_data.financial_statements.currency_symbol if doc_result.extracted_data and doc_result.extracted_data.financial_statements and doc_result.extracted_data.financial_statements.currency_symbol else '') %}{% set currency = doc_result.extracted_data.application_form.contract_details.currency if doc_result.extracted_data and doc_result.extracted_data.application_form and doc_result.extracted_data.application_form.contract_details and doc_result.extracted_data.application_form.contract_details.currency else (doc_result.extracted_data.financial_statements.currency if doc_result.extracted_data and doc_result.extracted_data.financial_statements and doc_result.extracted_data.financial_statements.currency else '') %}Application {{ loop.index }}: currency_symbol={{ currency_symbol }}, currency={{ currency }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}{% set currency_symbol = tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol else (tci_document_extractor.extracted_data.financial_statements.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency_symbol else '') %}{% set currency = tci_document_extractor.extracted_data.application_form.contract_details.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency else (tci_document_extractor.extracted_data.financial_statements.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency else '') %}Application 1: currency_symbol={{ currency_symbol }}, currency={{ currency }}{% endif %}{% else %}No currency data available{% endif %}
+

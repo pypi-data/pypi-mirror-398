@@ -1,0 +1,62 @@
+# =============================================================================
+# CORRECTION QUERY PLANNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent analyzes execution errors and generates a correction plan using
+# Chain-of-Thought reasoning and the error taxonomy.
+# Uses reasoning model for better error analysis.
+#
+# =============================================================================
+id: sot_correction_query_planner
+type: agno
+model: azure_openai
+model_preference: reasoning
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_correction_query_planner
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["common"]
+      tools: ["common_read_document"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_correction_query_planner.jinja
+  inputs:
+    inline: |
+      - Original Question: {{current_question.question}}
+      {# Use correction SQL if available (from previous correction iteration), otherwise use initial SQL #}
+      - Incorrect SQL: {% if sot_correction_sql_generator and sot_correction_sql_generator.sql_query %}{{sot_correction_sql_generator.sql_query}}{% elif sot_sql_generator and sot_sql_generator.sql_query %}{{sot_sql_generator.sql_query}}{% endif %}
+      {% if sot_sql_executor %}- Execution Error: {{sot_sql_executor.execution_error}}{% endif %}
+      {% if sot_sql_executor %}- Error Message: {{sot_sql_executor.error_message}}{% endif %}
+      {% if correction_loop_iteration %}- Correction Iteration: {{correction_loop_iteration.iteration}}/{{correction_loop_iteration.max_iterations}}{% endif %}
+      {% if sot_sql_reviewer %}
+        {# Reviewer feedback from the most recent review (previous correction iteration if iteration > 1) #}
+        {% if sot_sql_reviewer.reviewer_feedback %}
+      - Reviewer Feedback: {{sot_sql_reviewer.reviewer_feedback}}
+        {% endif %}
+        {% if sot_sql_reviewer.issues_found %}
+      - Reviewer Issues: {{sot_sql_reviewer.issues_found}}
+        {% endif %}
+        {% if sot_sql_reviewer.requires_correction is defined %}
+      - Reviewer Requires Correction: {{sot_sql_reviewer.requires_correction}}
+        {% endif %}
+      {% endif %}
+      - Schema Info: {{sot_schema_linker.schema_info}}
+      - Relationships: {{sot_schema_linker.relationships}}
+      - Project Directory: {{project_dir}}
+

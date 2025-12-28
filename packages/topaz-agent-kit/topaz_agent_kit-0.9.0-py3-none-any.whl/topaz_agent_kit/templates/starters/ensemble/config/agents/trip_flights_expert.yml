@@ -1,0 +1,41 @@
+# =============================================================================
+# TRIP FLIGHT EXPERT AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent searches and selects flight offers based on coordinator constraints.
+# Uses flight_search, flight_price, flight_seatmap, route_price_metrics, and
+# airline_lookup MCP tools.
+#
+# =============================================================================
+id: trip_flights_expert
+type: sk
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/trip_flights_expert
+  timeout: 30000
+  retry_attempts: 3
+agent_card:
+  name: "Flights Expert"
+  description: "Searches and selects flight offers based on coordinator constraints"
+  capabilities:
+    streaming: true
+    state_transition_history: true
+  tags: ["flights", "travel"]
+
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["flights"]
+      tools: ["flight_search"]
+
+prompt:
+  instruction:
+    jinja: prompts/trip_flights_expert.jinja
+  inputs:
+    inline: |
+      flights_input: {{ flights_input }}
+      currencyCode: {{ currencyCode }}
+      max_results: {{ max_results }}
+

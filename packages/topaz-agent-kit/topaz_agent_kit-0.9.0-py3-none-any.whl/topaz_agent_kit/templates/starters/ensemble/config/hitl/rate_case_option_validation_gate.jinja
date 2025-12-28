@@ -1,0 +1,64 @@
+# Rate Options Validation Gate
+
+## Summary
+
+{% if rate_case_option_validator.validation_summary %}
+{{ rate_case_option_validator.validation_summary.total_generated }} option(s) generated, {{ rate_case_option_validator.validation_summary.validated_count }} validated, {{ rate_case_option_validator.validation_summary.rejected_count }} rejected.
+{% endif %}
+
+## Instructions
+
+Select options to proceed with analysis. **Top 3 ranked options are pre-selected** (they meet all validation criteria, have quality score ≥70, and are ranked highest). You can modify selections or request retry to generate new options.
+
+## Validation Criteria
+
+Options are validated if:
+- **Revenue change**: within ±5 percentage points of the specified revenue growth target (e.g., if target is 8%, revenue should be between 3% and 13%; if target is 5%, revenue should be between 0% and 10%)
+- **Average bill change**: within ±10%
+- **Quality score**: ≥70.0 (composite score based on distance from the revenue growth target, bill impact, complexity, and equity)
+
+## Options
+
+{%- if rate_case_option_validator.options and rate_case_option_validator.options | length > 0 %}
+{# Build a set of validated option IDs from validated_options array (same logic as summary) #}
+{%- set validated_option_ids = [] %}
+{%- if rate_case_option_validator.validated_options %}
+  {%- for validated_opt in rate_case_option_validator.validated_options %}
+    {%- if validated_opt.option_id %}
+      {%- set _ = validated_option_ids.append(validated_opt.option_id) %}
+    {%- endif %}
+  {%- endfor %}
+{%- endif %}
+{# Options are pre-sorted by rank: validated options (rank 1, 2, 3...) first, then rejected options (no rank) #}
+
+| Select | Rank | Option ID | Option Name | Rate Class | Rate Type | Status | Quality Score | Preliminary Revenue Estimate (Range) | Rejection Reason |
+|--------|------|-----------|-------------|------------|----------|--------|---------------|----------------------------------------|------------------|
+{%- for option in rate_case_option_validator.options %}
+{%- set option_id = option.value %}
+{%- set is_validated = option.is_validated | default(option_id in validated_option_ids) %}
+{%- set rate_class = option.rate_class | default("all") | title %}
+{%- set rate_type = option.rate_type | default("flat") | replace("_", " ") | title %}
+{%- set rejection_reason = "" %}
+{%- if not is_validated and option.description is defined %}
+  {%- set desc_parts = option.description.split(': ', 1) %}
+  {%- if desc_parts | length > 1 %}
+    {%- set rejection_reason = desc_parts[1] | replace('❌ Rejected: ', '') | replace('✅ Validated: ', '') %}
+  {%- endif %}
+{%- endif %}
+| {%- if option.selected %}✅{%- else %}⬜{%- endif %} | {%- if option.rank is defined and option.rank is not none and option.rank > 0 %}{{ option.rank }}{%- else %}-{%- endif %} | {{- option.value }} | {%- set label_parts = option.label.split(' - ', 1) -%}{%- if label_parts | length > 1 %}{{ label_parts[1] }}{%- else %}{{ option.label }}{%- endif %} | {{ rate_class }} | {{ rate_type }} | {%- if is_validated %}✅ Validated{%- else %}❌ Rejected{%- endif %} | {%- if option.quality_score is defined and option.quality_score is not none %}{{ "%.1f" | format(option.quality_score) }}{%- else %}N/A{%- endif %} | {%- set range_min = option.revenue_impact_range_min | default(None) -%}{%- set range_max = option.revenue_impact_range_max | default(None) -%}{%- if range_min is not none and range_max is not none %}{{ "%.1f" | format(range_min) }}% - {{ "%.1f" | format(range_max) }}% ⚠️{%- elif option.revenue_impact_pct is defined and option.revenue_impact_pct is not none -%}{%- set revenue_pct = option.revenue_impact_pct -%}{%- set uncertainty_pct = (revenue_pct | abs) * 0.30 -%}{%- if uncertainty_pct < 3.0 -%}{%- set uncertainty_pct = 3.0 -%}{%- endif -%}{%- set range_min = revenue_pct - uncertainty_pct -%}{%- set range_max = revenue_pct + uncertainty_pct -%}{{ "%.1f" | format(range_min) }}% - {{ "%.1f" | format(range_max) }}% ⚠️{%- else %}N/A{%- endif %} | {%- if rejection_reason %}{{ rejection_reason | truncate(80) }}{%- else %}-{%- endif %} |
+{%- endfor %}
+
+{%- else %}
+
+No options available for selection. Please check validation results.
+
+{%- endif %}
+
+## Notes
+
+- **Validated options** meet all criteria: revenue within ±5 percentage points of the specified revenue growth target, bill ±10%, quality score ≥70
+- **Top 3 recommendations** are ranked by quality score and highlighted in the table
+- **Rejected options** may still be selected if you want to proceed with them
+- **IMPORTANT - Preliminary Revenue Estimates**: The revenue percentages shown (marked with ⚠️) are from quick validation simulations and are **rough estimates only**. These estimates may differ significantly from final simulation results. **Actual revenue impacts will be calculated during detailed scenario simulation** and may be substantially different (e.g., validation may show 8% but final simulation may show 4.5%). Use these estimates for initial screening only - do not rely on them for final decisions.
+- Use the **RETRY** button to regenerate all rate options (you can retry up to 3 times)
+

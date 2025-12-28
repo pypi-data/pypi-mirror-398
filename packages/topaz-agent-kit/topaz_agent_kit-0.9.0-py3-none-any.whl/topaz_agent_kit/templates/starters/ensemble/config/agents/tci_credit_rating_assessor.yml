@@ -1,0 +1,39 @@
+# =============================================================================
+# CREDIT RATING ASSESSOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent assesses the Credit Rating risk factor (Weight: 13%) by analyzing
+# the Internal Credit Assessment Report. Evaluates the seller's internal rating
+# and assigns a score (0-100).
+#
+# =============================================================================
+id: tci_credit_rating_assessor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_credit_rating_assessor
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+# No MCP tools needed - uses extracted data from upstream agents
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_credit_rating_assessor.jinja
+  inputs:
+    inline: |
+      - Extracted Internal Assessment: {{tci_document_extractor.extracted_data.internal_assessment}}
+      - Underwriting Guidelines: {{tci_underwriting_manual_reviewer.guidelines}}
+      - Project Directory: {{project_dir}}
+

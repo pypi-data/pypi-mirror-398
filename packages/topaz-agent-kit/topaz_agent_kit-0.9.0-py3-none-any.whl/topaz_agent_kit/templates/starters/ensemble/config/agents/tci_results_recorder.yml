@@ -1,0 +1,58 @@
+# =============================================================================
+# RESULTS RECORDER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent saves all risk assessment results, risk factor scores, and final
+# recommendation to the database tables: risk_assessments and recommendations.
+#
+# =============================================================================
+id: tci_results_recorder
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_results_recorder
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_results_recorder.jinja
+  inputs:
+    inline: |
+      - Current Application ID: {{current_application.application_id}}
+      - Run ID: {{tci_pending_applications_scanner.run_id}}
+      - All Risk Assessments: {{tci_risk_score_calculator.all_assessments}}
+      - Total Risk Score: {{tci_risk_score_calculator.total_risk_score}}
+      - Final Recommendation: {{tci_recommendation_generator}}
+      - Project Directory: {{project_dir}}
+      - Recommendation Decision: {{recommendation_decision}}
+      {% if recommendation_decision and recommendation_decision.selection == "approve_modified" %}
+      - Approve Modified Data: {{approve_modified_data}}
+      {% endif %}
+      {% if recommendation_decision and recommendation_decision.selection == "reject" %}
+      - Reject Data: {{reject_data}}
+      {% endif %}
+      {% if recommendation_decision and recommendation_decision.selection == "escalate" %}
+      - Escalate Data: {{escalate_data}}
+      {% endif %}
+      {% if recommendation_decision and recommendation_decision.selection == "request_info" %}
+      - Request Info Data: {{request_info_data}}
+      {% endif %}
+

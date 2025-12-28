@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://topaz.ai/schemas/agent.schema.json",
+  "title": "Topaz Agent Configuration",
+  "type": "object",
+  "required": ["id", "type", "model", "run_mode"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique agent identifier used in pattern and runtime context"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["agno", "langgraph", "crewai", "adk", "oak", "sk", "maf"],
+      "description": "Agent framework type"
+    },
+    "model": {
+      "type": "string",
+      "description": "Language model to use for this agent (e.g., azure_openai, ollama_qwen2.5:14b)"
+    },
+    "model_overrides": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "description": "Override model temperature"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Override model max_tokens"
+        },
+        "top_p": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Override model top_p"
+        },
+        "frequency_penalty": {
+          "type": "number",
+          "minimum": -2.0,
+          "maximum": 2.0,
+          "description": "Override frequency penalty"
+        },
+        "presence_penalty": {
+          "type": "number",
+          "minimum": -2.0,
+          "maximum": 2.0,
+          "description": "Override presence penalty"
+        },
+        "stop": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Override stop sequences"
+        }
+      },
+      "additionalProperties": true,
+      "description": "Agent-specific model parameter overrides"
+    },
+    "streaming": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable/disable token-level streaming for this agent"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Per-agent streaming behavior"
+    },
+    "run_mode": {
+      "type": "string",
+      "enum": ["local", "remote"],
+      "description": "Default execution mode"
+    },
+    "remote": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "A2A protocol endpoint URL"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Request timeout in milliseconds"
+        },
+        "retry_attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of retry attempts for failed requests"
+        }
+      },
+      "required": ["url"],
+      "additionalProperties": false,
+      "description": "Remote service configuration for agent-to-agent communication (A2A only)"
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "servers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "MCP server URL"
+              },
+              "toolkits": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1,
+                "description": "List of toolkits available on this server"
+              },
+              "tools": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1,
+                "description": "List of tools to use from this server (supports wildcards)"
+              }
+            },
+            "required": ["url", "toolkits", "tools"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["servers"],
+      "additionalProperties": false,
+      "description": "MCP configuration for external tool access"
+    },
+    "local_tools": {
+      "type": "object",
+      "properties": {
+        "modules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "List of Python module paths to import (e.g., ['tools.pipeline_id.module_name'])"
+        },
+        "toolkits": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional list of toolkit names to filter tools by"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "List of tool name patterns to allow (supports wildcards, accepts both dotted and underscore patterns)"
+        }
+      },
+      "required": ["modules", "tools"],
+      "additionalProperties": false,
+      "description": "Pipeline-specific local tools configuration"
+    },
+    "prompt": {
+      "type": "object",
+      "properties": {
+        "inline": {
+          "type": "string",
+          "description": "Inline prompt content with Jinja variable support"
+        },
+        "file": {
+          "type": "string",
+          "description": "Prompt file path relative to project root"
+        },
+        "jinja": {
+          "type": "string",
+          "description": "Jinja template path or inline template"
+        }
+      },
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "description": "Instructions and context for the agent's behavior"
+    },
+    "outputs": {
+      "type": "object",
+      "properties": {
+        "final": {
+          "type": "object",
+          "properties": {
+            "selectors": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "description": "JSON keys/paths to extract from agent result"
+            },
+            "selector_mode": {
+              "type": "string",
+              "enum": ["first", "all"],
+              "default": "first",
+              "description": "How to handle multiple selectors: 'first' requires at least one selector to be present, 'all' requires all selectors to be present"
+            },
+            "transform": {
+              "type": "string",
+              "description": "Jinja2 expression for transforming the extracted value"
+            }
+          },
+          "required": ["selectors"],
+          "additionalProperties": false,
+          "description": "Final agent output specification"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Output specifications for individual agent results (optional)"
+    }
+  },
+  "additionalProperties": false
+}

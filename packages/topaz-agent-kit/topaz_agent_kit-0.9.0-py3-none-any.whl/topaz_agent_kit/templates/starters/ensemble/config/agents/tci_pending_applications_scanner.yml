@@ -1,0 +1,42 @@
+# =============================================================================
+# PENDING APPLICATIONS SCANNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent queries the policy_applications database table to identify all
+# pending applications (status = 'pending') and generates a run_id for tracking
+# this processing batch.
+#
+# =============================================================================
+id: tci_pending_applications_scanner
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_pending_applications_scanner
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_pending_applications_scanner.jinja
+  inputs:
+    inline: |
+      - User Request: {{user_text}}
+      - Project Directory: {{project_dir}}
+

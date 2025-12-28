@@ -1,0 +1,202 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Complaint Wizard"
+description: "Complaint Wizard is an end-to-end agentic workflow that analyzes customer complaints, identifies root causes, and generates personalized response drafts with solutions. The process starts with a parser agent that extracts structured information from user complaints, followed by parallel execution of mock account data generation and sentiment analysis. An account researcher analyzes the generated account context, and a root cause identifier determines the likely causes. After human approval of the root cause analysis, a response generator creates a personalized response draft. If escalation is needed (based on sentiment or confidence), an escalation handler automatically determines the escalation type and generates escalation documentation. Finally, a final response agent combines the customer response with escalation information (if applicable) to create a complete response package."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - body: (step | sequential | parallel) (required)
+# - max_iterations: int (required, >=1)
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+nodes:
+  - id: complaint_wizard_parser
+    config_file: "agents/complaint_wizard_parser.yml"
+  - id: complaint_wizard_mock_account_generator
+    config_file: "agents/complaint_wizard_mock_account_generator.yml"
+  - id: complaint_wizard_sentiment_analyzer
+    config_file: "agents/complaint_wizard_sentiment_analyzer.yml"
+  - id: complaint_wizard_account_researcher
+    config_file: "agents/complaint_wizard_account_researcher.yml"
+  - id: complaint_wizard_root_cause_identifier
+    config_file: "agents/complaint_wizard_root_cause_identifier.yml"
+  - id: complaint_wizard_response_generator
+    config_file: "agents/complaint_wizard_response_generator.yml"
+  - id: complaint_wizard_escalation_handler
+    config_file: "agents/complaint_wizard_escalation_handler.yml"
+  - id: complaint_wizard_final_response
+    config_file: "agents/complaint_wizard_final_response.yml"
+
+pattern:
+  type: sequential
+  name: "Complaint Processing and Response Flow"
+  description: |
+    ## Complaint Processing and Response Flow
+    
+    This sequential pattern orchestrates the complete customer complaint processing workflow:
+    1. **Parser** extracts structured information from the complaint
+    2. **Parallel Data Collection** generates mock account data and analyzes sentiment concurrently
+    3. **Account Researcher** analyzes the account context
+    4. **Root Cause Identifier** determines the likely causes of the complaint
+    5. **Approval Gate** allows human review of root cause analysis
+    6. **Response Generator** creates a personalized response draft
+    7. **Escalation Handler** (conditional) handles escalation if needed based on sentiment or confidence
+    8. **Final Response** combines customer response with escalation information
+    
+    The workflow includes conditional escalation handling and ensures thorough analysis before generating responses.
+  steps:
+    - node: complaint_wizard_parser
+    - type: parallel
+      name: "Parallel Data Collection"
+      description: |
+        ## Concurrent Data Gathering
+        
+        This parallel pattern collects initial data concurrently:
+        - **Mock Account Generator** creates mock account data for context
+        - **Sentiment Analyzer** analyzes the sentiment of the complaint
+        
+        Both operations run simultaneously to maximize efficiency.
+      steps:
+        - node: complaint_wizard_mock_account_generator
+        - node: complaint_wizard_sentiment_analyzer
+    - node: complaint_wizard_account_researcher
+    - node: complaint_wizard_root_cause_identifier
+    - gate: complaint_wizard_approve_root_cause
+      on_approve: continue
+      on_reject: stop
+    - node: complaint_wizard_response_generator
+    - type: sequential
+      name: "Escalation Handling Flow"
+      description: |
+        ## Conditional Escalation Processing
+        
+        This conditional sequential pattern handles escalation when needed:
+        - Only executes if sentiment analysis recommends escalation OR root cause confidence is low (< 0.7)
+        - **Escalation Handler** determines escalation type and generates escalation documentation
+        
+        Ensures proper escalation handling for high-risk or uncertain cases.
+      condition: "complaint_wizard_sentiment_analyzer.escalation_recommended == true OR complaint_wizard_root_cause_identifier.confidence < 0.7"
+      steps:
+        - node: complaint_wizard_escalation_handler
+    - node: complaint_wizard_final_response
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: complaint_wizard_approve_root_cause
+    type: approval
+    title: "Approve Root Cause Analysis"
+    description: |
+      ## Root Cause Analysis
+
+      {% if complaint_wizard_root_cause_identifier.explanation %}
+      {{ complaint_wizard_root_cause_identifier.explanation }}
+      {% else %}
+      Root cause analysis is being generated...
+      {% endif %}
+
+      ---
+
+      Review the root cause analysis above. **Approve** to proceed with generating the response, or **Reject** to stop.
+    timeout_ms: 300000
+    on_timeout: approve
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, optional): which node's output to use as final result (optional in transform-only mode)
+#   - final.selectors (list[str], optional): JSON keys/paths to extract (optional in transform-only mode)
+#   - final.transform (str, optional): Jinja2 expression for transformation (use 'results' dict in transform-only mode)
+#
+# =============================================================================
+
+outputs:
+  # intermediate:
+  #   - node: complaint_wizard_root_cause_identifier
+  #     selectors:
+  #       - primary_root_cause
+  #       - explanation
+  #       - confidence
+  #   - node: complaint_wizard_account_researcher
+  #     selectors:
+  #       - account_summary
+  #       - customer_value
+  #   - node: complaint_wizard_escalation_handler
+  #     selectors:
+  #       - escalation_instructions
+  #       - escalation_summary
+  #       - next_steps
+  final:
+    node: complaint_wizard_final_response
+    selectors:
+      - final_response_package
+      - error
+    transform: "{{ value }}"
+

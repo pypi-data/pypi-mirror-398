@@ -1,0 +1,44 @@
+# =============================================================================
+# RECOMMENDATION GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates the final underwriting recommendation based on the
+# total risk score, all risk factor assessments, and underwriting manual
+# guidelines. Produces creditworthiness level, recommended credit limit,
+# underwriting recommendation, terms, and confidence score.
+#
+# =============================================================================
+id: tci_recommendation_generator
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_recommendation_generator
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+# No MCP tools needed - uses aggregated risk assessment data
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_recommendation_generator.jinja
+  inputs:
+    inline: |
+      - Total Risk Score: {{tci_risk_score_calculator.total_risk_score}}
+      - Risk Level: {{tci_risk_score_calculator.risk_level}}
+      - Risk Factors Table: {{tci_risk_score_calculator.risk_factors_table}}
+      - All Risk Assessments: {{tci_risk_score_calculator.all_assessments}}
+      - Application Details: {{current_application}}
+      - Underwriting Guidelines: {{tci_underwriting_manual_reviewer.guidelines}}
+      - Project Directory: {{project_dir}}
+

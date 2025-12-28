@@ -1,0 +1,48 @@
+# =============================================================================
+# STATE COMPARATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent compares the rate option with existing rates in the target state
+# and benchmark states to provide competitive context.
+#
+# =============================================================================
+id: rate_case_state_comparator
+type: adk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_state_comparator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_state_comparator.jinja
+  inputs:
+    inline: |
+      - Option ID: {{rate_case_scenario_simulator.option_id}}
+      - Total Revenue: {{rate_case_scenario_simulator.total_revenue}}
+      - Average Bill Change: {{rate_case_scenario_simulator.avg_bill_change_pct}}
+      - Rate Options: {{rate_case_rate_designer.rate_options}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Option Index: {{rate_option.index}}
+      - Repeat Instance ID (repeat label, NOT the DB option_id): {{rate_option.instance_id}}
+      - Project Directory: {{project_dir}}
+

@@ -1,0 +1,45 @@
+# =============================================================================
+# EQUITY ASSESSOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent identifies winners/losers by demographic, flags hardship risks,
+# and scores equity impact for each rate option.
+#
+# =============================================================================
+id: rate_case_equity_assessor
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_equity_assessor
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_equity_assessor.jinja
+  inputs:
+    inline: |
+      - Simulation Result: {{rate_case_scenario_simulator}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Run ID: {{rate_case_data_summarizer.run_id}}
+      - Selected Option ID: {{rate_option.selected_option_id}}
+      - Project Directory: {{project_dir}}
+

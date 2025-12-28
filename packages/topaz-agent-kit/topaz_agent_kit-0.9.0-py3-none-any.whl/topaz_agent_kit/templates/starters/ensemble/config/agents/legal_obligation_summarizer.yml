@@ -1,0 +1,57 @@
+# =============================================================================
+# OBLIGATION SUMMARIZER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent summarizes obligations, duties, and responsibilities for all parties in contracts.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent (e.g., "azure_openai", "ollama_qwen2.5:14b")
+# - model_overrides (object, optional): agent-specific model parameter overrides
+#   - model_overrides.temperature (float, optional): override model temperature (0.0-2.0)
+#   - model_overrides.max_tokens (int, optional): override model max_tokens
+#   - model_overrides.top_p (float, optional): override model top_p (0.0-1.0)
+#   - model_overrides.frequency_penalty (float, optional): override frequency penalty (-2.0 to 2.0)
+#   - model_overrides.presence_penalty (float, optional): override presence penalty (-2.0 to 2.0)
+#   - model_overrides.stop (list[str], optional): override stop sequences
+#   - model_overrides.* (any, optional): any other model-specific parameters
+# - streaming (object, optional): per-agent streaming behavior (default: enabled)
+#   - streaming.enabled (bool, optional): enable/disable token-level streaming for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+#
+# =============================================================================
+id: legal_obligation_summarizer
+type: oak
+model: "azure_openai"
+run_mode: "local"
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+#
+# Remote service configuration for agent-to-agent communication.
+# If this section is present, the agent supports remote execution and will be
+# available as a service for other agents to call via A2A protocols.
+#
+# Remote parameters:
+# - url (str, required): A2A protocol endpoint URL
+# - timeout (int, optional): request timeout in milliseconds; default 30000
+# - retry_attempts (int, optional): number of retry attempts for failed requests; default 3
+#
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/legal_obligation_summarizer
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/legal_obligation_summarizer.jinja
+  inputs:
+    inline: |
+      Contract Document Text: {{document_text}}
+      Contract Type: {{contract_type}}
+

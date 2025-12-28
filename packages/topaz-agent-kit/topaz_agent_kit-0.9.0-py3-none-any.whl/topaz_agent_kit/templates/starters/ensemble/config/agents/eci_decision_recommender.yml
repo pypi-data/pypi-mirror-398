@@ -1,0 +1,58 @@
+# =============================================================================
+# DECISION RECOMMENDER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent aggregates all validation findings, calculates a risk score (0-100),
+# and recommends a decision: Approve, Request Missing Docs, Escalate to SIU, or Reject.
+#
+# =============================================================================
+id: eci_decision_recommender
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/eci_decision_recommender
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/eci_decision_recommender.jinja
+  inputs:
+    inline: |
+      - Current Claim ID: {{current_claim.claim_id}}
+      - Extracted Data: {{extracted_data}}
+      - Extraction Confidence: {{extraction_confidence}}
+      - Validation Passed: {{validation_passed}}
+      - Validation Issues: {{issues_found}}
+      - Validation Details: {{details}}
+      - Buyer Status: {{buyer_status}}
+      - Buyer Found: {{buyer_found}}
+      - Buyer Risk Flags: {{risk_flags}}
+      - Shipment Valid: {{shipment_valid}}
+      - Voyage Found: {{voyage_found}}
+      - Date Within Window: {{date_within_window}}
+      - Shipment Issues: {{issues}}
+      - Coverage Valid: {{coverage_valid}}
+      - Policy Found: {{policy_found}}
+      - Coverage Details: {{coverage_details}}
+      - History Valid: {{history_valid}}
+      - History Summary: {{history_summary}}
+      - Project Directory: {{project_dir}}
+

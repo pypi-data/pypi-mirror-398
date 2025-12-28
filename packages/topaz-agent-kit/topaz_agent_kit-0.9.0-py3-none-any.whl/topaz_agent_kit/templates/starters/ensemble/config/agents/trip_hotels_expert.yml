@@ -1,0 +1,40 @@
+# =============================================================================
+# TRIP HOTELS EXPERT AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent discovers hotels and selects offers for the requested stay window.
+# Uses hotel_search, hotel_offers, and hotel_offer_details MCP tools.
+#
+# =============================================================================
+id: trip_hotels_expert
+type: adk
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/trip_hotels_expert
+  timeout: 30000
+  retry_attempts: 3
+agent_card:
+  name: "Hotels Expert"
+  description: "Discovers hotels and selects offers for the requested stay window"
+  capabilities:
+    streaming: true
+    state_transition_history: true
+  tags: ["hotels", "travel"]
+
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["hotels"]
+      tools: ["hotel_search", "hotel_offers"]
+
+prompt:
+  instruction:
+    jinja: prompts/trip_hotels_expert.jinja
+  inputs:
+    inline: |
+      hotels_input: {{ hotels_input }}
+      currencyCode: {{ currencyCode }}
+      max_results: {{ max_results }}
+

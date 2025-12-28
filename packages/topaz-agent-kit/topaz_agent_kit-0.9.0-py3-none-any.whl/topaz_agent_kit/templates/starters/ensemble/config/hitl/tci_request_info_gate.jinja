@@ -1,0 +1,15 @@
+## Request Additional Information
+
+**Application Details:**
+- **Application ID:** {{ (current_application.application_id if current_application else None) | default_if_none }}
+- **Buyer:** {{ (current_application.buyer_name if current_application else None) | default_if_none }}
+- **Requested Amount:** {% if current_application and current_application.requested_amount %}{% set currency_symbol = tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency_symbol else (tci_document_extractor.extracted_data.financial_statements.currency_symbol if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency_symbol else '') %}{% set currency = tci_document_extractor.extracted_data.application_form.contract_details.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.application_form and tci_document_extractor.extracted_data.application_form.contract_details and tci_document_extractor.extracted_data.application_form.contract_details.currency else (tci_document_extractor.extracted_data.financial_statements.currency if tci_document_extractor.extracted_data and tci_document_extractor.extracted_data.financial_statements and tci_document_extractor.extracted_data.financial_statements.currency else '') %}{% if currency_symbol %}{% if currency_symbol | length >= 3 %}{{ currency_symbol }} {{ current_application.requested_amount | format_currency }}{% else %}{{ currency_symbol }}{{ current_application.requested_amount | format_currency }}{% endif %}{% else %}{{ current_application.requested_amount | format_currency }}{% endif %}{% if currency %} ({{ currency }}){% endif %}{% else %}N/A{% endif %}
+
+**Risk Assessment Summary:**
+- **Total Risk Score:** {%- set final_risk = tci_recommendation_generator.final_risk_score if tci_recommendation_generator else None %}{% if final_risk is not none %}{{ final_risk | round(2) }}{% else %}N/A{% endif %} / 100
+- **Creditworthiness:** {{ (tci_recommendation_generator.creditworthiness if tci_recommendation_generator else None) | default_if_none }}
+
+**Please specify what additional information is needed:**
+1. **Information Request** (required, detailed description of what documentation or clarification is needed)
+2. **Priority** (optional, indicate if this is urgent or can wait)
+

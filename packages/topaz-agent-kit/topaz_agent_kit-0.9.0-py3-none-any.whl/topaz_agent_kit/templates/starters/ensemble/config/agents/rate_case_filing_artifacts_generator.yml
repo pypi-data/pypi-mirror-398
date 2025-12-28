@@ -1,0 +1,63 @@
+# =============================================================================
+# FILING ARTIFACTS GENERATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent produces filing-ready documents for the user-selected option
+# including executive summary, rate tables, exhibits, and appendix.
+#
+# =============================================================================
+id: rate_case_filing_artifacts_generator
+type: sk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_filing_artifacts_generator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+#
+# MCP configuration for filesystem tools to save report files.
+#
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["filesystem"]
+      tools: ["fs_*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_filing_artifacts_generator.jinja
+  inputs:
+    inline: |
+      - Narrative ID: {{rate_case_narrative_generator.narrative_id}}
+      - Regulatory Narrative: {{rate_case_narrative_generator.regulatory_narrative}}
+      - Selected Option ID: {{option_selection_gate.selected_option_id.value}}
+      - Rate Design Options: {{rate_case_rate_designer.rate_options}}
+      - Recommendations: {{rate_case_recommender.recommendations}}
+      - Top Recommendation: {{rate_case_recommender.top_recommendation}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Project Directory: {{project_dir}}
+      - Run ID: {{rate_case_data_summarizer.run_id}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Repeat Pattern Instances: {{rate_option_instances}}
+

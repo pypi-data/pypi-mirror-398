@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://topaz.ai/schemas/pipeline.schema.json",
+  "title": "Topaz Global Pipeline Configuration",
+  "description": "Schema for global pipeline configuration file (pipeline.yml)",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "servers",
+    "pipelines",
+    "chatdb_path",
+    "assistant",
+    "independent_agents"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable project name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of the project purpose"
+    },
+    "servers": {
+      "type": "object",
+      "properties": {
+        "fastapi": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string", "format": "uri" }
+          },
+          "required": ["url"],
+          "additionalProperties": false
+        },
+        "mcp": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "url": { "type": "string", "format": "uri" },
+              "model": { "type": "string" },
+              "transport": { "type": "string" },
+              "embedding_model": {
+                "type": "string",
+                "description": "Optional embedding model for ChromaRAG toolkit"
+              },
+              "db_path": {
+                "type": "string",
+                "description": "Optional ChromaDB storage path"
+              }
+            },
+            "required": ["name", "url", "model", "transport"],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["fastapi", "mcp"],
+      "additionalProperties": false
+    },
+    "pipelines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "config_file": { "type": "string" }
+        },
+        "required": ["id", "config_file"],
+        "additionalProperties": false
+      }
+    },
+    "chatdb_path": {
+      "type": "string",
+      "description": "Path to SQLite database file for chat sessions and turns"
+    },
+    "chromadb_path": {
+      "type": "string",
+      "description": "Path to ChromaDB storage directory for document and image embeddings"
+    },
+    "rag_files_path": {
+      "type": "string",
+      "description": "Path to RAG file storage directory for document and image ingestion"
+    },
+    "user_files_path": {
+      "type": "string",
+      "description": "Path to user file storage directory for session attachments"
+    },
+    "embedding_model": {
+      "type": "string",
+      "description": "Embedding model to use for document and image ingestion"
+    },
+    "assistant": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique assistant identifier"
+        },
+        "type": {
+          "type": "string",
+          "description": "Assistant type (adk, adk_agent)"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model to use for assistant routing"
+        },
+        "prompt": {
+          "type": "object",
+          "properties": {
+            "instruction": {
+              "type": "object",
+              "properties": {
+                "inline": { "type": "string" },
+                "file": { "type": "string" },
+                "jinja": { "type": "string" }
+              },
+              "additionalProperties": false
+            },
+            "inputs": { "type": "object" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["id", "type", "model", "prompt"],
+      "additionalProperties": false
+    },
+    "orchestrator": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Default model for virtual orchestrators in handoff patterns"
+        }
+      },
+      "additionalProperties": false
+    },
+    "independent_agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "config_file": { "type": "string" }
+        },
+        "required": ["id", "config_file"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

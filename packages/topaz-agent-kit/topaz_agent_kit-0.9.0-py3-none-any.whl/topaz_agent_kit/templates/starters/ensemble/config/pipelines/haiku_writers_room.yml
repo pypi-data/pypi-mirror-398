@@ -1,0 +1,85 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline: Haiku Writers Room
+# Description: Three poet agents collaborate to compose and refine a haiku
+#
+# This pipeline demonstrates the group chat pattern where multiple agents
+# engage in a shared conversation, each contributing their expertise.
+#
+# =============================================================================
+
+name: "Haiku Writers Room"
+description: "Collaborative haiku composition with form expert, imagery specialist, and editor"
+
+# =============================================================================
+# AGENT REGISTRY
+# =============================================================================
+
+nodes:
+  - id: haiku_form_expert
+    config_file: agents/haiku_form_expert.yml
+  - id: haiku_imagery_specialist
+    config_file: agents/haiku_imagery_specialist.yml
+  - id: haiku_editor
+    config_file: agents/haiku_editor.yml
+
+# =============================================================================
+# GROUP CHAT PATTERN CONFIGURATION
+# =============================================================================
+#
+# Group Chat Pattern:
+# - Multiple agents collaborate in shared conversation
+# - Selection strategies: llm (dynamic) or round_robin (fixed order)
+# - Virtual orchestrator auto-generated from agent descriptions
+# - Terminates on max_rounds or condition
+#
+# =============================================================================
+
+pattern:
+  type: group_chat
+  name: "Collaborative Haiku Composition"
+  description: |
+    ## Collaborative Haiku Composition
+    
+    This group chat pattern enables collaborative haiku composition:
+    - **Form Expert** ensures proper haiku structure (5-7-5 syllables)
+    - **Imagery Specialist** focuses on vivid imagery and sensory details
+    - **Editor** refines and approves the final composition
+    
+    Agents collaborate in a shared conversation, using round-robin selection to ensure each poet contributes. The conversation terminates when the editor approves the final haiku or after 9 rounds (3 rounds per poet).
+
+  participants:
+    - node: haiku_form_expert
+    - node: haiku_imagery_specialist
+    - node: haiku_editor
+  # Use round_robin for predictable order: form → imagery → editor
+  selection_strategy: round_robin
+
+  termination:
+    max_rounds: 9 # Each poet speaks 3 times
+    condition: "contains(last_message, 'APPROVED')" # Early exit if editor approves
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+
+outputs:
+  final:
+    selectors: ["final_message", "chat_history"]
+    transform: |
+      ## Haiku Writers Room - Final Result
+
+      {{ final_message }}
+
+      ---
+
+      ### Collaboration Summary
+      {% for msg in chat_history %}
+      {% if msg.speaker != 'user' %}
+      **Round {{ msg.round }} - {{ msg.speaker }}:**
+      {{ msg.content }}
+
+      {% endif %}
+      {% endfor %}

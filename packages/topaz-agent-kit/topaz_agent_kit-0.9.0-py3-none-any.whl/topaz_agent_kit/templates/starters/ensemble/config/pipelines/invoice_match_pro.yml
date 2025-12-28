@@ -1,0 +1,245 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Invoice Match Pro"
+description: "Invoice Match Pro is an end-to-end agentic workflow that automates three-way matching of invoices against Purchase Orders (POs) and Statements of Work (SOWs). The process scans a folder for unprocessed PDF invoices, extracts invoice data, performs parallel lookups for matching PO and SOW records, executes a three-way match analysis, handles human-in-the-loop decisions for invoices needing clarification, moves files to appropriate folders (approved/declined/clarification), and generates a final processing summary report."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - termination (object, optional): termination configuration
+#   - termination.max_iterations (int | str, required): maximum iterations (integer or expression)
+#   - termination.condition (str, optional): early termination condition expression
+# - body: (step | sequential | parallel) (required)
+#
+# CONDITIONAL SEQUENTIAL
+# - type: sequential (required)
+# - condition (str, optional): boolean expression to evaluate before executing steps
+#   - Uses expression evaluator syntax
+#   - Example: "severity == 'high' OR severity == 'critical'"
+# - steps: list of (step | pattern) (required, >=1)
+#
+# NOTES
+# - Gate actions: on_approve, on_reject, on_continue, on_cancel, on_retry, on_timeout
+# - Gate actions can be: continue, stop, retry_node, skip_to_node
+# - Conditional steps only execute if condition evaluates to true
+#
+# =============================================================================
+
+nodes:
+  - id: invoice_match_pro_folder_scanner
+    config_file: "agents/invoice_match_pro_folder_scanner.yml"
+  - id: invoice_match_pro_file_selector
+    config_file: "agents/invoice_match_pro_file_selector.yml"
+  - id: invoice_match_pro_invoice_parser
+    config_file: "agents/invoice_match_pro_invoice_parser.yml"
+  - id: invoice_match_pro_po_lookup
+    config_file: "agents/invoice_match_pro_po_lookup.yml"
+  - id: invoice_match_pro_sow_lookup
+    config_file: "agents/invoice_match_pro_sow_lookup.yml"
+  - id: invoice_match_pro_three_way_matcher
+    config_file: "agents/invoice_match_pro_three_way_matcher.yml"
+  - id: invoice_match_pro_file_mover
+    config_file: "agents/invoice_match_pro_file_mover.yml"
+  - id: invoice_match_pro_summary_reporter
+    config_file: "agents/invoice_match_pro_summary_reporter.yml"
+
+pattern:
+  type: sequential
+  name: "Invoice Three-Way Matching Flow"
+  description: |
+    ## Invoice Three-Way Matching Flow
+    
+    This sequential pattern orchestrates the complete invoice three-way matching workflow:
+    1. **Folder Scanner** scans for unprocessed PDF invoices
+    2. **Processing Loop** iterates through invoices (up to 50) with early termination
+    3. **File Selector** selects the next invoice to process
+    4. **Invoice Parser** extracts structured data from the invoice
+    5. **Parallel Lookup** retrieves matching PO and SOW records concurrently
+    6. **Three-Way Matcher** performs the three-way match analysis
+    7. **Decision Gate** (conditional) handles invoices needing clarification
+    8. **File Mover** moves files to appropriate folders (approved/declined/clarification)
+    9. **Summary Reporter** generates final processing summary
+    
+    The workflow ensures thorough validation through three-way matching while maintaining efficiency through parallel lookups and batch processing.
+  steps:
+    - node: invoice_match_pro_folder_scanner
+    - type: loop
+      name: "Invoice Processing Loop"
+      description: |
+        ## Batch Invoice Processing
+        
+        This loop pattern processes multiple invoices sequentially:
+        - Processes up to 50 invoices or until no more invoices are available
+        - Early termination when file selector returns null
+        - Each iteration processes one complete invoice through the full workflow
+        
+        The loop ensures efficient batch processing while maintaining proper sequencing for each invoice.
+      termination:
+        max_iterations: "min(invoice_match_pro_folder_scanner.file_count, 50)"
+        condition: "invoice_match_pro_file_selector.current_file_path is null"
+      body:
+        type: sequential
+        name: "Single Invoice Processing Flow"
+        description: |
+          ## Individual Invoice Workflow
+          
+          This sequential pattern processes a single invoice through the complete workflow:
+          1. Select the invoice file to process
+          2. Parse invoice data
+          3. Lookup matching PO and SOW records in parallel
+          4. Perform three-way match analysis
+          5. Handle human decision if clarification is needed
+          6. Move file to appropriate folder
+        steps:
+          - node: invoice_match_pro_file_selector
+          - type: sequential
+            condition: "invoice_match_pro_file_selector.current_file_path is not null"
+            steps:
+              - node: invoice_match_pro_invoice_parser
+              - type: parallel
+                name: "Parallel Document Lookup"
+                description: |
+                  ## Concurrent Document Retrieval
+                  
+                  This parallel pattern retrieves matching documents concurrently:
+                  - **PO Lookup** searches for matching Purchase Order records
+                  - **SOW Lookup** searches for matching Statement of Work records
+                  
+                  Both lookups run simultaneously to maximize efficiency.
+                steps:
+                  - node: invoice_match_pro_po_lookup
+                  - node: invoice_match_pro_sow_lookup
+              - node: invoice_match_pro_three_way_matcher
+              - type: sequential
+                name: "Clarification Decision Flow"
+                description: |
+                  ## Conditional Human Decision
+                  
+                  This conditional sequential pattern handles invoices needing clarification:
+                  - Only executes if three-way matcher recommends clarification
+                  - **Decision Gate** allows human to approve, decline, or request clarification
+                  
+                  Ensures proper human oversight for ambiguous cases.
+                condition: "invoice_match_pro_three_way_matcher.recommendation == 'needs_clarification'"
+                steps:
+                  - gate: invoice_match_pro_invoice_decision
+                    on_approve: continue
+                    on_decline: continue
+                    on_needs_clarification: continue
+              - node: invoice_match_pro_file_mover
+    - node: invoice_match_pro_summary_reporter
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#   - gates[].condition (str, optional): conditional expression - gate only shows if true
+#
+# =============================================================================
+
+gates:
+  - id: invoice_match_pro_invoice_decision
+    type: selection
+    title: "Invoice Decision"
+    description:
+      jinja: "hitl/invoice_match_pro_invoice_decision.jinja"
+    options:
+      - value: "approve"
+        label: "Approve"
+        description: "Approve invoice for payment"
+      - value: "decline"
+        label: "Decline"
+        description: "Decline invoice (reject)"
+      - value: "needs_clarification"
+        label: "Needs Clarification"
+        description: "Requires additional information"
+    default: "{{ invoice_match_pro_three_way_matcher.recommendation }}"
+    context_key: "invoice_decision"
+    timeout_ms: 300000
+    on_timeout: default
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  intermediate:
+    - node: invoice_match_pro_three_way_matcher
+      selectors:
+        - match_status
+        - match_score
+        - recommendation
+        - issues
+    - node: invoice_match_pro_file_mover
+      selectors:
+        - final_location
+        - move_status
+  final:
+    node: invoice_match_pro_summary_reporter
+    selectors:
+      - summary_report
+      - error
+    transform: "{{ summary_report if summary_report else 'No summary available' }}"
+

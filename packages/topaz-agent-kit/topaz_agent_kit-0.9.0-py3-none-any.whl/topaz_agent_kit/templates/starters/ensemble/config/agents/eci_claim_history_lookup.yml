@@ -1,0 +1,44 @@
+# =============================================================================
+# CLAIM HISTORY LOOKUP AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent queries the database for past claim history for a policy and validates
+# against policy limits (max_claims_per_term, max_claims_per_year).
+#
+# =============================================================================
+id: eci_claim_history_lookup
+type: adk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/eci_claim_history_lookup
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/eci_claim_history_lookup.jinja
+  inputs:
+    inline: |
+      - Current Claim ID: {{current_claim.claim_id}}
+      - Policy Number: {{eci_claims_extractor.extracted_data.policy_number}}
+      - Insured Party: {{eci_claims_extractor.extracted_data.claimant_name}}
+      - Claim Date: {{eci_claims_extractor.extracted_data.invoice_date}}
+      - Project Directory: {{project_dir}}
+

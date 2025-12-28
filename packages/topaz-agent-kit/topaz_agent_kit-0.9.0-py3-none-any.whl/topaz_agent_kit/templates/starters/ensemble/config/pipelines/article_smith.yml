@@ -1,0 +1,207 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Article Smith"
+description: "Article Smith is an end-to-end agentic workflow that turns a user idea into a high-quality article. After the draft is written by the Content Author, both Content Critique and Format Critique run in parallel to evaluate substance and presentation. The Chief Editor then merges their feedback to deliver a polished, publication-ready article."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - body: (step | sequential | parallel) (required)
+# - max_iterations: int (required, >=1)
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+nodes:
+  - id: article_research_analyst
+    config_file: "agents/article_research_analyst.yml"
+  - id: article_content_author
+    config_file: "agents/article_content_author.yml"
+  - id: article_content_critique
+    config_file: "agents/article_content_critique.yml"
+  - id: article_format_critique
+    config_file: "agents/article_format_critique.yml"
+  - id: article_chief_editor
+    config_file: "agents/article_chief_editor.yml"
+
+pattern:
+  type: sequential
+  name: "Article Creation and Editorial Flow"
+  description: |
+    ## Article Creation and Editorial Flow
+    
+    This sequential pattern orchestrates the complete article creation and editorial workflow:
+    1. **Research Analyst** gathers information and context for the article
+    2. **Content Author** creates the initial article draft
+    3. **Parallel Critique** runs both content and format critiques simultaneously
+    4. **Chief Editor** merges feedback and produces the final polished article
+    
+    The workflow includes human-in-the-loop gates for research approval, content feedback, and editorial direction selection, ensuring quality and alignment with requirements.
+  steps:
+    - node: article_research_analyst
+    - gate: approve_research_report
+      on_approve: continue
+      on_reject: stop
+    - node: article_content_author
+    - gate: collect_content_feedback
+      on_continue: continue
+      on_retry: retry_node
+      retry_target: article_research_analyst
+    - type: parallel
+      name: "Parallel Critique Analysis"
+      description: |
+        ## Concurrent Critique Evaluation
+        
+        This parallel pattern runs both critique agents simultaneously:
+        - **Content Critique** evaluates the article's substance, accuracy, and depth
+        - **Format Critique** evaluates the article's structure, style, and presentation
+        
+        Both critiques run concurrently to maximize efficiency while providing comprehensive feedback for the editorial process.
+      steps:
+        - node: article_content_critique
+        - node: article_format_critique
+    - gate: approve_critiques
+      on_conservative_edit: continue
+      on_moderate_edit: continue
+      on_comprehensive_edit: continue
+    - node: article_chief_editor
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: approve_research_report
+    type: approval
+    title: "Review Research Report and Approve"
+    description:
+      jinja: "hitl/article_smith_approve_research_report.jinja"
+    timeout_ms: 30000
+    on_timeout: approve
+
+  - id: collect_content_feedback
+    type: input
+    title: "Review Article Draft and Provide Feedback"
+    description: |
+      ## Article Draft Preview
+
+      **Topic:** {{ article_content_author.topic | default('N/A') }}
+
+      {% if article_content_author.draft_article_md %}
+      **Draft Excerpt:**
+      {{ article_content_author.draft_article_md[:500] }}{% if article_content_author.draft_article_md|length > 500 %}...{% endif %}
+      {% else %}
+      Draft article is being generated...
+      {% endif %}
+
+      ---
+
+      Review the article draft above and provide feedback for improvements. Your feedback will be used to refine the draft before final editing.
+    fields:
+      - name: feedback
+        type: textarea
+        label: "Your Feedback"
+        required: true
+    context_key: "user_feedback"
+    timeout_ms: 60000
+    on_timeout: approve
+
+  - id: approve_critiques
+    type: selection
+    title: "Choose Editorial Direction"
+    description:
+      jinja: "hitl/article_smith_approve_critiques.jinja"
+    options:
+      - value: conservative_edit
+        label: "Conservative Edit"
+        description: "Make minimal changes, preserve original structure"
+      - value: moderate_edit
+        label: "Moderate Edit"
+        description: "Make balanced improvements to both content and format"
+      - value: comprehensive_edit
+        label: "Comprehensive Edit"
+        description: "Make extensive improvements based on both critiques"
+    context_key: editorial_direction
+    timeout_ms: 60000
+    on_timeout: default
+    default: moderate_edit
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].id (str, required): unique output identifier
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: article_chief_editor
+    selectors:
+      - final_article_md
+      - error
+    transform: "{{ value }}"

@@ -1,0 +1,39 @@
+# =============================================================================
+# CREDIT BUREAU ASSESSOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent assesses the Credit Bureau Report risk factor (Weight: 8%) by
+# analyzing the Credit Bureau Report PDF. Evaluates credit score, payment
+# history, and assigns a score (0-100).
+#
+# =============================================================================
+id: tci_credit_bureau_assessor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_credit_bureau_assessor
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+# No MCP tools needed - uses extracted data from tci_external_data_fetcher
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_credit_bureau_assessor.jinja
+  inputs:
+    inline: |
+      - Credit Bureau Report Data: {{tci_external_data_fetcher.credit_bureau_data}}
+      - Underwriting Guidelines: {{tci_underwriting_manual_reviewer.guidelines}}
+      - Project Directory: {{project_dir}}
+

@@ -1,0 +1,41 @@
+# =============================================================================
+# QUESTION LOADER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent loads questions from the prepared questions_to_process.json file
+# for pipeline processing.
+#
+# =============================================================================
+id: sot_question_loader
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_question_loader
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["common"]
+      tools: ["common_read_document"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_question_loader.jinja
+  inputs:
+    inline: |
+      - Project Directory: {{project_dir}}
+      - Questions File: data/sot/questions_to_process.json
+

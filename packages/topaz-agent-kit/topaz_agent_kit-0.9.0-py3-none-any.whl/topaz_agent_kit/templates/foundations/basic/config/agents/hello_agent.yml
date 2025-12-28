@@ -1,0 +1,61 @@
+# =============================================================================
+# HELLO AGENT CONFIGURATION
+# =============================================================================
+#
+# A simple example agent that responds to user queries.
+# This demonstrates the basic agent configuration pattern.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+#
+# =============================================================================
+id: hello_agent
+type: agno
+model: "azure_openai"  # Options: "azure_openai", "openai", "ollama_qwen2.5:14b"
+run_mode: "local"
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+#
+# Agent prompt (instruction and inputs) with Jinja variable support
+# 
+# - instruction: agent instruction content with Jinja variable support
+#   - instruction.jinja: Jinja template path relative to project root
+#
+# - inputs: agent input template with Jinja variable support
+#   - inputs.inline: inline agent input template with Jinja variable support
+#
+# ============================================================================= 
+prompt:
+  instruction:                                       
+    jinja: prompts/hello_agent.jinja     
+  inputs:                                            
+    inline: |                    
+      - User Query: {{user_text}}
+
+# =============================================================================
+# OUTPUT CONFIGURATION (OPTIONAL)
+# =============================================================================
+#
+# Output specifications for individual agent results.
+# This section is OPTIONAL - agents without this section will return raw JSON output.
+#
+# Output parameters:
+# - final (object, required if outputs section is present): final agent output
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.selector_mode (str, optional): selector mode (first|all, default: first)
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+outputs:
+  final:
+    selectors:
+      - response
+    selector_mode: "first"
+    transform: |
+      {{ value.response }}
+

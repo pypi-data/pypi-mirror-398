@@ -1,0 +1,46 @@
+# =============================================================================
+# RECOMMENDER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent performs multi-objective scoring, ranks options, and identifies
+# tradeoffs between revenue, equity, load management, and competitive positioning.
+#
+# =============================================================================
+id: rate_case_recommender
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_recommender
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_recommender.jinja
+  inputs:
+    inline: |
+      - Rate Options (from rate designer - filter to only processed ones): {{rate_case_rate_designer.rate_options}}
+      - Repeat Pattern Instances (contains option_ids and analysis results): {{rate_option_instances}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Revenue Target: {{rate_case_data_summarizer.revenue_target | default(5.0)}}
+      - Run ID: {{rate_case_data_summarizer.run_id}}
+      - Project Directory: {{project_dir}}
+

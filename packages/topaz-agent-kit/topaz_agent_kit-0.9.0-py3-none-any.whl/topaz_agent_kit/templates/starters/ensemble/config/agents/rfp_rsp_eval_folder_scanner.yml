@@ -1,0 +1,48 @@
+# =============================================================================
+# RFP FOLDER SCANNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent scans the specified folder for RFP document and supplier response files.
+# It identifies the RFP document (directly in the folder) and supplier responses
+# (in the supplier_responses subfolder).
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (adk|oak|maf|agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+#
+# =============================================================================
+id: rfp_rsp_eval_folder_scanner
+type: oak
+model: "azure_openai"
+run_mode: "local"
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rfp_rsp_eval_folder_scanner
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["filesystem"]
+      tools: ["fs_listdir"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rfp_rsp_eval_folder_scanner.jinja
+  inputs:
+    inline: |
+      User Input: {{user_text}}
+      Project Directory: {{project_dir}}
+

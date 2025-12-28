@@ -1,0 +1,41 @@
+# =============================================================================
+# PENDING CLAIMS SCANNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent queries the claims database table to identify all pending claims
+# (status = 'pending') and generates a run_id for tracking this processing batch.
+#
+# =============================================================================
+id: eci_pending_claims_scanner
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/eci_pending_claims_scanner
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/eci_pending_claims_scanner.jinja
+  inputs:
+    inline: |
+      - User Request: {{user_text}}
+      - Project Directory: {{project_dir}}
+

@@ -1,0 +1,305 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Appeal Grievance Processor"
+description: "Appeal Grievance Processor is an automated end-to-end agentic workflow that processes appeal and grievance requests from email. The pipeline scans the AG/Pending email folder, extracts appeal/grievance letters, looks up claim history and research from the database, classifies and processes the request, generates a decision letter, sends it via email, and tracks everything in the database."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of three constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - termination (object, optional): termination configuration
+#   - termination.max_iterations (int | str, required): maximum iterations (integer or expression)
+#   - termination.condition (str, optional): early termination condition expression
+# - body: (step | sequential | parallel) (required)
+#
+# CONDITIONAL SEQUENTIAL
+# - type: sequential (required)
+# - condition (str, optional): boolean expression to evaluate before executing steps
+#   - Uses expression evaluator syntax
+#   - Example: "severity == 'high' OR severity == 'critical'"
+# - steps: list of (step | pattern) (required, >=1)
+#
+# NOTES
+# - Gate actions: on_approve, on_reject, on_continue, on_cancel, on_retry, on_timeout
+# - Gate actions can be: continue, stop, retry_node, skip_to_node
+# - Conditional steps only execute if condition evaluates to true
+#
+# =============================================================================
+
+nodes:
+  - id: ag_email_scanner
+    config_file: "agents/ag_email_scanner.yml"
+  - id: ag_email_selector
+    config_file: "agents/ag_email_selector.yml"
+  - id: ag_email_parser
+    config_file: "agents/ag_email_parser.yml"
+  - id: ag_claim_history_lookup
+    config_file: "agents/ag_claim_history_lookup.yml"
+  - id: ag_research_report_lookup
+    config_file: "agents/ag_research_report_lookup.yml"
+  - id: ag_classifier
+    config_file: "agents/ag_classifier.yml"
+  - id: ag_recommender
+    config_file: "agents/ag_recommender.yml"
+  - id: ag_decision_letter_writer
+    config_file: "agents/ag_decision_letter_writer.yml"
+  - id: ag_email_sender
+    config_file: "agents/ag_email_sender.yml"
+  - id: ag_email_mover
+    config_file: "agents/ag_email_mover.yml"
+  - id: ag_summary_reporter
+    config_file: "agents/ag_summary_reporter.yml"
+
+pattern:
+  type: sequential
+  name: "Appeal Grievance Processing Flow"
+  description: |
+    ## Appeal Grievance Processing Flow
+    
+    This sequential pattern orchestrates the complete appeal and grievance processing workflow:
+    1. **Email Scanner** scans the AG/Pending email folder for new requests
+    2. **Processing Loop** iterates through emails (up to 50) with early termination
+    3. **Email Selector** selects the next email to process
+    4. **Email Parser** extracts structured information from the email
+    5. **Parallel Lookup** retrieves claim history and research reports concurrently
+    6. **Classifier** classifies the request type
+    7. **Recommender** generates a recommended decision
+    8. **Decision Approval Gate** allows human review and override
+    9. **Decision Letter Writer** creates the decision letter
+    10. **Email Approval Gate** allows review before sending
+    11. **Email Sender** (conditional) sends the email if approved
+    12. **Email Mover** moves the email to processed folder
+    13. **Summary Reporter** generates final processing summary
+    
+    The loop pattern enables batch processing of multiple emails with early termination when no more emails are available.
+  steps:
+    - node: ag_email_scanner
+    - type: loop
+      name: "Email Processing Loop"
+      description: |
+        ## Batch Email Processing
+        
+        This loop pattern processes multiple emails sequentially:
+        - Processes up to 50 emails or until no more emails are available
+        - Early termination when email selector returns null
+        - Each iteration processes one complete email through the full workflow
+        
+        The loop ensures efficient batch processing while maintaining proper sequencing for each email.
+      termination:
+        max_iterations: "min(ag_email_scanner.email_count, 50)"
+        condition: "ag_email_selector.current_email_id is null"
+      body:
+        type: sequential
+        name: "Single Email Processing Flow"
+        description: |
+          ## Individual Email Workflow
+          
+          This sequential pattern processes a single email through the complete workflow:
+          1. Select the email to process
+          2. Parse email content
+          3. Lookup related data in parallel
+          4. Classify and recommend decision
+          5. Get human approval
+          6. Generate and send decision letter
+          7. Move email to processed folder
+        steps:
+          - node: ag_email_selector
+          - type: sequential
+            condition: "ag_email_selector.current_email_id is not null"
+            steps:
+              - node: ag_email_parser
+              - type: parallel
+                name: "Parallel Data Lookup"
+                description: |
+                  ## Concurrent Data Retrieval
+                  
+                  This parallel pattern retrieves related data concurrently:
+                  - **Claim History Lookup** retrieves historical claim information
+                  - **Research Report Lookup** retrieves relevant research reports
+                  
+                  Both lookups run simultaneously to maximize efficiency.
+                steps:
+                  - node: ag_claim_history_lookup
+                  - node: ag_research_report_lookup
+              - node: ag_classifier
+              - node: ag_recommender
+              - gate: ag_decision_approval
+                on_approve: continue
+                on_deny: continue
+              - node: ag_decision_letter_writer
+              - gate: ag_email_approval
+                on_approve: continue
+                on_reject: continue
+              - type: sequential
+                name: "Email Sending Flow"
+                description: |
+                  ## Conditional Email Sending
+                  
+                  This conditional sequential pattern sends the decision letter email:
+                  - Only executes if the email was approved in the previous gate
+                  - Sends the decision letter to the original email sender
+                  
+                  Ensures emails are only sent after explicit human approval.
+                condition: "email_approved == true"
+                steps:
+                  - node: ag_email_sender
+              - node: ag_email_mover
+    - node: ag_summary_reporter
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#   - gates[].condition (str, optional): conditional expression - gate only shows if true
+#
+# =============================================================================
+
+gates:
+  - id: ag_decision_approval
+    type: selection
+    title: "Review Recommended Decision"
+    description: |
+      **Recommended Decision:**
+      {{ ag_recommender.recommended_decision | upper | default('PENDING') }}
+
+      **Summary:**
+      {{ ag_recommender.recommendation_summary | default('No summary available') }}
+
+      **Rationale:**
+      {{ ag_recommender.rationale | default('No rationale provided') }}
+
+
+      Review the recommendation above. You can approve the recommendation or override it with a different decision.
+
+    options:
+      - value: "approve"
+        label: "Approve"
+        description: "Approve the recommended decision: {{ ag_recommender.recommended_decision | upper | default('APPROVE/DENY') }}"
+        condition: "ag_recommender.recommended_decision == 'approve'"
+      - value: "deny"
+        label: "Deny"
+        description: "Deny the recommended decision: {{ ag_recommender.recommended_decision | upper | default('APPROVE/DENY') }}"
+        condition: "ag_recommender.recommended_decision == 'deny'"
+      - value: "approve"
+        label: "Override to Approve"
+        description: "Override the recommendation and approve this request"
+        condition: "ag_recommender.recommended_decision == 'deny'"
+      - value: "deny"
+        label: "Override to Deny"
+        description: "Override the recommendation and deny this request"
+        condition: "ag_recommender.recommended_decision == 'approve'"
+    default: "{{ ag_recommender.recommended_decision }}"
+    context_key: "final_decision"
+    timeout_ms: 300000
+    on_timeout: default
+
+  - id: ag_email_approval
+    type: approval
+    title: "Review Decision Letter Email"
+    description: |
+      **Decision Letter Email:**
+      {{ ag_decision_letter_writer.final_letter_md | default('No decision letter available') }}
+
+      Review the complete decision letter email before sending. The email will be sent to {{ ag_email_selector.current_email_sender | default('the original sender') }}.
+    buttons:
+      approve:
+        label: "APPROVE & SEND"
+        description: "Send the decision letter email"
+      reject:
+        label: "REJECT"
+        description: "Skip sending email (but still mark as processed)"
+    context_key: "email_approved"
+    timeout_ms: 300000
+    on_timeout: default
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  # intermediate:
+  #   - node: ag_recommender
+  #     selectors:
+  #       - recommended_decision
+  #       - recommendation_summary
+  #       - rationale
+  #   - node: ag_email_sender
+  #     selectors:
+  #       - email_sent
+  #       - send_status
+  #       - response_message_id
+  #   - node: ag_email_mover
+  #     selectors:
+  #       - move_status
+  #       - database_updated
+  #       - request_id
+  final:
+    node: ag_summary_reporter
+    selectors:
+      - summary_report
+      - total_processed
+      - total_approved
+      - total_denied
+      - total_errors
+    transform: "{{ summary_report if summary_report else 'No summary available' }}"

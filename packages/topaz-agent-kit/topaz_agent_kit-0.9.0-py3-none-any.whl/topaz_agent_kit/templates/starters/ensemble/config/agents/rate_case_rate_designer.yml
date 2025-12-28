@@ -1,0 +1,47 @@
+# =============================================================================
+# RATE DESIGNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates 2-3 rate/program design options with clear parameters,
+# assumptions, and rationale. Incorporates customer feedback and preferences.
+#
+# =============================================================================
+id: rate_case_rate_designer
+type: agno
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_rate_designer
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rate_case_rate_designer.jinja
+  inputs:
+    inline: |
+      - Customer Segments: {{rate_case_data_summarizer.customer_segments}}
+      - Price Elasticity Estimates: {{rate_case_data_summarizer.price_elasticity_estimates}}
+      - Target State: {{rate_case_data_summarizer.target_state}}
+      - Target Rate Class: {{rate_case_data_summarizer.target_rate_class}}
+      - Target Rate Type: {{rate_case_data_summarizer.target_rate_type}}
+      - Revenue Target: {{rate_case_data_summarizer.revenue_target}}
+      - Database Path: {{rate_case_data_summarizer.database_path}}
+      - Project Directory: {{project_dir}}
+

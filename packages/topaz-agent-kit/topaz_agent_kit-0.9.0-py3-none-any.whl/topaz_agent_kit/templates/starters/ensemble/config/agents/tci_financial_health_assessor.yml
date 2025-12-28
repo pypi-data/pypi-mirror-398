@@ -1,0 +1,39 @@
+# =============================================================================
+# FINANCIAL HEALTH ASSESSOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent assesses the Financial Health risk factor (Weight: 22%) by analyzing
+# the Buyer Financial Statements. Calculates current ratio, profitability trends,
+# debt-to-equity ratios, and assigns a score (0-100).
+#
+# =============================================================================
+id: tci_financial_health_assessor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_financial_health_assessor
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+# No MCP tools needed - uses extracted data from upstream agents
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_financial_health_assessor.jinja
+  inputs:
+    inline: |
+      - Extracted Financial Statements: {{tci_document_extractor.extracted_data.financial_statements}}
+      - Underwriting Guidelines: {{tci_underwriting_manual_reviewer.guidelines}}
+      - Project Directory: {{project_dir}}
+

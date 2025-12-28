@@ -1,0 +1,235 @@
+## Rate Case Filing - Option Selection
+
+Review all rate options, their impacts, and the recommendation. Select the option to proceed with filing.
+
+### Scoring Methodology: The recommended option is pre-selected based on a weighted multi-objective scoring system:
+
+- **Equity (30%)**: Impact on vulnerable populations and hardship risk
+- **Competitive Positioning (25%)**: Comparison with existing rates in target and benchmark states
+- **Revenue (25%)**: Revenue sufficiency and stability
+- **Load Management (10%)**: Peak load reduction and grid reliability
+- **Customer Satisfaction (10%)**: Bill impact and customer experience
+
+Each option is scored on a 0-100 scale, with higher scores indicating better performance across all dimensions. **Target range: 80-100 for validated options** (revenue within ±5 percentage points of the specified revenue growth target, bill ±10%).
+
+**Confidence scores** (0-100%) reflect the quality and completeness of the analysis for each option, based on:
+- Score quality (higher overall scores = higher confidence)
+- Data completeness (simulation, equity, state comparison all present)
+- Score consistency (how close component scores are to each other)
+
+---
+
+## Recommendation Details
+
+{% if rate_case_recommender.top_recommendation %}
+
+**Recommended Option:** {{ rate_case_recommender.top_recommendation.option_id }} - {{ rate_case_recommender.top_recommendation.option_name | default("N/A") }}
+
+**Rate Class:** {{ rate_case_recommender.top_recommendation.rate_class | default("all") | title }}  
+**Rate Type:** {{ rate_case_recommender.top_recommendation.rate_type | default("flat") | replace("_", " ") | title }}
+
+**Overall Score:** {{ (rate_case_recommender.top_recommendation.overall_score | default(0)) | round(2) }} / 100  
+**Confidence Score:** {{ (rate_case_recommender.top_recommendation.confidence_score | default(0)) | round(2) }}%
+
+### Why This Option Was Recommended
+
+**Rationale:**
+{{ rate_case_recommender.top_recommendation.rationale | default("No rationale provided.") }}
+
+{% if rate_case_recommender.top_recommendation.key_benefits %}
+**Key Benefits:**
+{% for benefit in rate_case_recommender.top_recommendation.key_benefits %}
+- {{ benefit }}
+{% endfor %}
+{% endif %}
+
+{% if rate_case_recommender.top_recommendation.tradeoffs %}
+**Tradeoffs:**
+{% for tradeoff in rate_case_recommender.top_recommendation.tradeoffs %}
+- **{{ tradeoff.aspect }}**: {{ tradeoff.description }}
+{% endfor %}
+{% endif %}
+
+{% if rate_case_recommender.tradeoffs_analysis %}
+**Tradeoffs Analysis:**
+{{ rate_case_recommender.tradeoffs_analysis }}
+{% endif %}
+
+{% else %}
+Recommendation is being generated...
+{% endif %}
+
+---
+
+## Rate Options Comparison
+
+{% if rate_case_recommender.recommendations and rate_case_recommender.recommendations | length > 0 %}
+
+| Option ID | Option Name | Rate Class | Rate Type | Overall Score | Confidence Score | Revenue Score | Equity Score | Load Mgmt Score | Competitive Score | Customer Sat Score | Status |
+|-----------|-------------|-----------|----------|---------------|------------------|---------------|--------------|-----------------|-------------------|-------------------|--------|
+{%- for rec in rate_case_recommender.recommendations %}
+{%- set rate_class = rec.rate_class | default("all") | title %}
+{%- set rate_type = rec.rate_type | default("flat") | replace("_", " ") | title %}
+| {{ rec.option_id }} | {{ rec.option_name | default("N/A") }} | {{ rate_class }} | {{ rate_type }} | **{{ (rec.overall_score | default(0)) | round(2) }}** | {{ (rec.confidence_score | default(0)) | round(2) }}% | {{ (rec.revenue_score | default(0)) | round(2) }} | {{ (rec.equity_score | default(0)) | round(2) }} | {{ (rec.load_management_score | default(0)) | round(2) }} | {{ (rec.competitive_score | default(0)) | round(2) }} | {{ (rec.customer_satisfaction_score | default(0)) | round(2) }} | {%- if rate_case_recommender.top_recommendation and rec.option_id == rate_case_recommender.top_recommendation.option_id -%}⭐ **Recommended**{%- else -%}-{%- endif -%} |
+{%- endfor %}
+
+---
+
+## Year-over-Year Revenue Growth Comparison
+
+{%- set revenue_target = 5.0 %}
+{%- set growth_assumptions = {} %}
+{%- set found_performance = false %}
+{%- for rec in rate_case_recommender.recommendations %}
+  {%- if not found_performance and rec.three_year_performance %}
+    {%- set revenue_target = rec.three_year_performance.revenue_target | default(5.0) %}
+    {%- if rec.three_year_performance.growth_assumptions %}
+      {%- set growth_assumptions = rec.three_year_performance.growth_assumptions %}
+    {%- else %}
+      {%- set growth_assumptions = {} %}
+    {%- endif %}
+    {%- set found_performance = true %}
+  {%- endif %}
+{%- endfor %}
+
+This table compares the projected year-over-year revenue growth for all options over the next 3 years, based on a target of **{{ revenue_target | round(1) }}%** annual revenue growth.
+
+| Option ID | Option Name | Year 1 Revenue Change | Year 2 Revenue Change | Year 3 Revenue Change | Target Met (All Years) |
+|-----------|-------------|----------------------|----------------------|----------------------|------------------------|
+{%- for rec in rate_case_recommender.recommendations %}
+{%- if rec.three_year_performance %}
+{%- set y1 = rec.three_year_performance.year_1 | default({}) %}
+{%- set y2 = rec.three_year_performance.year_2 | default({}) %}
+{%- set y3 = rec.three_year_performance.year_3 | default({}) %}
+{%- set y1_met = y1.target_met | default(False) if y1 else False %}
+{%- set y2_met = y2.target_met | default(False) if y2 else False %}
+{%- set y3_met = y3.target_met | default(False) if y3 else False %}
+{%- set all_years_met = y1_met and y2_met and y3_met %}
+| {{ rec.option_id }} | {{ rec.option_name | default("N/A") }} | {% if y1.revenue_change_pct | default(None) is not none %}{{ y1.revenue_change_pct | round(2) }}%{% else %}N/A{% endif %} | {% if y2.revenue_change_pct | default(None) is not none %}{{ y2.revenue_change_pct | round(2) }}%{% else %}N/A{% endif %} | {% if y3.revenue_change_pct | default(None) is not none %}{{ y3.revenue_change_pct | round(2) }}%{% else %}N/A{% endif %} | {% if all_years_met %}✅ Yes{% else %}No{% endif %} |
+{%- else %}
+| {{ rec.option_id }} | {{ rec.option_name | default("N/A") }} | N/A | N/A | N/A | N/A |
+{%- endif %}
+{%- endfor %}
+
+{% if growth_assumptions %}
+**Growth Assumptions:**
+- Customer Base Growth: {% if growth_assumptions.customer_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.customer_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} per year
+- Usage Growth per Customer: {% if growth_assumptions.usage_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.usage_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} per year
+{% endif %}
+
+**Note:** Target met (✅) indicates revenue change is within 1% of the target ({{ revenue_target | round(1) }}%) for that year.
+
+---
+
+## Detailed Options Analysis
+
+{% for rec in rate_case_recommender.recommendations %}
+<details>
+<summary><strong>{{ rec.option_id }}</strong> {% if rate_case_recommender.top_recommendation and rec.option_id == rate_case_recommender.top_recommendation.option_id %}<span style="color: #22c55e; font-weight: bold;">⭐ RECOMMENDED</span>{% endif %}</summary>
+
+#### Option Details
+
+**Option ID:** {{ rec.option_id }}
+**Option Name:** {{ rec.option_name | default("N/A") }}
+**Rate Class:** {{ rec.rate_class | default("all") | title }}
+**Rate Type:** {{ rec.rate_type | default("flat") | replace("_", " ") | title }}
+
+#### Scoring Breakdown
+
+The overall score is calculated using weighted components:
+
+| Metric | Score | Weight | Weighted Contribution |
+|--------|-------|--------|----------------------|
+| Equity Score | {{ (rec.equity_score | default(0)) | round(2) }} | 30% | {{ ((rec.equity_score | default(0)) * 0.30) | round(2) }} |
+| Competitive Positioning Score | {{ (rec.competitive_score | default(0)) | round(2) }} | 25% | {{ ((rec.competitive_score | default(0)) * 0.25) | round(2) }} |
+| Revenue Score | {{ (rec.revenue_score | default(0)) | round(2) }} | 25% | {{ ((rec.revenue_score | default(0)) * 0.25) | round(2) }} |
+| Load Management Score | {{ (rec.load_management_score | default(0)) | round(2) }} | 10% | {{ ((rec.load_management_score | default(0)) * 0.10) | round(2) }} |
+| Customer Satisfaction Score | {{ (rec.customer_satisfaction_score | default(0)) | round(2) }} | 10% | {{ ((rec.customer_satisfaction_score | default(0)) * 0.10) | round(2) }} |
+| **Overall Score** | **{{ (rec.overall_score | default(0)) | round(2) }}** | **100%** | **{{ (rec.overall_score | default(0)) | round(2) }}** |
+
+**Confidence Score:** {{ (rec.confidence_score | default(0)) | round(2) }}%  
+*Confidence score reflects the quality and completeness of the analysis for this option, based on score quality, data completeness, and score consistency.*
+
+#### Impact Summary
+
+{% if rec.revenue_impact %}
+**Revenue Impact:**
+- Projected Total Revenue: {% if rec.revenue_impact.total_revenue %}{{ rec.revenue_impact.total_revenue | format_currency }}{% else %}N/A{% endif %}
+- Average Bill Change: {% if rec.revenue_impact.avg_bill_change_pct %}{{ rec.revenue_impact.avg_bill_change_pct | round(2) }}%{% else %}N/A{% endif %}
+- Winners: {{ rec.revenue_impact.winners_count | default(0) }} customers
+- Losers: {{ rec.revenue_impact.losers_count | default(0) }} customers
+- Neutral: {{ rec.revenue_impact.neutral_count | default(0) }} customers
+{% endif %}
+
+#### Three-Year Performance Projection
+
+{% if rec.three_year_performance %}
+{%- set y1 = rec.three_year_performance.year_1 | default({}) %}
+{%- set y2 = rec.three_year_performance.year_2 | default({}) %}
+{%- set y3 = rec.three_year_performance.year_3 | default({}) %}
+{%- set revenue_target = rec.three_year_performance.revenue_target | default(5.0) %}
+{%- set growth_assumptions = rec.three_year_performance.growth_assumptions | default({}) %}
+
+This option's projected revenue performance over the next 3 years, based on a target of **{{ revenue_target | round(1) }}%** annual revenue growth:
+
+| Year | Baseline Revenue | Proposed Revenue | Revenue Change (%) | Target Met | Distance from Target | Customer Growth | Usage Growth |
+|------|------------------|------------------|--------------------|------------|---------------------|-----------------|--------------|
+| Year 1 | {% if y1.revenue_before %}${{ (y1.revenue_before / 1000000) | round(2) }}M{% else %}N/A{% endif %} | {% if y1.revenue %}${{ (y1.revenue / 1000000) | round(2) }}M{% else %}N/A{% endif %} | {% if y1.revenue_change_pct | default(None) is not none %}{{ y1.revenue_change_pct | round(2) }}%{% else %}N/A{% endif %} | {% if y1.target_met | default(None) is not none %}{% if y1.target_met %}✅ Yes{% else %}No{% endif %}{% else %}N/A{% endif %} | {% if y1.distance_from_target | default(None) is not none %}{{ y1.distance_from_target | round(2) }}%{% else %}N/A{% endif %} | - | - |
+| Year 2 | {% if y2.revenue_before %}${{ (y2.revenue_before / 1000000) | round(2) }}M{% else %}N/A{% endif %} | {% if y2.revenue %}${{ (y2.revenue / 1000000) | round(2) }}M{% else %}N/A{% endif %} | {% if y2.revenue_change_pct | default(None) is not none %}{{ y2.revenue_change_pct | round(2) }}%{% else %}N/A{% endif %} | {% if y2.target_met | default(None) is not none %}{% if y2.target_met %}✅ Yes{% else %}No{% endif %}{% else %}N/A{% endif %} | {% if y2.distance_from_target | default(None) is not none %}{{ y2.distance_from_target | round(2) }}%{% else %}N/A{% endif %} | {% if growth_assumptions.customer_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.customer_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} | {% if growth_assumptions.usage_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.usage_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} |
+| Year 3 | {% if y3.revenue_before %}${{ (y3.revenue_before / 1000000) | round(2) }}M{% else %}N/A{% endif %} | {% if y3.revenue %}${{ (y3.revenue / 1000000) | round(2) }}M{% else %}N/A{% endif %} | {% if y3.revenue_change_pct | default(None) is not none %}{{ y3.revenue_change_pct | round(2) }}%{% else %}N/A{% endif %} | {% if y3.target_met | default(None) is not none %}{% if y3.target_met %}✅ Yes{% else %}No{% endif %}{% else %}N/A{% endif %} | {% if y3.distance_from_target | default(None) is not none %}{{ y3.distance_from_target | round(2) }}%{% else %}N/A{% endif %} | {% if growth_assumptions.customer_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.customer_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} | {% if growth_assumptions.usage_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.usage_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} |
+
+**Growth Assumptions:**
+- **Customer Base Growth**: {% if growth_assumptions.customer_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.customer_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} per year (applied cumulatively)
+- **Usage Growth per Customer**: {% if growth_assumptions.usage_growth_rate_pct | default(None) is not none %}{{ growth_assumptions.usage_growth_rate_pct | round(1) }}%{% else %}N/A{% endif %} per year (applied cumulatively)
+
+**Note:** Target met (✅) indicates revenue change is within 1% of the target ({{ revenue_target | round(1) }}%) for that year. Year 1 reflects baseline simulation without growth factors.
+{% else %}
+Three-year performance data is not available for this option.
+{% endif %}
+
+{% if rec.equity_impact %}
+**Equity Impact:**
+- Equity Score: {% if rec.equity_impact.equity_score %}{{ rec.equity_impact.equity_score | round(2) }}{% else %}N/A{% endif %} / 100
+- Hardship Risk Count: {{ rec.equity_impact.hardship_risk_count | default(0) }} customers
+{% endif %}
+
+{% if rec.load_impact %}
+**Load Management Impact:**
+- Peak Load Reduction: {% if rec.load_impact.peak_load_reduction_pct %}{{ rec.load_impact.peak_load_reduction_pct | round(2) }}%{% else %}N/A{% endif %}
+- Peak Load (kW): {% if rec.load_impact.peak_load_kw %}{{ rec.load_impact.peak_load_kw | round(2) }}{% else %}N/A{% endif %}
+{% endif %}
+
+{% if rec.competitive_impact %}
+**Competitive Positioning:**
+- Competitiveness Score: {% if rec.competitive_impact.competitiveness_score %}{{ rec.competitive_impact.competitiveness_score | round(2) }}{% else %}N/A{% endif %} / 100
+- Market Position: {{ rec.competitive_impact.market_position | default("N/A") }}
+{% endif %}
+
+#### Key Tradeoffs
+
+{% if rec.tradeoffs %}
+{% for tradeoff in rec.tradeoffs %}
+- **{{ tradeoff.aspect }}**: {{ tradeoff.description }}
+{% endfor %}
+{% else %}
+No specific tradeoffs identified.
+{% endif %}
+
+#### Rationale
+
+{{ rec.rationale | default("No rationale provided.") }}
+
+</details>
+
+{% endfor %}
+
+---
+
+**Please select the rate option you want to proceed with for filing. The recommended option is pre-selected, but you may choose any option based on your review.**
+
+{% else %}
+
+No rate options are available yet. This usually means the `rate_case_recommender` agent did not return a `recommendations` list. Please re-run the pipeline or inspect the `rate_case_recommender` output and logs.
+
+{% endif %}
+

@@ -1,0 +1,127 @@
+# =============================================================================
+# MAIN SECTION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+name: "My Agent Project"
+description: "A simple agent workflow project created with Topaz Agent Kit"
+
+# =============================================================================
+# SERVERS SECTION - Server configuration
+# =============================================================================
+#
+# Server configurations for FastAPI and MCP servers
+#
+# Parameters:
+# - fastapi (object, required): FastAPI server configuration
+#   - fastapi.url (str, required): FastAPI server URL
+# - mcp (list, required): MCP servers configuration
+#   - mcp[].name (str, required): unique server name
+#   - mcp[].url (str, required): server URL
+#   - mcp[].model (str, required): model for this server
+#   - mcp[].transport (str, required): transport for this server
+#   - mcp[].embedding_model (str, optional): embedding model for this server
+#   - mcp[].db_path (str, optional): path to ChromaDB database for this server
+#
+# =============================================================================
+servers:
+  fastapi:
+    url: http://0.0.0.0:8090
+  mcp:
+    - name: topaz-mcp
+      url: http://0.0.0.0:8050
+      model: azure_openai
+      transport: streamable-http
+      db_path: "./data/chroma_db"
+      embedding_model: azure_openai_embedding
+
+# =============================================================================
+# PIPELINES SECTION - Pipeline definitions
+# =============================================================================
+#
+# Defines the pipelines available in this project.
+# Each pipeline references a configuration file in config/pipelines/
+#
+# Parameters:
+# - pipelines (list[object], required): list of pipeline definitions
+#   - pipelines[].id (str, required): unique pipeline identifier
+#   - pipelines[].config_file (str, required): path to pipeline configuration file
+#
+# =============================================================================
+pipelines:
+  - id: example
+    config_file: pipelines/example.yml
+
+# =============================================================================
+# DATA STORAGE SECTION - Data storage configuration
+# =============================================================================
+#
+# Data storage paths for chat history, RAG files, and user files.
+#
+# Parameters:
+# - chatdb_path (str, optional): path to chat database file
+# - chromadb_path (str, optional): path to ChromaDB database directory
+# - rag_files_path (str, optional): path to RAG file storage directory
+# - user_files_path (str, optional): path to user file storage directory
+# - embedding_model (str, optional): embedding model to use
+# - vision_model (str, optional): vision model to use
+#
+# =============================================================================
+chatdb_path: "./data/chat.db"
+chromadb_path: "./data/chroma_db"
+rag_files_path: "./data/rag_files"
+user_files_path: "./data/user_files"
+embedding_model: azure_openai_embedding
+vision_model: azure_openai_vision
+
+# =============================================================================
+# INDEPENDENT AGENTS SECTION - Independent agents configuration
+# =============================================================================
+#
+# Defines independent agents that can be used outside of pipelines.
+#
+# Parameters:
+# - independent_agents (list[object], required): list of independent agents
+#   - independent_agents[].id (str, required): unique agent identifier
+#   - independent_agents[].config_file (str, required): path to agent configuration file
+#
+# =============================================================================
+independent_agents:
+  - id: "content_analyzer"
+    config_file: "agents/content_analyzer.yml"
+  - id: "rag_query"
+    config_file: "agents/rag_query.yml"
+  - id: "content_extractor"
+    config_file: "agents/content_extractor.yml"
+  - id: "image_extractor"
+    config_file: "agents/image_extractor.yml"
+  - id: "web_search"
+    config_file: "agents/web_search.yml"
+
+# =============================================================================
+# ASSISTANT SECTION - Assistant configuration for routing
+# =============================================================================
+#
+# Assistant configuration for intent-based routing (optional).
+#
+# Parameters:
+#   - id (str, required): unique assistant identifier
+#   - type (str, required): assistant type (maf)
+#   - model (str, optional): model to use for routing
+#   - prompt: custom prompt for LLM classification
+#     - prompt.instruction: custom prompt for LLM classification
+#       - instruction.jinja (str, optional): Jinja template path
+#
+# =============================================================================
+assistant:
+  id: assistant
+  type: maf
+  model: azure_openai
+  prompt:
+    instruction:
+      jinja: prompts/assistant_intent_classifier.jinja
+

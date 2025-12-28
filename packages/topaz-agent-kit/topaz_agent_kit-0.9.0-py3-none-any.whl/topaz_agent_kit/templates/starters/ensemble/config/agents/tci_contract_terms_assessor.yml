@@ -1,0 +1,39 @@
+# =============================================================================
+# CONTRACT TERMS ASSESSOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent assesses the Contract Terms risk factor (Weight: 9%) by analyzing
+# the Signed Supply Contract. Evaluates payment terms, contract structure, and
+# assigns a score (0-100).
+#
+# =============================================================================
+id: tci_contract_terms_assessor
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/tci_contract_terms_assessor
+  timeout: 60000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+# No MCP tools needed - uses extracted data from upstream agents
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/tci_contract_terms_assessor.jinja
+  inputs:
+    inline: |
+      - Extracted Supply Contract: {{tci_document_extractor.extracted_data.supply_contract}}
+      - Underwriting Guidelines: {{tci_underwriting_manual_reviewer.guidelines}}
+      - Project Directory: {{project_dir}}
+

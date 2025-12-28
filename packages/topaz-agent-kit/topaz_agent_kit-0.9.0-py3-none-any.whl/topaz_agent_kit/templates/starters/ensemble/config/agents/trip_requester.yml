@@ -1,0 +1,43 @@
+# =============================================================================
+# TRIP REQUESTER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent acts as the coordinator for trip planning. It parses user requests,
+# extracts trip intent (flights, hotels, activities), normalizes locations using
+# locations_autocomplete, and computes readiness flags for domain agents.
+#
+# =============================================================================
+id: trip_requester
+type: maf
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/trip_requester
+  timeout: 30000
+  retry_attempts: 3
+agent_card:
+  name: "Trip Requester"
+  description: "Parses trip intent, resolves IATA/city codes without tools, computes flags, and identifies missing fields"
+  capabilities:
+    streaming: true
+    state_transition_history: true
+  tags: ["planner", "travel", "coordinator"]
+
+
+
+prompt:
+  instruction:
+    jinja: prompts/trip_requester.jinja
+  inputs:
+    inline: |
+      User Request:
+      {{user_text}}
+      {% if trip_clarifications %}
+      
+      User Clarification (from HITL input):
+      {{ trip_clarifications }}
+      
+      Merge this clarification with the user's original request. Do not discard previously extracted values; only fill what was missing.
+      {% endif %}
+

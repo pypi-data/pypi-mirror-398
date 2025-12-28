@@ -1,0 +1,42 @@
+# =============================================================================
+# PROBLEM PARSER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent extracts file path from user_text, reads the file, and extracts
+# math problems from it. Returns problem count and array of problems.
+#
+# =============================================================================
+id: math_repeater_parser
+type: langgraph
+model: "azure_openai"
+run_mode: "local"
+
+remote:
+  url: http://127.0.0.1:8100/math_repeater_parser
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+#
+# MCP tools for file reading operations
+#
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["common"]
+      tools: ["common_read_document"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    file: prompts/math_repeater_parser.jinja
+  inputs:
+    inline: |
+      User Input: {{user_text}}
+      Project Directory: {{project_dir}}
+

@@ -1,0 +1,37 @@
+# =============================================================================
+# QUERY PLANNER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent generates a step-by-step query plan using Chain-of-Thought reasoning.
+# Uses reasoning model for better planning.
+#
+# =============================================================================
+id: sot_query_planner
+type: agno
+model: azure_openai
+model_preference: reasoning
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/sot_query_planner
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/sot_query_planner.jinja
+  inputs:
+    inline: |
+      - Question: {{current_question.question}}
+      - Subproblems: {{sot_subproblem_creator.subproblems}}
+      - Schema Info: {{sot_schema_linker.schema_info}}
+      - Relevant Tables: {{sot_schema_linker.relevant_tables}}
+      - Relevant Columns: {{sot_schema_linker.relevant_columns}}
+      - Relationships: {{sot_schema_linker.relationships}}
+

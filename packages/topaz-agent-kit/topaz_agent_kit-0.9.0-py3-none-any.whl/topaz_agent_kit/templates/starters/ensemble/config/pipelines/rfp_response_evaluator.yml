@@ -1,0 +1,208 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "RFP Response Evaluator"
+description: "RFP Response Evaluator is an end-to-end agentic workflow that analyzes supplier responses to Request for Proposal (RFP) documents. The pipeline extracts and structures supplier information, evaluates responses against RFP requirements and evaluation criteria, calculates scores using predefined rubrics, compares suppliers, and generates a comprehensive evaluation report with recommendations."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of these constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop | repeat
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# LOOP
+# - type: loop (required)
+# - body: (step | sequential | parallel) (required)
+# - termination.max_iterations: int | str (required, >=1) - number of iterations or expression
+# - termination.condition: str (optional) - early termination condition
+# - loop_context_key: str (optional, default: "loop_iteration") - context key for loop iteration metadata
+#   Use this key in agent YAML to access {{loop_context_key.index}} and {{loop_context_key.iteration}}
+# - accumulate_results: bool (optional, default: true) - whether to accumulate results in arrays for downstream access
+# - Loop injects loop_iteration (0-based) and iteration (1-based) directly, plus structured context at loop_context_key
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+nodes:
+  - id: rfp_rsp_eval_folder_scanner
+    config_file: "agents/rfp_rsp_eval_folder_scanner.yml"
+  - id: rfp_rsp_eval_parser
+    config_file: "agents/rfp_rsp_eval_parser.yml"
+  - id: rfp_rsp_eval_response_extractor
+    config_file: "agents/rfp_rsp_eval_response_extractor.yml"
+  - id: rfp_rsp_eval_requirements_evaluator
+    config_file: "agents/rfp_rsp_eval_requirements_evaluator.yml"
+  - id: rfp_rsp_eval_criteria_scorer
+    config_file: "agents/rfp_rsp_eval_criteria_scorer.yml"
+  - id: rfp_rsp_eval_comparison_analyzer
+    config_file: "agents/rfp_rsp_eval_comparison_analyzer.yml"
+  - id: rfp_rsp_eval_report_generator
+    config_file: "agents/rfp_rsp_eval_report_generator.yml"
+
+pattern:
+  type: sequential
+  name: "RFP Response Evaluation Flow"
+  description: |
+    ## RFP Response Evaluation Flow
+    
+    This sequential pattern orchestrates the complete RFP response evaluation workflow:
+    1. **Folder Scanner** scans for RFP document and supplier response files
+    2. **Parser** extracts and structures RFP requirements and evaluation criteria
+    3. **Supplier Evaluation Loop** processes each supplier response:
+       - **Response Extractor** extracts structured supplier information
+       - **Requirements Evaluator** evaluates responses against RFP requirements
+       - **Criteria Scorer** calculates scores using predefined rubrics
+    4. **Comparison Analyzer** compares all suppliers and generates comparison matrix
+    5. **Review Gate** allows human review of comparison before final report
+    6. **Report Generator** creates comprehensive evaluation report with recommendations
+    
+    The workflow ensures thorough evaluation through iterative processing of each supplier response, followed by comparative analysis.
+  steps:
+    - node: rfp_rsp_eval_folder_scanner
+    - node: rfp_rsp_eval_parser
+    - type: loop
+      name: "Supplier Response Evaluation Loop"
+      description: |
+        ## Iterative Supplier Processing
+        
+        This loop pattern processes each supplier response sequentially:
+        - Processes all suppliers identified by the folder scanner
+        - For each supplier: extracts response, evaluates requirements, and calculates scores
+        - Results are accumulated for downstream comparison analysis
+        
+        The loop ensures thorough evaluation of each supplier before comparative analysis.
+      loop_context_key: "supplier_loop"
+      accumulate_results: true
+      termination:
+        max_iterations: "rfp_rsp_eval_folder_scanner.supplier_count"
+      body:
+        type: sequential
+        name: "Single Supplier Evaluation Flow"
+        description: |
+          ## Individual Supplier Assessment
+          
+          This sequential pattern evaluates a single supplier response:
+          1. Extract structured supplier information from response document
+          2. Evaluate response against RFP requirements
+          3. Calculate scores using predefined evaluation rubrics
+          
+          Results are accumulated for comparison with other suppliers.
+        steps:
+          - node: rfp_rsp_eval_response_extractor
+          - node: rfp_rsp_eval_requirements_evaluator
+          - node: rfp_rsp_eval_criteria_scorer
+    - node: rfp_rsp_eval_comparison_analyzer
+    - gate: review_comparison
+      on_approve: continue
+      on_reject: stop
+    - node: rfp_rsp_eval_report_generator
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates:
+  - id: review_comparison
+    type: approval
+    title: "Review Supplier Comparison"
+    description:
+      jinja: "hitl/rfp_response_evaluator_review_comparison.jinja"
+    context_key: "comparison_reviewed"
+    timeout_ms: 90000
+    on_timeout: approve
+
+# =============================================================================
+# OUTPUTS SECTION - Intermediate and Final Outputs
+# =============================================================================
+#
+# Output configuration for pipeline results
+# Parameters:
+# - intermediate (list[object], optional): intermediate outputs during execution
+#   - intermediate[].id (str, required): unique output identifier
+#   - intermediate[].node (str, required): which node's output to capture
+#   - intermediate[].selectors (list[str], required): JSON keys/paths to extract
+#   - intermediate[].transform (str, optional): Jinja2 expression for transformation
+# - final (object, required): final pipeline output
+#   - final.node (str, required): which node's output to use as final result
+#   - final.selectors (list[str], required): JSON keys/paths to extract
+#   - final.transform (str, optional): Jinja2 expression for transformation
+#
+# =============================================================================
+
+outputs:
+  # intermediate:
+  #   - node: rfp_rsp_eval_folder_scanner
+  #     selectors:
+  #       - rfp_document_path
+  #       - supplier_response_paths
+  #       - supplier_count
+  #   - node: rfp_rsp_eval_parser
+  #     selectors:
+  #       - rfp_data
+  #   - node: rfp_rsp_eval_response_extractor
+  #     selectors:
+  #       - suppliers
+  #       - supplier_count
+  #   - node: rfp_rsp_eval_comparison_analyzer
+  #     selectors:
+  #       - comparison_matrix
+  #       - rankings
+  final:
+    node: rfp_rsp_eval_report_generator
+    selectors:
+      - evaluation_report_md
+      - recommended_supplier
+      - recommendation_rationale
+      - summary
+      - error
+    transform: "{{ value }}"
+

@@ -1,0 +1,45 @@
+# =============================================================================
+# EMAIL SENDER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent sends the decision letter via email to the customer (only if
+# approved by the email approval gate).
+#
+# =============================================================================
+id: ag_email_sender
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/ag_email_sender
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["email", "sqlite"]
+      tools: ["email.*", "sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/ag_email_sender.jinja
+  inputs:
+    inline: |
+      - Recipient Email: {{current_email_sender}}
+      - Email Subject: {{current_email_subject}}
+      - Decision Letter (HTML): {{final_letter_html}}
+      - Decision Letter (Markdown): {{final_letter_md}}
+      - Final Decision: {{final_decision}}
+      - Email Approved: {{email_approved}}
+      - Run ID: {{run_id}}
+

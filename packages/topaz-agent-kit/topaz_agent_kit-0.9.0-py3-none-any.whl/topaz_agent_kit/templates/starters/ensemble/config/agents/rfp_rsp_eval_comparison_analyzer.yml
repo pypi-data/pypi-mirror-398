@@ -1,0 +1,98 @@
+# =============================================================================
+# COMPARISON ANALYZER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent compares all suppliers side-by-side, identifies strengths/weaknesses,
+# and creates a comparison matrix.
+#
+# Agent parameters:
+# - id (str, required): unique agent identifier used in pattern and runtime context
+# - type (str, required): agent implementation type (adk|oak|maf|agno|langgraph|crewai)
+# - model (str, required): language model to use for this agent
+# - run_mode (str, required): default execution mode (local|remote)
+#
+# =============================================================================
+id: rfp_rsp_eval_comparison_analyzer
+type: oak
+model: "azure_openai"
+run_mode: "local"
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rfp_rsp_eval_comparison_analyzer
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP (MODEL CONTEXT PROTOCOL) CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite"]
+      tools: ["sqlite.*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/rfp_rsp_eval_comparison_analyzer.jinja
+  inputs:
+    inline: |
+      RFP Context: {{rfp_rsp_eval_parser.rfp_data}}
+      Supplier Count: {{rfp_rsp_eval_folder_scanner.supplier_count}}
+      Database Path: {{rfp_rsp_eval_folder_scanner.base_folder}}/rfp_database.db
+      
+      {% if rfp_rsp_eval_response_extractor %}
+        {% if rfp_rsp_eval_response_extractor is iterable and rfp_rsp_eval_response_extractor is not string and rfp_rsp_eval_response_extractor[0] is defined %}
+          {% set response_extractor_list = rfp_rsp_eval_response_extractor %}
+        {% else %}
+          {% set response_extractor_list = [rfp_rsp_eval_response_extractor] %}
+        {% endif %}
+      Supplier Data:
+      {% for item in response_extractor_list %}
+        {% set supplier_data = item.supplier if item.supplier is defined else item %}
+      - Supplier {{loop.index0 + 1}} ({{supplier_data.supplier_id if supplier_data.supplier_id else (supplier_data.supplier_name if supplier_data.supplier_name else 'N/A')}}):
+        Supplier Name: {{supplier_data.supplier_name if supplier_data.supplier_name else 'N/A'}}
+        Answers: {{supplier_data.answers | tojson if supplier_data.answers else 'N/A'}}
+        Pricing: {{supplier_data.pricing | tojson if supplier_data.pricing else 'N/A'}}
+        Delivery Timeline: {{supplier_data.delivery_timeline | tojson if supplier_data.delivery_timeline else 'N/A'}}
+        Case Studies: {{supplier_data.case_studies if supplier_data.case_studies else 'N/A'}}
+        References: {{supplier_data.references if supplier_data.references else 'N/A'}}
+        Compliance Attestations: {{supplier_data.compliance_attestations | tojson if supplier_data.compliance_attestations else 'N/A'}}
+      {% endfor %}
+      {% endif %}
+      
+      {% if rfp_rsp_eval_requirements_evaluator %}
+        {% if rfp_rsp_eval_requirements_evaluator is iterable and rfp_rsp_eval_requirements_evaluator is not string and rfp_rsp_eval_requirements_evaluator[0] is defined %}
+          {% set requirements_evaluator_list = rfp_rsp_eval_requirements_evaluator %}
+        {% else %}
+          {% set requirements_evaluator_list = [rfp_rsp_eval_requirements_evaluator] %}
+        {% endif %}
+      Requirements Evaluation Results:
+      {% for eval_result in requirements_evaluator_list %}
+      - Supplier {{loop.index0 + 1}} ({{eval_result.supplier_id if eval_result.supplier_id else 'N/A'}}):
+        Coverage Score: {{eval_result.coverage_score if eval_result.coverage_score else 'N/A'}}
+        Requirements Compliance: {{eval_result.requirements_compliance | tojson if eval_result.requirements_compliance else 'N/A'}}
+        Gaps: {{eval_result.gaps | tojson if eval_result.gaps else 'N/A'}}
+        Strengths: {{eval_result.strengths | tojson if eval_result.strengths else 'N/A'}}
+      {% endfor %}
+      {% endif %}
+      
+      {% if rfp_rsp_eval_criteria_scorer %}
+        {% if rfp_rsp_eval_criteria_scorer is iterable and rfp_rsp_eval_criteria_scorer is not string and rfp_rsp_eval_criteria_scorer[0] is defined %}
+          {% set criteria_scorer_list = rfp_rsp_eval_criteria_scorer %}
+        {% else %}
+          {% set criteria_scorer_list = [rfp_rsp_eval_criteria_scorer] %}
+        {% endif %}
+      Scoring Results:
+      {% for score_result in criteria_scorer_list %}
+      - Supplier {{loop.index0 + 1}}:
+        Scores: {{score_result.scores if score_result.scores is defined else 'N/A'}}
+        Rationale: {{score_result.rationale if score_result.rationale is defined else 'N/A'}}
+      {% endfor %}
+      {% endif %}
+

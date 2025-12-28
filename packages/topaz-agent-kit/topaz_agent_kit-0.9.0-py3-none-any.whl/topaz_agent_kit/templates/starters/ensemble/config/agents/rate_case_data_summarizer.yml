@@ -1,0 +1,50 @@
+# =============================================================================
+# DATA SUMMARIZER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent validates schema and summarizes input datasets from the database.
+# It does not ingest raw files; it verifies that the existing SQLite DB is ready.
+#
+# =============================================================================
+id: rate_case_data_summarizer
+type: maf
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/rate_case_data_summarizer
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# LOCAL TOOLS CONFIGURATION
+# =============================================================================
+local_tools:
+  modules:
+    - tools.rate_case_filing_navigator.rate_case_tools
+  toolkits: ["rate_case"]
+  tools: ["rate_case.*"]
+
+# =============================================================================
+# CREWAI AGENT CONFIGURATION
+# =============================================================================
+#
+# CrewAI-specific configuration for agent behavior and task definition.
+# CrewAI agents require role, goal, backstory, and task definitions to operate.
+# Inputs are defined in this YAML (not in the prompt template), and are used
+# both for variable extraction and for building the rendered task description.
+#
+# =============================================================================
+prompt:
+  instruction: 
+    jinja: prompts/rate_case_data_summarizer.jinja
+
+  inputs:
+    inline: |
+      - User Request: {{user_text}}
+      - Project Directory: {{project_dir}}
+      - Expected DB (relative): data/rate_case_filing/rate_case_database.db
+ 

@@ -1,0 +1,159 @@
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+#
+# Pipeline parameters:
+# - name (str, required): human-readable pipeline name
+# - description (str, required): detailed description of pipeline purpose
+#
+# =============================================================================
+
+name: "Pipeline Math Repeater"
+description: "A multi-agent pipeline that processes multiple math problem files in parallel using math_repeater pipeline as a sub-pipeline. Scans a folder for math problem files, processes each file through the math_repeater pipeline, and generates a final aggregated report."
+
+# =============================================================================
+# PIPELINE PATTERN CONFIGURATION
+# =============================================================================
+#
+# Define the execution flow explicitly using one of these constructs:
+#   - sequential: run children in order
+#   - parallel: run children concurrently (wait_all)
+#   - loop: repeat body up to max_iterations
+#   - repeat: run same agent or pipeline multiple times in parallel (new pattern)
+#
+# PIPELINES REGISTRY (OPTIONAL)
+# - pipelines (list[object], optional): registry of sub-pipelines that can be used as nodes
+#   - pipelines[].id (str, required): pipeline identifier
+#   - pipelines[].pipeline_file (str, required): path to pipeline configuration file (relative to config/)
+#
+# NODES REGISTRY (REQUIRED)
+# - nodes (list[object], required)
+#   - nodes[].id (str, required): agent identifier
+#   - nodes[].config_file (str, required): path to agent configuration file (relative to config/)
+#
+# PATTERN (REQUIRED)
+# - pattern (object, required): one of sequential | parallel | loop | repeat
+#
+# STEP (LEAF)
+# - node (str, required): "agent_id"
+# - pipeline (str, required): "pipeline_id" (from pipelines registry)
+#
+# SEQUENTIAL
+# - type: sequential (required)
+# - steps: list of (step | pattern) (required, >=1)
+#
+# PARALLEL
+# - type: parallel (required)
+# - steps: list of (step | pattern) (required, >=1)
+# - OR repeat: repeat configuration (required if using repeat pattern)
+# - semantics: wait_all; first error fails the group (MVP defaults)
+#
+# REPEAT PATTERN (SINGLE AGENT OR PIPELINE)
+# - type: parallel (required)
+# - repeat (object, required): repeat configuration
+#   - repeat.node (str, required for agent): agent node ID to repeat
+#   - repeat.pipeline (str, required for pipeline): pipeline ID to repeat
+#   - repeat.instances (int | str, required): number of instances or expression
+#   - repeat.input_mapping (object, required for pipeline, optional for agent): input mapping with {{index}} variable
+#   - repeat.instance_id_template (str, optional): template for instance IDs (supports {{index}}, {{node_id}}, {{pipeline_id}})
+#   - repeat.instance_context_key (str, optional): context variable name for instance metadata (default: "repeat_instance")
+#
+# NOTES
+# - Context model unchanged: each node writes to context.upstream[node_id]
+# - Pipeline outputs are stored in context.upstream[pipeline_id] with nested structure
+# - Gates and outputs are configured in their respective sections below
+#
+# =============================================================================
+
+pipelines:
+  - id: math_repeater
+    pipeline_file: "pipelines/math_repeater.yml"
+
+nodes:
+  - id: enhanced_math_repeater_folder_scanner
+    config_file: "agents/enhanced_math_repeater_folder_scanner.yml"
+  - id: enhanced_math_repeater_final_report_generator
+    config_file: "agents/enhanced_math_repeater_final_report_generator.yml"
+
+pattern:
+  type: sequential
+  name: "Pipeline-Based Math Problem File Processing Flow"
+  description: |
+    ## Pipeline-Based Math Problem File Processing Flow
+    
+    This sequential pattern orchestrates the complete pipeline-based batch math problem-solving workflow:
+    1. **Folder Scanner** scans a folder for math problem files
+    2. **Parallel Pipeline Execution** processes each file through the math_repeater sub-pipeline concurrently
+    3. **Final Report Generator** aggregates results from all pipeline executions into a comprehensive report
+    
+    This pattern demonstrates pipeline composition, where the math_repeater pipeline is used as a reusable component within a larger workflow. Each file is processed through the complete math_repeater pipeline in parallel.
+  steps:
+    - node: enhanced_math_repeater_folder_scanner
+    - type: parallel
+      name: "Parallel Pipeline Execution"
+      description: |
+        ## Concurrent Pipeline Processing
+        
+        This parallel repeat pattern processes multiple files through sub-pipelines concurrently:
+        - Each file is processed through the complete math_repeater pipeline
+        - All pipeline executions run in parallel for maximum efficiency
+        - Results from all pipelines are collected for final aggregation
+        
+        This demonstrates pipeline composition, where a sub-pipeline is executed multiple times with different inputs, enabling reusable workflow components.
+      repeat:
+        pipeline: math_repeater
+        instances: "enhanced_math_repeater_folder_scanner.file_count"
+        instance_id_template: "{{pipeline_id}}_instance_{{index}}"
+        instance_context_key: "file_instance"
+        input_mapping:
+          user_text: "{{enhanced_math_repeater_folder_scanner.file_paths[index]}}"
+    - node: enhanced_math_repeater_final_report_generator
+
+# =============================================================================
+# HITL SECTION - Human-in-the-loop gates
+# =============================================================================
+#
+# Human-in-the-Loop gates configuration (optional)
+# Parameters:
+# - gates (list[object], optional): human-in-the-loop pause points
+#   - gates[].id (str, required): unique gate id
+#   - gates[].type (str, required): "approval" | "input" | "selection"
+#   - gates[].title (str, optional): UI title
+#   - gates[].description (str, optional): UI description
+#   - gates[].fields (list[object], optional): form fields for input gates
+#   - gates[].options (list[object], optional): selection options for selection gates
+#   - gates[].target_agents (list[str], optional): which agents receive this data
+#   - gates[].context_key (str, optional): key to store data in context
+#   - gates[].timeout_ms (int, optional): wait timeout; default 300000
+#   - gates[].on_timeout (str, optional): "approve" | "reject" | "skip" | "default"
+#
+# =============================================================================
+
+gates: []
+
+# =============================================================================
+# OUTPUTS CONFIGURATION
+# =============================================================================
+#
+# Pipeline output configuration for final and intermediate results
+#
+# Parameters:
+# - outputs.final (object, required): final pipeline output
+#   - outputs.final.node (str, required): agent ID that produces final output
+#   - outputs.final.selectors (list[str], optional): JSONPath selectors to extract specific fields
+#   - outputs.final.transform (str, optional): transformation expression
+# - outputs.intermediate (list[object], optional): intermediate outputs for debugging/monitoring
+#   - outputs.intermediate[].node (str, required): agent ID that produces intermediate output
+#   - outputs.intermediate[].selectors (list[str], optional): JSONPath selectors
+#   - outputs.intermediate[].transform (str, optional): transformation expression
+#
+# =============================================================================
+
+outputs:
+  final:
+    node: enhanced_math_repeater_final_report_generator
+    selectors: 
+      - final_report_md
+      - error
+    transform: "{{ value }}"
+

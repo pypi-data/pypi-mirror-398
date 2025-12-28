@@ -1,0 +1,158 @@
+**Claim ID:** {{ current_claim.claim_id }}
+
+
+## Claim Details
+
+| Field | Value |
+|-------|-------|
+| Claim ID | {{ current_claim.claim_id }} |
+| Policy Number | {{ eci_claims_extractor.extracted_data.policy_number }} |
+| Claimant Name | {{ eci_claims_extractor.extracted_data.claimant_name }} |
+| Claimant Email | {{ eci_claims_extractor.extracted_data.claimant_email }} |
+| Buyer | {{ eci_claims_extractor.extracted_data.buyer_name }} |
+| Seller | {{ eci_claims_extractor.extracted_data.seller_name }} |
+| Claim Amount | {%- if eci_claims_extractor.extracted_data.claim_amount %}{%- set sym = current_claim.currency_symbol or '$' %}{%- if sym | length >= 3 %}{{ sym }} {{ eci_claims_extractor.extracted_data.claim_amount | format_currency }}{%- else %}{{ sym }}{{ eci_claims_extractor.extracted_data.claim_amount | format_currency }}{%- endif %}{%- else %}N/A{%- endif %} |
+| Claim Reason Category | {{ eci_claims_extractor.extracted_data.claim_reason_category }} |
+| Claim Reason Description | {{ eci_claims_extractor.extracted_data.claim_reason_description }} |
+
+
+## Invoice Details
+
+| Field | Value |
+|-------|-------|
+| Invoice Number | {{ eci_claims_extractor.extracted_data.invoice_number }} |
+| Invoice Date | {{ eci_claims_extractor.extracted_data.invoice_date }} |
+| Invoice Amount | {%- if eci_claims_extractor.extracted_data.invoice_amount %}{%- set sym = current_claim.currency_symbol or '$' %}{%- if sym | length >= 3 %}{{ sym }} {{ eci_claims_extractor.extracted_data.invoice_amount | format_currency }}{%- else %}{{ sym }}{{ eci_claims_extractor.extracted_data.invoice_amount | format_currency }}{%- endif %}{%- else %}N/A{%- endif %} |
+
+
+## Bill of Lading Details
+
+| Field | Value |
+|-------|-------|
+| Vessel | {{ eci_claims_extractor.extracted_data.vessel_name }} |
+| Origin Port | {{ eci_claims_extractor.extracted_data.origin_port }} |
+| Destination Port | {{ eci_claims_extractor.extracted_data.destination_port }} |
+| BOL Date | {{ eci_claims_extractor.extracted_data.bol_date }} |
+
+
+## Policy Information
+
+| Field | Value |
+|-------|-------|
+| Policy Number | {{ eci_claims_extractor.extracted_data.policy_number }} |
+| Claim Reason Category | {{ eci_claims_extractor.extracted_data.claim_reason_category }} |
+{%- if eci_policy_coverage_validator.coverage_details %}
+{%- set currency_symbol = current_claim.currency_symbol or '$' %}
+| Coverage Limit | {%- if currency_symbol | length >= 3 %}{{ currency_symbol }} {{ eci_policy_coverage_validator.coverage_details.coverage_limit | format_currency }}{%- else %}{{ currency_symbol }}{{ eci_policy_coverage_validator.coverage_details.coverage_limit | format_currency }}{%- endif %} |
+| Deductible | {%- if currency_symbol | length >= 3 %}{{ currency_symbol }} {{ eci_policy_coverage_validator.coverage_details.deductible | format_currency }}{%- else %}{{ currency_symbol }}{{ eci_policy_coverage_validator.coverage_details.deductible | format_currency }}{%- endif %} |
+| Coverage Percentage | {{ (eci_policy_coverage_validator.coverage_details.coverage_percentage * 100) | round(1) }}% |
+| Covered Amount | {%- if currency_symbol | length >= 3 %}{{ currency_symbol }} {{ eci_policy_coverage_validator.coverage_details.covered_amount | format_currency }}{%- else %}{{ currency_symbol }}{{ eci_policy_coverage_validator.coverage_details.covered_amount | format_currency }}{%- endif %} |
+{%- endif %}
+
+
+## Claim History
+
+{%- if eci_claim_history_lookup.history_summary %}
+| Field | Value |
+|-------|-------|
+| Total Claims in Term | {{ eci_claim_history_lookup.history_summary.total_claims_in_term }} / {{ eci_claim_history_lookup.history_summary.max_claims_per_term }} |
+| Total Claims in Year | {{ eci_claim_history_lookup.history_summary.total_claims_in_year }} / {{ eci_claim_history_lookup.history_summary.max_claims_per_year }} |
+{%- set currency_symbol = current_claim.currency_symbol or '$' %}
+| Average Claim Amount | {%- if currency_symbol | length >= 3 %}{{ currency_symbol }} {{ eci_claim_history_lookup.history_summary.average_claim_amount | format_currency }}{%- else %}{{ currency_symbol }}{{ eci_claim_history_lookup.history_summary.average_claim_amount | format_currency }}{%- endif %} |
+| Average Days Between Claims | {{ eci_claim_history_lookup.history_summary.average_days_between_claims }} days |
+| High Risk Claims Count | {{ eci_claim_history_lookup.history_summary.high_risk_claims_count }} |
+{%- else %}
+**Claim History:** Not available
+{%- endif %}
+
+
+## Recommended Decision
+{%- set decision_value = eci_decision_recommender.recommended_decision if eci_decision_recommender else None %}
+{%- set decision_text = '' %}
+{%- if gate_options and decision_value %}
+  {%- for opt in gate_options %}
+    {%- if not decision_text and (opt.value == decision_value or opt.value | lower == decision_value | lower) %}
+      {%- set decision_text = opt.label %}
+    {%- endif %}
+  {%- endfor %}
+{%- endif %}
+{%- if not decision_text and decision_value %}
+  {%- set decision_text = decision_value | replace('_', ' ') | title %}
+{%- endif %}
+{%- if not decision_text %}
+  {%- set decision_text = 'N/A' %}
+{%- endif %}
+{%- set decision_color = '#ef4444' if decision_value == 'reject' else ('#22c55e' if decision_value == 'approve' else '#f59e0b') %}
+**Decision:** <span style="color: {{ decision_color }}; font-weight: bold;">{{ decision_text }}</span>
+{%- set risk_score = eci_decision_recommender.risk_score if eci_decision_recommender and eci_decision_recommender.risk_score is not none else None %}
+**Risk Score:** <span style="color: {{ risk_score | risk_score_color }}; font-weight: bold;">{{ risk_score | default_if_none }}</span>/100
+
+
+**Red Flags:**
+{%- if eci_decision_recommender.red_flags and eci_decision_recommender.red_flags | length > 0 %}
+{%- for flag in eci_decision_recommender.red_flags %}
+- {{ flag }}
+{%- endfor %}
+{%- else %}
+None
+{%- endif %}
+
+
+**Rationale:**
+{{ eci_decision_recommender.rationale }}
+
+
+## Validation Summary
+
+<details>
+<summary><strong>📋 Claim Validator - Detailed Checks</strong> ({%- if eci_claim_validator.validation_passed %}<span style="color: #28a745;">✓ PASSED</span>{%- else %}<span style="color: #dc3545;">✗ FAILED</span>{%- endif %})</summary>
+
+{% if eci_claim_validator.checks_table %}
+{{ eci_claim_validator.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+<summary><strong>👤 Buyer Checker - Detailed Checks</strong> ({%- if eci_buyer_checker.buyer_status == "legitimate" %}<span style="color: #28a745;">✓ Legitimate</span>{%- elif eci_buyer_checker.buyer_status == "medium_risk" %}<span style="color: #ffa500;">⚠ Medium Risk</span>{%- elif eci_buyer_checker.buyer_status == "high_risk" %}<span style="color: #dc3545;">✗ High Risk</span>{%- else %}<span style="color: #6c757d;">? Unknown</span>{%- endif %})</summary>
+
+{% if eci_buyer_checker.checks_table %}
+{{ eci_buyer_checker.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+<summary><strong>🚢 Shipment Validator - Detailed Checks</strong> ({%- if eci_shipment_validator.shipment_valid %}<span style="color: #28a745;">✓ VALID</span>{%- else %}<span style="color: #dc3545;">✗ INVALID</span>{%- endif %})</summary>
+
+{% if eci_shipment_validator.checks_table %}
+{{ eci_shipment_validator.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+<summary><strong>📄 Policy Coverage Validator - Detailed Checks</strong> ({%- if eci_policy_coverage_validator.coverage_valid %}<span style="color: #28a745;">✓ COVERED</span>{%- else %}<span style="color: #dc3545;">✗ NOT COVERED</span>{%- endif %})</summary>
+
+{% if eci_policy_coverage_validator.checks_table %}
+{{ eci_policy_coverage_validator.checks_table }}
+
+{% endif %}
+</details>
+
+
+<details>
+<summary><strong>📊 Claim History Lookup - Detailed Checks</strong> ({%- if eci_claim_history_lookup.history_valid %}<span style="color: #28a745;">✓ VALID</span>{%- else %}<span style="color: #dc3545;">✗ INVALID</span>{%- endif %})</summary>
+
+{% if eci_claim_history_lookup.checks_table %}
+{{ eci_claim_history_lookup.checks_table }}
+
+{% endif %}
+</details>
+
+
+Review all findings above and approve or override the recommended decision.
+

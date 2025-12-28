@@ -1,0 +1,48 @@
+# =============================================================================
+# POLICY COVERAGE VALIDATOR AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent validates claim against policy terms:
+# - Policy number exists and is valid
+# - Claim reason matches covered risks
+# - Claim amount within coverage limits
+# - Claim date within policy period
+# - No exclusions apply
+# - Deductible calculation
+# - Coverage percentage check
+#
+# =============================================================================
+id: eci_policy_coverage_validator
+type: adk
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/eci_policy_coverage_validator
+  timeout: 30000
+  retry_attempts: 3
+
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["sqlite", "doc_extract", "filesystem"]
+      tools: ["sqlite.*", "doc_extract.*", "fs_*"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/eci_policy_coverage_validator.jinja
+  inputs:
+    inline: |
+      - Current Claim ID: {{current_claim.claim_id}}
+      - Extracted Data: {{extracted_data}}
+      - Project Directory: {{project_dir}}
+

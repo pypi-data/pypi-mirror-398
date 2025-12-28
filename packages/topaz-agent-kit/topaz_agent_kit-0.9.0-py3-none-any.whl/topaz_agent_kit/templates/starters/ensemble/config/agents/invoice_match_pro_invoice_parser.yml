@@ -1,0 +1,41 @@
+# =============================================================================
+# INVOICE PARSER AGENT CONFIGURATION
+# =============================================================================
+#
+# This agent extracts structured data from PDF invoice files including invoice
+# number, vendor name, invoice date, due date, total amount, line items, and
+# PO reference.
+#
+# =============================================================================
+id: invoice_match_pro_invoice_parser
+type: oak
+model: azure_openai
+run_mode: local
+
+# =============================================================================
+# REMOTE EXECUTION CONFIGURATION
+# =============================================================================
+remote:
+  url: http://127.0.0.1:8100/invoice_match_pro_invoice_parser
+  timeout: 30000
+  retry_attempts: 3
+# =============================================================================
+# MCP CONFIGURATION
+# =============================================================================
+mcp:
+  servers:
+    - url: "http://localhost:8050/mcp"
+      toolkits: ["doc_extract"]
+      tools: ["doc_extract_structured_data"]
+
+# =============================================================================
+# PROMPT CONFIGURATION
+# =============================================================================
+prompt:
+  instruction:
+    jinja: prompts/invoice_match_pro_invoice_parser.jinja
+  inputs:
+    inline: |
+      Invoice File Path: {{current_file_path}}
+
+
