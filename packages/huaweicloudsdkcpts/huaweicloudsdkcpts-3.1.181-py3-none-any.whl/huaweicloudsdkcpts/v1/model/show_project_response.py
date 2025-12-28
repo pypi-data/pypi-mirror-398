@@ -1,0 +1,166 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowProjectResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'code': 'str',
+        'message': 'str',
+        'project': 'Project'
+    }
+
+    attribute_map = {
+        'code': 'code',
+        'message': 'message',
+        'project': 'project'
+    }
+
+    def __init__(self, code=None, message=None, project=None):
+        r"""ShowProjectResponse
+
+        The model defined in huaweicloud sdk
+
+        :param code: 响应码
+        :type code: str
+        :param message: 响应消息
+        :type message: str
+        :param project: 
+        :type project: :class:`huaweicloudsdkcpts.v1.Project`
+        """
+        
+        super().__init__()
+
+        self._code = None
+        self._message = None
+        self._project = None
+        self.discriminator = None
+
+        if code is not None:
+            self.code = code
+        if message is not None:
+            self.message = message
+        if project is not None:
+            self.project = project
+
+    @property
+    def code(self):
+        r"""Gets the code of this ShowProjectResponse.
+
+        响应码
+
+        :return: The code of this ShowProjectResponse.
+        :rtype: str
+        """
+        return self._code
+
+    @code.setter
+    def code(self, code):
+        r"""Sets the code of this ShowProjectResponse.
+
+        响应码
+
+        :param code: The code of this ShowProjectResponse.
+        :type code: str
+        """
+        self._code = code
+
+    @property
+    def message(self):
+        r"""Gets the message of this ShowProjectResponse.
+
+        响应消息
+
+        :return: The message of this ShowProjectResponse.
+        :rtype: str
+        """
+        return self._message
+
+    @message.setter
+    def message(self, message):
+        r"""Sets the message of this ShowProjectResponse.
+
+        响应消息
+
+        :param message: The message of this ShowProjectResponse.
+        :type message: str
+        """
+        self._message = message
+
+    @property
+    def project(self):
+        r"""Gets the project of this ShowProjectResponse.
+
+        :return: The project of this ShowProjectResponse.
+        :rtype: :class:`huaweicloudsdkcpts.v1.Project`
+        """
+        return self._project
+
+    @project.setter
+    def project(self, project):
+        r"""Sets the project of this ShowProjectResponse.
+
+        :param project: The project of this ShowProjectResponse.
+        :type project: :class:`huaweicloudsdkcpts.v1.Project`
+        """
+        self._project = project
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ShowProjectResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowProjectResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
