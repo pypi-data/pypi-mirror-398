@@ -1,0 +1,505 @@
+# Django System Audit
+
+**An explicit, intent-aware audit trail library for Django and Django REST Framework.**
+
+Django System Audit helps you **reliably answer audit questions** such as:
+
+> **Who** did **what**, **when**, **where**, and **why** —
+> across **Django Admin**, **DRF APIs**, and **custom application workflows**.
+
+It is designed for **correctness over convenience**, and for systems where **audit data must be defensible**, not guessed.
+
+---
+
+## Why This Library Exists
+
+Most Django “activity” or “audit” libraries rely heavily on:
+
+* model signals
+* implicit inference
+* global hooks
+* or magical auto-tracking
+
+These approaches break down when you need:
+
+* correct actor attribution
+* intent-aware auditing (API vs Admin vs system)
+* compliance-grade audit trails
+* predictable, testable behavior
+
+**Django System Audit is intentionally explicit.**
+It prefers *intent* over *inference*, and *clarity* over *magic*.
+
+---
+
+## ✨ Key Features
+
+* ✅ **Single, centralized audit service** (`track_activity`)
+* ✅ **Correct actor attribution**
+
+  * user
+  * system
+  * anonymous (explicitly allowed)
+* ✅ First-class support for:
+
+  * Django Admin
+  * DRF ViewSets
+  * APIView / GenericAPIView
+  * JWT / OAuth authentication
+* ✅ **Intent-level auditing**
+
+  * Admin & API hooks override signals
+  * Signals act only as a fallback
+* ✅ **Field-level diffs** (opt-in, PII-safe)
+* ✅ **Request context capture**
+
+  * IP address
+  * User agent
+  * HTTP method
+  * Request path
+* ✅ **Async-safe**
+
+  * Uses `contextvars`, not thread-locals
+* ✅ **No duplicate logs**
+
+  * Automatic per-request signal suppression
+* ✅ Explicit > implicit
+
+  * No guessing
+  * No silent behavior
+
+---
+
+## ❌ What This Library Does *Not* Do (By Design)
+
+* ❌ Automatically track bulk updates (`QuerySet.update`, `bulk_update`)
+* ❌ Infer intent from raw SQL or database triggers
+* ❌ Guess actors inside model signals
+* ❌ Log sensitive fields unless explicitly allowed
+* ❌ Pretend that metadata alone constitutes an audit event
+
+If a system claims to do these safely and automatically, it is **incomplete or unsafe**.
+
+---
+
+## Installation
+
+```bash
+pip install django-system-audit
+```
+
+> ⚠️ PyPI package name and Python import path differ intentionally.
+
+---
+
+## Basic Setup
+
+### 1️⃣ Add to `INSTALLED_APPS`
+
+```python
+INSTALLED_APPS = [
+    ...
+    "activity_tracker",
+]
+```
+
+---
+
+### 2️⃣ Add Middleware (Required)
+
+This middleware propagates:
+
+* actor context
+* request metadata
+
+```python
+MIDDLEWARE = [
+    ...
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "activity_tracker.middleware.ActivityTrackerMiddleware",
+    ...
+]
+```
+
+> ⚠️ Must be **after** `AuthenticationMiddleware`.
+
+---
+
+### 3️⃣ Run migrations
+
+```bash
+python manage.py makemigrations activity_tracker
+python manage.py migrate
+```
+
+---
+
+## Core Concept (Critical to Understand)
+
+**Everything funnels through one function:**
+
+```python
+track_activity(...)
+```
+
+All integrations—Admin, DRF, helpers, signals—eventually call this service.
+
+This guarantees:
+
+* consistent behavior
+* predictable metadata
+* testable invariants
+* safe refactoring over time
+
+---
+
+## Basic Usage
+
+### Manual Tracking (Anywhere)
+
+```python
+from activity_tracker.services import track_activity
+
+track_activity(
+    action="CUSTOM_EVENT",
+    actor=request.user,
+    metadata={"reason": "manual_override"},
+)
+```
+
+Use this for:
+
+* background jobs
+* management commands
+* custom workflows
+* system events
+
+---
+
+## Django Admin Integration (Recommended)
+
+Admin actions represent **explicit human intent**.
+They should always be audited directly.
+
+### Enable Admin Auditing
+
+```python
+from django.contrib import admin
+from activity_tracker.admin_mixins import AuditModelAdminMixin
+from .models import Article
+
+
+@admin.register(Article)
+class ArticleAdmin(AuditModelAdminMixin, admin.ModelAdmin):
+    pass
+```
+
+### What You Get
+
+* Correct actor (`request.user`)
+* Exact field diffs (`form.changed_data`)
+* CREATE / UPDATE / DELETE events
+* Signal suppression (no duplicates)
+
+---
+
+## Django REST Framework (DRF)
+
+### ✅ Best Option: ViewSets (Recommended)
+
+```python
+from rest_framework.viewsets import ModelViewSet
+from activity_tracker.drf_mixins import AuditModelViewSetMixin
+
+
+class ArticleViewSet(AuditModelViewSetMixin, ModelViewSet):
+    queryset = Article.objects.all()
+    serializer_class = ArticleSerializer
+```
+
+### Guarantees
+
+* Intent-level diffs (`serializer.validated_data`)
+* Explicit actor
+* Correct metadata
+* No race conditions
+* Signals disabled automatically
+
+---
+
+### APIView / GenericAPIView (Explicit Helpers)
+
+For views without lifecycle hooks:
+
+```python
+from activity_tracker.helpers import audit_update
+
+class ArticleUpdateAPI(UpdateAPIView):
+    queryset = Article.objects.all()
+    serializer_class = ArticleSerializer
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        validated_data = serializer.validated_data
+        instance = serializer.save()
+
+        audit_update(
+            request=self.request,
+            instance=instance,
+            validated_data=validated_data,
+        )
+```
+
+Available helpers:
+
+* `audit_create`
+* `audit_update`
+* `audit_delete`
+
+---
+
+## JWT / OAuth Authentication
+
+Stateless authentication **does not trigger Django login signals**.
+
+You must log these events explicitly:
+
+```python
+from activity_tracker.drf import track_login, track_logout
+
+track_login(request=request, user=user, auth_type="jwt")
+track_logout(request=request, user=request.user, auth_type="jwt")
+```
+
+This is **intentional and correct**.
+
+---
+
+## CRUD Signals (Fallback Only)
+
+Model signals exist as a **safety net**, not a primary mechanism.
+
+### Opt-In via Mixin
+
+```python
+from activity_tracker.model_signals import TrackModelActivityMixin
+
+class Article(TrackModelActivityMixin, models.Model):
+    title = models.CharField(max_length=255)
+```
+
+### Signal Behavior
+
+Signals are **automatically disabled per request** when:
+
+* Admin mixins are used
+* DRF ViewSet mixins are used
+
+This guarantees **zero duplicate audit entries**.
+
+---
+
+## Field-Level Diff Tracking (Advanced)
+
+Diff tracking is **explicit, opt-in, and PII-aware**.
+
+```python
+class Article(TrackModelActivityMixin, models.Model):
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+
+    TRACK_FIELDS = {"title", "body"}
+    SENSITIVE_FIELDS = {"body"}
+```
+
+Example diff:
+
+```json
+{
+  "diff": {
+    "title": {"old": "Old", "new": "New"},
+    "body": {"old": "***REDACTED***", "new": "***REDACTED***"}
+  }
+}
+```
+
+---
+
+## Metadata Model
+
+Each audit record stores:
+
+* `actor` (user / system / null)
+* `action` (normalized string)
+* `target` (GenericForeignKey, optional)
+* `metadata` (JSON)
+* `created_at`
+
+### Metadata Merge Rules
+
+* Request metadata is added automatically
+* Explicit metadata always **overrides**
+* No cross-request leakage
+
+---
+
+## Philosophy (Read This Before Using)
+
+> **Signals detect effects.**
+> **Views and Admin express intent.**
+> **Audit systems must prefer intent over inference.**
+
+This library is explicit by design:
+
+* Less magic
+* More correctness
+* Fewer legal surprises
+
+---
+
+## Common Pitfalls (Avoid These)
+
+* ❌ Expecting signals to capture API intent
+* ❌ Expecting bulk updates to be audited
+* ❌ Logging raw PII in diffs
+* ❌ Relying on thread-locals
+* ❌ Treating metadata as an audit event
+
+---
+
+## Compatibility
+
+* Python 3.9+
+* Django 3.2+
+* Django REST Framework (optional)
+
+---
+
+## License
+
+MIT License
+
+```text
+MIT License
+
+Copyright (c) 2024 Rajat Jog
+```
+
+---
+
+## Final Note
+
+This library is built for:
+
+* healthcare systems
+* fintech platforms
+* internal admin tools
+* compliance-sensitive products
+
+If you want **magic logging**, this is not it.
+If you want **audit data you can defend**, you’re in the right place.
+
+## 🤝 Contributing
+
+Contributions are welcome — **but intentional design comes first**.
+
+This project prioritizes:
+
+* correctness over convenience
+* explicit intent over implicit inference
+* predictable, testable behavior over magic
+
+Before contributing, please align with these principles.
+
+### How to Contribute
+
+1. **Open an issue first**
+
+   * Describe the problem clearly
+   * Explain *why* existing behavior is insufficient
+   * Propose a solution aligned with the project philosophy
+
+2. **Fork and create a feature branch**
+
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+3. **Add or update tests**
+
+   * New behavior must be covered
+   * Bug fixes must include regression tests
+
+4. **Keep changes focused**
+
+   * One concern per PR
+   * Avoid unrelated refactors
+
+5. **Run tests before submitting**
+
+   ```bash
+   pytest
+   ```
+
+6. **Submit a pull request**
+
+   * Clearly describe intent, not just implementation
+   * Explain trade-offs if any exist
+
+---
+
+### What Will Likely Be Rejected
+
+To save everyone time, PRs are unlikely to be accepted if they:
+
+* ❌ Add implicit or “magic” behavior
+* ❌ Automatically audit bulk updates or raw SQL
+* ❌ Guess actors or intent
+* ❌ Log sensitive data without explicit opt-in
+* ❌ Break existing audit invariants
+
+This library is intentionally conservative.
+
+---
+
+## 🧭 Roadmap (High-Level)
+
+Planned or possible future work:
+
+* Audit export utilities (CSV / JSON)
+* Retention and archival helpers
+* Async offloading (Celery / Kafka)
+* Admin-side audit dashboards
+* Policy-based audit enforcement
+
+If you want to work on any of these, open an issue first.
+
+---
+
+## 📬 Maintainer & Contact
+
+Maintained by **Rajat Jog**.
+
+* GitHub: [https://github.com/](https://github.com/RJ-Gamer/)
+* Email: `rajatjog1294@gmail.com`
+* LinkedIn (optional): [https://www.linkedin.com/in/rajat-jog/](https://www.linkedin.com/in/rajat-jog/)
+
+For:
+
+* architectural questions
+* security concerns
+* compliance-related discussions
+
+please prefer **direct contact** or a **private issue** where appropriate.
+
+---
+
+## Security Disclosure
+
+If you discover a security or privacy issue:
+
+* **Do not open a public issue**
+* Contact the maintainer directly via email
+Responsible disclosure is appreciated.
+
+
