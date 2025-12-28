@@ -1,0 +1,111 @@
+# Litewave Logger
+
+This module provides a centralized and consistent logging solution for Litewave services. It ensures that a `request-id` is maintained across all services, including HTTP requests and Celery tasks, allowing for easy tracing of requests as they propagate through the system.
+
+## Features
+
+- **Centralized Logging**: A single module to configure and manage logging across all services.
+- **JSON Logging**: All logs are formatted as JSON for easy parsing and integration with log aggregation systems.
+- **Request ID Propagation**: Automatically injects a `request-id` into all log messages.
+- **FastAPI Integration**: Middleware for FastAPI to handle `request-id` for incoming HTTP requests and adds it to response headers.
+- **Celery Integration**: Signal handlers to propagate the `request-id` to Celery tasks automatically.
+- **Requests Library Patching**: Automatically injects the `request-id` into outgoing HTTP requests made with the `requests` library.
+- **Endpoint Exclusion**: Configure endpoints that should not be logged (e.g., health checks, metrics).
+
+## Installation
+
+1.  Add the `litewave_logger` directory to your Python project.
+2.  Ensure that the dependencies listed in the main `requirements.txt` (`fastapi`, `celery`, `requests`) are installed.
+
+## Usage
+
+To use the `litewave_logger` in your service, follow these steps:
+
+1.  **Initialize the logger**: In your main application file (e.g., `api.py`), import and call the `setup_logging` function. This should be done as early as possible.
+
+    ```python
+    from litewave_logger import setup_logging
+
+    # Optionally exclude endpoints from logging (e.g., health checks, metrics)
+    setup_logging(excluded_endpoints=['/health', '/metrics'])
+    ```
+
+2.  **Add the FastAPI middleware**: If your service is a FastAPI application, add the `RequestIdMiddleware` to your FastAPI app.
+
+    ```python
+    from fastapi import FastAPI
+    from litewave_logger.middleware import RequestIdMiddleware
+
+    app = FastAPI()
+    app.add_middleware(RequestIdMiddleware)
+    ```
+
+3.  **Patch the `requests` library**: To ensure the `request-id` is propagated to other services, patch the `requests` library.
+
+    ```python
+    from litewave_logger.requests import patch_requests
+
+    patch_requests()
+    ```
+
+4.  **Connect Celery signals**: If your service uses Celery, you need to import the Celery module to ensure the signal handlers are registered. The signal handlers are automatically connected via decorators, so you don't need to call them directly.
+
+    ```python
+    # Just import the module - signal handlers are automatically registered
+    import litewave_logger.celery
+    ```
+
+### Example
+
+Here's a complete example of how to integrate the `litewave_logger` into a FastAPI application:
+
+```python
+from fastapi import FastAPI
+from litewave_logger import setup_logging
+from litewave_logger.middleware import RequestIdMiddleware
+from litewave_logger.requests import patch_requests
+
+# Import Celery module to register signal handlers (if using Celery)
+import litewave_logger.celery
+
+# 1. Initialize logging (optionally exclude endpoints)
+setup_logging(excluded_endpoints=['/health', '/metrics'])
+
+# 2. Patch requests library
+patch_requests()
+
+app = FastAPI()
+
+# 3. Add RequestIdMiddleware
+app.add_middleware(RequestIdMiddleware)
+
+# Your application code here...
+```
+
+## How It Works
+
+### Request ID Flow
+
+1. **Incoming HTTP Request**: The `RequestIdMiddleware` checks for an `X-Request-ID` header. If present, it uses that value; otherwise, it generates a new UUID.
+2. **Context Variable**: The request ID is stored in a context variable (`request_id_var`) that is automatically maintained across async operations.
+3. **Logging**: All log messages automatically include the request ID via the `RequestIdFilter`.
+4. **Outgoing Requests**: When using the `requests` library, the request ID is automatically injected as the `X-Request-ID` header.
+5. **Response Headers**: The request ID is added to the response headers as `X-Request-ID`.
+6. **Celery Tasks**: When a Celery task is published, the request ID is automatically included in the task headers and propagated to the worker process.
+
+### Log Format
+
+All logs are formatted as JSON with the following structure:
+
+```json
+{
+  "timestamp": "2024-01-01 12:00:00",
+  "level": "INFO",
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "path": "/api/users",
+  "method": "GET",
+  "message": "request received",
+  "status_code": 200,
+  "error": null
+}
+```
