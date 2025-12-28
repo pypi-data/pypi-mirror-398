@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Graphviz SVG Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 12px;
+      background: #f7f8fb;
+    }
+    header {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:10px;
+    }
+    #svgContainer {
+      border: 1px solid #ddd;
+      background: white;
+      padding: 12px;
+      overflow: auto;
+      height: 80vh;
+    }
+    .hint {
+      font-size: 13px;
+      color: #666;
+    }
+    .graph-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+      max-width: 400px;
+      white-space: pre-wrap;
+      z-index: 10000;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 1px solid #555;
+      line-height: 1.5;
+      backdrop-filter: blur(4px);
+    }
+
+    .graph-node:hover {
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .graph-cluster:hover > polygon {
+      stroke: #ff6b6b !important;
+      stroke-width: 2px !important;
+    }
+
+    #timeline-container {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    #timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    #timeline-wrapper {
+      position: relative;
+    }
+
+    #time-slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #ddd;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    #time-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #4CAF50;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    #time-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #4CAF50;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    #timeline-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 5px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    /* 节点高亮样式 - 边框高亮 */
+    .highlighted-node > ellipse,
+    .highlighted-node > polygon,
+    .highlighted-node > path,
+
+    .highlighted-node > text {
+      /* 文字保持原样，不高亮 */
+      fill: #000000 !important;
+      stroke: none !important;
+    }
+  </style>
+  <script type="module">
+    // 使用3以上版本，可以不限制渲染内存
+    import { instance } from "https://cdn.jsdelivr.net/npm/@viz-js/viz@3.7.0/+esm";
+    window.viz = await instance();// 将 Viz 实例挂到全局，方便旧代码访问
+  </script>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+<header>
+  <h2>Visualizer</h2>
+  <span class="hint" id="status"></span>
+</header>
+<div id="svgContainer" aria-live="polite"></div>
+<div id="timeline-container">
+    <div id="timeline-header">
+        <span>timeline</span>
+        <span id="current-time">current time: 0</span>
+    </div>
+    <div id="timeline-wrapper">
+        <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
+        <div id="timeline-labels">
+            <span id="min-time">0</span>
+            <span id="max-time">100</span>
+        </div>
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/visualizer.js') }}"></script>
+</body>
+</html>
