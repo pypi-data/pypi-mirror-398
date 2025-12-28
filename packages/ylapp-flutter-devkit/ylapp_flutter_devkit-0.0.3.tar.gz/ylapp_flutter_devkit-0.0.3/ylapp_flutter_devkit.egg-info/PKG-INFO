@@ -1,0 +1,141 @@
+Metadata-Version: 2.4
+Name: ylapp-flutter-devkit
+Version: 0.0.3
+Summary: Enterprise Flutter Code Generator complying with GetX, Dio, and MDC standards.
+Author: APP Development Team
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: MIT License
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: typer>=0.12.0
+Requires-Dist: click>=8.1.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# ylapp CLI
+
+ylapp 是一个为 AI Agent 提供辅助的命令行工具。通过执行 `ylapp app` 进入交互式 REPL，会话内的命令以 `/` 开头（如 `/help`）。
+
+## 特性（首版）
+- 交互式 REPL：持续会话，统一斜杠命令入口
+- `/help`：查看当前支持的命令与释义
+- 采用命令模式、注册路由与可扩展架构，便于后续新增命令
+
+## 安装与使用
+> 首版建议在项目根目录进行本地开发安装。
+
+1. 在项目根目录执行开发安装：
+   ```bash
+   pip install -e .
+   ```
+2. 运行 CLI（当前通过子命令进入 REPL）：
+   ```bash
+   ylapp app
+   ```
+   - 启动后会进入 REPL，会显示提示符（例如：`yl> `）
+
+## 交互命令
+- `/help`：显示支持的命令清单与释义
+- `/exit`（可选）：退出 REPL（后续任务可能提供）
+
+## 开发步骤示例：新增 /init_app_ai_project 命令
+目标：在交互式 REPL 中新增一个命令 `/init_app_ai_project [project_name]`，用于示例化初始化流程（占位实现）。
+
+步骤 1：创建命令实现文件
+- 路径：`ylapp/commands/init_app_ai_project.py`
+- 内容示例：
+  ```python
+  from typing import List
+  from ylapp.core.command import Command, CommandContext
+
+  class InitAppAiProjectCommand(Command):
+      def __init__(self) -> None:
+          super().__init__("init_app_ai_project", "初始化 AI 项目（示例）")
+
+      def execute(self, ctx: CommandContext) -> str:
+          args: List[str] = ctx.args or []
+          name = args[0] if args else "demo"
+          # 占位逻辑：真实实现可在此创建目录、写入模板等
+          return (
+              f"初始化完成（占位）：项目名={name}\n"
+              "下一步：编辑配置并执行 /help 查看更多命令"
+          )
+
+  def register(registry) -> None:
+      registry.register(InitAppAiProjectCommand())
+  ```
+
+步骤 2：在入口注册该命令
+- 文件：`ylapp/cli.py`
+- 在初始化注册器的位置（与帮助命令注册同一处）增加导入与注册：
+  ```python
+  from ylapp.commands import init_app_ai_project as init_cmd
+
+  # 注册内置命令
+  help_cmd.register(registry)
+  init_cmd.register(registry)
+  ```
+
+步骤 3：运行与验证
+- 启动 REPL：
+  ```bash
+  ylapp app
+  ```
+- 在 REPL 输入：
+  ```text
+  /help
+  /init_app_ai_project demo
+  ```
+- 预期：
+  - `/help` 列表中出现 `/init_app_ai_project - 初始化 AI 项目（示例）`
+  - 执行 `/init_app_ai_project demo` 输出“初始化完成（占位）：项目名=demo ……”
+
+常见问题排查
+- `/help` 中未出现新命令：检查是否已在 `ylapp/cli.py` 中 `import` 并调用了 `init_cmd.register(registry)`。
+- “未知命令”：确认命令类 `name` 是否为不含斜杠的短名（应为 `"init_app_ai_project"`），以及路由输入是否以 `/` 开头。
+
+## 目录结构（规划）
+```
+ylapp/
+  __init__.py
+  cli.py
+  core/
+    command.py
+    registry.py
+    router.py
+    repl.py
+    io.py
+    config.py
+    logger.py
+  commands/
+    help.py
+    init_app_ai_project.py   # 新增命令示例（按需创建）
+    exit.py                  # 可选
+```
+
+## 扩展新命令（通用指引）
+1. 在 `ylapp/commands/` 新增一个命令实现文件（继承 Command 抽象类）
+2. 在模块中提供 `register(registry)` 并调用 `registry.register(...)`
+3. 在入口 `ylapp/cli.py` 导入并执行该 `register(...)`
+4. 在 REPL 使用 `/your_command arg1 arg2` 调用（当前仅位置参数）
+
+## 版本与许可证
+- 当前版本：`0.1.0`
+- 许可证：MIT
+
+## 开发与测试建议
+- 使用 Python 3.10+
+- 建议使用 `pytest` 编写测试用例
+- 使用标准库 `logging` 输出日志，支持环境变量调整日志级别（如 `YLAPP_LOG_LEVEL`）
