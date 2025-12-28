@@ -1,0 +1,74 @@
+# Review流水线：文档类型识别 -> 解析 -> 拆分（小优先级先执行）
+pipeline:
+  strategies:
+    # 文件类型识别策略
+    - name: detect_file_type
+      exec_mode: sequential
+      priority: 1
+      commands:
+        - type: FileTypeIdentificationCommand
+          name: detect_file_type
+          priority: 1
+
+    # 文档解析策略
+    - name: parse_by_type
+      exec_mode: sequential
+      priority: 2
+      commands:
+        - type: DocxFileParseCommand
+          name: parse_docx_title_table_footnote
+          priority: 1
+          condition: "doc_type == 'docx'"
+          rules:
+            - name: normalize_duplicate_labels
+              enabled: true
+              params:
+                suffix_format: ".{n}"
+        - type: RtfFileParseCommand
+          name: parse_rtf_title_table_footnote
+          priority: 1
+          condition: "doc_type == 'rtf'"
+          rules:
+            - name: normalize_duplicate_labels
+              enabled: true
+              params:
+                suffix_format: ".{n}"
+
+    # DOCX拆分
+    - name: split_docx_tables
+      exec_mode: sequential
+      priority: 4
+      commands:
+        - type: DocxFilePartitionCommand
+          name: split_docx_tables_with_copy
+          priority: 1
+          condition: "doc_type == 'docx'"
+          rules:
+            - name: same_as
+              enabled: true
+    - name: split_rtf_tables
+      exec_mode: sequential
+      priority: 4
+      commands:
+        - type: RtfFilePartitionCommand
+          name: split_rtf_tables_with_copy
+          priority: 1
+          condition: "doc_type == 'rtf'"
+
+    # 统一 section level：在拆分后基于 local_path 设置
+    - name: enhance_sections_level
+      exec_mode: sequential
+      priority: 99
+      commands:
+        - type: EnhanceLevelCommand
+          name: enhance_level_if_has_local_path
+          priority: 1
+
+    # 完善树结构
+    - name: enhance_tree_structure
+      exec_mode: sequential
+      priority: 100
+      commands:
+        - type: EnhanceTreeCommand
+          name: enhance_tree_fill_missing_parent
+          priority: 1
