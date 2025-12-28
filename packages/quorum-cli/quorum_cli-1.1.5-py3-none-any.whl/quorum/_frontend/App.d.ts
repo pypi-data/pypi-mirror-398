@@ -1,0 +1,4 @@
+/**
+ * Main Quorum application component.
+ */
+export declare function App(): import("react/jsx-runtime").JSX.Element | null;
