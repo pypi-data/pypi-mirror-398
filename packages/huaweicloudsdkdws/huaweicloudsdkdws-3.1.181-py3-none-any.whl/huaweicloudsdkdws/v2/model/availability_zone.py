@@ -1,0 +1,191 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class AvailabilityZone:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'code': 'str',
+        'name': 'str',
+        'status': 'str',
+        'public_border_group': 'str'
+    }
+
+    attribute_map = {
+        'code': 'code',
+        'name': 'name',
+        'status': 'status',
+        'public_border_group': 'public_border_group'
+    }
+
+    def __init__(self, code=None, name=None, status=None, public_border_group=None):
+        r"""AvailabilityZone
+
+        The model defined in huaweicloud sdk
+
+        :param code: **参数解释**： 可用区唯一编码。 **取值范围**： 不涉及。
+        :type code: str
+        :param name: **参数解释**： 可用区名称。 **取值范围**： 不涉及。
+        :type name: str
+        :param status: **参数解释**： 可用区状态。 **取值范围**： - available：可用。 - unavailable：不可用。
+        :type status: str
+        :param public_border_group: **参数解释**： 可用区组，如：center。 **取值范围**： 不涉及。
+        :type public_border_group: str
+        """
+        
+        
+
+        self._code = None
+        self._name = None
+        self._status = None
+        self._public_border_group = None
+        self.discriminator = None
+
+        self.code = code
+        self.name = name
+        self.status = status
+        self.public_border_group = public_border_group
+
+    @property
+    def code(self):
+        r"""Gets the code of this AvailabilityZone.
+
+        **参数解释**： 可用区唯一编码。 **取值范围**： 不涉及。
+
+        :return: The code of this AvailabilityZone.
+        :rtype: str
+        """
+        return self._code
+
+    @code.setter
+    def code(self, code):
+        r"""Sets the code of this AvailabilityZone.
+
+        **参数解释**： 可用区唯一编码。 **取值范围**： 不涉及。
+
+        :param code: The code of this AvailabilityZone.
+        :type code: str
+        """
+        self._code = code
+
+    @property
+    def name(self):
+        r"""Gets the name of this AvailabilityZone.
+
+        **参数解释**： 可用区名称。 **取值范围**： 不涉及。
+
+        :return: The name of this AvailabilityZone.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this AvailabilityZone.
+
+        **参数解释**： 可用区名称。 **取值范围**： 不涉及。
+
+        :param name: The name of this AvailabilityZone.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def status(self):
+        r"""Gets the status of this AvailabilityZone.
+
+        **参数解释**： 可用区状态。 **取值范围**： - available：可用。 - unavailable：不可用。
+
+        :return: The status of this AvailabilityZone.
+        :rtype: str
+        """
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        r"""Sets the status of this AvailabilityZone.
+
+        **参数解释**： 可用区状态。 **取值范围**： - available：可用。 - unavailable：不可用。
+
+        :param status: The status of this AvailabilityZone.
+        :type status: str
+        """
+        self._status = status
+
+    @property
+    def public_border_group(self):
+        r"""Gets the public_border_group of this AvailabilityZone.
+
+        **参数解释**： 可用区组，如：center。 **取值范围**： 不涉及。
+
+        :return: The public_border_group of this AvailabilityZone.
+        :rtype: str
+        """
+        return self._public_border_group
+
+    @public_border_group.setter
+    def public_border_group(self, public_border_group):
+        r"""Sets the public_border_group of this AvailabilityZone.
+
+        **参数解释**： 可用区组，如：center。 **取值范围**： 不涉及。
+
+        :param public_border_group: The public_border_group of this AvailabilityZone.
+        :type public_border_group: str
+        """
+        self._public_border_group = public_border_group
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, AvailabilityZone):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

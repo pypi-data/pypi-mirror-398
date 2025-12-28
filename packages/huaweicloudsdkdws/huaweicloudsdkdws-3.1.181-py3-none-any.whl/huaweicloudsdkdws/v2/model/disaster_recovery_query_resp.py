@@ -1,0 +1,332 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class DisasterRecoveryQueryResp:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'id': 'str',
+        'name': 'str',
+        'dr_type': 'str',
+        'status': 'str',
+        'primary_cluster': 'DisasterRecoveryCluster',
+        'standby_cluster': 'DisasterRecoveryCluster',
+        'dr_sync_period': 'str',
+        'start_time': 'str',
+        'create_time': 'str'
+    }
+
+    attribute_map = {
+        'id': 'id',
+        'name': 'name',
+        'dr_type': 'dr_type',
+        'status': 'status',
+        'primary_cluster': 'primary_cluster',
+        'standby_cluster': 'standby_cluster',
+        'dr_sync_period': 'dr_sync_period',
+        'start_time': 'start_time',
+        'create_time': 'create_time'
+    }
+
+    def __init__(self, id=None, name=None, dr_type=None, status=None, primary_cluster=None, standby_cluster=None, dr_sync_period=None, start_time=None, create_time=None):
+        r"""DisasterRecoveryQueryResp
+
+        The model defined in huaweicloud sdk
+
+        :param id: **参数解释**： 容灾ID。 **取值范围**： 不涉及。
+        :type id: str
+        :param name: **参数解释**： 容灾名称。 **取值范围**： 不涉及。
+        :type name: str
+        :param dr_type: **参数解释**： 容灾类型。 **取值范围**： - az，跨az容灾。 - region，跨region容灾。
+        :type dr_type: str
+        :param status: **参数解释**： 容灾状态。 **取值范围**： - creating，容灾创建中。 - create_failed，容灾创建失败。 - unstart，容灾未启动。 - starting，容灾启动中。 - start_failed，容灾启动失败。 - running，容灾运行中。 - stopping，容灾停止中。 - stop_failed，容灾停止失败。 - switchovering，灾备切换中。 - abnormal，容灾异常。 - deleting，容灾删除中。 - deleted，容灾已删除。
+        :type status: str
+        :param primary_cluster: 
+        :type primary_cluster: :class:`huaweicloudsdkdws.v2.DisasterRecoveryCluster`
+        :param standby_cluster: 
+        :type standby_cluster: :class:`huaweicloudsdkdws.v2.DisasterRecoveryCluster`
+        :param dr_sync_period: **参数解释**： 容灾同步周期。 **取值范围**： 不涉及。
+        :type dr_sync_period: str
+        :param start_time: **参数解释**： 容灾启动时间。 **取值范围**： 不涉及。
+        :type start_time: str
+        :param create_time: **参数解释**： 容灾创建时间。 **取值范围**： 不涉及。
+        :type create_time: str
+        """
+        
+        
+
+        self._id = None
+        self._name = None
+        self._dr_type = None
+        self._status = None
+        self._primary_cluster = None
+        self._standby_cluster = None
+        self._dr_sync_period = None
+        self._start_time = None
+        self._create_time = None
+        self.discriminator = None
+
+        if id is not None:
+            self.id = id
+        if name is not None:
+            self.name = name
+        if dr_type is not None:
+            self.dr_type = dr_type
+        if status is not None:
+            self.status = status
+        if primary_cluster is not None:
+            self.primary_cluster = primary_cluster
+        if standby_cluster is not None:
+            self.standby_cluster = standby_cluster
+        if dr_sync_period is not None:
+            self.dr_sync_period = dr_sync_period
+        if start_time is not None:
+            self.start_time = start_time
+        if create_time is not None:
+            self.create_time = create_time
+
+    @property
+    def id(self):
+        r"""Gets the id of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾ID。 **取值范围**： 不涉及。
+
+        :return: The id of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾ID。 **取值范围**： 不涉及。
+
+        :param id: The id of this DisasterRecoveryQueryResp.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def name(self):
+        r"""Gets the name of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾名称。 **取值范围**： 不涉及。
+
+        :return: The name of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾名称。 **取值范围**： 不涉及。
+
+        :param name: The name of this DisasterRecoveryQueryResp.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def dr_type(self):
+        r"""Gets the dr_type of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾类型。 **取值范围**： - az，跨az容灾。 - region，跨region容灾。
+
+        :return: The dr_type of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._dr_type
+
+    @dr_type.setter
+    def dr_type(self, dr_type):
+        r"""Sets the dr_type of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾类型。 **取值范围**： - az，跨az容灾。 - region，跨region容灾。
+
+        :param dr_type: The dr_type of this DisasterRecoveryQueryResp.
+        :type dr_type: str
+        """
+        self._dr_type = dr_type
+
+    @property
+    def status(self):
+        r"""Gets the status of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾状态。 **取值范围**： - creating，容灾创建中。 - create_failed，容灾创建失败。 - unstart，容灾未启动。 - starting，容灾启动中。 - start_failed，容灾启动失败。 - running，容灾运行中。 - stopping，容灾停止中。 - stop_failed，容灾停止失败。 - switchovering，灾备切换中。 - abnormal，容灾异常。 - deleting，容灾删除中。 - deleted，容灾已删除。
+
+        :return: The status of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        r"""Sets the status of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾状态。 **取值范围**： - creating，容灾创建中。 - create_failed，容灾创建失败。 - unstart，容灾未启动。 - starting，容灾启动中。 - start_failed，容灾启动失败。 - running，容灾运行中。 - stopping，容灾停止中。 - stop_failed，容灾停止失败。 - switchovering，灾备切换中。 - abnormal，容灾异常。 - deleting，容灾删除中。 - deleted，容灾已删除。
+
+        :param status: The status of this DisasterRecoveryQueryResp.
+        :type status: str
+        """
+        self._status = status
+
+    @property
+    def primary_cluster(self):
+        r"""Gets the primary_cluster of this DisasterRecoveryQueryResp.
+
+        :return: The primary_cluster of this DisasterRecoveryQueryResp.
+        :rtype: :class:`huaweicloudsdkdws.v2.DisasterRecoveryCluster`
+        """
+        return self._primary_cluster
+
+    @primary_cluster.setter
+    def primary_cluster(self, primary_cluster):
+        r"""Sets the primary_cluster of this DisasterRecoveryQueryResp.
+
+        :param primary_cluster: The primary_cluster of this DisasterRecoveryQueryResp.
+        :type primary_cluster: :class:`huaweicloudsdkdws.v2.DisasterRecoveryCluster`
+        """
+        self._primary_cluster = primary_cluster
+
+    @property
+    def standby_cluster(self):
+        r"""Gets the standby_cluster of this DisasterRecoveryQueryResp.
+
+        :return: The standby_cluster of this DisasterRecoveryQueryResp.
+        :rtype: :class:`huaweicloudsdkdws.v2.DisasterRecoveryCluster`
+        """
+        return self._standby_cluster
+
+    @standby_cluster.setter
+    def standby_cluster(self, standby_cluster):
+        r"""Sets the standby_cluster of this DisasterRecoveryQueryResp.
+
+        :param standby_cluster: The standby_cluster of this DisasterRecoveryQueryResp.
+        :type standby_cluster: :class:`huaweicloudsdkdws.v2.DisasterRecoveryCluster`
+        """
+        self._standby_cluster = standby_cluster
+
+    @property
+    def dr_sync_period(self):
+        r"""Gets the dr_sync_period of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾同步周期。 **取值范围**： 不涉及。
+
+        :return: The dr_sync_period of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._dr_sync_period
+
+    @dr_sync_period.setter
+    def dr_sync_period(self, dr_sync_period):
+        r"""Sets the dr_sync_period of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾同步周期。 **取值范围**： 不涉及。
+
+        :param dr_sync_period: The dr_sync_period of this DisasterRecoveryQueryResp.
+        :type dr_sync_period: str
+        """
+        self._dr_sync_period = dr_sync_period
+
+    @property
+    def start_time(self):
+        r"""Gets the start_time of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾启动时间。 **取值范围**： 不涉及。
+
+        :return: The start_time of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._start_time
+
+    @start_time.setter
+    def start_time(self, start_time):
+        r"""Sets the start_time of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾启动时间。 **取值范围**： 不涉及。
+
+        :param start_time: The start_time of this DisasterRecoveryQueryResp.
+        :type start_time: str
+        """
+        self._start_time = start_time
+
+    @property
+    def create_time(self):
+        r"""Gets the create_time of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾创建时间。 **取值范围**： 不涉及。
+
+        :return: The create_time of this DisasterRecoveryQueryResp.
+        :rtype: str
+        """
+        return self._create_time
+
+    @create_time.setter
+    def create_time(self, create_time):
+        r"""Sets the create_time of this DisasterRecoveryQueryResp.
+
+        **参数解释**： 容灾创建时间。 **取值范围**： 不涉及。
+
+        :param create_time: The create_time of this DisasterRecoveryQueryResp.
+        :type create_time: str
+        """
+        self._create_time = create_time
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, DisasterRecoveryQueryResp):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
