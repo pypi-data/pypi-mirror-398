@@ -1,0 +1,4 @@
+# Django REST API Documentation Generator
+# Version 1.0.0
+
+default_app_config = 'api_docs_generator.apps.ApiDocsGeneratorConfig'
