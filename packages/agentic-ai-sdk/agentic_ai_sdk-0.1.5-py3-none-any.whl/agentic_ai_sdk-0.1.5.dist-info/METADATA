@@ -1,0 +1,309 @@
+Metadata-Version: 2.4
+Name: agentic-ai-sdk
+Version: 0.1.5
+Summary: SDK for building AI agent 2.0.
+Author: Frank Lin
+License-Expression: MIT
+License-File: LICENSE
+Keywords: agent,agentic,ai,framework,llm,sdk
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: <=3.14,>=3.11
+Requires-Dist: agent-framework<1.1,>=1.0.0b251114
+Requires-Dist: pydantic<3,>=2.7.0
+Requires-Dist: pyyaml<7,>=6.0.0
+Provides-Extra: ag-ui
+Requires-Dist: ag-ui-protocol<0.2,>=0.1.10; extra == 'ag-ui'
+Requires-Dist: agent-framework-ag-ui<1.1,>=1.0.0b251117; extra == 'ag-ui'
+Provides-Extra: all
+Requires-Dist: ag-ui-protocol<0.2,>=0.1.10; extra == 'all'
+Requires-Dist: agent-framework-ag-ui<1.1,>=1.0.0b251117; extra == 'all'
+Requires-Dist: opentelemetry-api<2,>=1.20.0; extra == 'all'
+Requires-Dist: opentelemetry-exporter-otlp-proto-grpc<2,>=1.20.0; extra == 'all'
+Requires-Dist: opentelemetry-sdk<2,>=1.20.0; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=8.3.0; extra == 'dev'
+Provides-Extra: observability
+Requires-Dist: opentelemetry-api<2,>=1.20.0; extra == 'observability'
+Requires-Dist: opentelemetry-exporter-otlp-proto-grpc<2,>=1.20.0; extra == 'observability'
+Requires-Dist: opentelemetry-sdk<2,>=1.20.0; extra == 'observability'
+Description-Content-Type: text/markdown
+
+# Agentic AI SDK
+
+A production-ready SDK for building AI agents with planning, workspace management, and observability.
+
+## Installation
+
+```bash
+# Basic installation
+pip install agentic-ai-sdk
+
+# With AG-UI protocol support
+pip install agentic-ai-sdk[ag-ui]
+
+# With observability (OpenTelemetry)
+pip install agentic-ai-sdk[observability]
+
+# All features
+pip install agentic-ai-sdk[all]
+```
+
+## Quick Start
+
+### 1. Basic Agent
+
+```python
+from agentic_ai import (
+    DeepAgentSession,
+    build_agent,
+    create_workspace,
+    LLMClientFactory,
+)
+
+# Create workspace
+workspace = create_workspace(".ws/my_agent")
+
+# Create LLM factory
+llm_factory = LLMClientFactory.from_config({
+    "default": {
+        "provider": "azure_openai",
+        "model": "gpt-4o",
+        "endpoint": "https://your-endpoint.openai.azure.com",
+    }
+})
+
+# Build agent session
+session = build_agent(
+    chat_client=llm_factory.get_client("default"),
+    workspace=workspace,
+    agent_id="my_agent",
+    tools=[your_tool_1, your_tool_2],
+    instructions="You are a helpful assistant.",
+)
+
+# Run the agent
+response = await session.run("Hello, what can you do?")
+print(response.text)
+```
+
+### 2. Using Configuration Files
+
+Create a `env.yaml`:
+
+```yaml
+llm_profiles:
+  - name: default
+    provider: azure_openai
+    model: gpt-4o
+    endpoint: ${AZURE_OPENAI_ENDPOINT}
+    api_key: ${AZURE_OPENAI_API_KEY}
+
+agents:
+  - id: analyst
+    llm_profile_name: default
+    system_prompt_file: manifest/prompts/analyst.md
+    planning_enabled: true
+    max_tool_iterations: 30
+```
+
+Then load and use it:
+
+```python
+from agentic_ai import (
+    BaseAppContext,
+    build_app_context,
+    build_agent_from_store,
+    create_workspace,
+)
+
+# Load configuration
+ctx = build_app_context("env.yaml")
+
+# Create workspace
+workspace = create_workspace(".ws/analyst")
+
+# Build agent from config store
+session = build_agent_from_store(
+    agent_store=ctx.agent_store,
+    llm_factory=ctx.llm_factory,
+    agent_id="analyst",
+    workspace=workspace,
+    tools=[...],
+)
+
+response = await session.run("Analyze the sales data")
+```
+
+### 3. Streaming Responses
+
+```python
+async for update in session.run_stream("Generate a report"):
+    if update.text:
+        print(update.text, end="", flush=True)
+```
+
+### 4. With AG-UI Protocol
+
+```python
+from agentic_ai import build_ag_ui_agent, DeepAgentProtocolAdapter
+
+# Wrap session for AG-UI
+adapter = DeepAgentProtocolAdapter(session)
+
+# Or use the convenience function
+agent = build_ag_ui_agent(
+    agent_store=ctx.agent_store,
+    llm_factory=ctx.llm_factory,
+    agent_id="analyst",
+    workspace=workspace,
+    tools=[...],
+)
+```
+
+## Core Concepts
+
+### DeepAgentSession
+
+The main entry point for interacting with an agent. It wraps a `ChatAgent` and provides:
+
+- **Workspace Management**: Persistent storage for artifacts and state
+- **Planning**: Built-in planning tool for complex tasks
+- **Context Compaction**: Automatic history management for long conversations
+- **Observability**: Logging and tracing integration
+
+### Configuration
+
+The SDK uses a hierarchical configuration system:
+
+- `LLMConfig`: LLM provider settings (model, endpoint, temperature, etc.)
+- `AgentConfig`: Agent-specific settings (prompt, tools, planning, etc.)
+- `BaseAppConfig`: Application-wide configuration
+
+### Tools Manifest & Config Injection
+
+Tools can be declared in `manifest/tools.yaml` with two config layers:
+
+- `config_section`: Injects a runtime config section (from `env.yaml`)
+- `config`: Declarative per-tool overrides in tools.yaml
+
+Inside tools, use `get_effective_tool_config()` to read both:
+
+```python
+from agentic_ai.tool_runtime import get_effective_tool_config
+
+tool_cfg = get_effective_tool_config("openmetadata")
+section = tool_cfg["section"]
+overrides = tool_cfg["config"]
+```
+
+Recommended precedence: tool overrides > injected section values > runtime defaults.
+
+### Workspace
+
+Each agent session has a workspace for storing:
+
+- **Artifacts**: Tool outputs, generated files
+- **Plans**: Task plans and progress tracking
+- **State**: Session state and context
+
+### Middleware
+
+Extend agent behavior with middleware:
+
+```python
+from agentic_ai import ToolResultPersistenceMiddleware
+
+# Auto-persist tool results to workspace
+middleware = ToolResultPersistenceMiddleware(auto_persist=True)
+
+session = build_agent(
+    ...,
+    function_middlewares=[middleware],
+)
+```
+
+## API Reference
+
+### Package Structure
+
+```
+agentic_ai/
+├── agent/          # Agent core (DeepAgentSession, SubAgentController)
+├── config/         # Configuration (AgentConfig, BaseAppConfig, manifests)
+├── runtime/        # Runtime (bootstrap, contexts, session factory)
+├── middleware/     # Middleware (persistence, loader)
+├── tools/          # Tool management (loader, provider, manifest)
+├── llm/            # LLM (client, factory, embedding)
+├── artifacts/      # Artifact storage
+├── workspace/      # Workspace management
+├── planning/       # Planning subsystem
+├── observability/  # Logging and tracing
+├── mcp/            # Model Context Protocol
+└── ag_ui/          # AG-UI protocol adapter and server
+```
+
+### Agent Builders
+
+| Function | Description |
+|----------|-------------|
+| `build_agent()` | Create session with chat client |
+| `build_agent_with_llm()` | Create session with LLM factory |
+| `build_agent_from_config()` | Create session from AgentConfig |
+| `build_agent_from_store()` | Create session from config store |
+| `build_agent_session()` | Low-level session builder |
+
+### Configuration
+
+| Class | Description |
+|-------|-------------|
+| `AgentConfig` | Agent configuration schema |
+| `LLMConfig` | LLM provider configuration |
+| `BaseAppConfig` | Base application config |
+| `AgentConfigStore` | Store for multiple agent configs |
+| `LLMClientFactory` | Factory for creating LLM clients |
+
+### Workspace & Artifacts
+
+| Class/Function | Description |
+|----------------|-------------|
+| `WorkspaceHandle` | Handle to a workspace directory |
+| `WorkspaceManager` | Manages multiple workspaces |
+| `create_workspace()` | Create a new workspace |
+| `ArtifactStore` | Store for tool artifacts |
+| `persist_artifact()` | Save artifact to workspace |
+
+### Planning
+
+| Class | Description |
+|-------|-------------|
+| `PlanStore` | Stores task plans |
+| `PlanRecord` | A plan with steps |
+| `PlanStep` | A single step in a plan |
+| `build_update_plan_tool()` | Creates the update_plan tool |
+
+### Observability
+
+| Function | Description |
+|----------|-------------|
+| `setup_logging()` | Configure logging |
+| `enable_observability()` | Enable tracing |
+| `get_tracer()` | Get OpenTelemetry tracer |
+
+## Examples
+
+See the [examples/](examples/) directory for complete examples:
+
+- `basic_agent.py` - Simple agent setup
+- `config_based_agent.py` - Configuration-driven agent
+- `streaming_agent.py` - Streaming responses
+- `multi_agent.py` - Multiple coordinated agents
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
