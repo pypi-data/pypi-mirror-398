@@ -1,0 +1,170 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class RotateSecretResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'version_id': 'str',
+        'secret_name': 'str',
+        'rotation_task_id': 'str'
+    }
+
+    attribute_map = {
+        'version_id': 'version_id',
+        'secret_name': 'secret_name',
+        'rotation_task_id': 'rotation_task_id'
+    }
+
+    def __init__(self, version_id=None, secret_name=None, rotation_task_id=None):
+        r"""RotateSecretResponse
+
+        The model defined in huaweicloud sdk
+
+        :param version_id: 凭据的版本号标识符。
+        :type version_id: str
+        :param secret_name: 凭据的名称。
+        :type secret_name: str
+        :param rotation_task_id: 凭据轮转任务ID。
+        :type rotation_task_id: str
+        """
+        
+        super().__init__()
+
+        self._version_id = None
+        self._secret_name = None
+        self._rotation_task_id = None
+        self.discriminator = None
+
+        if version_id is not None:
+            self.version_id = version_id
+        if secret_name is not None:
+            self.secret_name = secret_name
+        if rotation_task_id is not None:
+            self.rotation_task_id = rotation_task_id
+
+    @property
+    def version_id(self):
+        r"""Gets the version_id of this RotateSecretResponse.
+
+        凭据的版本号标识符。
+
+        :return: The version_id of this RotateSecretResponse.
+        :rtype: str
+        """
+        return self._version_id
+
+    @version_id.setter
+    def version_id(self, version_id):
+        r"""Sets the version_id of this RotateSecretResponse.
+
+        凭据的版本号标识符。
+
+        :param version_id: The version_id of this RotateSecretResponse.
+        :type version_id: str
+        """
+        self._version_id = version_id
+
+    @property
+    def secret_name(self):
+        r"""Gets the secret_name of this RotateSecretResponse.
+
+        凭据的名称。
+
+        :return: The secret_name of this RotateSecretResponse.
+        :rtype: str
+        """
+        return self._secret_name
+
+    @secret_name.setter
+    def secret_name(self, secret_name):
+        r"""Sets the secret_name of this RotateSecretResponse.
+
+        凭据的名称。
+
+        :param secret_name: The secret_name of this RotateSecretResponse.
+        :type secret_name: str
+        """
+        self._secret_name = secret_name
+
+    @property
+    def rotation_task_id(self):
+        r"""Gets the rotation_task_id of this RotateSecretResponse.
+
+        凭据轮转任务ID。
+
+        :return: The rotation_task_id of this RotateSecretResponse.
+        :rtype: str
+        """
+        return self._rotation_task_id
+
+    @rotation_task_id.setter
+    def rotation_task_id(self, rotation_task_id):
+        r"""Sets the rotation_task_id of this RotateSecretResponse.
+
+        凭据轮转任务ID。
+
+        :param rotation_task_id: The rotation_task_id of this RotateSecretResponse.
+        :type rotation_task_id: str
+        """
+        self._rotation_task_id = rotation_task_id
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("RotateSecretResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, RotateSecretResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
