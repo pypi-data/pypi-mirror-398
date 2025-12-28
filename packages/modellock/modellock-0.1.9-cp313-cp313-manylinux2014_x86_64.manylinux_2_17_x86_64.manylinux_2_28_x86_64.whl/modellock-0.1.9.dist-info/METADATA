@@ -1,0 +1,543 @@
+Metadata-Version: 2.4
+Name: modellock
+Version: 0.1.9
+Summary: AI 模型加密保护与授权系统
+Author-email: Yaqiang Sun <sunyaking@163.com>
+Requires-Python: <3.14,>=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pycryptodome>=3.23.0
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: fastapi>=0.68.0
+Requires-Dist: uvicorn>=0.15.0
+Requires-Dist: pycryptodome>=3.10.1
+Requires-Dist: modellock>=0.0.1
+Requires-Dist: python-multipart>=0.0.20
+Requires-Dist: requests>=2.32.5
+Dynamic: license-file
+
+# ModelLock - AI 模型加密保护与授权系统
+
+ModelLock 是一个用于加密和授权机器学习模型的工具。它提供了基于密码的文件加密功能，以及基于设备指纹的许可证管理系统，确保只有授权设备才能解密和使用加密的模型。
+
+## 功能特性
+
+- 基于密码的文件加密（使用 AES-GCM 算法）
+- 设备指纹识别（跨平台支持）
+- 许可证管理（带有效期控制）
+- 命令行界面（CLI）便于集成和使用
+- 安全的密钥派生（使用 PBKDF2）
+- Python API 接口便于程序集成
+- 支持直接提供主密钥进行解密（适用于特殊场景）
+- 支持创建无设备绑定的许可证
+- 增加`from model.lock import lock `支持，用于程序快速加密
+
+## 快速开始
+
+### 安装
+
+```bash
+pip install modellock
+```
+
+或从源码安装：
+
+```bash
+git clone https://github.com/yaqiangsun/modellock.git
+cd modellock
+pip install -e .
+```
+
+### 使用流程示例
+
+1. **准备阶段**
+   ```bash
+   # 生成服务器密钥（**必须妥善保管生成文件且不能分享给他人**）
+   bash ./scripts/run0_generate_server_secret.sh
+   
+   # 生成密钥文件与master_key文件（**必须妥善保管生成文件且不能分享给他人**）
+   bash ./scripts/run1_generate_keyfile.sh
+   
+   # 加密模型文件（**加密后的文件可以分享给授权使用**）
+   bash ./scripts/run2_encrypt_file.sh
+   
+   # 收集目标设备信息 (**不限制使用**)
+   bash ./scripts/run3_collect_device.sh
+   
+   # 为目标设备创建许可证（**生成文件可分享给授权使用**）
+   bash ./scripts/run4_create_license.sh
+   ```
+   上述生成的文件 **只将** 加密后的模型文件、许可证文件分发给授权使用。
+
+2. **部署和使用**
+   ```bash
+   # 在目标设备上解密模型 (**为保证模型安全，只能在内存中解密，且解密代码需编译以保证源码不可见**)
+   ./scripts/run5_decrypt_file.sh
+   ```
+   解密形式包含两种：1.提供密钥文件与密码，自动生成master_key内容解密；2.直接提供master_key解密
+
+所有中间文件和输出文件都会保存在 `tmp/` 目录下。
+
+## 重要安全提示
+
+在使用 ModelLock 过程中会生成多个敏感文件，这些文件或内容**必须妥善保管且不能分享给他人**：
+- `password` - 密码，用户自定义的密码
+- `server_secret.key` - 服务器密钥文件，用于许可证加密（[步骤0生成服务密钥](scripts/run0_generate_server_secret.sh)中生成的内容）
+- `keyfile.json` - 密钥文件，包含加密相关信息([步骤1生成密钥种子](scripts/run1_generate_keyfile.sh)中生成的内容)
+
+这些文件或内容能够授权使用**可分享给授权的使用者**：
+- `license.json` - 许可证文件，用于解密已加密的模型([步骤4生成用户授权license](scripts/run4_create_license.sh)中生成的内容)
+
+请务必遵循此安全提示，防止未授权访问。
+
+## 使用方法
+
+ModelLock 提供了命令行界面，可以通过 `modellock` 命令访问所有功能。
+
+### 查看帮助
+
+```bash
+modellock --help
+```
+
+### 1. 生成密钥文件
+
+首先需要从密码生成密钥文件：
+
+```bash
+modellock generate-keyfile --password YOUR_PASSWORD --output keyfile.json
+```
+
+### 2. 加密文件
+
+使用密钥文件加密模型或其他文件：
+
+```bash
+modellock encrypt --input model.pt --output model.enc --keyfile keyfile.json --password YOUR_PASSWORD
+```
+
+### 3. 收集设备信息
+
+在目标设备上收集设备指纹信息：
+
+```bash
+modellock collect-device --output device.json
+```
+
+### 4. 创建许可证
+
+在源设备上为其他设备创建许可证（需要设备信息）：
+
+```bash
+# 创建30天有效期的许可证
+modellock create-license --keyfile keyfile.json --password YOUR_PASSWORD --output license.json --device-info device.json --days 30
+
+# 或者指定过期时间
+modellock create-license --keyfile keyfile.json --password YOUR_PASSWORD --output license.json --device-info device.json --expiry "2025-12-31T23:59:59+00:00"
+```
+
+#### 创建无设备绑定的许可证
+
+```
+# 创建无设备绑定的许可证（可在任何设备上使用）
+modellock create-license --keyfile keyfile.json --password YOUR_PASSWORD --no-device-bind --days 30 --output license.json --server-secret-file server_secret.key
+```
+
+### 5. 解密文件
+
+在目标设备上使用许可证解密文件：
+
+```bash
+modellock decrypt --input model.enc --output decrypted_model.pt --license license.json --keyfile keyfile.json --password YOUR_PASSWORD
+```
+
+## Python API 使用示例
+
+除了命令行界面外，你还可以在 Python 代码中直接使用 ModelLock 的 API。
+
+### 方法一：使用便捷解密接口
+
+ModelLock 提供了一个便捷的解密方法 [FileEncryptor.decrypt_file_with_keyfile()](modellock/core.py#L173-L218)，可以一步完成整个解密过程。该方法支持多种方式指定解密密钥：
+
+#### 方式一：使用 license_content 参数
+
+```
+from modellock import FileEncryptor
+
+try:
+    # 读取所需文件的内容
+    with open("tmp/keyfile.json", "r") as f:
+        keyfile_content = f.read()
+    
+    with open("tmp/license.json", "r") as f:
+        license_content = f.read()
+        
+    with open("tmp/server_secret.key", "rb") as f:
+        server_secret_content = f.read()
+    
+    # 使用license_content参数
+    decrypted_data = FileEncryptor.decrypt_file_with_keyfile(
+        encrypted_path="tmp/model.enc",
+        keyfile_content=keyfile_content,
+        password="YOUR_PASSWORD",
+        license_content=license_content,
+        server_secret_content=server_secret_content  # 可选，生产环境推荐使用
+    )
+    
+    print(f"成功解密文件，大小: {len(decrypted_data)} 字节")
+    # 可以将解密后的数据传递给机器学习框架
+    # 例如: torch.load(io.BytesIO(decrypted_data))
+    
+except ValueError as e:
+    print(f"许可证验证失败: {e}")
+except Exception as e:
+    print(f"解密过程出错: {e}")
+```
+
+#### 方式二：使用 license_path 参数
+
+```
+from modellock import FileEncryptor
+
+try:
+    # 读取所需文件的内容（除license外）
+    with open("tmp/keyfile.json", "r") as f:
+        keyfile_content = f.read()
+        
+    with open("tmp/server_secret.key", "rb") as f:
+        server_secret_content = f.read()
+    
+    # 使用license_path参数
+    decrypted_data = FileEncryptor.decrypt_file_with_keyfile(
+        encrypted_path="tmp/model.enc",
+        keyfile_content=keyfile_content,
+        password="YOUR_PASSWORD",
+        license_path="tmp/license.json",  # 直接指定文件路径
+        server_secret_content=server_secret_content  # 可选，生产环境推荐使用
+    )
+    
+    print(f"成功解密文件，大小: {len(decrypted_data)} 字节")
+    # 可以将解密后的数据传递给机器学习框架
+    # 例如: torch.load(io.BytesIO(decrypted_data))
+    
+except ValueError as e:
+    print(f"许可证验证失败: {e}")
+except Exception as e:
+    print(f"解密过程出错: {e}")
+```
+
+#### 方式三：直接提供主密钥内容
+
+在某些特殊场景下，您可能希望直接提供主密钥进行解密，而不是通过密码和许可证派生：
+
+```
+from modellock import FileEncryptor
+
+try:
+    # 直接提供主密钥内容（十六进制字符串格式）
+    decrypted_data = FileEncryptor.decrypt_file_with_keyfile(
+        encrypted_path="tmp/model.enc",
+        master_key_content="YOUR_MASTER_KEY_HEX_STRING"  # 直接提供主密钥的十六进制表示
+    )
+    
+    print(f"成功解密文件，大小: {len(decrypted_data)} 字节")
+    # 可以将解密后的数据传递给机器学习框架
+    # 例如: torch.load(io.BytesIO(decrypted_data))
+    
+except ValueError as e:
+    print(f"密钥验证失败: {e}")
+except Exception as e:
+    print(f"解密过程出错: {e}")
+```
+
+#### 方式四：通过文件提供主密钥
+
+您也可以将主密钥存储在文件中，并通过文件路径提供：
+
+```
+from modellock import FileEncryptor
+
+try:
+    # 通过文件提供主密钥
+    decrypted_data = FileEncryptor.decrypt_file_with_keyfile(
+        encrypted_path="tmp/model.enc",
+        master_key_file="tmp/master_key.txt"  # 包含主密钥十六进制字符串的文件
+    )
+    
+    print(f"成功解密文件，大小: {len(decrypted_data)} 字节")
+    # 可以将解密后的数据传递给机器学习框架
+    # 例如: torch.load(io.BytesIO(decrypted_data))
+    
+except ValueError as e:
+    print(f"密钥验证失败: {e}")
+except Exception as e:
+    print(f"解密过程出错: {e}")
+```
+
+### 方法二：分步解密过程
+
+如果你需要更细粒度的控制，可以手动执行解密过程的每一步：
+
+```
+import json
+from modellock.core import KeyManager, FileEncryptor, LicenseManager, DeviceInfo, KeyInfo
+
+def decrypt_model_example():
+    # 1. 从密钥文件和密码派生主密钥
+    with open("keyfile.json", "r") as f:
+        keyfile_data = json.load(f)
+    
+    keyinfo = KeyInfo.from_json(keyfile_data["keyinfo"])
+    master_key = KeyManager.derive_key("YOUR_PASSWORD", keyinfo)
+    
+    # 2. 获取当前设备指纹
+    client_device_info = DeviceInfo.collect_info()
+    client_device_fp = DeviceInfo.fingerprint_hash(client_device_info)
+    
+    # 3. 加载许可证并恢复主密钥
+    with open("license.json", "r") as f:
+        license_obj = json.load(f)
+    
+    # 如果使用了服务器密钥文件
+    try:
+        with open("server_secret.key", "rb") as f:
+            server_license_secret = f.read()
+    except FileNotFoundError:
+        # 演示模式下使用默认密钥（生产环境不推荐）
+        server_license_secret = b"THIS_IS_A_SERVER_SIDE_SECRET_32BYTES!"[:32]
+    
+    # 解密许可证以获取主密钥
+    try:
+        recovered_master = LicenseManager.decrypt_license_client_side(
+            license_obj, client_device_fp, server_license_secret
+        )
+    except ValueError as e:
+        print(f"许可证解密失败: {e}")
+        return None
+    
+    # 4. 加载加密包并解密
+    pkg = FileEncryptor.load_package_from_file("model.enc")
+    try:
+        plain_bytes = FileEncryptor.decrypt_package_to_memory(pkg, recovered_master)
+        print(f"成功解密文件，大小: {len(plain_bytes)} 字节")
+        return plain_bytes
+    except Exception as e:
+        print(f"文件解密失败: {e}")
+        return None
+
+# 使用示例
+decrypted_model_data = decrypt_model_example()
+if decrypted_model_data:
+    # 可以将解密后的数据传递给机器学习框架
+    # 例如: torch.load(io.BytesIO(decrypted_model_data))
+    pass
+```
+
+## 便捷锁定模块使用
+
+对于需要快速集成锁定功能的应用，ModelLock 提供了便捷的锁定模块，可以通过 `from model.lock import lock` 方式导入使用。
+
+这个模块主要用于在应用程序启动时进行许可证验证，确保只有拥有有效许可证的用户才能运行程序。
+
+### 使用方法
+
+```
+from modellock.lock import lock
+
+# 在代码开头调用check_license函数进行许可证检查
+# 如果许可证无效，程序将自动退出
+lock.check_license()
+
+# 你的应用代码
+print("许可证验证通过，应用正常运行")
+```
+
+### 自定义主密钥
+
+如果你使用了自定义的主密钥而不是默认的演示密钥，你可以这样传递：
+
+```
+from modellock.lock import lock
+
+# 使用自定义主密钥内容
+custom_master_key = "your_custom_master_key_hex_string_here"
+lock.check_license(master_key_content=custom_master_key)
+
+print("许可证验证通过，应用正常运行")
+```
+
+### 环境变量配置
+
+锁定模块需要指定许可证文件的位置，可以通过设置环境变量 `LOCK_LICENSE_PATH` 来指定许可证文件路径：
+
+```bash
+export LOCK_LICENSE_PATH=/path/to/your/license.json
+```
+
+或者在Python代码中设置：
+
+```
+import os
+os.environ['LOCK_LICENSE_PATH'] = '/path/to/your/license.json'
+
+from modellock.lock import lock
+lock.check_license()
+```
+
+如果未设置环境变量，模块会在当前工作目录下的 `tmp/license.json` 查找许可证文件。
+
+
+## 安全注意事项
+
+### 生产环境部署
+
+默认情况下，为了演示方便，系统使用硬编码的服务器密钥。在生产环境中，强烈建议使用自定义的服务器密钥文件：
+
+```
+# 创建服务器密钥文件（仅需执行一次）
+openssl rand -hex 32 > server_secret.key
+
+# 在创建许可证时使用
+modellock create-license --keyfile keyfile.json --password YOUR_PASSWORD --output license.json --device-info device.json --days 30 --server-secret-file server_secret.key
+
+# 在解密时使用
+modellock decrypt --input model.enc --output decrypted_model.pt --license license.json --keyfile keyfile.json --password YOUR_PASSWORD --server-secret-file server_secret.key
+```
+
+### 密钥文件保护
+
+- 密钥文件不包含明文密码或加密密钥
+- 它只包含派生密钥所需的参数（如 salt 和迭代次数）
+- 但仍然需要妥善保管，因为它与密码一起可以派生出加密密钥
+
+### 设备指纹说明
+
+设备指纹是通过收集设备的硬件和系统信息生成的哈希值：
+
+- 包括操作系统信息、主机名、MAC 地址等
+- 不同的操作系统或权限可能导致收集到的信息不同
+- 建议在目标设备上测试设备指纹收集功能
+
+## 各组件间的关系详解
+
+ModelLock 系统涉及多个关键文件和概念，它们之间有着密切的关系。以下是各组件的详细说明及其相互关系：
+
+### password（密码）
+
+密码是整个安全体系的基础，由用户设定。它用于通过 PBKDF2 算法派生出主密钥 ([master_key](modellock/keymanager.py#L35-L35))。密码本身不会被存储在系统中，每次使用时都需要用户提供。
+
+### keyfile.json（密钥文件）
+
+密钥文件包含从密码派生主密钥所需的参数信息，如 salt 和迭代次数，但不包含实际的主密钥。它允许在只知道密码的情况下重新派生出主密钥。
+
+主要作用：
+- 存储 PBKDF2 算法的参数（salt、迭代次数等）
+- 允许通过密码重新派生主密钥
+- 本身不含敏感信息，可以相对安全地共享
+
+### master_key.txt（主密钥文件）
+
+主密钥是通过密码和密钥文件中的参数派生出来的实际加密/解密密钥（32字节）。它是真正的加密密钥，用于实际的文件加密和解密操作。
+
+特点：
+- 是真正的加密密钥
+- 从密码和密钥文件派生而来
+- 用于文件的实际加密和解密
+
+### server_secret.key（服务器密钥文件）
+
+这是服务器端的一个秘密密钥（32字节），用于保护许可证。它是整个许可系统的核心安全要素。
+
+用途：
+- 用于派生许可证密钥（通过 HMAC 与设备指纹结合）
+- 保证只有合法的服务器能创建有效的许可证
+- 必须严格保护，不能泄露
+
+### device.json（设备信息文件）
+
+设备信息文件包含目标设备的指纹信息，包括设备的唯一标识信息，如 MAC 地址、主机名、操作系统信息等。
+
+### license.json（许可证文件）
+
+许可证文件包含加密过的主密钥和其他元数据。它的工作原理是使用从服务器密钥和设备指纹派生出的密钥来加密主密钥。
+
+包含信息：
+- 使用服务器密钥和设备指纹派生的密钥加密的主密钥
+- 设备指纹信息
+- 过期时间等元数据
+
+## 工作流程与关系图
+
+整个 ModelLock 系统的工作流程如下：
+
+1. 用户提供密码（password）
+2. 系统使用密码和随机 salt 生成密钥文件（keyfile.json）和主密钥（master_key.txt）
+3. 使用主密钥加密文件得到加密文件（如 model.enc）
+4. 在目标设备上收集设备信息生成设备信息文件（device.json）
+5. 服务器使用服务器密钥（server_secret.key）和设备信息创建许可证（license.json）
+6. 在目标设备上，系统通过许可证（license.json）、密钥文件（keyfile.json）和原始密码验证设备并恢复主密钥（master_key），从而解密文件；或者使用许可证（license.json）、主密钥（master_key.txt）解密文件;
+7. 服务器密钥（server_secret.key）是可选项；
+
+这种设计实现了"一次加密，多次许可"的模式，确保只有在正确设备上、在有效期内才能解密文件。
+
+## 工作流程
+
+1. **加密者**使用密码生成密钥文件
+2. **加密者**使用密钥文件加密模型文件
+3. **客户**在目标设备上收集设备信息
+4. **加密者**为客户设备创建许可证
+5. **客户**在目标设备上使用许可证解密模型文件
+
+这种设计实现了"一次加密，多许可证"的模式，加密者只需要一次加密操作，就可以为多个设备创建不同的许可证。
+
+## 命令详解
+
+### generate-keyfile
+
+生成密钥文件，包含派生密钥所需的信息。
+
+参数：
+- `--password`：用于派生密钥的密码
+- `--output`：输出密钥文件路径
+- `--iterations`：PBKDF2 迭代次数（默认 200,000）
+
+### encrypt
+
+使用密钥文件加密文件。
+
+参数：
+- `--input`：输入文件路径
+- `--output`：输出加密文件路径
+- `--keyfile`：密钥文件路径
+- `--password`：用于密钥文件的密码
+
+### collect-device
+
+收集当前设备的信息并生成设备指纹。
+
+参数：
+- `--output`：输出设备信息文件路径
+
+### create-license
+
+为指定设备创建许可证。
+
+参数：
+- `--keyfile`：密钥文件路径
+- `--password`：用于密钥文件的密码
+- `--output`：输出许可证文件路径
+- `--device-fingerprint` 或 `--device-info`：设备指纹或设备信息文件
+- `--days` 或 `--expiry`：许可证有效期（天数）或过期时间
+- `--server-secret-file`：服务器密钥文件路径（推荐用于生产环境）
+
+### decrypt
+
+使用许可证解密文件。
+
+参数：
+- `--input`：输入加密文件路径
+- `--output`：输出解密文件路径
+- `--license`：许可证文件路径
+- `--keyfile`：密钥文件路径
+- `--password`：用于密钥文件的密码
+- `--server-secret-file`：服务器密钥文件路径（推荐用于生产环境）
