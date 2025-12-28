@@ -1,0 +1,1 @@
+import{a2 as n,e as s,f as t,i as c,ai as r}from"./index-BwlMlHGj.js";import{_ as a}from"./Image-B_0rm4XX.js";const m={},_={class:"flex justify-center mt-10 flex-col mx-auto w-52 items-center"};function i(e,l){const o=a;return t(),s("div",_,[c(o,{src:"/comming-soon.png",class:"w-52 h-52 mb-5"}),r(e.$slots,"default")])}const d=n(m,[["render",i]]);export{d as C};

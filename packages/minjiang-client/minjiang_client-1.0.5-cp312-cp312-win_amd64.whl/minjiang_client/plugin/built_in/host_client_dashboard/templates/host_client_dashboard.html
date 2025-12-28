@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{group_name} · Host Client Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/host_client_dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+</head>
+<body data-group-name="{group_name}" data-org-id="{org_id}" data-org-name="{org_name}" data-script-picker-api="{script_picker_api}">
+    <header>
+        <div class="header-row">
+            <div class="header-info">
+                <span class="page-title">Host Client Dashboard</span>
+                <span class="device-group-title">设备组：<a target="_blank" href="http://127.0.0.1:6886/groupDetail/overview?device_group_name={group_name}">{group_name}</a></span>
+            </div>
+            <div class="header-status">
+                <span class="status-indicator status-idle"></span>
+                <span class="status-text" id="runStatusLabel">空闲</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="dashboard-wrapper">
+            <!-- 左侧运行设置 -->
+            <aside class="run-settings-panel">
+                <div class="panel-header">
+                    <h3>运行设置</h3>
+                    <p>选择云服务器脚本并配置 Direct Link 端口，随后点击运行。</p>
+                </div>
+                <form class="run-form" id="runForm">
+                    <div class="form-group">
+                        <label class="setting-label">脚本来源</label>
+                        <div class="script-source-toggle" id="scriptSourceToggle">
+                            <button type="button" class="toggle-chip" data-source-mode="local">本地脚本</button>
+                            <button type="button" class="toggle-chip active" data-source-mode="manager">脚本管理器</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group hidden" id="localScriptGroup">
+                        <label class="setting-label" for="cloudFilePath">本地脚本路径</label>
+                        <input type="text" id="cloudFilePath" class="setting-input" placeholder="例如 C:/path/to/start_host_client.py" autocomplete="off">
+                        <span class="setting-hint">请输入要执行的 Python 脚本或可执行文件的绝对路径</span>
+                    </div>
+
+                    <div class="form-group" id="managerScriptGroup">
+                        <label class="setting-label" for="scriptManagerPath">脚本管理器脚本路径</label>
+                        <div class="script-picker-input-row">
+                            <input type="text" id="scriptManagerPath" class="setting-input" placeholder="例如 /cloud/scripts/start_host_client.py" autocomplete="off">
+                            <button type="button"
+                                    class="button-tertiary"
+                                    data-script-picker-trigger
+                                    data-script-picker-target="#scriptManagerPath"
+                                    data-script-picker-api="{script_picker_api}">
+                                选择
+                            </button>
+                        </div>
+                        <span class="setting-hint">
+                            输入服务器中脚本管理器的 Host Client 脚本路径。
+                            <a href="http://127.0.0.1:6886/scripts?org={org_id}" target="_blank" class="setting-link">打开 {org_name} 的脚本管理器</a>
+                        </span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="setting-label" for="directLinkPort">Direct Link Port</label>
+                        <input type="number" id="directLinkPort" class="setting-input" value="6887" min="1" max="65535" step="1" required>
+                        <span class="setting-hint">默认 6887，可根据网络规划进行调整</span>
+                    </div>
+
+                    <div class="form-group run-actions">
+                        <button type="button" class="button-primary full-width" id="runHostClientBtn">
+                            <span class="button-icon">▶</span>
+                            运行
+                        </button>
+                        <button type="button" class="button-secondary full-width" id="stopHostClientBtn">
+                            <span class="button-icon">■</span>
+                            停止
+                        </button>
+                    </div>
+                </form>
+            </aside>
+
+            <!-- 右侧内容区域（Tab页） -->
+            <section class="content-panel">
+                <div class="tab-container">
+                    <div class="tab-nav">
+                        <button type="button" class="tab-button active" data-tab="logs" id="logsTabBtn">
+                            运行日志
+                        </button>
+                        <button type="button" class="tab-button" data-tab="webview" id="webviewTabBtn">
+                            Host Client 界面
+                        </button>
+                        <button type="button" class="tab-button" data-tab="help" id="helpTabBtn">
+                            帮助说明
+                        </button>
+                    </div>
+                    <div class="tab-content">
+                        <!-- 日志 Tab -->
+                        <div class="tab-pane active" id="logsTab">
+                            <div class="log-stream-wrapper">
+                                <button type="button" class="log-clear-button" id="clearLogBtn" title="清空日志">清空</button>
+                                <div class="log-stream" id="logStream" aria-live="polite">
+                                    <div class="log-empty">
+                                        <p>暂无日志</p>
+                                        <p class="setting-hint">点击左侧运行按钮开始采集日志</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Webview Tab -->
+                        <div class="tab-pane" id="webviewTab">
+                            <div class="webview-container">
+                                <iframe id="hostClientIframe" src="about:blank" frameborder="0" allowfullscreen></iframe>
+                                <div class="webview-empty" id="webviewEmpty">
+                                    <p>Host Client 未运行</p>
+                                    <p class="setting-hint">请先启动 Host Client 以查看界面</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Help Tab -->
+                        <div class="tab-pane" id="helpTab">
+                            <div class="help-wrapper">
+                                <aside class="help-toc" id="helpToc">
+                                    <div class="toc-header">
+                                        <h3>目录</h3>
+                                    </div>
+                                    <nav class="toc-nav" id="tocNav">
+                                        <div class="toc-loading">正在生成目录...</div>
+                                    </nav>
+                                </aside>
+                                <div class="help-content" id="helpContent">
+                                    <div class="help-loading">正在加载帮助文档...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    {script_picker_script}
+    <script src="/static/host_client_dashboard.js"></script>
+</body>
+</html>
+

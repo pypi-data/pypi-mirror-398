@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{group_name} · 设备管理</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/device_manager.css">
+</head>
+<body>
+    <header>
+        <div class="header-row">
+            <div class="header-info">
+                <span class="page-title">中微达信设备管理器</span>
+                <span class="device-group-title">设备组：<a target="_blank" href="http://127.0.0.1:6886/groupDetail/overview?device_group_name={group_name}">{group_name}</a></span>
+            </div>
+            <div class="header-actions">
+                <button class="button-secondary" id="channelMappingBtn" type="button" title="通道映射">
+                    <span class="button-icon">🧭</span>
+                    通道映射
+                </button>
+                <button class="button-secondary" id="editConfigFilesBtn" type="button" title="编辑配置文件">
+                    <span class="button-icon">📝</span>
+                    编辑配置文件
+                </button>
+                <button class="button-success" id="pluginStatusBtn" type="button" title="远程 Host Client 信息">
+                    <span class="button-icon">🌐</span>
+                    远程 Host Client 信息
+                    <div class="plugin-status-tooltip" id="pluginStatusTooltip">
+                        <div class="tooltip-spinner"></div>
+                        <div class="tooltip-content" style="display: none;"></div>
+                    </div>
+                </button>
+                <button class="button-danger" id="restartHostClientBtn" type="button" title="远程重启 Host Client">
+                    <span class="button-icon">🔄</span>
+                    重启 Host Client
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="device-management-wrapper">
+            <!-- 左侧设备列表 -->
+            <aside class="device-list-panel">
+                <div class="device-list-header">
+                    <div class="device-list-title-row">
+                        <h3>设备列表</h3>
+                    </div>
+                    <div class="device-list-actions">
+                        <button class="action-button" id="addDeviceBtn" type="button">
+                            <span class="button-icon">+</span>
+                            添加设备
+                        </button>
+                        <button class="action-button" id="autoDiscoverBtn" type="button">
+                            <span class="button-icon">🔍</span>
+                            自动发现
+                        </button>
+                    </div>
+                </div>
+                <div class="device-list-content" id="deviceList">
+                    <div class="empty-state">
+                        <p>暂无设备</p>
+                        <p class="empty-hint">点击"添加设备"或"自动发现"来添加设备</p>
+                    </div>
+                </div>
+                <div class="device-list-footer">
+                    <button class="action-button" id="refreshDeviceBtn" type="button">
+                        <span class="button-icon">⟳</span>
+                        刷新列表
+                    </button>
+                    <label class="auto-refresh-toggle">
+                        <input type="checkbox" id="autoRefreshCheckbox">
+                        <span>自动刷新</span>
+                    </label>
+                </div>
+            </aside>
+
+            <!-- 右侧设备详情 -->
+            <section class="device-detail-panel">
+                <div class="device-detail-content" id="deviceDetail">
+                    <div class="empty-detail">
+                        <p>请从左侧选择一个设备</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 添加设备对话框 -->
+    <div class="modal-overlay" id="addDeviceModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>添加设备</h3>
+                <button class="modal-close" id="closeAddDeviceModal" type="button">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="addDeviceForm">
+                    <div class="form-group">
+                        <label for="deviceName">设备名称</label>
+                        <input type="text" id="deviceName" name="deviceName" required placeholder="请输入设备名称">
+                    </div>
+                    <div class="form-group">
+                        <label for="deviceType">设备类型</label>
+                        <select id="deviceType" name="deviceType" required>
+                            <option value="">请选择设备类型</option>
+                            <option value="controller">控制器</option>
+                            <option value="awg">AWG</option>
+                            <option value="digitizer">数字化仪</option>
+                            <option value="switch">开关</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="deviceSn">设备SN</label>
+                        <input type="text" id="deviceSn" name="deviceSn" placeholder="请输入设备SN（可选）">
+                    </div>
+                    <div class="form-group">
+                        <label for="deviceAddress">设备地址</label>
+                        <input type="text" id="deviceAddress" name="deviceAddress" required placeholder="例如: 192.168.1.100 或 COM3">
+                    </div>
+                    <div class="form-group">
+                        <label for="devicePort">端口号</label>
+                        <input type="text" id="devicePort" name="devicePort" placeholder="请输入端口号（可选）">
+                    </div>
+                    <div class="form-group">
+                        <label for="deviceDescription">设备描述</label>
+                        <textarea id="deviceDescription" name="deviceDescription" rows="3" placeholder="请输入设备描述（可选）"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="button-secondary" id="cancelAddDeviceBtn" type="button">取消</button>
+                <button class="button-primary" id="confirmAddDeviceBtn" type="button">确认添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自动发现结果对话框 -->
+    <div class="modal-overlay" id="discoverModal" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>发现的设备</h3>
+                <div class="modal-header-actions">
+                    <button class="button-secondary" id="refreshDiscoverBtn" type="button" title="刷新">
+                        <span class="button-icon">⟳</span>
+                        刷新
+                    </button>
+                    <button class="modal-close" id="closeDiscoverModal" type="button">×</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="discoverMessage" class="discover-message"></div>
+                <div class="discover-summary" id="discoverSummary"></div>
+                <div class="discover-device-list" id="discoverDeviceList">
+                    <div class="empty-state">
+                        <p>暂无发现的设备</p>
+                        <p class="empty-hint">点击“自动发现”后将在此显示发现结果</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer discover-footer">
+                <div class="discover-footer-left">
+                    <button class="button-secondary" id="selectAllDiscoverBtn" type="button">全选新设备</button>
+                </div>
+                <div class="discover-footer-right">
+                    <button class="button-secondary" id="cancelDiscoverBtn" type="button">关闭</button>
+                    <button class="button-primary" id="confirmDiscoverBtn" type="button">添加所选设备</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通道映射编辑对话框 -->
+    <div class="modal-overlay" id="channelMappingModal" style="display: none;">
+        <div class="modal-content channel-mapping-modal">
+            <div class="modal-header">
+                <div class="modal-header-title-section">
+                    <h3>通道映射编辑</h3>
+                    <div class="channel-mapping-description" id="channelMappingDescription">
+                        <span>量子比特或量子器件信息可以在 Space Parameter 中编辑，</span>
+                        <a id="channelMappingSpaceLink" target="_blank" href="#"><span class="link-icon">🔗</span>点击前往</a>。
+                    </div>
+                </div>
+                <button class="modal-close" id="closeChannelMappingModal" type="button">×</button>
+            </div>
+            <div class="modal-body channel-mapping-modal-body">
+                <div class="channel-mapping-layout">
+                    <div class="channel-mapping-sidebar" id="channelMappingSidebar">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>加载中...</p>
+                        </div>
+                    </div>
+                    <div class="channel-mapping-main" id="channelMappingContent">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer channel-mapping-footer">
+                <div class="channel-mapping-warning">
+                    <span class="warning-icon">⚠️</span>
+                    <span class="warning-text">修改通道映射后需要重新启动 Host Client</span>
+                </div>
+                <div class="modal-footer-buttons">
+                    <button class="button-secondary" id="closeChannelMappingBtn" type="button">关闭</button>
+                    <button class="button-primary" id="saveAllChannelMappingBtn" type="button">保存所有</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 比特通道重复提示对话框 -->
+    <div class="modal-overlay" id="duplicateWarningModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ 检测到重复的比特通道</h3>
+                <button class="modal-close" id="closeDuplicateWarningModal" type="button">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="duplicate-warning-content" id="duplicateWarningContent">
+                    <!-- 重复信息将在这里显示 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button-secondary" id="cancelSaveBtn" type="button">取消保存</button>
+                <button class="button-primary" id="confirmSaveBtn" type="button">继续保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上位机信息对话框 -->
+    <div class="modal-overlay" id="pluginStatusModal" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>远程 Host Client 信息</h3>
+                <button class="modal-close" id="closePluginStatusModal" type="button">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="plugin-status-content" id="pluginStatusContent">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>加载中...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button-secondary" id="closePluginStatusBtn" type="button">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设备操作对话框 -->
+    <div class="modal-overlay" id="operationModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="operationModalTitle">执行操作</h3>
+                <button class="modal-close" id="closeOperationModal" type="button">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="operationModalDescription" class="operation-modal-description"></div>
+                <div id="operationModalParams" class="operation-modal-params"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="button-secondary" id="cancelOperationBtn" type="button">取消</button>
+                <button class="button-primary" id="confirmOperationBtn" type="button">执行操作</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑配置文件对话框 -->
+    <div class="modal-overlay" id="editConfigFilesModal" style="display: none;">
+        <div class="modal-content config-files-modal">
+            <div class="modal-header">
+                <h3>编辑配置文件</h3>
+                <button class="modal-close" id="closeEditConfigFilesModal" type="button">×</button>
+            </div>
+            <div class="modal-body config-files-body">
+                <div class="config-files-container">
+                    <!-- 左侧文件列表 -->
+                    <div class="config-files-sidebar">
+                        <div class="config-files-sidebar-header">
+                            <h4>JSON 文件列表</h4>
+                            <div class="config-files-actions">
+                                <button class="button-secondary" id="refreshConfigFilesBtn" type="button" title="刷新">
+                                    <span class="button-icon">⟳</span>
+                                </button>
+                                <button class="button-primary" id="addConfigFileBtn" type="button" title="添加文件">
+                                    <span class="button-icon">+</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="config-files-list" id="configFilesList">
+                            <div class="empty-state">
+                                <p>加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 右侧文件内容 -->
+                    <div class="config-files-content">
+                        <div class="config-files-content-header">
+                            <h4 id="configFileTitle">请选择一个文件</h4>
+                            <div class="config-files-content-actions">
+                                <button class="button-secondary" id="formatConfigFileBtn" type="button" style="display: none;" title="格式化JSON">
+                                    <span class="button-icon">🎨</span>
+                                    格式化
+                                </button>
+                                <button class="button-secondary" id="deleteConfigFileBtn" type="button" style="display: none;">
+                                    <span class="button-icon">🗑️</span>
+                                    删除
+                                </button>
+                                <button class="button-primary" id="saveConfigFileBtn" type="button" style="display: none;">
+                                    <span class="button-icon">💾</span>
+                                    保存
+                                </button>
+                            </div>
+                        </div>
+                        <div class="config-files-editor">
+                            <pre id="configFileEditor" class="json-editor" contenteditable="true" spellcheck="false" placeholder="请从左侧选择一个文件进行编辑..."></pre>
+                            <div id="configFileError" class="config-file-error" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重启 Host Client 确认对话框 -->
+    <div class="modal-overlay" id="restartHostClientModal" style="display: none;">
+        <div class="modal-content restart-host-client-modal">
+            <div class="modal-header">
+                <h3 id="restartHostClientModalTitle">⚠️ 重启 Host Client</h3>
+                <button class="modal-close" id="closeRestartHostClientModal" type="button">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- 确认阶段 -->
+                <div id="restartHostClientConfirmStage" class="restart-confirm-stage">
+                    <div class="restart-warning-box">
+                        <div class="warning-icon-large">⚠️</div>
+                        <h4 class="warning-title">重要提示</h4>
+                        <p class="warning-message">
+                            重启 Host Client 将会：
+                        </p>
+                        <ul class="warning-list">
+                            <li>中断正在运行中的实验</li>
+                            <li>无法恢复未上传的实验数据</li>
+                            <li>停止所有正在执行的设备操作</li>
+                        </ul>
+                        <p class="warning-question">确定要继续重启 Host Client 吗？</p>
+                    </div>
+                </div>
+                <!-- 执行阶段 -->
+                <div id="restartHostClientExecuteStage" class="restart-execute-stage" style="display: none;">
+                    <div class="restart-status-container">
+                        <div class="status-header">
+                            <div class="status-icon" id="restartStatusIcon">
+                                <div class="spinner"></div>
+                            </div>
+                            <h4 class="status-title" id="restartStatusTitle">正在提交重启指令...</h4>
+                        </div>
+                        <div class="status-details">
+                            <div class="status-item">
+                                <span class="status-label">指令状态：</span>
+                                <span class="status-value" id="restartCommandStatus">-</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Host Client 状态：</span>
+                                <span class="status-value" id="restartHostClientStatus">检测中...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">指令ID：</span>
+                                <span class="status-value" id="restartCommandId">-</span>
+                            </div>
+                        </div>
+                        <div class="status-progress" id="restartStatusProgress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="restartProgressFill"></div>
+                            </div>
+                            <p class="progress-text" id="restartProgressText"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button-secondary" id="cancelRestartHostClientBtn" type="button">取消</button>
+                <button class="button-primary" id="confirmRestartHostClientBtn" type="button">确认重启</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/dac_replay_continue_editor.js"></script>
+    <script src="/static/device_manager.js"></script>
+</body>
+</html>
+
