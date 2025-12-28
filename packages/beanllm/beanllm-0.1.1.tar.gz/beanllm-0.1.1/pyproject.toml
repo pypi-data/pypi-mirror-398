@@ -1,0 +1,155 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beanllm"
+version = "0.1.1"
+description = "Unified toolkit for managing and using multiple LLM providers with automatic model detection"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "leebeanbin", email = "wjdqlsdu388@gmail.com"}
+]
+keywords = [
+    "llm", "llmkit", "kit",
+    "openai", "claude", "gemini", "ollama",
+    "ai", "model-manager", "rag", "langchain",
+    "embedding", "vector-store", "chatbot", "gpt"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# 필수 의존성 (핵심 기능만)
+dependencies = [
+    "httpx>=0.24.0",  # HTTP 클라이언트
+    "python-dotenv>=1.0.0",  # .env 파일 로드
+    "rich>=13.0.0",  # 터미널 UI
+    "beautifulsoup4>=4.12.0",  # Web scraping
+    "requests>=2.31.0",  # HTTP requests
+    "numpy>=1.24.0",  # Numerical operations
+    "tiktoken>=0.5.0",  # Token counting
+    "pytest (>=9.0.2,<10.0.0)",
+]
+
+# 선택적 의존성 (Provider별로 선택 가능)
+[project.optional-dependencies]
+# OpenAI 사용
+openai = [
+    "openai>=1.0.0",
+]
+
+# Anthropic Claude 사용
+anthropic = [
+    "anthropic>=0.18.0",
+]
+
+# Google Gemini 사용
+gemini = [
+    "google-generativeai>=0.3.0",
+]
+
+# Ollama 사용 (로컬 모델)
+ollama = [
+    "ollama>=0.1.0",
+]
+
+# Audio 기능 (음성 인식/합성)
+audio = [
+    "openai-whisper>=20231117",
+]
+
+# 모든 Provider 사용
+all = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "google-generativeai>=0.3.0",
+    "ollama>=0.1.0",
+    "openai-whisper>=20231117",
+]
+
+# Continuous Evaluation (선택적)
+evaluation = [
+    "apscheduler>=3.10.0",
+]
+
+# 개발 도구
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/leebeanbin/beanllm"
+Documentation = "https://github.com/leebeanbin/beanllm#readme"
+Repository = "https://github.com/leebeanbin/beanllm"
+"Bug Tracker" = "https://github.com/leebeanbin/beanllm/issues"
+
+# CLI 진입점
+[project.scripts]
+beanllm = "beanllm.utils.cli.cli:main"
+
+# setuptools 설정 (src layout)
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+# 자동으로 모든 패키지 찾기 (find_packages 사용)
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["beanllm*"]
+exclude = ["tests*", "*.tests*", "*.tests.*", "tests.*"]
+
+[tool.setuptools.package-data]
+beanllm = ["data/*.json"]
+
+# Ruff 설정 (linter/formatter)
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = [
+    "E501",  # line too long
+    "E722",  # bare except
+    "E721",  # type comparison
+    "E731",  # lambda assignment
+    "E402",  # module level import not at top
+    "F841",  # unused local variable
+    "F402",  # import shadowing
+    "F401",  # unused import in try/except blocks
+]
+
+# Black 설정 (formatter)
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+# MyPy 설정 (type checker)
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+# Pytest 설정
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=beanllm --cov-report=html --cov-report=term"
+asyncio_mode = "auto"
