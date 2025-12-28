@@ -1,0 +1,278 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class EnvParam:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'component_id': 'str',
+        'description': 'str',
+        'env_name': 'str',
+        'env_type': 'str',
+        'os_type': 'str',
+        'region': 'str',
+        'register_type': 'str'
+    }
+
+    attribute_map = {
+        'component_id': 'component_id',
+        'description': 'description',
+        'env_name': 'env_name',
+        'env_type': 'env_type',
+        'os_type': 'os_type',
+        'region': 'region',
+        'register_type': 'register_type'
+    }
+
+    def __init__(self, component_id=None, description=None, env_name=None, env_type=None, os_type=None, region=None, register_type=None):
+        r"""EnvParam
+
+        The model defined in huaweicloud sdk
+
+        :param component_id: 环境关联组件id；id长度不能超过36位，由大小写字母、数字组成。创建环境必传，修改环境时非必选
+        :type component_id: str
+        :param description: 描述
+        :type description: str
+        :param env_name: 环境名称
+        :type env_name: str
+        :param env_type: 环境类型，取值：DEV、TEST、PRE、ONLINE，不区分大小写
+        :type env_type: str
+        :param os_type: OS类型，取值：LINUX、WINDOWS。创建环境必传，不可修改
+        :type os_type: str
+        :param region: 环境关联region。创建环境必传，不可修改
+        :type region: str
+        :param register_type: 注册类型，取值：API、SERVICE_DISCOVERY、CONSOLE，默认值：API
+        :type register_type: str
+        """
+        
+        
+
+        self._component_id = None
+        self._description = None
+        self._env_name = None
+        self._env_type = None
+        self._os_type = None
+        self._region = None
+        self._register_type = None
+        self.discriminator = None
+
+        self.component_id = component_id
+        if description is not None:
+            self.description = description
+        self.env_name = env_name
+        self.env_type = env_type
+        self.os_type = os_type
+        if region is not None:
+            self.region = region
+        if register_type is not None:
+            self.register_type = register_type
+
+    @property
+    def component_id(self):
+        r"""Gets the component_id of this EnvParam.
+
+        环境关联组件id；id长度不能超过36位，由大小写字母、数字组成。创建环境必传，修改环境时非必选
+
+        :return: The component_id of this EnvParam.
+        :rtype: str
+        """
+        return self._component_id
+
+    @component_id.setter
+    def component_id(self, component_id):
+        r"""Sets the component_id of this EnvParam.
+
+        环境关联组件id；id长度不能超过36位，由大小写字母、数字组成。创建环境必传，修改环境时非必选
+
+        :param component_id: The component_id of this EnvParam.
+        :type component_id: str
+        """
+        self._component_id = component_id
+
+    @property
+    def description(self):
+        r"""Gets the description of this EnvParam.
+
+        描述
+
+        :return: The description of this EnvParam.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this EnvParam.
+
+        描述
+
+        :param description: The description of this EnvParam.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def env_name(self):
+        r"""Gets the env_name of this EnvParam.
+
+        环境名称
+
+        :return: The env_name of this EnvParam.
+        :rtype: str
+        """
+        return self._env_name
+
+    @env_name.setter
+    def env_name(self, env_name):
+        r"""Sets the env_name of this EnvParam.
+
+        环境名称
+
+        :param env_name: The env_name of this EnvParam.
+        :type env_name: str
+        """
+        self._env_name = env_name
+
+    @property
+    def env_type(self):
+        r"""Gets the env_type of this EnvParam.
+
+        环境类型，取值：DEV、TEST、PRE、ONLINE，不区分大小写
+
+        :return: The env_type of this EnvParam.
+        :rtype: str
+        """
+        return self._env_type
+
+    @env_type.setter
+    def env_type(self, env_type):
+        r"""Sets the env_type of this EnvParam.
+
+        环境类型，取值：DEV、TEST、PRE、ONLINE，不区分大小写
+
+        :param env_type: The env_type of this EnvParam.
+        :type env_type: str
+        """
+        self._env_type = env_type
+
+    @property
+    def os_type(self):
+        r"""Gets the os_type of this EnvParam.
+
+        OS类型，取值：LINUX、WINDOWS。创建环境必传，不可修改
+
+        :return: The os_type of this EnvParam.
+        :rtype: str
+        """
+        return self._os_type
+
+    @os_type.setter
+    def os_type(self, os_type):
+        r"""Sets the os_type of this EnvParam.
+
+        OS类型，取值：LINUX、WINDOWS。创建环境必传，不可修改
+
+        :param os_type: The os_type of this EnvParam.
+        :type os_type: str
+        """
+        self._os_type = os_type
+
+    @property
+    def region(self):
+        r"""Gets the region of this EnvParam.
+
+        环境关联region。创建环境必传，不可修改
+
+        :return: The region of this EnvParam.
+        :rtype: str
+        """
+        return self._region
+
+    @region.setter
+    def region(self, region):
+        r"""Sets the region of this EnvParam.
+
+        环境关联region。创建环境必传，不可修改
+
+        :param region: The region of this EnvParam.
+        :type region: str
+        """
+        self._region = region
+
+    @property
+    def register_type(self):
+        r"""Gets the register_type of this EnvParam.
+
+        注册类型，取值：API、SERVICE_DISCOVERY、CONSOLE，默认值：API
+
+        :return: The register_type of this EnvParam.
+        :rtype: str
+        """
+        return self._register_type
+
+    @register_type.setter
+    def register_type(self, register_type):
+        r"""Sets the register_type of this EnvParam.
+
+        注册类型，取值：API、SERVICE_DISCOVERY、CONSOLE，默认值：API
+
+        :param register_type: The register_type of this EnvParam.
+        :type register_type: str
+        """
+        self._register_type = register_type
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, EnvParam):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
