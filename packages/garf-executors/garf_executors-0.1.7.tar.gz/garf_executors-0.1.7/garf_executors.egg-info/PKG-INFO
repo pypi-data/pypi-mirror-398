@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: garf-executors
+Version: 0.1.7
+Summary: Executes queries against API and writes data to local/remote storage.
+Author-email: "Google Inc. (gTech gPS CSE team)" <no-reply@google.com>, Andrei Markin <andrey.markin.ppc@gmail.com>
+License: Apache 2.0
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: Apache Software License
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: garf-core
+Requires-Dist: garf-io
+Requires-Dist: pyyaml
+Requires-Dist: pydantic
+Requires-Dist: opentelemetry-api
+Requires-Dist: opentelemetry-sdk
+Provides-Extra: bq
+Requires-Dist: garf-io[bq]; extra == "bq"
+Requires-Dist: pandas; extra == "bq"
+Requires-Dist: google-cloud-logging; extra == "bq"
+Provides-Extra: sql
+Requires-Dist: garf-io[sqlalchemy]; extra == "sql"
+Requires-Dist: pandas; extra == "sql"
+Provides-Extra: server
+Requires-Dist: fastapi[standard]; extra == "server"
+Requires-Dist: opentelemetry-instrumentation-fastapi; extra == "server"
+Requires-Dist: opentelemetry-exporter-otlp; extra == "server"
+Provides-Extra: all
+Requires-Dist: garf-executors[bq,server,sql]; extra == "all"
+
+# `garf-executors` - One stop-shop for interacting with Reporting APIs.
+
+`garf-executors` is responsible for orchestrating process of fetching from API and storing data in a storage.
+
+Currently the following executors are supports:
+
+* `ApiExecutor` - fetching data from reporting API and saves it to a requested destination.
+* `BigQueryExecutor` - executes SQL code in BigQuery.
+* `SqlExecutor` - executes SQL code in a SqlAlchemy supported DB.
+
+## Installation
+
+`pip install garf-executors`
+
+## Usage
+
+After `garf-executors` is installed you can use `garf` utility to perform fetching.
+
+```
+garf <QUERIES> --source <API_SOURCE> \
+  --output <OUTPUT_TYPE> \
+  --source.params1=<VALUE>
+```
+
+where
+
+* `<QUERIES>`- local or remote path(s) to files with queries.
+* `<API_SOURCE>`- type of API to use. Based on that the appropriate report fetcher will be initialized.
+* `<OUTPUT_TYPE>` - output supported by [`garf-io` library](../garf_io/README.md).
+
+If your report fetcher requires additional parameters you can pass them via key value pairs under `--source.` argument, i.e.`--source.regionCode='US'` - to get data only from *US*.
+> Concrete `--source` parameters are dependent on a particular report fetcher and should be looked up in a documentation for this fetcher.
