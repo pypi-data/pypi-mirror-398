@@ -1,0 +1,114 @@
+base_dir: ~/.memos
+# The base directory for storing application data.
+
+# Database settings
+# Can be either:
+# 1. A file path for SQLite (relative to base_dir): database.db
+# 2. SQLite URL: sqlite:///absolute/path/to/database.db
+# 3. PostgreSQL URL: postgresql://postgres:mysecretpassword@localhost:5432/postgres
+database_path: database.db
+# Path to the database file. Can be a relative path or a full URL for SQLite or PostgreSQL.
+
+
+default_library: screenshots
+# The default library name to use for storing screenshots.
+
+screenshots_dir: screenshots
+# Directory for storing screenshots.
+
+server_host: 127.0.0.1
+# The host address to listen on.
+server_port: 8839
+# The port number to listen on.
+
+# Enable authentication by uncommenting the following lines
+# auth_username: admin
+# auth_password: changeme
+
+# List of default plugins to load at startup.
+default_plugins:
+- builtin_ocr
+# - builtin_vlm
+
+# List of applications to exclude from screenshot recording
+# App names are case-insensitive and support partial matching
+# Examples for macOS: ["1Password 7", "Keychain Access", "Activity Monitor"]
+# Examples for Windows: ["notepad.exe", "calculator.exe"]
+app_blacklist: []
+
+# using ollama as the vlm server
+vlm:
+  concurrency: 8
+  endpoint: http://localhost:11434
+  force_jpeg: true
+  modelname: minicpm-v
+  # 中文版本
+  prompt: 请帮描述这个图片中的内容，包括画面格局、出现的视觉元素等
+  # English version
+  prompt: Please describe the content of this image, including the layout and visual elements.
+  token: ''
+  # whether to enable the VLM plugin
+  enabled: true
+
+# using local ocr
+ocr:
+  concurrency: 8
+  # this is not used if use_local is true
+  endpoint: http://localhost:5555/predict
+  force_jpeg: false
+  token: ''
+  use_local: true
+  # whether to enable the OCR plugin
+  enabled: true
+
+# using local embedding for English as the main language
+embedding:
+  model: arkohut/jina-embeddings-v2-base-en
+  num_dim: 768
+  use_local: true
+  use_modelscope: false
+
+watch:
+  # number of recent events to consider when calculating processing rates
+  rate_window_size: 10
+  # sparsity factor for file processing
+  # a higher value means less frequent processing
+  # 1.0 means process every file
+  sparsity_factor: 3.0
+  # initial processing interval for file processing, means process one file with plugins for every N files
+  # but will be adjusted automatically based on the processing rate
+  # 1 means process the first file at the beginning
+  processing_interval: 12
+  # number of seconds without new files before marking state as idle
+  idle_timeout: 300
+  # time interval for processing skipped files (HH:MM format)
+  # only process skipped files during this interval when system is idle
+  idle_process_interval: ["00:00", "07:00"]
+
+# A watch config like this means process every file with plugins at the beginning
+# but if the processing rate is slower than file generated, the processing interval 
+# will be increased automatically
+# watch:
+#   rate_window_size: 10
+#   sparsity_factor: 1.0
+#   processing_interval: 1
+
+# using local embedding for Chinese as the main language
+# embedding:
+#   model: arkohut/jina-embeddings-v2-base-zh
+#   num_dim: 768
+#   use_local: true
+#   use_modelscope: true
+
+# using ollama embedding
+# embedding:
+#   endpoint: http://localhost:11434/v1/embeddings # this is not used
+#   model: arkohut/gte-qwen2-1.5b-instruct:q8_0
+#   num_dim: 1536
+#   use_local: false
+#   use_modelscope: false
+
+record_interval: 4 # seconds
+# Shorter intervals mean denser data capture, reducing missed data but increasing storage costs.
+facet: false # support facet filter
+# When set to true, enables filtering of search results based on specific attributes or dimensions.
