@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; {{ app_list|first|first }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="app-index-container">
+    <h1>{{ app_list|first|first }}</h1>
+
+    {% if app_list %}
+        {% for app in app_list %}
+            <div class="app-card">
+                <h2>
+                    <a href="{{ app.app_url }}" title="{% blocktrans with name=app.name %}Models in the {{ name }} application{% endblocktrans %}">{{ app.name }}</a>
+                </h2>
+                <div class="app-models">
+                    {% for model in app.models %}
+                        <div class="model-card">
+                            <div class="model-header">
+                                {% if model.admin_url %}
+                                    <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                                {% else %}
+                                    {{ model.name }}
+                                {% endif %}
+                            </div>
+                            {% if model.description %}
+                                <div class="model-description">{{ model.description|striptags }}</div>
+                            {% endif %}
+                            <div class="model-actions">
+                                {% if model.add_url %}
+                                    <a href="{{ model.add_url }}" class="addlink">{% trans 'Add' %}</a>
+                                {% endif %}
+                                {% if model.admin_url %}
+                                    <a href="{{ model.admin_url }}" class="changelink">{% trans 'Change' %}</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>{% trans "You don't have permission to view or edit anything." %}</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+
