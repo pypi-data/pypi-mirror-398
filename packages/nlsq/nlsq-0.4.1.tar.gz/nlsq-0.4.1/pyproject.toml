@@ -1,0 +1,561 @@
+[build-system]
+requires = ["setuptools>=80.0", "setuptools-scm>=9.0"]  # Tested on 80.9.0, 9.2.1
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nlsq"
+dynamic = ["version"]
+description = "GPU/TPU accelerated nonlinear least-squares curve fitting using JAX"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Wei Chen", email = "wchen@anl.gov"},
+    {name = "Lucas Hofer (Original JAXFit)"},
+    {name = "Milan Krstajić (Original JAXFit)"},
+    {name = "Robert P. Smith (Original JAXFit)"},
+]
+maintainers = [
+    {name = "Wei Chen", email = "wchen@anl.gov"},
+]
+keywords = [
+    "curve-fitting",
+    "optimization",
+    "least-squares",
+    "jax",
+    "gpu",
+    "tpu",
+    "scientific-computing",
+    "machine-learning"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed"
+]
+requires-python = ">=3.12"
+
+# ============================================================================
+# GPU ACCELERATION (150-270x speedup for large datasets)
+# ============================================================================
+# Default installation: CPU-only JAX (works on ALL platforms)
+#   pip install nlsq
+#
+# For GPU acceleration (Linux + CUDA 12.1-12.9 ONLY):
+#
+#   Quick install (from repository):
+#     git clone https://github.com/imewei/NLSQ.git
+#     cd NLSQ
+#     make install-jax-gpu
+#
+#   Manual install:
+#     pip uninstall -y jax jaxlib
+#     pip install 'jax[cuda12]>=0.6.0'  # Use cuda12-local for system CUDA
+#
+#   Verify GPU detection:
+#     python -c "import jax; print(jax.devices())"
+#     # Expected: [cuda(id=0)]
+#
+#   Platform support:
+#     ✅ Linux + NVIDIA GPU + CUDA 12.1-12.9: Full GPU (150-270x speedup)
+#     ❌ macOS: CPU-only (Apple Silicon/Intel, no NVIDIA support)
+#     ❌ Windows: CPU-only (use WSL2 for GPU support)
+#
+#   Requirements (Linux GPU):
+#     - System CUDA 12.1-12.9 pre-installed
+#     - NVIDIA driver >= 525
+#     - Compatible NVIDIA GPU
+#
+# Troubleshooting:
+#   make env-info    # Check platform, CUDA, GPU hardware
+#   make gpu-check   # Verify JAX GPU detection
+#
+# See README.md GPU Installation section for detailed guide
+# ============================================================================
+
+dependencies = [
+    # Core scientific computing
+    "numpy>=2.0,<2.4",           # Requires NumPy 2.x (tested on 2.3.5)
+    "scipy>=1.16.3",          # Tested on 1.16.3
+
+    # JAX ecosystem (locked to 0.8.0)
+    # GPU users: see GPU ACCELERATION section above for installation
+    "jax==0.8.0",             # JAX 0.8.0 (locked version)
+    "jaxlib==0.8.0",          # JAXlib 0.8.0 (locked version)
+                               # Platform-specific extras installed separately:
+                               #   Linux CPU:  pip install "jax[cpu]==0.8.0"
+                               #   Linux GPU:  make install-jax-gpu (recommended)
+                               #   macOS:      pip install "jax[cpu]==0.8.0" (CPU only)
+                               #   Windows:    pip install "jax[cpu]==0.8.0" (CPU only)
+    "optax>=0.2.6",           # Gradient transformations for Adam warmup (tested on 0.2.6)
+
+    # Visualization and monitoring
+    "matplotlib>=3.10.8",     # Tested on 3.10.8
+    "psutil>=7.2.0",          # For memory monitoring (tested on 7.2.0)
+    "tqdm>=4.67.1",           # For progress bars (tested on 4.67.1)
+
+    # Large dataset support
+    "h5py>=3.15.1",           # Required for streaming large datasets (tested on 3.15.1)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",         # Tested on 9.0.2
+    "pytest-cov>=7.0.0",     # Tested on 7.0.0
+    "pytest-xdist>=3.8.0",   # Tested on 3.8.0
+    "black>=25.12.0",        # Tested on 25.12.0 (CalVer)
+    "ruff>=0.14.10",         # Tested on 0.14.10
+    "mypy>=1.19.1",          # Tested on 1.19.1
+    "pre-commit>=4.5.1",     # Tested on 4.5.1
+    "ipython>=9.8.0",        # Tested on 9.8.0
+    "bandit>=1.9.2",         # Tested on 1.9.2
+    "pyupgrade>=3.21.2",     # Tested on 3.21.2
+]
+docs = [
+    "sphinx>=8.2.3",                    # Tested on 8.2.3
+    "sphinx-rtd-theme>=3.0.2",          # Tested on 3.0.2
+    "sphinx-autodoc-typehints>=3.5.2",  # Tested on 3.5.2
+    "ipython>=9.8.0",                   # Tested on 9.8.0
+    "myst-parser>=4.0.1",               # Tested on 4.0.1
+]
+test = [
+    "pytest>=9.0.2",         # Tested on 9.0.2
+    "pytest-cov>=7.0.0",     # Tested on 7.0.0
+    "pytest-xdist>=3.8.0",   # Tested on 3.8.0
+    "pytest-timeout>=2.4.0", # Tested on 2.4.0
+    "hypothesis>=6.148.8",   # Tested on 6.148.8
+]
+benchmark = [
+    "pytest-benchmark>=5.2.3", # Tested on 5.2.3
+    "asv>=0.6.5",              # Tested on 0.6.5
+    "memory-profiler>=0.61.0", # Tested on 0.61.0
+    "psutil>=7.2.0",           # Tested on 7.2.0
+]
+performance = [
+    "xxhash>=3.6.0",           # 10x faster hashing for cache keys (tested on 3.6.0)
+]
+yaml = [
+    "pyyaml>=6.0.3",           # YAML configuration file support (tested on 6.0.3)
+]
+jupyter = [
+    "jupyterlab>=4.5.1",       # Tested on 4.5.1
+    "ipykernel>=7.1.0",        # Tested on 7.1.0
+    "notebook>=7.5.1",         # Tested on 7.5.1
+]
+build = [
+    "build>=1.3.0",            # Build frontend (tested on 1.3.0)
+    "twine>=6.2.0",            # PyPI upload tool (tested on 6.2.0)
+    "setuptools>=80.9.0",      # Build backend (tested on 80.9.0)
+    "setuptools-scm>=9.2.2",   # Version management (tested on 9.2.2)
+    "wheel>=0.45.1",           # Wheel builder (tested on 0.45.1)
+]
+all = [
+    # Development dependencies
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "black>=25.12.0",
+    "ruff>=0.14.10",
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "ipython>=9.8.0",
+    "bandit>=1.9.2",
+    "pyupgrade>=3.21.2",
+    # Documentation dependencies
+    "sphinx>=8.2.3",
+    "sphinx-rtd-theme>=3.0.2",
+    "sphinx-autodoc-typehints>=3.5.2",
+    "myst-parser>=4.0.1",
+    # Test dependencies
+    "hypothesis>=6.148.8",
+    "pytest-timeout>=2.4.0",
+    # Benchmark dependencies
+    "pytest-benchmark>=5.2.3",
+    "asv>=0.6.5",
+    "memory-profiler>=0.61.0",
+    "psutil>=7.2.0",
+    # YAML configuration support
+    "pyyaml>=6.0.3",
+    # Jupyter dependencies
+    "jupyterlab>=4.5.1",
+    "ipykernel>=7.1.0",
+    "notebook>=7.5.1",
+    # Build dependencies
+    "build>=1.3.0",
+    "twine>=6.2.0",
+    "setuptools>=80.9.0",
+    "setuptools-scm>=9.2.2",
+    "wheel>=0.45.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/imewei/NLSQ"
+Documentation = "https://nlsq.readthedocs.io"
+Repository = "https://github.com/imewei/NLSQ.git"
+Issues = "https://github.com/imewei/NLSQ/issues"
+Changelog = "https://github.com/imewei/NLSQ/blob/main/CHANGELOG.md"
+
+[project.scripts]
+nlsq = "nlsq.cli.main:main"
+
+[tool.setuptools]
+packages = ["nlsq"]
+include-package-data = true
+zip-safe = false  # Required for type stubs and package data
+
+[tool.setuptools.package-data]
+nlsq = ["py.typed", "*.pyi"]
+
+[tool.setuptools_scm]
+write_to = "nlsq/_version.py"
+version_scheme = "post-release"
+local_scheme = "no-local-version"
+fallback_version = "0.0.0+unknown"  # Fallback for non-git installs
+
+[tool.uv]
+# UV-specific configuration for faster builds and better caching
+# Note: Use dependency-groups for dev dependencies (modern approach)
+package = true  # Enable package mode for proper editable installs
+
+[tool.black]
+line-length = 88
+target-version = ['py313']
+preview = true
+# Exclude generated files and caches
+extend-exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.ruff_cache
+  | \.venv
+  | _build
+  | build
+  | dist
+  | nlsq/_version\.py
+)/
+'''
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+fix = true
+# Exclude generated files and caches for better performance
+extend-exclude = [
+    ".eggs",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "_build",
+    "build",
+    "dist",
+    "nlsq/_version.py",
+]
+# Cache configuration for faster subsequent runs
+cache-dir = ".ruff_cache"
+# Output format
+output-format = "concise"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # Ruff-specific rules
+    "PL",   # Pylint
+    "NPY",  # NumPy specific rules
+    "PERF", # Performance linting
+    "FURB", # Refurb (modern Python patterns)
+]
+ignore = ["E501", "E402", "E722", "E741", "B007", "B019", "B028", "PLR2004", "PLC0415", "RUF001", "RUF002", "RUF013", "SIM102", "SIM108", "SIM113", "UP007", "UP028", "UP031", "F401", "F821", "F841", "NPY002", "PLR0911", "PLR0912", "PLR0913", "PLR0915"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "E402", "PLR0913", "PLR0912"]
+"tests/*" = ["S101", "PLR2004", "NPY002", "B007", "E731", "PLR0913", "B028", "F401"]
+"examples/*" = ["PLR0913", "NPY002", "B007", "F841", "RUF059"]
+"docs/conf.py" = ["E402"]
+"nlsq/__init__.py" = ["PLR0913", "PLR0912"]
+"nlsq/_optimize.py" = ["B028", "PLR0912", "PLR0915"]
+"nlsq/_version.py" = ["UP035"]  # Autogenerated file
+"nlsq/common_scipy.py" = ["PLR0912", "PLR0913", "PLR0915"]
+"nlsq/trf.py" = ["B007", "PLR0912", "PLR0913", "PLR0915", "PLR2004", "UP031"]
+"nlsq/large_dataset.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/sparse_jacobian.py" = ["PLR0913", "PLR0912"]
+"nlsq/streaming_optimizer.py" = ["PLR0913", "PLR0912"]
+"nlsq/memory_manager.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/diagnostics.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/recovery.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/smart_cache.py" = ["PLR0913", "PLR0912", "PLR2004"]
+"nlsq/stability.py" = ["PLR0913", "PLR0912", "PLR2004"]
+"nlsq/algorithm_selector.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/validators.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/robust_decomposition.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"nlsq/adaptive_hybrid_streaming.py" = ["PLR0913", "PLR0912", "PLR0915", "PLR2004"]
+"nlsq/hybrid_streaming_config.py" = ["PLR0913"]
+"nlsq/parameter_normalizer.py" = ["PLR0913", "PLR0912"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nlsq"]
+
+[tool.mypy]
+python_version = "3.13"
+# Moderate strictness for scientific computing library (v0.3.0 - strengthened)
+warn_return_any = true  # Warn when returning Any (stricter)
+warn_unused_configs = true
+disallow_untyped_defs = false  # Don't require type annotations for all functions
+disallow_any_generics = false  # Allow generics without type parameters (common in NumPy/JAX)
+no_implicit_optional = true  # Require explicit Optional (stricter - catches bugs)
+warn_redundant_casts = true
+warn_unused_ignores = false  # Don't warn about unused ignores
+warn_no_return = true
+check_untyped_defs = true  # Check untyped functions (stricter)
+strict_equality = false  # Relax equality checks for NumPy arrays
+allow_untyped_calls = true  # Allow calls to untyped functions (JAX/SciPy compatibility)
+allow_untyped_decorators = true  # Allow untyped decorators
+ignore_errors = false
+# Disable problematic error codes for scientific computing (reduced list - stricter)
+disable_error_code = ["type-arg", "no-any-return"]
+# Performance optimizations
+cache_dir = ".mypy_cache"
+incremental = true  # Enable incremental type checking for faster runs
+show_error_codes = true  # Show error codes for easier filtering
+pretty = true  # Better formatted output
+# Exclude patterns for faster checking
+exclude = [
+    "build/",
+    "dist/",
+    ".venv/",
+    "venv/",
+    ".eggs/",
+    ".*\\.egg-info/",
+]
+
+[[tool.mypy.overrides]]
+module = "jax.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "numpy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "psutil"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "matplotlib.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "nlsq.sparse_jacobian"
+ignore_errors = true  # Complex module with many type issues
+
+[[tool.mypy.overrides]]
+module = "nlsq.large_dataset"
+ignore_errors = true  # Complex module with many type issues
+
+[[tool.mypy.overrides]]
+module = "nlsq._optimize"
+ignore_errors = true  # Legacy module with complex typing
+
+[[tool.mypy.overrides]]
+module = "nlsq.streaming_optimizer"
+ignore_errors = true  # Complex async/streaming code
+
+[[tool.mypy.overrides]]
+module = "nlsq.least_squares"
+ignore_errors = true  # Core optimization with complex types
+
+[[tool.mypy.overrides]]
+module = "nlsq.minpack"
+ignore_errors = true  # Legacy interface with complex types
+
+[[tool.mypy.overrides]]
+module = "nlsq.trf"
+ignore_errors = true  # Complex optimization algorithm
+
+[[tool.mypy.overrides]]
+module = "nlsq.common_scipy"
+ignore_errors = true  # SciPy compatibility layer
+
+[[tool.mypy.overrides]]
+module = "nlsq.logging"
+ignore_errors = true  # Logging utilities
+
+[[tool.mypy.overrides]]
+module = "nlsq.robust_decomposition"
+ignore_errors = true  # Matrix decomposition algorithms
+
+[[tool.mypy.overrides]]
+module = "nlsq.profiler"
+ignore_errors = true  # Profiling utilities
+
+[[tool.mypy.overrides]]
+module = "nlsq.callbacks"
+ignore_errors = true  # Callback handlers
+
+[[tool.mypy.overrides]]
+module = "nlsq.memory_pool"
+ignore_errors = true  # Memory pool management
+
+[[tool.mypy.overrides]]
+module = "nlsq.memory_manager"
+ignore_errors = true  # Memory management utilities
+
+[[tool.mypy.overrides]]
+module = "nlsq.adaptive_hybrid_streaming"
+ignore_errors = true  # Complex 4-phase hybrid optimizer
+
+[[tool.mypy.overrides]]
+module = "nlsq.hybrid_streaming_config"
+ignore_errors = true  # Configuration dataclasses
+
+[[tool.mypy.overrides]]
+module = "nlsq.parameter_normalizer"
+ignore_errors = true  # Parameter normalization utilities
+
+[[tool.mypy.overrides]]
+module = "nlsq.optimizer_base"
+ignore_errors = true  # Base optimizer class
+
+[[tool.mypy.overrides]]
+module = "nlsq.smart_cache"
+ignore_errors = true  # Optional xxhash dependency
+
+# Critical modules - type checked (v0.3.0 - strengthened)
+[[tool.mypy.overrides]]
+module = "nlsq.validators"
+ignore_errors = false  # Enable type checking for security validation
+check_untyped_defs = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = "nlsq.stability"
+ignore_errors = true  # Complex dict types require runtime flexibility
+
+[[tool.mypy.overrides]]
+module = "nlsq.diagnostics"
+ignore_errors = true  # Diagnostics and monitoring
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true  # Don't enforce strict typing in tests
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+reportMissingImports = true
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+minversion = "9.0"  # Updated to match installed version (9.0.2)
+testpaths = ["tests"]
+pythonpath = ["."]
+# Modern pytest features for better performance
+addopts = [
+    "--verbose",
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    # Parallel execution optimizations (Phase 1: Test Suite Performance Optimization)
+    # Expected impact: 15-20% reduction (40-83 seconds from 268s baseline)
+    "-n", "auto",  # Parallel execution with auto-detected CPU count
+    "--dist", "loadgroup",  # Group tests by module for better JAX compilation cache hits
+    # Coverage disabled for faster CI (enable locally with pytest --cov)
+    # Test suite: 1,563 tests (as of 2025-11-16)
+    # Current coverage: 82.15% (exceeds 80% target)
+    # "--cov=nlsq",
+    # "--cov-report=term-missing",
+    # "--cov-report=html",
+    # "--cov-report=xml",
+    # "--cov-fail-under=80",
+    # Performance optimizations
+    "--tb=short",  # Shorter traceback format for faster output
+    "--no-header",  # Skip header for cleaner output
+    "--benchmark-disable",  # Avoid pytest-benchmark warnings under xdist
+]
+# Console output width for better readability
+console_output_style = "progress"
+# Log configuration
+log_cli = false
+log_cli_level = "WARNING"
+# Warning filters to reduce overhead and noise
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore:jax.*:UserWarning",  # JAX GPU warnings in CPU-only tests
+    "ignore:Covariance of the parameters could not be estimated:UserWarning",  # Expected in some tests
+]
+markers = [
+    # Performance-based test tiers (Phase 1 categorization)
+    "unit: fast unit tests (<100ms each)",
+    "integration: integration tests (100ms-1s)",
+    "slow: marks tests as slow (>1s each, deselect with '-m \"not slow\"')",
+    "smoke: critical smoke tests for CI fast feedback (~50 tests, <30s)",
+    "serial: marks tests that must run serially (no parallel execution)",
+    # Feature-based markers
+    "jax_compilation: tests triggering JAX JIT compilation overhead",
+    "numerical: numerical accuracy tests (can use relaxed tolerances for speed)",
+    # Existing infrastructure markers
+    "gpu: marks tests requiring GPU",
+    "tpu: marks tests requiring TPU",
+    "timeout: marks tests with custom timeout settings",
+    "memory: marks tests related to memory management",
+    "cache: marks tests related to caching functionality",
+    "recovery: marks tests related to optimization recovery",
+    "stability: marks tests related to numerical stability",
+    "diagnostics: marks tests related to optimization diagnostics",
+    "validation: marks tests related to input validation",
+    "hybrid_streaming: marks tests for adaptive hybrid streaming optimizer",
+]
+
+[tool.coverage.run]
+source = ["nlsq"]
+omit = ["*/tests/*", "*/_version.py"]
+
+[tool.coverage.report]
+# Test suite: 1,557 tests (as of 2025-11-16)
+# Current coverage: 82% (exceeds 80% target)
+# Industry-standard for scientific computing libraries: 70-80%
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.bandit]
+# Security linting: only fail on Medium/High severity issues
+# Low severity warnings (B404, B603, B607, B110, B101) are informational only
+exclude_dirs = ["tests", "examples", "docs", "benchmark", "scripts"]
+# Only fail on MEDIUM and HIGH severity issues
+skips = ["B404", "B603", "B607", "B110", "B101"]
