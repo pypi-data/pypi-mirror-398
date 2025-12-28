@@ -1,0 +1,257 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gns3-copilot"
+dynamic = ["version"]
+description = "AI-powered network automation assistant for GNS3"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Guobin Yue"}
+]
+maintainers = [
+    {name = "Guobin Yue"}
+]
+keywords = [
+    "gns3",
+    "network-automation",
+    "ai",
+    "langchain",
+    "nornir",
+    "netmiko",
+    "networking",
+    "automation",
+    "copilot",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Topic :: System :: Networking",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    # Core AI and Automation Framework
+    "langchain>=1.1.0",
+    "langchain-core>=1.0.5",
+    "langgraph>=1.0.0",
+    "langgraph-cli>=0.4.4",
+    "langgraph-cli[inmem]>=0.4.4",
+    "langgraph-checkpoint-sqlite>=1.0.0",
+    
+    # Model Providers
+    "langchain-openai>=1.0.0",
+    "langchain-anthropic>=1.0.0",
+    "langchain-google-genai>=1.0.0",
+    "langchain-aws>=1.0.0",
+    "langchain-ollama>=1.0.0",
+    "langchain-deepseek>=1.0.0",
+    "langchain-xai>=1.0.0",
+    
+    # Network Automation
+    "netmiko>=4.6.0",
+    "nornir>=3.5.0",
+    "nornir-netmiko>=1.0.1",
+    "nornir-utils>=0.2.0",
+    "nornir-salt>=0.22.5",
+    
+    # Environment Management
+    "python-dotenv>=1.2.1",
+    
+    # HTTP Requests (for GNS3 API)
+    "requests>=2.32.5",
+    "urllib3>=2.5.0",
+    
+    # Data Validation
+    "pydantic>=2.5.0",
+    
+    # Authentication
+    "PyJWT>=2.10.1",
+
+    # Type Extensions
+    "typing-extensions>=4.0.0",
+    
+    # Telnet Client
+    "telnetlib3>=2.0.8",
+    
+    # Web UI
+    "streamlit>=1.32.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=21.0",
+    "flake8>=3.8",
+    "mypy>=0.800",
+    "ruff>=0.1.0",
+    "bandit>=1.7.0",
+    "safety>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yueguobin/gns3-copilot"
+Repository = "https://github.com/yueguobin/gns3-copilot"
+Documentation = "https://github.com/yueguobin/gns3-copilot/blob/master/README.md"
+"Bug Reports" = "https://github.com/yueguobin/gns3-copilot/issues"
+
+[project.scripts]
+gns3-copilot = "gns3_copilot.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312','py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = [
+    "tests",
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+]
+python_classes = [
+    "Test*",
+]
+python_functions = [
+    "test_*",
+]
+
+[tool.coverage.run]
+source = ["gns3_copilot"]
+omit = [
+    "*/tests/*",
+    "*/test/*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+mypy_path = "src"
+explicit_package_bases = true
+
+exclude = [
+    'venv/',
+    '\.venv/',
+    'tests/',
+    'test',
+]
+
+# Extremely important: Tell mypy not to analyze third-party libraries that are not directly referenced
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+# Ignore libraries that don't provide type stubs
+module = [
+    "soundfile.*",
+    "nornir.*",
+    "nornir_netmiko.*",
+    "telnetlib3.*",
+    "requests.*",
+    "gns3fy.*"
+]
+ignore_missing_imports = true
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg-info",
+    ".venv",
+    ".tox",
+]
+
+[tool.ruff]
+# Exclude paths and files from ruff checking
+exclude = [
+    "tests/**",           # Recursively exclude entire test directory
+    "*.ipynb",           # Exclude all Jupyter Notebook files
+    "build/",
+    "dist/",
+    ".venv/",
+    ".eggs/",
+    "*.egg-info/",
+]
+
+# Allow line length to match black's setting
+line-length = 88
+
+[tool.ruff.lint]
+# E: pycodestyle errors, W: pycodestyle warnings, F: Pyflakes, I: isort, B: flake8-bugbear
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501"] # Ignore long lines as they are handled by black
+
+# Ensure all fixable issues can be automatically resolved
+fixable = ["ALL"]
+
+[tool.setuptools_scm]
+# Configuration for setuptools_scm
+# See: https://github.com/pypa/setuptools_scm
+version_scheme = "post-release"
+local_scheme = "no-local-version"
