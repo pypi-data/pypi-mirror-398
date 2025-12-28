@@ -1,0 +1,1078 @@
+# 🧙 Wizard Codegen
+
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/ConsultingMD/wizard-codegen/tree/main.svg?style=svg&circle-token=CCIPRJ_6cYihJ2CPYtLrt8VjrCcSV_f02bbbce30f122a85da4e93588e8887e973128fd)](https://dl.circleci.com/status-badge/redirect/gh/ConsultingMD/wizard-codegen/tree/main)
+[![codecov](https://codecov.io/gh/ConsultingMD/wizard-codegen/graph/badge.svg?token=NKzMlLPzqy)](https://codecov.io/gh/ConsultingMD/wizard-codegen)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
+> **A powerful, template-driven code generation tool for Protocol Buffers**
+
+Wizard Codegen transforms your `.proto` definitions into typed code for multiple programming languages using customizable Jinja2 templates. Whether you're building React components, Swift structs, Kotlin data classes, or Go handlers — this tool has you covered.
+
+---
+
+## 📑 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [CLI Usage](#-cli-usage)
+- [Configuration](#-configuration)
+  - [Proto Configuration](#proto-configuration)
+  - [Targets Configuration](#targets-configuration)
+  - [Hooks Configuration](#hooks-configuration)
+- [Template Authoring](#-template-authoring)
+  - [Template Context](#template-context)
+  - [Name Transformations](#name-transformations)
+  - [Built-in Filters](#built-in-filters)
+- [Custom Hooks](#-custom-hooks)
+- [Architecture](#-architecture)
+- [Developer Guide](#-developer-guide)
+  - [Project Structure](#project-structure)
+  - [Running Tests](#running-tests)
+  - [Adding New Target Languages](#adding-new-target-languages)
+  - [Contributing](#contributing)
+- [Examples](#-examples)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-Language Support** | Generate code for TypeScript, Swift, Kotlin, Go, and more |
+| **Jinja2 Templates** | Full power of Jinja2 templating with custom filters |
+| **Flexible Filtering** | Target specific messages, enums, or services with `where` clauses |
+| **Git Proto Sources** | Fetch proto definitions directly from Git repositories |
+| **Multiple Write Modes** | `overwrite`, `append`, or `write-once` file generation |
+| **Custom Hooks** | Extend with your own Jinja filters and helpers |
+| **Name Transformations** | Auto-convert between `snake_case`, `kebab-case`, `PascalCase`, `camelCase`, `MACROCASE`, `MACRO_SNAKE_CASE` |
+| **Dry Run Mode** | Preview changes without writing files |
+| **Verbose Output** | Debug with detailed proto and context inspection |
+| **Nested Type Support** | Full support for nested messages and enums |
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install Prerequisites
+
+**Protocol Buffer Compiler (protoc):**
+
+```bash
+# macOS
+brew install protobuf
+
+# Ubuntu/Debian
+sudo apt install -y protobuf-compiler
+
+# Verify installation
+protoc --version
+```
+
+**uv (Python package manager):**
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or via Homebrew
+brew install uv
+
+# Verify installation
+uv --version
+```
+
+### 2. Install Wizard Codegen
+
+```bash
+uv tool install wizard-codegen
+```
+
+### 3. Create Configuration
+
+Create `wizard/codegen.yaml` in your project:
+
+```yaml
+proto:
+  root: "path/to/your/protos"    # Local path to proto files
+  cache_dir: ".cache/protos"
+  files:
+    - "**/*.proto"
+
+targets:
+  typescript:
+    templates: "wizard/templates/ts"
+    out: "src/generated/ts"
+    render:
+      - template: "form.j2"
+        for_each: "message"
+        where:
+          all:
+            - name: "*Form"
+        output: "components/{{ item.name.kebab_case }}/index.tsx"
+```
+
+### 4. Generate Code
+
+```bash
+# Generate code
+wizard-codegen generate
+
+# Preview changes without writing files
+wizard-codegen --dry-run generate
+
+# Verbose output for debugging
+wizard-codegen --verbose generate
+```
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+
+| Requirement | Description | Installation |
+|-------------|-------------|--------------|
+| **Python 3.10+** | Runtime | [python.org](https://www.python.org/downloads/) |
+| **uv** | Fast Python package manager | See Quick Start or [docs.astral.sh/uv](https://docs.astral.sh/uv/) |
+| **protoc** | Protocol Buffer Compiler | See Quick Start or [grpc.io](https://grpc.io/docs/protoc-installation/) |
+| **Git** | For fetching proto sources | Usually pre-installed |
+
+### Install via uv (Recommended)
+
+```bash
+uv tool install wizard-codegen
+```
+
+### Upgrade
+
+```bash
+uv tool upgrade wizard-codegen
+```
+
+### Install from Source (for development)
+
+```bash
+git clone <internal-repo-url>
+cd wizard-codegen
+make deps      # Install dependencies
+make install   # Install CLI tool
+```
+
+### Upgrade from Source
+
+```bash
+make upgrade
+```
+
+### Dependencies
+
+Core dependencies (managed in `pyproject.toml`):
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| typer | 0.20.1 | CLI framework |
+| pydantic | 2.12.5 | Configuration validation |
+| jinja2 | 3.1.6 | Template engine |
+| rich | 14.2.0 | Terminal output |
+| protobuf | 6.33.2 | Proto descriptor handling |
+| pyyaml | 6.0.3 | YAML configuration |
+
+---
+
+## 🖥️ CLI Usage
+
+The CLI is built with [Typer](https://typer.tiangolo.com/) and provides rich, colorful output.
+
+### Commands
+
+#### `generate` — Generate code from protos
+
+```bash
+# Basic generation
+wizard-codegen generate
+
+# With custom config file
+wizard-codegen --config path/to/codegen.yaml generate
+
+# Dry run (preview without writing)
+wizard-codegen --dry-run generate
+
+# Verbose mode (detailed output)
+wizard-codegen --verbose generate
+
+# Combine flags
+wizard-codegen --verbose --dry-run --config custom.yaml generate
+```
+
+#### `list-protos` — List discovered proto files
+
+```bash
+wizard-codegen list-protos
+```
+
+Output:
+```
+┌─────────────────────────────────────────────┐
+│         Available proto schemas             │
+├─────────────────┬───────────────────────────┤
+│ Name            │ Path                      │
+├─────────────────┼───────────────────────────┤
+│ user            │ user/user.proto           │
+│ user_form       │ user/user_form.proto      │
+│ order           │ order/order.proto         │
+└─────────────────┴───────────────────────────┘
+```
+
+#### `validate` — Validate templates and configuration
+
+```bash
+wizard-codegen validate
+```
+
+Validates:
+- Configuration file syntax
+- Proto file discovery
+- Template syntax and variable resolution
+- Descriptor set generation
+
+### Global Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--version` | `-V` | Show version and exit |
+| `--config` | `-c` | Path to codegen YAML configuration (default: `wizard/codegen.yaml`) |
+| `--verbose` | `-v` | Enable detailed logging and context printing |
+| `--dry-run` | | Preview actions without writing files |
+| `--local` | `-l` | Use local `proto.root` instead of git source |
+| `--help` | | Show help message |
+
+---
+
+## ⚙️ Configuration
+
+Configuration is defined in YAML format. The default location is `wizard/codegen.yaml`.
+
+### Complete Example
+
+```yaml
+proto:
+  # Git source configuration (used by default)
+  source:
+    git: "git@github.com:YourOrg/proto-definitions.git"
+    ref: "latest-tag"                # Default: auto-resolves to latest semver tag
+    # fds: "build/descriptor.pb"     # Optional: use pre-built descriptor
+    include_info: true               # Include source info in descriptors
+
+  # Local path (used with --local flag for development)
+  root: "../local-protos"
+
+  # Cache directory for git clones
+  cache_dir: ".cache/proto-common"
+
+  # Include paths (relative to proto root)
+  includes:
+    - "{proto_root}/shared"
+    - "{proto_root}/service/wizard"
+
+  # File patterns to discover
+  files:
+    - "pages/**/*.proto"
+    - "models/*.proto"
+
+targets:
+  typescript:
+    templates: "wizard/templates/ts"
+    out: "src/generated/ts"
+    render:
+      # Generate form components for *Form messages
+      - template: "form.j2"
+        for_each: "message"
+        mode: "write-once"
+        where:
+          all:
+            - name: "*Form"
+          not:
+            - file: "*/shared/design_system/*"
+        output: "components/{{ item.name.kebab_case }}-form/index.tsx"
+
+      # Generate context providers for *Context messages
+      - template: "context.j2"
+        for_each: "message"
+        where:
+          any:
+            - name: "*Context"
+          not:
+            - file: "*/shared/design_system/*"
+        output: "contexts/{{ item.name.kebab_case }}/index.tsx"
+
+  swift:
+    templates: "wizard/templates/swift"
+    out: "ios/Generated"
+    render:
+      - template: "struct.j2"
+        for_each: "message"
+        output: "{{ item.name.pascal_case }}.swift"
+
+  kotlin:
+    templates: "wizard/templates/kotlin"
+    out: "android/generated"
+    render:
+      - template: "data_class.j2"
+        for_each: "message"
+        output: "{{ item.name.pascal_case }}.kt"
+
+hooks:
+  root: "wizard"
+  module: "hook_sample"   # Optional: custom filters module
+```
+
+### Proto Configuration
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `root` | `string` | Local path to proto files (used with `--local` flag) |
+| `source.git` | `string` | Git repository URL for proto source |
+| `source.ref` | `string` | Git ref: tag, branch, commit SHA, or `latest-tag` (default: `latest-tag`) |
+| `source.fds` | `string` | Path to pre-built FileDescriptorSet (optional) |
+| `source.include_info` | `bool` | Include source info in protoc output (default: `true`) |
+| `cache_dir` | `string` | Directory for caching git clones |
+| `includes` | `list[string]` | Include paths for proto imports |
+| `files` | `list[string]` | Glob patterns for proto file discovery |
+
+#### Special Ref: `latest-tag`
+
+Use `ref: "latest-tag"` to automatically checkout the latest semver tag from the repository:
+
+```yaml
+proto:
+  source:
+    git: "git@github.com:YourOrg/proto-definitions.git"
+    ref: "latest-tag"  # Automatically resolves to latest semver tag (e.g., v2.1.0)
+```
+
+This feature:
+- Lists all tags in the repository
+- Filters for valid semver tags (e.g., `v1.2.3`, `1.0.0`, `v2.0.0-beta`)
+- Prefers stable releases over prereleases (e.g., `v1.0.0` > `v1.0.0-beta`)
+- Checks out the highest version according to semver ordering
+
+#### Proto Source Resolution
+
+You can configure **both** a local path (`proto.root`) and a git source (`proto.source`) simultaneously. This allows developers to easily switch between tagged releases and local development:
+
+**Default behavior (no flags):**
+1. `proto.source.git` — clone/fetch from git repository
+2. Falls back to `proto.root` — if no git source is configured
+3. Error — if neither is available
+
+**With `--local` flag:**
+1. `proto.root` — use local filesystem path
+2. Error — if `proto.root` is not configured or doesn't exist
+
+This design enables a common workflow:
+- **CI/Production**: Uses git source with `latest-tag` (the default ref)
+- **Local Development**: Use `--local` flag to test against local proto changes
+
+```bash
+# Use git source (default - fetches latest tag)
+wizard-codegen generate
+
+# Use local protos for development
+wizard-codegen --local generate
+```
+
+### Targets Configuration
+
+Each target represents a language/output configuration.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `templates` | `string` | Path to Jinja2 template directory |
+| `out` | `string` | Output directory for generated files |
+| `render` | `list` | List of render rules |
+
+#### Render Rules
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `template` | `string` | Template filename (relative to templates dir) |
+| `output` | `string` | Output path pattern (Jinja2 template string) |
+| `for_each` | `enum` | Iteration mode: `file`, `message`, `enum`, `service` |
+| `mode` | `enum` | Write mode: `overwrite`, `append`, `write-once` |
+| `where` | `object` | Filter predicates (optional) |
+
+#### Write Modes
+
+| Mode | Description |
+|------|-------------|
+| `overwrite` | Always replace existing files (default) |
+| `append` | Add content to end of existing files |
+| `write-once` | Only create if file doesn't exist |
+
+#### Where Clauses (Filtering)
+
+Filter which items to generate for:
+
+```yaml
+where:
+  all:          # AND conditions (all must match)
+    - name: "*Form"
+    - package: "wizard.*"
+  any:          # OR conditions (at least one must match)
+    - name: "*Context"
+    - name: "*Provider"
+  not:          # Exclude matching items
+    - file: "*/design_system/*"
+    - name: "*Internal"
+```
+
+##### Predicate Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `name` | Message/enum/service name | `"*Form"`, `"User*"`, `"Order"` |
+| `package` | Proto package name | `"wizard.*"`, `"com.example.*"` |
+| `file` | Proto file path | `"*/shared/*"`, `"user/*.proto"` |
+| `full_name` | Fully qualified name | `".wizard.UserForm"` |
+| `option.equals` | Match proto options | `{ key: "deprecated", value: true }` |
+
+Patterns support:
+- **Glob patterns**: `*`, `?`, `[abc]`
+- **Regex patterns**: Any valid Python regex
+
+### Hooks Configuration
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `root` | `string` | Root directory for hooks module (default: `"wizard"`) |
+| `module` | `string` | Python module name with `register()` function |
+
+---
+
+## 📝 Template Authoring
+
+Templates use [Jinja2](https://jinja.palletsprojects.com/) syntax with custom extensions.
+
+### Template Context
+
+When a template is rendered, it receives a rich context:
+
+```python
+{
+    "proto_root": "/path/to/protos",
+
+    # Current item (when using for_each)
+    "item": {
+        "name": Name("UserForm"),          # Name object with case transformations
+        "full_name": ".wizard.UserForm",
+        "file": "user/user_form.proto",
+        "package": "wizard",
+        "fields": [...],                   # List of field objects
+        "nested_messages": [...],          # Nested message definitions
+        "nested_enums": [...],             # Nested enum definitions
+    },
+
+    # All files (for cross-referencing)
+    "files": [...],
+
+    # Indexes for quick lookup
+    "message": { ".package.MessageName": {...}, ... },
+    "enum": { ".package.EnumName": {...}, ... },
+    "service": { ".package.ServiceName": {...}, ... },
+    "types": { ".package.TypeName": {...}, ... },
+}
+```
+
+#### File Object
+
+```python
+{
+    "name": Name("user_form"),
+    "full_name": "user_form.proto",
+    "package": "wizard",
+    "package_path": "wizard",
+    "imports": ["common/timestamp.proto"],
+    "messages": [...],
+    "enums": [...],
+    "services": [...],
+    "options": <FileOptions>,
+}
+```
+
+#### Message Object
+
+```python
+{
+    "name": Name("UserForm"),
+    "full_name": ".wizard.UserForm",
+    "file": "user/user_form.proto",
+    "package": "wizard",
+    "fields": [
+        {
+            "name": Name("user_name"),
+            "number": 1,
+            "label": 1,               # 1=optional, 2=required, 3=repeated
+            "type": 9,                # Proto type number (9=string)
+            "type_name": "",          # For message/enum refs: ".package.Type"
+            "json_name": "userName",
+            "field": <FieldDescriptor>,
+        },
+        ...
+    ],
+    "nested_messages": [...],
+    "nested_enums": [...],
+}
+```
+
+#### Enum Object
+
+```python
+{
+    "name": Name("Status"),
+    "full_name": ".wizard.Status",
+    "file": "common/status.proto",
+    "package": "wizard",
+    "enum_values": [
+        {"name": "STATUS_UNKNOWN", "number": 0},
+        {"name": "STATUS_ACTIVE", "number": 1},
+        ...
+    ],
+}
+```
+
+#### Service Object
+
+```python
+{
+    "name": Name("UserService"),
+    "file": "user/user_service.proto",
+    "package": "wizard",
+    "methods": [
+        {
+            "name": Name("GetUser"),
+            "input_type": ".wizard.GetUserRequest",
+            "output_type": ".wizard.User",
+            "client_streaming": False,
+            "server_streaming": False,
+            "options": <MethodOptions>,
+        },
+        ...
+    ],
+}
+```
+
+### Name Transformations
+
+Every name in the context is wrapped in a `Name` object that provides automatic case transformations:
+
+```jinja
+{{ item.name.raw }}              →  UserFormRequest
+{{ item.name.snake_case }}       →  user_form_request
+{{ item.name.kebab_case }}       →  user-form-request
+{{ item.name.pascal_case }}      →  UserFormRequest
+{{ item.name.camel_case }}       →  userFormRequest
+{{ item.name.macro_case }}       →  USERFORMREQUEST
+{{ item.name.macro_snake_case }} →  USER_FORM_REQUEST
+```
+
+Use in output paths:
+```yaml
+output: "{{ item.name.kebab_case }}/index.tsx"
+# Generates: user-form-request/index.tsx
+```
+
+Use in templates:
+```jinja
+export interface {{ item.name.pascal_case }} {
+{% for field in item.fields %}
+  {{ field.name.camel_case }}: {{ field | ts_type }};
+{% endfor %}
+}
+```
+
+### Built-in Filters
+
+The following filters are available in all templates:
+
+#### Common Filters
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `replace` | String replacement | `{{ name \| replace("_", "-") }}` |
+
+#### TypeScript Filters (via hooks)
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `ts_type` | Proto to TS type | `{{ field \| ts_type }}` → `string`, `number`, `User` |
+| `ts_type_optional` | TS type with undefined | `{{ field \| ts_type_optional }}` → `string \| undefined` |
+| `is_ts_optional` | Check if optional | `{% if field \| is_ts_optional %}?{% endif %}` |
+| `is_repeated` | Check if array | `{% if field \| is_repeated %}[]{% endif %}` |
+
+#### Swift Filters (via hooks)
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `swift_type` | Proto to Swift type | `{{ field \| swift_type }}` → `String`, `Int32`, `User` |
+| `swift_default` | Swift default value | `{{ field \| swift_default }}` → `""`, `0`, `[]` |
+
+#### Kotlin Filters (via hooks)
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `kotlin_type` | Proto to Kotlin type | `{{ field \| kotlin_type }}` → `String`, `Int`, `User` |
+| `kotlin_default` | Kotlin default value | `{{ field \| kotlin_default }}` → `""`, `0`, `emptyList()` |
+
+#### Go Filters (via hooks)
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `go_type` | Proto to Go type | `{{ field \| go_type }}` → `string`, `int32`, `*User` |
+| `go_zero` | Go zero value | `{{ field \| go_zero }}` → `""`, `0`, `nil` |
+| `go_json_tag` | Go JSON struct tag | `{{ field \| go_json_tag }}` → `` `json:"userName,omitempty"` `` |
+
+### Template Example
+
+```jinja
+// {{ item.name.pascal_case }}.swift
+// Generated from: {{ item.file }}
+// Package: {{ item.package }}
+
+import Foundation
+
+/// {{ item.name.pascal_case }} - Auto-generated from protobuf.
+public struct {{ item.name.pascal_case }}: Codable, Equatable, Sendable {
+{% for field in item.fields %}
+    /// {{ field.name.raw }} - Proto type: {{ field.type }}
+    public var {{ field.name.camel_case }}: {{ field | swift_type }}
+{% endfor %}
+
+    public init(
+{% for field in item.fields %}
+        {{ field.name.camel_case }}: {{ field | swift_type }} = {{ field | swift_default }}{% if not loop.last %},{% endif %}
+{% endfor %}
+    ) {
+{% for field in item.fields %}
+        self.{{ field.name.camel_case }} = {{ field.name.camel_case }}
+{% endfor %}
+    }
+}
+```
+
+---
+
+## 🔌 Custom Hooks
+
+Extend wizard-codegen with custom Jinja2 filters and helpers.
+
+### Creating a Hooks Module
+
+1. Create a Python file in your hooks root (default: `wizard/`):
+
+```python
+# wizard/my_hooks.py
+
+from jinja2 import Environment
+from core import CodegenConfig
+
+def custom_filter(value):
+    """Your custom filter logic."""
+    return str(value).upper()
+
+def format_field_doc(field):
+    """Generate documentation for a field."""
+    return f"@param {field['name'].camel_case} - {field.get('json_name', '')}"
+
+def register(env: Environment, *, target: str, config: CodegenConfig) -> None:
+    """
+    Register custom filters and globals.
+
+    Args:
+        env: Jinja2 environment to extend
+        target: Current target name (e.g., "typescript", "swift")
+        config: Full codegen configuration
+    """
+    # Register filters
+    env.filters["uppercase"] = custom_filter
+    env.filters["field_doc"] = format_field_doc
+
+    # Register globals (optional)
+    env.globals["TARGET"] = target
+
+    # Target-specific filters
+    if target == "typescript":
+        env.filters["ts_custom"] = lambda x: f"TS_{x}"
+```
+
+2. Reference it in your configuration:
+
+```yaml
+hooks:
+  root: "wizard"
+  module: "my_hooks"   # Loads wizard/my_hooks.py
+```
+
+3. Use in templates:
+
+```jinja
+{{ item.name.raw | uppercase }}
+{{ field | field_doc }}
+Current target: {{ TARGET }}
+```
+
+### Type Mapping Example
+
+Here's a complete example of type mapping hooks:
+
+```python
+# wizard/type_mappings.py
+
+from jinja2 import Environment
+
+# Proto type constants
+TYPE_STRING = 9
+TYPE_BOOL = 8
+TYPE_INT32 = 5
+TYPE_INT64 = 3
+
+TS_TYPES = {
+    TYPE_STRING: "string",
+    TYPE_BOOL: "boolean",
+    TYPE_INT32: "number",
+    TYPE_INT64: "bigint",
+}
+
+SWIFT_TYPES = {
+    TYPE_STRING: "String",
+    TYPE_BOOL: "Bool",
+    TYPE_INT32: "Int32",
+    TYPE_INT64: "Int64",
+}
+
+def ts_type(field):
+    if field.get("type_name"):
+        return field["type_name"].split(".")[-1]
+    return TS_TYPES.get(field.get("type"), "unknown")
+
+def swift_type(field):
+    if field.get("type_name"):
+        return field["type_name"].split(".")[-1]
+    return SWIFT_TYPES.get(field.get("type"), "Any")
+
+def register(env: Environment, *, target: str, config) -> None:
+    if target == "typescript":
+        env.filters["lang_type"] = ts_type
+    elif target == "swift":
+        env.filters["lang_type"] = swift_type
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+wizard-codegen/
+├── cli/                   # CLI package
+│   ├── __init__.py        # Re-exports for backwards compatibility
+│   └── main.py            # CLI entry point (Typer app)
+├── core/                  # Core business logic
+│   ├── config.py          # Configuration models (Pydantic)
+│   ├── context_builder.py # Proto → Jinja context transformation
+│   ├── filter.py          # Where clause filtering
+│   ├── renderer.py        # Jinja2 template rendering
+│   └── writer.py          # File writing with modes
+├── proto/                 # Protocol Buffer handling
+│   ├── discover.py        # Proto file discovery
+│   ├── fds_loader.py      # Descriptor set loading
+│   ├── proto_source.py    # Git checkout handling
+│   └── protoc_runner.py   # protoc execution
+├── hooks/                 # Plugin system
+│   └── hooks.py           # Hook loading and protocol
+├── utils/                 # Utilities
+│   └── name.py            # Name transformations
+└── wizard/                # Example configuration
+    ├── codegen.yaml       # Sample config
+    ├── hook_sample.py     # Sample hooks
+    └── templates/         # Sample templates
+```
+
+### Pipeline Flow
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         CLI (cli/main.py)                            │
+│                    parse args, load config                           │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Proto Resolution (proto/)                         │
+│     discover files → resolve git source → build descriptor set       │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                  Context Building (core/context_builder.py)          │
+│          FileDescriptorSet → Jinja-friendly dictionaries             │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     Rendering (core/renderer.py)                     │
+│    for each target → for each rule → filter items → render template  │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      Writing (core/writer.py)                        │
+│           apply write mode → hash comparison → write files           │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 👩‍💻 Developer Guide
+
+### Project Structure
+
+```
+wizard-codegen/
+├── cli/                # CLI package (main entry point)
+├── core/               # Core modules
+├── proto/              # Proto handling
+├── hooks/              # Plugin system
+├── utils/              # Utilities
+├── wizard/             # Example config and templates
+├── tests/              # Test suite
+│   ├── fixtures/       # Test fixtures
+│   │   ├── protos/     # Sample proto files
+│   │   ├── templates/  # Test templates
+│   │   ├── hooks/      # Test hooks
+│   │   └── expected_outputs/  # Golden files
+│   ├── test_*.py       # Unit tests
+│   └── test_e2e.py     # End-to-end tests
+├── Makefile            # Build automation
+├── pyproject.toml      # Project config & dependencies
+└── uv.lock             # Locked dependencies
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make coverage
+
+# Run specific test file
+make test PYTEST_ARGS=tests/test_context_builder.py
+
+# Run specific test
+make test PYTEST_ARGS="tests/test_e2e.py::TestFullPipelineGeneration -v"
+```
+
+### Code Coverage
+
+[![codecov](https://codecov.io/gh/ConsultingMD/wizard-codegen/graphs/tree.svg?token=NKzMlLPzqy)](https://codecov.io/gh/ConsultingMD/wizard-codegen)
+
+### Test Categories
+
+| Category | Description | Files |
+|----------|-------------|-------|
+| Unit Tests | Test individual functions | `test_config.py`, `test_filter.py`, `test_name.py` |
+| Integration Tests | Test module interactions | `test_context_builder.py`, `test_renderer.py` |
+| E2E Tests | Full pipeline tests | `test_e2e.py` |
+| Fixture Tests | Golden file comparisons | `test_fixtures.py` |
+
+### Adding New Target Languages
+
+1. **Create templates** in `wizard/templates/<language>/`:
+
+```jinja
+{# wizard/templates/rust/struct.j2 #}
+// {{ item.name.pascal_case }}.rs
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct {{ item.name.pascal_case }} {
+{% for field in item.fields %}
+    pub {{ field.name.snake_case }}: {{ field | rust_type }},
+{% endfor %}
+}
+```
+
+2. **Add type mapping hooks** (optional):
+
+```python
+# wizard/rust_hooks.py
+
+RUST_TYPES = {
+    9: "String",
+    8: "bool",
+    5: "i32",
+    3: "i64",
+}
+
+def rust_type(field):
+    if field.get("type_name"):
+        return field["type_name"].split(".")[-1]
+    return RUST_TYPES.get(field.get("type"), "Unknown")
+
+def register(env, *, target, config):
+    if target == "rust":
+        env.filters["rust_type"] = rust_type
+```
+
+3. **Add target configuration**:
+
+```yaml
+targets:
+  rust:
+    templates: "wizard/templates/rust"
+    out: "src/generated"
+    render:
+      - template: "struct.j2"
+        for_each: "message"
+        output: "{{ item.name.snake_case }}.rs"
+```
+
+### Contributing
+
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feature/my-feature`
+3. **Write tests** for new functionality
+4. **Run** the test suite: `make test`
+5. **Submit** a pull request
+
+#### Code Style
+
+- Python 3.10+ type hints
+- Black formatting (88 char line length)
+- Docstrings for public functions
+- Comprehensive tests for new features
+
+---
+
+## 📚 Examples
+
+### TypeScript React Form Component
+
+```jinja
+{# templates/ts/form.j2 #}
+import React, { useState } from 'react';
+
+export interface {{ item.name.pascal_case }}Data {
+{% for field in item.fields %}
+  {{ field.name.camel_case }}{% if field | is_ts_optional %}?{% endif %}: {{ field | ts_type }};
+{% endfor %}
+}
+
+export const {{ item.name.pascal_case }}: React.FC = () => {
+{% for field in item.fields %}
+  const [{{ field.name.camel_case }}, set{{ field.name.pascal_case }}] = useState<{{ field | ts_type }}>();
+{% endfor %}
+
+  return (
+    <form>
+{% for field in item.fields %}
+      <input
+        name="{{ field.name.snake_case }}"
+        value={ {{ field.name.camel_case }} ?? ''}
+        onChange={(e) => set{{ field.name.pascal_case }}(e.target.value)}
+      />
+{% endfor %}
+    </form>
+  );
+};
+```
+
+### Kotlin Data Class
+
+```jinja
+{# templates/kotlin/data_class.j2 #}
+package {{ item.package }}
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class {{ item.name.pascal_case }}(
+{% for field in item.fields %}
+    val {{ field.name.camel_case }}: {{ field | kotlin_type }} = {{ field | kotlin_default }}{% if not loop.last %},{% endif %}
+{% endfor %}
+)
+```
+
+### Go Struct with JSON Tags
+
+```jinja
+{# templates/go/struct.j2 #}
+package {{ item.package | replace(".", "_") }}
+
+// {{ item.name.pascal_case }} - Generated from {{ item.file }}
+type {{ item.name.pascal_case }} struct {
+{% for field in item.fields %}
+	{{ field.name.pascal_case }} {{ field | go_type }} {{ field | go_json_tag }}
+{% endfor %}
+}
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### "protoc is not available in PATH"
+
+```bash
+# macOS
+brew install protobuf
+
+# Ubuntu/Debian
+apt install -y protobuf-compiler
+
+# Verify installation
+protoc --version
+```
+
+#### "Config error: proto.root not found"
+
+Either specify a local `proto.root` or configure `proto.source.git`:
+
+```yaml
+proto:
+  root: "../my-protos"  # Local path
+  # OR
+  source:
+    git: "git@github.com:Org/protos.git"
+    ref: "main"
+```
+
+#### "Failed to import hooks module"
+
+Ensure your hooks module:
+1. Is in the correct directory (`hooks.root` config)
+2. Has a `register(env, *, target, config)` function
+3. Has no import errors
+
+```bash
+# Test manually
+uv run python -c "import wizard.my_hooks"
+```
+
+#### "Template variable undefined"
+
+- Use `--verbose` to inspect the context
+- Check your `for_each` setting matches the expected context
+- Verify field names in the proto file
+
+<div align="center">
+
+**Made with 🧙 magic**
+
+[Report Bug](../../issues) · [Request Feature](../../issues)
+
+</div>
