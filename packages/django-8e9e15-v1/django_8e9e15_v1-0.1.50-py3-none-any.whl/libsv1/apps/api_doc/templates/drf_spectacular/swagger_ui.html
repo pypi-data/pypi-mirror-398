@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title|default:"Swagger UI" }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
+
+    {% if favicon_href %}
+        <link rel="icon" type="image/png" href="{{ favicon_href }}"/>
+    {% endif %}
+    <style>
+        html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { margin: 0 0 100px; background: #fafafa; }
+        #swagger-ui { min-height: 100vh; }
+        .swagger-ui .topbar { display: none !important; }
+
+        .compact-hidden {
+            display: none !important;
+        }
+
+        .compact-toggle {
+            cursor: pointer;
+            position: relative;
+            padding-left: 20px;
+            user-select: none;
+            color: #4990e2;
+            display: inline-block;
+            width: auto;
+        }
+
+        .compact-toggle:hover {
+            color: #1f69c0;
+            text-decoration: underline;
+        }
+
+        .compact-toggle::before {
+            content: '▼';
+            position: absolute;
+            left: 0;
+            font-size: 0.8em;
+            top: 2px;
+            color: #3b4151;
+            transition: transform 0.2s;
+        }
+
+        .compact-toggle.is-collapsed::before {
+            transform: rotate(-90deg);
+        }
+
+        .swagger-ui .responses-inner h4,
+        .swagger-ui .responses-inner h5 {
+            margin-bottom: 5px;
+        }
+
+         .swagger-ui .responses-wrapper .opblock-section-header{
+            display: none;
+        }
+
+        .swagger-ui .opblock-description-wrapper .opblock-description .renderedMarkdown p{
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .swagger-ui .opblock-body .btn-group{
+            padding: 0 15px;
+        }
+
+        .swagger-ui .info{
+            margin: 12px 0 0 0;
+        }
+        .swagger-ui .scheme-container{
+            padding: 0;
+            box-shadow: none;
+            background: none;
+            margin-top: -70px;
+        }
+
+        .swagger-ui .execute-wrapper{
+            padding: 0;
+        }
+
+        .swagger-ui .body-param textarea {
+            min-height: 80px;
+            max-height: 500px !important;
+            overflow-y: auto !important;
+            resize: vertical;
+            box-sizing: border-box !important;
+            line-height: 1.5 !important;
+            font-family: monospace;
+        }
+
+        .swagger-ui .opblock .opblock-section-header h4{
+            font-weight: normal;
+        }
+
+        .swagger-ui .info .title span{
+            display: none;
+        }
+
+        .swagger-ui .opblock-tag{
+            font-size: 16px;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+
+    <script>
+        function applyTokenToSwagger(ui, token) {
+            if (!token) return;
+            let authData = {};
+            try {
+                const specJson = ui.specSelectors.specJson();
+                if (!specJson) return;
+                const spec = specJson.toJS();
+                if (spec.components && spec.components.securitySchemes) {
+                    const schemes = spec.components.securitySchemes;
+                    Object.keys(schemes).forEach(schemeKey => {
+                        const schemeDef = schemes[schemeKey];
+                        if (schemeDef.type === 'http' || schemeDef.type === 'apiKey') {
+                            authData[schemeKey] = { name: schemeKey, schema: schemeDef, value: token };
+                        }
+                    });
+                }
+                if (Object.keys(authData).length > 0) {
+                    ui.authActions.authorize(authData);
+                }
+            } catch (e) { console.warn("Spec error:", e); }
+        }
+
+        function getOpBlockKey(opBlock) {
+            try {
+                const method = opBlock.querySelector('.opblock-summary-method').innerText.trim();
+                const path = opBlock.querySelector('.opblock-summary-path').getAttribute('data-path');
+                return "req_persist_" + btoa(`${method}:${path}`);
+            } catch (e) { return null; }
+        }
+
+        window.onload = function() {
+            let config = {{ settings|safe }};
+            if (!config.url) config.url = "{{ schema_url|escapejs }}";
+
+            config.validatorUrl = null;
+            config.dom_id = '#swagger-ui';
+            config.layout = "StandaloneLayout";
+            config.presets = [ SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset ];
+            config.persistAuthorization = false;
+
+            const STORAGE_KEY = "custom_auth_token_" + btoa("{{ schema_url|escapejs }}");
+            const SECTIONS_STATE_KEY = "custom_sections_state_" + btoa("{{ schema_url|escapejs }}");
+
+            config.responseInterceptor = (response) => {
+                if (response.status === 200 && response.url.match(/\/auth\/(login|register|google|apple)\/?$/)) {
+                    try {
+                        const data = JSON.parse(response.text);
+                        const token = data.token || data.access;
+                        if (token) {
+                            localStorage.setItem(STORAGE_KEY, token);
+                            applyTokenToSwagger(window.ui, token);
+                        }
+                    } catch (e) { console.error("Parsing error:", e); }
+                }
+                return response;
+            };
+
+            window.ui = SwaggerUIBundle(config);
+
+            const originalLogout = window.ui.authActions.logout;
+            window.ui.authActions.logout = function (keys) {
+                localStorage.removeItem(STORAGE_KEY);
+                return originalLogout(keys);
+            };
+
+            const savedToken = localStorage.getItem(STORAGE_KEY);
+            if (savedToken) {
+                let attempts = 0;
+                const tryAuth = setInterval(() => {
+                    attempts++;
+                    const spec = window.ui.specSelectors.specJson();
+                    if (spec && spec.size > 0) {
+                        applyTokenToSwagger(window.ui, savedToken);
+                        clearInterval(tryAuth);
+                    } else if (attempts > 20) clearInterval(tryAuth);
+                }, 500);
+            }
+
+            function getSectionsState() {
+                try { return JSON.parse(localStorage.getItem(SECTIONS_STATE_KEY)) || {}; } catch (e) { return {}; }
+            }
+
+            function saveSectionState(tagName, isOpen) {
+                const state = getSectionsState();
+                state[tagName] = isOpen;
+                localStorage.setItem(SECTIONS_STATE_KEY, JSON.stringify(state));
+            }
+
+            function initToggler(header, targets, startCollapsed = true) {
+                if (!header || header.classList.contains('processed-collapsible')) return;
+                const validTargets = targets.filter(t => t);
+                if (validTargets.length === 0) return;
+
+                header.classList.add('processed-collapsible', 'compact-toggle');
+
+                const applyState = (collapsed) => {
+                    if (collapsed) {
+                        header.classList.add('is-collapsed');
+                        validTargets.forEach(el => el.classList.add('compact-hidden'));
+                    } else {
+                        header.classList.remove('is-collapsed');
+                        validTargets.forEach(el => el.classList.remove('compact-hidden'));
+                    }
+                };
+
+                applyState(startCollapsed);
+
+                header.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isCurrentlyCollapsed = header.classList.contains('is-collapsed');
+                    applyState(!isCurrentlyCollapsed);
+                });
+
+                header.collapse = () => applyState(true);
+                header.expand = () => applyState(false);
+            }
+
+            const observer = new MutationObserver((mutations) => {
+
+                document.querySelectorAll('.opblock:not(.is-open).auto-try-out-processed').forEach(el => {
+                    el.classList.remove('auto-try-out-processed');
+                });
+
+                document.querySelectorAll('.opblock.is-open').forEach(opBlock => {
+                    if (!opBlock.classList.contains('auto-try-out-processed')) {
+                        const tryOutBtn = opBlock.querySelector('.try-out__btn');
+                        const executeBtn = opBlock.querySelector('.execute-wrapper .btn');
+
+                        if (tryOutBtn && !executeBtn) {
+                            tryOutBtn.click();
+                            opBlock.classList.add('auto-try-out-processed');
+                        } else if (executeBtn) {
+                            opBlock.classList.add('auto-try-out-processed');
+                        }
+                    }
+
+                    const key = getOpBlockKey(opBlock);
+                    if (key) {
+                        const textarea = opBlock.querySelector('textarea.body-param__text');
+                        if (textarea && !textarea.classList.contains('persistence-attached')) {
+                            textarea.classList.add('persistence-attached');
+
+                            const savedValue = localStorage.getItem(key);
+                            if (savedValue) {
+                                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+                                nativeInputValueSetter.call(textarea, savedValue);
+                                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+
+                            textarea.addEventListener('input', (e) => {
+                                localStorage.setItem(key, e.target.value);
+                            });
+                        }
+
+                        const paramInputs = opBlock.querySelectorAll('.parameters input');
+                        paramInputs.forEach(input => {
+                            if (input.classList.contains('persistence-param-attached')) return;
+
+                            const row = input.closest('tr');
+                            const paramName = row ? row.getAttribute('data-param-name') : null;
+
+                            if (!paramName) return;
+
+                            input.classList.add('persistence-param-attached');
+                            const paramStorageKey = key + "_param_" + paramName;
+
+                            const savedParamVal = localStorage.getItem(paramStorageKey);
+                            if (savedParamVal) {
+                                const nativeParamSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                                nativeParamSetter.call(input, savedParamVal);
+                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+
+                            input.addEventListener('input', (e) => {
+                                localStorage.setItem(paramStorageKey, e.target.value);
+                            });
+                        });
+
+
+                        const resetBtn = opBlock.querySelector('.btn.reset');
+                        if (resetBtn && !resetBtn.classList.contains('reset-attached')) {
+                            resetBtn.classList.add('reset-attached');
+                            resetBtn.addEventListener('click', () => {
+                                localStorage.removeItem(key);
+                            });
+                        }
+
+                        const clearBtn = opBlock.querySelector('.btn-clear');
+                        if (clearBtn && !clearBtn.classList.contains('clear-attached')) {
+                            clearBtn.classList.add('clear-attached');
+                            clearBtn.addEventListener('click', () => {
+                                const inputs = opBlock.querySelectorAll('.parameters input');
+                                inputs.forEach(input => {
+                                    const row = input.closest('tr');
+                                    const paramName = row ? row.getAttribute('data-param-name') : null;
+                                    if (paramName) {
+                                        localStorage.removeItem(key + "_param_" + paramName);
+                                    }
+                                });
+                            });
+                        }
+                    }
+                });
+
+                document.querySelectorAll('.curl-command').forEach(block => {
+                    const header = block.querySelector('h4');
+                    if (header && !header.classList.contains('processed-collapsible')) {
+                        const contentElements = Array.from(block.children).filter(child => child !== header);
+                        initToggler(header, contentElements, true);
+                    }
+                });
+
+                document.querySelectorAll('.request-url').forEach(block => {
+                    const header = block.querySelector('h4');
+                    const content = block.querySelector('pre');
+                    if (header && content) initToggler(header, [content], true);
+                });
+
+                document.querySelectorAll('.responses-inner h4, .responses-inner h5').forEach(header => {
+                    if (header.innerText.trim().toLowerCase() === 'response headers') {
+                        const content = header.nextElementSibling;
+                        if (content) initToggler(header, [content], true);
+                    }
+                });
+
+                const innerWrappers = document.querySelectorAll('.responses-inner');
+                innerWrappers.forEach(inner => {
+                    const headers = inner.querySelectorAll('h4');
+                    headers.forEach(header => {
+                        if (header.innerText.trim() === 'Responses') {
+                            const table = inner.querySelector('.responses-table:not(.live-responses-table)');
+                            if (table) {
+                                initToggler(header, [table], false);
+                                header.classList.add('doc-responses-header');
+                            }
+                        }
+                    });
+                });
+
+                document.querySelectorAll('.opblock.is-open').forEach(opBlock => {
+                    const hasExecuted = opBlock.querySelector('.curl-command') || opBlock.querySelector('.live-responses-table');
+
+                    if (hasExecuted) {
+                        const docHeader = opBlock.querySelector('.doc-responses-header');
+                        if (docHeader && docHeader.collapse && !docHeader.classList.contains('auto-collapsed-done')) {
+                            docHeader.collapse();
+                            docHeader.classList.add('auto-collapsed-done');
+                        }
+                    } else {
+                        const docHeader = opBlock.querySelector('.doc-responses-header');
+                        if (docHeader) {
+                            docHeader.classList.remove('auto-collapsed-done');
+                        }
+                    }
+                });
+
+                const sectionHeaders = document.querySelectorAll('.opblock-tag');
+                sectionHeaders.forEach(header => {
+                    const tagName = header.getAttribute('data-tag');
+                    if (!tagName) return;
+
+                    if (!header.classList.contains('persistence-processed')) {
+                        header.classList.add('persistence-processed');
+                        const storedState = getSectionsState();
+                        const sectionWrapper = header.closest('.opblock-tag-section');
+                        const isCurrentlyOpen = sectionWrapper && sectionWrapper.classList.contains('is-open');
+
+                        if (storedState[tagName] !== undefined) {
+                            if (storedState[tagName] === true && !isCurrentlyOpen) {
+                                header.click();
+                            } else if (storedState[tagName] === false && isCurrentlyOpen) {
+                                header.click();
+                            }
+                        }
+
+                        header.addEventListener('click', () => {
+                            setTimeout(() => {
+                                const wrapper = header.closest('.opblock-tag-section');
+                                const isOpen = wrapper && wrapper.classList.contains('is-open');
+                                saveSectionState(tagName, !!isOpen);
+                            }, 100);
+                        });
+                    }
+                });
+
+                document.querySelectorAll('.parameters-container').forEach(container => {
+                    const noParamMsg = container.querySelector('.opblock-description-wrapper p');
+                    if (noParamMsg && noParamMsg.innerText.trim().toLowerCase() === 'no parameters') {
+                        if (!container.classList.contains('compact-hidden')) {
+                            container.classList.add('compact-hidden');
+                        }
+                        const header = container.previousElementSibling;
+                        if (header && header.classList.contains('opblock-section-header')) {
+                             const titleSpan = header.querySelector('.opblock-title span');
+                             titleSpan.classList.add('compact-hidden');
+                        }
+                    }
+                });
+
+                document.querySelectorAll('.examples-select').forEach(wrapper => {
+                    const select = wrapper.querySelector('select');
+                    if (select && select.options.length <= 1) {
+                        if (!wrapper.classList.contains('compact-hidden')) {
+                            wrapper.classList.add('compact-hidden');
+                        }
+                    }
+                });
+
+                document.querySelectorAll('.response-control-media-type').forEach(wrapper => {
+                    const select = wrapper.querySelector('select.content-type');
+                    if (select && select.options.length <= 1) {
+                         if (!wrapper.classList.contains('compact-hidden')) {
+                            wrapper.classList.add('compact-hidden');
+                        }
+                    }
+                });
+
+                document.querySelectorAll('.body-param__text').forEach(textarea => {
+                    if (!textarea.hasAttribute('name')) {
+                        textarea.setAttribute('name', 'body_content_' + Date.now());
+                    }
+
+                    if (textarea.classList.contains('autoresize-processed')) return;
+                    textarea.classList.add('autoresize-processed');
+
+                    const adjustHeight = () => {
+                        if (textarea.dataset.manualLock === 'true') return;
+                        textarea.dataset.isScriptResizing = 'true';
+                        textarea.style.setProperty('height', 'auto', 'important');
+                        let newHeight = textarea.scrollHeight;
+                        newHeight = newHeight + 2;
+                        if (newHeight < 80) newHeight = 80;
+                        textarea.style.setProperty('height', newHeight + 'px', 'important');
+                        requestAnimationFrame(() => {
+                            textarea.dataset.isScriptResizing = 'false';
+                        });
+                    };
+
+                    const observer = new ResizeObserver(() => {
+                        const isScriptWork = textarea.dataset.isScriptResizing === 'true';
+                        if (!isScriptWork) {
+                            if (textarea.offsetHeight > 20 && textarea.scrollHeight > 20) {
+                                textarea.dataset.manualLock = 'true';
+                                observer.disconnect();
+                            }
+                        }
+                    });
+
+                    textarea.addEventListener('input', adjustHeight);
+                    textarea.addEventListener('focus', adjustHeight);
+
+                    setTimeout(() => {
+                        adjustHeight();
+                        setTimeout(() => {
+                            observer.observe(textarea);
+                        }, 100);
+                    }, 200);
+                });
+
+            });
+
+            observer.observe(document.getElementById('swagger-ui'), {
+                childList: true,
+                subtree: true
+            });
+        };
+    </script>
+</body>
+</html>
