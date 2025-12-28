@@ -1,0 +1,1152 @@
+import logging
+import warnings
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from napistu_torch.constants import (
+    ANONYMIZATION_PLACEHOLDER_DEFAULT,
+    DATA_CONFIG,
+    DATA_CONFIG_DEFAULTS,
+    EXPERIMENT_CONFIG,
+    EXPERIMENT_CONFIG_DEFAULTS,
+    MODEL_CONFIG,
+    MODEL_CONFIG_DEFAULTS,
+    NAPISTU_DATA_TRIM_ARGS,
+    OPTIMIZERS,
+    TASK_CONFIG,
+    TASK_CONFIG_DEFAULTS,
+    TRAINING_CONFIG,
+    TRAINING_CONFIG_DEFAULTS,
+    VALID_OPTIMIZERS,
+    VALID_PRETRAINED_COMPONENT_SOURCES,
+    VALID_SCHEDULERS,
+    VALID_WANDB_MODES,
+    WANDB_CONFIG,
+    WANDB_CONFIG_DEFAULTS,
+)
+from napistu_torch.load.artifacts import ensure_stratify_by_artifact_name
+from napistu_torch.ml.constants import METRIC_SUMMARIES, METRICS
+from napistu_torch.models.constants import (
+    EDGE_ENCODER_DEFS,
+    ENCODER_DEFS,
+    ENCODERS_SUPPORTING_EDGE_WEIGHTING,
+    HEAD_DEFS,
+    MODEL_DEFS,
+    RELATION_AWARE_HEADS,
+    VALID_ENCODERS,
+    VALID_HEADS,
+)
+from napistu_torch.tasks.constants import (
+    TASKS,
+    VALID_TASKS,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# components of the ExperimentConfig
+
+
+class DataConfig(BaseModel):
+    """Data loading and splitting configuration. These parameters are used to setup the NapistuDataStore object and construct the NapistuData object."""
+
+    # config for defining the NapistuDataStore
+    store_dir: Path = Field(default=DATA_CONFIG_DEFAULTS[DATA_CONFIG.STORE_DIR])
+    sbml_dfs_path: Optional[Path] = Field(default=None)
+    napistu_graph_path: Optional[Path] = Field(default=None)
+    copy_to_store: bool = Field(default=False)
+
+    # HuggingFace Hub configuration for remote stores
+    hf_repo_id: Optional[str] = Field(
+        default=None,
+        description="HuggingFace repository ID (e.g., 'username/repo-name') to load store from if it doesn't exist locally",
+    )
+    hf_revision: Optional[str] = Field(
+        default=None,
+        description="Git revision (branch, tag, or commit hash) for HuggingFace repository. Defaults to 'main' if hf_repo_id is provided.",
+    )
+
+    # named artifacts which are needed for the experiment
+    napistu_data_name: str = Field(
+        default=DATA_CONFIG_DEFAULTS[DATA_CONFIG.NAPISTU_DATA_NAME],
+        description="Name of the NapistuData artifact to use for training.",
+    )
+    other_artifacts: List[str] = Field(
+        default_factory=list,
+        description="List of additional artifact names that must exist in the store.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_deprecated_fields(cls, data):
+        """Remove deprecated fields from data before validation and warn about them."""
+        deprecated_fields = {
+            "overwrite": "The 'overwrite' field has been removed and is no longer used.",
+        }
+        return _remove_deprecated_fields(data, deprecated_fields, "DataConfig")
+
+    @model_validator(mode="after")
+    def validate_paths(self):
+        """Validate that both paths are either both None or both defined."""
+        sbml_none = self.sbml_dfs_path is None
+        graph_none = self.napistu_graph_path is None
+
+        if sbml_none != graph_none:
+            # One is None and the other is not
+            if sbml_none:
+                raise ValueError(
+                    "sbml_dfs_path is None but napistu_graph_path is provided. "
+                    "Both paths must be either None (for read-only store) or both defined (for regular store)."
+                )
+            else:
+                raise ValueError(
+                    "napistu_graph_path is None but sbml_dfs_path is provided. "
+                    "Both paths must be either None (for read-only store) or both defined (for regular store)."
+                )
+        return self
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ModelConfig(BaseModel):
+    """
+    Model architecture configuration.
+
+    Public methods
+    --------------
+    get_architecture_string() -> str:
+        Get a string representation of the model architecture.
+    __repr__() -> str:
+        Return a formatted string representation of the model architecture.
+    """
+
+    encoder: str = Field(
+        default=MODEL_CONFIG_DEFAULTS[MODEL_CONFIG.ENCODER],
+        description="Type of encoder to use",
+    )
+    hidden_channels: int = Field(
+        default=128, gt=0, description="Hidden dimension for the encoder"
+    )
+    num_layers: int = Field(
+        default=ENCODER_DEFS.DEFAULT_NUM_LAYERS,
+        ge=1,
+        le=10,
+        description="Number of layers for the encoder",
+    )
+    dropout: float = Field(
+        default=ENCODER_DEFS.DEFAULT_DROPOUT,
+        ge=0.0,
+        lt=1.0,
+        description="Dropout for the encoder",
+    )
+
+    # Head-specific fields (optional, with defaults)
+    head: str = Field(
+        default=MODEL_CONFIG_DEFAULTS[MODEL_CONFIG.HEAD],
+        description="Type of head to use",
+    )
+    init_head_as_identity: Optional[bool] = Field(
+        default=False,
+        description="Whether to initialize the head to approximate an identity transformation",
+    )
+
+    # Model-specific fields (optional, with defaults)
+    gat_heads: Optional[int] = Field(
+        default=4, gt=0, description="Number of heads for GAT"
+    )  # For GAT
+    gat_concat: Optional[bool] = True  # For GAT
+    graph_conv_aggregator: Optional[str] = (
+        ENCODER_DEFS.GRAPH_CONV_DEFAULT_AGGREGATOR
+    )  # For GraphConv
+    sage_aggregator: Optional[str] = ENCODER_DEFS.SAGE_DEFAULT_AGGREGATOR  # For SAGE
+
+    # Head-specific fields (optional, with defaults)
+    mlp_hidden_dim: Optional[int] = Field(
+        default=HEAD_DEFS.DEFAULT_MLP_HIDDEN_DIM,
+        gt=0,
+        description="Hidden dimension for MLP-based heads. Also used as attention_dim for AttentionHead.",
+    )
+    mlp_num_layers: Optional[int] = Field(
+        default=HEAD_DEFS.DEFAULT_MLP_NUM_LAYERS,
+        ge=1,
+        description="Number of hidden layers for MLP-based heads",
+    )
+    mlp_dropout: Optional[float] = Field(
+        default=HEAD_DEFS.DEFAULT_MLP_DROPOUT,
+        ge=0.0,
+        lt=1.0,
+        description="Dropout for MLP-based heads",
+    )
+    nc_dropout: Optional[float] = Field(
+        default=HEAD_DEFS.DEFAULT_NC_DROPOUT,
+        ge=0.0,
+        lt=1.0,
+        description="Dropout for node classification head",
+    )
+    rotate_margin: Optional[float] = Field(
+        default=HEAD_DEFS.DEFAULT_ROTATE_MARGIN,
+        gt=0.0,
+        description="Margin for RotatE head",
+    )
+    transe_margin: Optional[float] = Field(
+        default=HEAD_DEFS.DEFAULT_TRANSE_MARGIN,
+        gt=0.0,
+        description="Margin for TransE head",
+    )
+    # Relation-aware MLP head parameters
+    relation_emb_dim: Optional[int] = Field(
+        default=HEAD_DEFS.DEFAULT_RELATION_EMB_DIM,
+        gt=0,
+        description="Dimension of relation embeddings for relation-aware heads (MLP and attention variants)",
+    )
+    relation_attention_heads: Optional[int] = Field(
+        default=HEAD_DEFS.DEFAULT_RELATION_ATTENTION_HEADS,
+        gt=0,
+        description="Number of attention heads for RelationAttentionMLP",
+    )
+
+    # Edge encoder fields (optional, with defaults)
+    use_edge_encoder: Optional[bool] = MODEL_CONFIG_DEFAULTS[
+        MODEL_CONFIG.USE_EDGE_ENCODER
+    ]  # Whether to use edge encoder
+    edge_encoder_dim: Optional[int] = Field(
+        default=EDGE_ENCODER_DEFS.DEFAULT_HIDDEN_DIM, gt=0
+    )  # Edge encoder hidden dim
+    edge_encoder_dropout: Optional[float] = Field(
+        default=EDGE_ENCODER_DEFS.DEFAULT_DROPOUT, ge=0.0, lt=1.0
+    )  # Edge encoder dropout
+    edge_encoder_init_bias: Optional[float] = Field(
+        default=EDGE_ENCODER_DEFS.DEFAULT_INIT_BIAS,
+        description="Initial bias for edge encoder output layer",
+    )  # Edge encoder initial bias
+
+    # Using a pretrained model
+    use_pretrained_model: Optional[bool] = Field(
+        default=False, description="Whether to use a pretrained model (True)"
+    )
+    pretrained_model_source: Optional[str] = Field(
+        default=None,
+        description="Source for pretrained encoder: 'huggingface' or 'local'",
+    )
+    pretrained_model_path: Optional[str] = Field(
+        default=None, description="Path to pretrained encoder (HF repo or local path)"
+    )
+    pretrained_model_revision: Optional[str] = Field(
+        default=None, description="Git revision for HF models (branch, tag, or commit)"
+    )
+    pretrained_model_load_head: Optional[bool] = Field(
+        default=True,
+        description="Whether to load the heads from the pretrained model (optional) or just the encoder (required)",
+    )
+    pretrained_model_freeze_encoder_weights: Optional[bool] = Field(
+        default=False,
+        description="Whether to freeze the pretrained model's encoder weights so they aren't updated during training",
+    )
+    pretrained_model_freeze_head_weights: Optional[bool] = Field(
+        default=False,
+        description="Whether to freeze the pretrained model's head weights so they aren't updated during training",
+    )
+
+    @field_validator(MODEL_DEFS.ENCODER)
+    @classmethod
+    def validate_encoder(cls, v, info):
+        # Check if it's a valid encoder type
+        if v not in VALID_ENCODERS:
+            raise ValueError(
+                f"Invalid encoder type: {v}. Valid types are: {VALID_ENCODERS}"
+            )
+        return v
+
+    @field_validator(MODEL_DEFS.HEAD)
+    @classmethod
+    def validate_head(cls, v, info):
+        # Check if it's a valid head type
+        if v not in VALID_HEADS:
+            raise ValueError(f"Invalid head type: {v}. Valid types are: {VALID_HEADS}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_pretrained_model(self):
+        """Validate that pretrained model settings are provided when use_pretrained_model=True."""
+        if self.use_pretrained_model:
+            if self.pretrained_model_source is None:
+                raise ValueError(
+                    "pretrained_model_source must be specified when use_pretrained_model=True"
+                )
+            if self.pretrained_model_path is None:
+                raise ValueError(
+                    "pretrained_model_path must be specified when use_pretrained_model=True"
+                )
+            # Validate source type
+            if self.pretrained_model_source not in VALID_PRETRAINED_COMPONENT_SOURCES:
+                raise ValueError(
+                    f"Invalid pretrained_model_source: {self.pretrained_model_source}. "
+                    f"Valid: {VALID_PRETRAINED_COMPONENT_SOURCES}"
+                )
+        return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_deprecated_fields(cls, data):
+        """Remove deprecated fields from data before validation and warn about them."""
+        deprecated_fields = {
+            "bilinear_bias": "The 'bilinear_bias' field has been removed and is no longer used.",
+        }
+        return _remove_deprecated_fields(data, deprecated_fields, "ModelConfig")
+
+    @field_validator(MODEL_DEFS.HIDDEN_CHANNELS)
+    @classmethod
+    def validate_power_of_2(cls, v):
+        """Optionally enforce power of 2 for efficiency"""
+        if v & (v - 1) != 0:
+            raise ValueError(f"hidden_channels should be power of 2, got {v}")
+        return v
+
+    # public methods
+
+    def get_architecture_string(self) -> str:
+        """
+        Generate a string representation of the model architecture.
+
+        Returns the encoder, head, hidden channels, and number of layers in the format
+        "encoder-head_h{hidden_channels}_l{num_layers}".
+
+        Returns
+        -------
+        str
+            Architecture string like "sage-dot_product_h128_l3" or "graph_conv-mlp_h64_l2"
+
+        Examples
+        --------
+        >>> config = ModelConfig(encoder="sage", head="dot_product", hidden_channels=128, num_layers=3)
+        >>> config.get_architecture_string()
+        'sage-dot_product_h128_l3'
+
+        >>> config = ModelConfig(encoder="graph_conv", head="mlp", hidden_channels=64, num_layers=2)
+        >>> config.get_architecture_string()
+        'graph_conv-mlp_h64_l2'
+        """
+        arch_str = self.encoder
+        if self.head:
+            arch_str += f"-{self.head}"
+        arch_str += f"_h{self.hidden_channels}_l{self.num_layers}"
+        return arch_str
+
+    def __repr__(self) -> str:
+        """
+        Return a formatted string representation of the model architecture.
+
+        Returns
+        -------
+        str
+            Formatted architecture details as a nested bulleted list with encoder and head
+            as top-level categories, including their properties nested underneath.
+        """
+
+        if self.use_edge_encoder:
+            edge_encoder_info = f"  - Edge Encoder: ✓ (dim={self.edge_encoder_dim})"
+        else:
+            edge_encoder_info = "  - Edge Encoder: ✗"
+
+        if self.head in RELATION_AWARE_HEADS:
+            relation_aware_info = "  - Relation-Aware: ✓"
+        else:
+            relation_aware_info = "  - Relation-Aware: ✗"
+
+        lines = [
+            "- **Encoder**",
+            f"  - Type: `{self.encoder}`",
+            f"  - Hidden Channels: `{self.hidden_channels}`",
+            f"  - Number of Layers: `{self.num_layers}`",
+            f"  - Dropout: `{self.dropout}`",
+            edge_encoder_info,
+            "- **Head**",
+            f"  - Type: `{self.head}`",
+            relation_aware_info,
+        ]
+
+        return "\n".join(lines)
+
+    model_config = ConfigDict(
+        extra="forbid"
+    )  # Catch typos, deprecated fields removed by validator
+
+
+class TaskConfig(BaseModel):
+    """Task-specific configuration"""
+
+    task: str = Field(default=TASK_CONFIG_DEFAULTS[TASK_CONFIG.TASK])
+    metrics: List[str] = Field(default_factory=lambda: [METRICS.AUC, METRICS.AP])
+
+    edge_prediction_neg_sampling_ratio: float = Field(default=1.0, gt=0.0)
+    edge_prediction_neg_sampling_stratify_by: str = Field(
+        default=TASK_CONFIG_DEFAULTS[
+            TASK_CONFIG.EDGE_PREDICTION_NEG_SAMPLING_STRATIFY_BY
+        ]
+    )
+    edge_prediction_neg_sampling_strategy: str = Field(
+        default=TASK_CONFIG_DEFAULTS[TASK_CONFIG.EDGE_PREDICTION_NEG_SAMPLING_STRATEGY],
+        description="Strategy for negative sampling: 'uniform' or 'degree_weighted'",
+    )
+
+    # Loss weighting
+    weight_loss_by_relation_frequency: bool = Field(
+        default=False, description="Whether to weight loss by relation type frequency"
+    )
+    loss_weight_alpha: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Weight interpolation: 0.0=uniform, 0.5=sqrt, 1.0=inverse_freq",
+    )
+
+    @field_validator(TASK_CONFIG.TASK)
+    @classmethod
+    def validate_task(cls, v):
+        if v not in VALID_TASKS:
+            raise ValueError(f"Invalid task: {v}. Valid tasks are: {VALID_TASKS}")
+        return v
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TrainingConfig(BaseModel):
+    """
+    Training hyperparameters.
+
+    Public methods
+    --------------
+    get_checkpoint_dir(output_dir: Path) -> Path:
+        Get absolute checkpoint directory.
+    """
+
+    lr: float = Field(default=0.001, gt=0.0)
+    weight_decay: float = Field(default=0.0, ge=0.0)
+    optimizer: str = Field(default=OPTIMIZERS.ADAM)
+    scheduler: Optional[str] = None
+    gradient_clip_val: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Gradient clipping value (max norm). If None, no clipping. Recommended: 1.0 for brittle heads.",
+        validate_default=False,  # Allow None default without validation
+    )
+
+    epochs: int = Field(default=200, gt=0)
+    batches_per_epoch: int = Field(default=1, gt=0)
+
+    # Training infrastructure
+    accelerator: str = Field(
+        default="auto", description="Accelerator to use for training"
+    )
+    devices: int = 1
+    precision: Literal[16, 32, "16-mixed", "32-true"] = 32
+
+    # Callbacks
+    early_stopping: bool = Field(default=True, description="Enable early stopping")
+    early_stopping_patience: int = Field(
+        default=20, ge=1, description="Early stopping patience"
+    )
+    early_stopping_metric: str = Field(
+        default=METRIC_SUMMARIES.VAL_AUC,
+        description="Metric to monitor for early stopping",
+    )
+
+    save_checkpoints: bool = Field(
+        default=True, description="Enable model checkpointing"
+    )
+    checkpoint_subdir: str = Field(
+        default=TRAINING_CONFIG_DEFAULTS[TRAINING_CONFIG.CHECKPOINT_SUBDIR],
+        description="Subdirectory for checkpoints within output_dir",
+    )
+    checkpoint_metric: str = Field(
+        default=METRIC_SUMMARIES.VAL_AUC,
+        description="Metric to monitor for checkpointing",
+    )
+
+    score_distribution_monitoring: bool = Field(
+        default=False, description="Enable score distribution monitoring callback"
+    )
+    score_distribution_monitoring_log_every_n_epochs: int = Field(
+        default=10, ge=1, description="Log score distribution statistics every N epochs"
+    )
+
+    embedding_norm_monitoring: bool = Field(
+        default=False, description="Enable embedding norm monitoring callback"
+    )
+    embedding_norm_monitoring_log_every_n_epochs: int = Field(
+        default=10, ge=1, description="Log embedding norm statistics every N epochs"
+    )
+    weight_monitoring: bool = Field(
+        default=True,
+        description="Enable weight monitoring callback to detect NaN/Inf in model weights",
+    )
+
+    def get_checkpoint_dir(self, output_dir: Path) -> Path:
+        """Get absolute checkpoint directory"""
+        return output_dir / self.checkpoint_subdir
+
+    @field_validator(TRAINING_CONFIG.OPTIMIZER)
+    @classmethod
+    def validate_optimizer(cls, v):
+        if v not in VALID_OPTIMIZERS:
+            raise ValueError(
+                f"Invalid optimizer: {v}. Valid optimizers are: {VALID_OPTIMIZERS}"
+            )
+        return v
+
+    @field_validator(TRAINING_CONFIG.SCHEDULER)
+    @classmethod
+    def validate_scheduler(cls, v):
+        if v is not None and v not in VALID_SCHEDULERS:
+            raise ValueError(
+                f"Invalid scheduler: {v}. Valid schedulers are: {VALID_SCHEDULERS}"
+            )
+        return v
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class WandBConfig(BaseModel):
+    """
+    Weights & Biases configuration
+
+    Public methods
+    --------------
+    get_enhanced_tags(model_config: ModelConfig, task_config: TaskConfig) -> List[str]:
+        Get tags with model and task-specific additions.
+    get_save_dir(output_dir: Path) -> Path:
+        Get absolute wandb save directory.
+    """
+
+    project: str = WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.PROJECT]
+    entity: Optional[str] = WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.ENTITY]
+    group: Optional[str] = WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.GROUP]
+    tags: List[str] = Field(
+        default_factory=lambda: WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.TAGS]
+    )
+    log_model: bool = WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.LOG_MODEL]
+    mode: str = WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.MODE]
+    wandb_subdir: str = WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.WANDB_SUBDIR]
+
+    @field_validator(WANDB_CONFIG.MODE)
+    @classmethod
+    def validate_mode(cls, v):
+        if v not in VALID_WANDB_MODES:
+            raise ValueError(f"Invalid mode: {v}. Valid modes are: {VALID_WANDB_MODES}")
+        return v
+
+    def get_enhanced_tags(
+        self, model_config: "ModelConfig", task_config: "TaskConfig"
+    ) -> List[str]:
+        """Get tags with model and task-specific additions"""
+        enhanced_tags = self.tags.copy()
+        enhanced_tags.extend(
+            [
+                model_config.encoder,
+                task_config.task,
+                f"hidden_{model_config.hidden_channels}",
+                f"layers_{model_config.num_layers}",
+            ]
+        )
+        return enhanced_tags
+
+    def get_save_dir(self, output_dir: Path) -> Path:
+        """Get absolute wandb save directory"""
+        # note that wandb automatically creates a "wandb" subdirectory within the output_dir
+        return output_dir / self.wandb_subdir
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Meta-configs
+
+
+class ExperimentConfig(BaseModel):
+    """
+    Top-level experiment configuration.
+
+    Public methods
+    --------------
+    anonymize(inplace: bool = False, placeholder: str = ANONYMIZATION_PLACEHOLDER_DEFAULT) -> "ExperimentConfig":
+        Create an anonymized copy of the config with all Path-like values masked.
+    from_json(filepath: Path) -> "ExperimentConfig":
+            Load from JSON file.
+    from_yaml(filepath: Path) -> "ExperimentConfig":
+            Load from YAML file.
+    get_experiment_name() -> str:
+            Generate a descriptive experiment name based on model and task configs.
+    to_dict() -> dict:
+            Export to plain dictionary.
+    to_json(filepath: Path) -> None:
+            Save to JSON file.
+    to_yaml(filepath: Path) -> None:
+            Save to YAML file.
+    """
+
+    # Experiment metadata
+    name: Optional[str] = EXPERIMENT_CONFIG_DEFAULTS[EXPERIMENT_CONFIG.NAME]
+    seed: int = EXPERIMENT_CONFIG_DEFAULTS[EXPERIMENT_CONFIG.SEED]
+    deterministic: bool = True
+
+    output_dir: Path = Field(
+        default=Path("./output"),
+        description="Base output directory for all run artifacts (checkpoints, logs, wandb)",
+    )
+
+    # Component configs
+    model: ModelConfig = Field(default_factory=ModelConfig)
+    data: DataConfig = Field(default_factory=DataConfig)
+    task: TaskConfig = Field(default_factory=TaskConfig)
+    training: TrainingConfig = Field(default_factory=TrainingConfig)
+    wandb: WandBConfig = Field(default_factory=WandBConfig)
+
+    # Debug options
+    fast_dev_run: bool = False
+    limit_train_batches: float = 1.0
+    limit_val_batches: float = 1.0
+
+    # public methods
+
+    def anonymize(
+        self,
+        inplace: bool = False,
+        placeholder: str = ANONYMIZATION_PLACEHOLDER_DEFAULT,
+    ) -> "ExperimentConfig":
+        """
+        Create an anonymized copy of the config with all Path-like values masked.
+
+        Replaces all Path objects and absolute path strings with a placeholder string.
+        Useful for sharing configs without exposing local file paths.
+
+        Parameters
+        ----------
+        inplace : bool, default=False
+            If True, modifies the config in place. If False, returns a new config.
+        placeholder : str, default="[REDACTED]"
+            String to use as placeholder for masked paths.
+
+        Returns
+        -------
+        ExperimentConfig
+            Anonymized config (new instance if inplace=False, self if inplace=True)
+
+        Examples
+        --------
+        >>> config = ExperimentConfig(
+        ...     output_dir=Path("/Users/me/experiments/run1"),
+        ...     data=DataConfig(
+        ...         sbml_dfs_path=Path("/Users/me/data/sbml.pkl"),
+        ...         napistu_graph_path=Path("/Users/me/data/graph.pkl")
+        ...     )
+        ... )
+        >>> anonymized = config.anonymize()
+        >>> str(anonymized.output_dir)
+        '[REDACTED]'
+        >>> str(anonymized.data.sbml_dfs_path)
+        '[REDACTED]'
+        """
+        # Convert to dict for processing (mode="json" converts Paths to strings)
+        data = self.model_dump(mode="json")
+
+        def mask_paths(obj):
+            """Recursively mask Path objects and absolute path strings."""
+            if isinstance(obj, dict):
+                return {k: mask_paths(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [mask_paths(item) for item in obj]
+            elif isinstance(obj, str):
+                # Check if string looks like an absolute path
+                # Paths typically start with / (Unix) or C:\ (Windows) or ~
+                if obj.startswith(("/", "~")) or (len(obj) > 1 and obj[1] == ":"):
+                    try:
+                        # Try to create a Path to verify it's a valid absolute path
+                        path = Path(obj)
+                        if path.is_absolute() or obj.startswith("~"):
+                            return placeholder
+                    except (ValueError, OSError):
+                        # Not a valid path, keep as-is
+                        pass
+                return obj
+            else:
+                return obj
+
+        # Mask all paths
+        anonymized_data = mask_paths(data)
+
+        # Create new config from anonymized data
+        # The placeholder strings will be converted to Path objects by Pydantic validation
+        anonymized_config = self.model_validate(anonymized_data)
+
+        if inplace:
+            # Update self with anonymized values
+            for field_name in self.__class__.model_fields:
+                setattr(self, field_name, getattr(anonymized_config, field_name))
+            return self
+        else:
+            return anonymized_config
+
+    @classmethod
+    def from_json(cls, filepath: Path):
+        """Load from JSON"""
+        return cls.model_validate_json(filepath.read_text())
+
+    @classmethod
+    def from_yaml(cls, filepath: Path):
+        """Load from YAML"""
+        import yaml
+
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+
+        # Get config file's directory for resolving relative paths
+        config_dir = filepath.parent.resolve()
+
+        # Convert string paths back to Path objects and resolve relative paths to absolute
+        def convert_strings_to_paths(obj, key=None):
+            if isinstance(obj, dict):
+                return {k: convert_strings_to_paths(v, k) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_strings_to_paths(item) for item in obj]
+            elif isinstance(obj, str) and key in [
+                DATA_CONFIG.STORE_DIR,
+                DATA_CONFIG.SBML_DFS_PATH,
+                DATA_CONFIG.NAPISTU_GRAPH_PATH,
+                EXPERIMENT_CONFIG.OUTPUT_DIR,
+            ]:
+                # Handle None/empty strings for optional paths (sbml_dfs_path, napistu_graph_path)
+                if obj is None or obj == "" or obj.lower() == "none":
+                    if key in [
+                        DATA_CONFIG.SBML_DFS_PATH,
+                        DATA_CONFIG.NAPISTU_GRAPH_PATH,
+                    ]:
+                        return None
+                    # For required paths, keep as-is (will be validated by Pydantic)
+                    return obj
+                path = Path(obj)
+                # Resolve relative paths to absolute paths relative to config file directory
+                # These paths should always be resolved to absolute paths
+                if not path.is_absolute():
+                    return (config_dir / path).resolve()
+                else:
+                    return path.resolve()
+            else:
+                return obj
+
+        # Apply path conversion
+        data = convert_strings_to_paths(data)
+
+        return cls(**data)
+
+    def get_experiment_name(self) -> str:
+        """Generate a descriptive experiment name based on model and task configs"""
+        arch_str = self.model.get_architecture_string()
+        return f"{arch_str}_{self.task.task}"
+
+    def to_dict(self):
+        """Export to plain dict"""
+        return self.model_dump()
+
+    def to_json(self, filepath: Path):
+        """Save to JSON"""
+        filepath.write_text(self.model_dump_json(indent=2))
+
+    def to_yaml(self, filepath: Path):
+        """Save to YAML"""
+        import yaml
+
+        # Convert Path objects to strings for YAML serialization
+        data = self.model_dump()
+
+        def convert_paths(obj):
+            if isinstance(obj, dict):
+                return {k: convert_paths(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_paths(item) for item in obj]
+            elif isinstance(obj, Path):
+                return str(obj)
+            else:
+                return obj
+
+        data = convert_paths(data)
+        with open(filepath, "w") as f:
+            yaml.dump(data, f)
+
+    model_config = ConfigDict(extra="forbid")  # Catch config typos!
+
+
+class RunManifest(BaseModel):
+    """
+    Manifest file containing all information about a training run.
+
+    This is a wrapper around the ExperimentConfig that includes WandB information and a timestamp.
+
+    Public methods
+    --------------
+    from_yaml(filepath: Path) -> "RunManifest":
+        Load manifest from YAML file.
+    get_run_summary() -> dict:
+        Get summary metrics from WandB for this experiment.
+    to_yaml(filepath: Path) -> None:
+        Save manifest to YAML file.
+    """
+
+    # Timestamps
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="When this run was created"
+    )
+
+    # WandB information
+    wandb_run_id: Optional[str] = Field(
+        default=None, description="WandB run ID for this experiment"
+    )
+    wandb_run_url: Optional[str] = Field(
+        default=None, description="Direct URL to the WandB run"
+    )
+    wandb_project: Optional[str] = Field(default=None, description="WandB project name")
+    wandb_entity: Optional[str] = Field(
+        default=None, description="WandB entity (username/team)"
+    )
+
+    # Experiment configuration
+    experiment_name: Optional[str] = Field(
+        default=None, description="Name of the experiment"
+    )
+
+    # Full experiment config (always an ExperimentConfig object)
+    experiment_config: ExperimentConfig = Field(
+        description="Complete experiment configuration"
+    )
+
+    @classmethod
+    def from_yaml(cls, filepath: Path) -> "RunManifest":
+        """
+        Load manifest from YAML file.
+
+        Parameters
+        ----------
+        filepath : Path
+            Path to the YAML file
+
+        Returns
+        -------
+        RunManifest
+            Loaded manifest object with experiment_config as ExperimentConfig instance
+        """
+        import yaml
+
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+
+        # Pydantic automatically converts the dict to ExperimentConfig when creating the model
+        return cls(**data)
+
+    def get_run_summary(self) -> dict:
+        """
+        Get summary metrics from WandB for this experiment.
+
+        Retrieves the summary metrics (final values) from the WandB run
+        associated with this experiment.
+
+        Returns
+        -------
+        dict
+            Dictionary containing summary metrics from WandB (e.g., final
+            validation AUC, training loss, etc.)
+
+        Raises
+        ------
+        ValueError
+            If WandB run ID is not available
+        RuntimeError
+            If WandB API access fails
+
+        Examples
+        --------
+        >>> manifest = RunManifest.from_yaml("run_manifest.yaml")
+        >>> summary = manifest.get_run_summary()
+        >>> print(summary["val_auc"])  # Final validation AUC
+        """
+        from napistu_torch.ml.wandb import _get_wandb_run_object
+
+        if not self.wandb_run_id:
+            raise ValueError("WandB run ID is not available in manifest")
+
+        run = _get_wandb_run_object(
+            wandb_entity=self.wandb_entity,
+            wandb_project=self.wandb_project,
+            wandb_run_id=self.wandb_run_id,
+        )
+
+        # Extract summary metrics
+        summary = run.summary._json_dict
+        return summary
+
+    def to_yaml(self, filepath: Path) -> None:
+        """
+        Save manifest to YAML file.
+
+        Parameters
+        ----------
+        filepath : Path
+            Path where the YAML file will be written
+        """
+        import yaml
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        # Pydantic automatically serializes nested models
+        # Use mode="json" to convert Path objects to strings
+        data = self.model_dump(mode="json")
+
+        # Write to YAML file
+        with open(filepath, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+# Public functions for working with configs
+
+
+def config_to_data_trimming_spec(config: ExperimentConfig) -> Dict[str, bool]:
+    """
+    Based on the config, return a dictionary of booleans indicating whether each attribute should be kept.
+
+    Parameters
+    ----------
+    config : ExperimentConfig
+        The experiment configuration
+
+    Returns
+    -------
+    Dict[str, bool]
+        A dictionary with keys "keep_edge_attr", "keep_labels", "keep_masks", "keep_relation_type"
+        and values indicating whether each attribute should be kept. These match the arguments to NapistuData.trim().
+    """
+
+    # do we need edge attributes?
+    if getattr(config.model, MODEL_CONFIG.USE_EDGE_ENCODER):
+        edge_encoder = getattr(config.model, MODEL_CONFIG.ENCODER)
+        if edge_encoder in ENCODERS_SUPPORTING_EDGE_WEIGHTING:
+            keep_edge_attr = True
+        else:
+            logger.warning(
+                f"Edge encoders are not supported by {edge_encoder}, only {ENCODERS_SUPPORTING_EDGE_WEIGHTING} support for edge-weighted message passing. Edge attributes will not be used."
+            )
+            keep_edge_attr = False
+    else:
+        keep_edge_attr = False
+
+    # do we need labels?
+    tasks = getattr(config.task, TASK_CONFIG.TASK)
+    TASKS_WITH_LABELS = {TASKS.NODE_CLASSIFICATION}
+    if tasks in TASKS_WITH_LABELS:
+        keep_labels = True
+    else:
+        keep_labels = False
+
+    # do we need masks
+    TASKS_WITH_MASKS = {TASKS.EDGE_PREDICTION, TASKS.NODE_CLASSIFICATION}
+    if tasks in TASKS_WITH_MASKS:
+        keep_masks = True
+    else:
+        keep_masks = False
+
+    # do we need relation_type?
+    head = getattr(config.model, MODEL_CONFIG.HEAD)
+    if head in RELATION_AWARE_HEADS:
+        keep_relation_type = True
+    else:
+        # are we using relation-weighted loss?
+        if config.task.weight_loss_by_relation_frequency:
+            keep_relation_type = True
+        else:
+            keep_relation_type = False
+
+    return {
+        NAPISTU_DATA_TRIM_ARGS.KEEP_EDGE_ATTR: keep_edge_attr,
+        NAPISTU_DATA_TRIM_ARGS.KEEP_LABELS: keep_labels,
+        NAPISTU_DATA_TRIM_ARGS.KEEP_MASKS: keep_masks,
+        NAPISTU_DATA_TRIM_ARGS.KEEP_RELATION_TYPE: keep_relation_type,
+    }
+
+
+def create_template_yaml(
+    output_path: Path,
+    sbml_dfs_path: Optional[Path] = None,
+    napistu_graph_path: Optional[Path] = None,
+    name: Optional[str] = None,
+) -> None:
+    """
+    Create a minimal YAML template file for experiment configuration.
+
+    This creates a clean, minimal YAML file with only:
+    - Required data paths (sbml_dfs_path, napistu_graph_path)
+    - Experiment metadata (name)
+    - Common configuration options (without default values)
+
+    Users can then customize this template without all the default values cluttering the file.
+
+    Parameters
+    ----------
+    output_path : Path
+        Path where the YAML template file will be written
+    sbml_dfs_path : Optional[Path], default=None
+        Path to the SBML_dfs pickle file. If None, uses a placeholder.
+    napistu_graph_path : Optional[Path], default=None
+        Path to the NapistuGraph pickle file. If None, uses a placeholder.
+    name : Optional[str], default=None
+        Experiment name. If None, omits the name field.
+
+    Examples
+    --------
+    >>> from pathlib import Path
+    >>> from napistu_torch.configs import create_template_yaml
+    >>>
+    >>> # Create template with placeholder paths
+    >>> create_template_yaml(
+    ...     output_path=Path("config.yaml"),
+    ...     sbml_dfs_path=Path("data/sbml_dfs.pkl"),
+    ...     napistu_graph_path=Path("data/graph.pkl"),
+    ...     name="my_experiment"
+    ... )
+    """
+    import yaml
+
+    # Build minimal template dict - only required fields and commonly customized ones
+    template = {}
+
+    template[EXPERIMENT_CONFIG.NAME] = (
+        name if name else EXPERIMENT_CONFIG_DEFAULTS[EXPERIMENT_CONFIG.NAME]
+    )
+    template[EXPERIMENT_CONFIG.SEED] = EXPERIMENT_CONFIG_DEFAULTS[
+        EXPERIMENT_CONFIG.SEED
+    ]
+
+    template[EXPERIMENT_CONFIG.MODEL] = {
+        MODEL_CONFIG.ENCODER: MODEL_CONFIG_DEFAULTS[MODEL_CONFIG.ENCODER],
+        MODEL_CONFIG.HEAD: MODEL_CONFIG_DEFAULTS[MODEL_CONFIG.HEAD],
+        MODEL_CONFIG.USE_EDGE_ENCODER: MODEL_CONFIG_DEFAULTS[
+            MODEL_CONFIG.USE_EDGE_ENCODER
+        ],
+    }
+
+    template[EXPERIMENT_CONFIG.TASK] = {
+        TASK_CONFIG.TASK: TASK_CONFIG_DEFAULTS[TASK_CONFIG.TASK],
+    }
+
+    template[EXPERIMENT_CONFIG.DATA] = {
+        DATA_CONFIG.SBML_DFS_PATH: (
+            str(sbml_dfs_path) if sbml_dfs_path else "path/to/sbml_dfs.pkl"
+        ),
+        DATA_CONFIG.NAPISTU_GRAPH_PATH: (
+            str(napistu_graph_path)
+            if napistu_graph_path
+            else "path/to/napistu_graph.pkl"
+        ),
+        DATA_CONFIG.NAPISTU_DATA_NAME: DATA_CONFIG_DEFAULTS[
+            DATA_CONFIG.NAPISTU_DATA_NAME
+        ],
+    }
+
+    template[EXPERIMENT_CONFIG.WANDB] = {
+        WANDB_CONFIG.GROUP: WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.GROUP],
+        WANDB_CONFIG.TAGS: WANDB_CONFIG_DEFAULTS[WANDB_CONFIG.TAGS],
+    }
+    # Include empty/minimal sections for training and wandb
+    template[EXPERIMENT_CONFIG.TRAINING] = {}
+
+    # Write YAML file
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as f:
+        yaml.dump(template, f, default_flow_style=False, sort_keys=False)
+
+
+def task_config_to_artifact_names(task_config: TaskConfig) -> List[str]:
+    """
+    Convert a TaskConfig to a list of artifact names required by the task.
+
+    Parameters
+    ----------
+    task_config : TaskConfig
+        Task configuration object
+
+    Returns
+    -------
+    List[str]
+        List of artifact names required by the task
+
+    Examples
+    --------
+    >>> from napistu_torch.configs import TaskConfig, task_config_to_artifact_names
+    >>> task_config = TaskConfig(
+    ...     task="edge_prediction",
+    ...     edge_prediction_neg_sampling_stratify_by="edge_strata_by_node_type"
+    ... )
+    >>> artifacts = task_config_to_artifact_names(task_config)
+    >>> print(artifacts)
+    ['edge_strata_by_node_type']
+    """
+    if task_config.task == TASKS.EDGE_PREDICTION:
+        return _task_config_to_artifact_names_edge_prediction(task_config)
+    else:
+        return []
+
+
+# Private functions for working with configs
+
+
+def _remove_deprecated_fields(
+    data, deprecated_fields: dict[str, str], config_class_name: str
+):
+    """
+    Remove deprecated fields from data before validation and warn about them.
+
+    This allows old configs to load while maintaining strict validation (extra="forbid").
+
+    Parameters
+    ----------
+    data : dict or Any
+        The data dictionary to process
+    deprecated_fields : dict[str, str]
+        Dictionary mapping deprecated field names to their deprecation messages
+    config_class_name : str
+        Name of the config class (for warning messages)
+
+    Returns
+    -------
+    dict or Any
+        The data with deprecated fields removed
+    """
+    if isinstance(data, dict):
+        # Create a copy to avoid modifying the original dict during iteration
+        data = dict(data)
+
+        for field_name, message in deprecated_fields.items():
+            if field_name in data:
+                warnings.warn(
+                    f"Deprecated field '{field_name}' found in {config_class_name}. {message} "
+                    "This field will be ignored. Please update your config file.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                # Remove the deprecated field
+                del data[field_name]
+
+    return data
+
+
+def _task_config_to_artifact_names_edge_prediction(
+    task_config: TaskConfig,
+) -> List[str]:
+    """Convert a TaskConfig to a list of artifact names for edge prediction."""
+    if task_config.edge_prediction_neg_sampling_stratify_by == "none":
+        return []
+    else:
+        # validate the value and return the artifact name
+        return [
+            ensure_stratify_by_artifact_name(
+                task_config.edge_prediction_neg_sampling_stratify_by
+            )
+        ]
