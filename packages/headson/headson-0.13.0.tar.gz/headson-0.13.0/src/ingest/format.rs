@@ -1,0 +1,53 @@
+/// Logical data formats detected from filenames or paths.
+/// Used to choose ingest/render defaults for fileset entries.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Format {
+    Json,
+    Yaml,
+    Unknown,
+}
+
+impl Format {
+    /// Map a filename or path string to a `Format` by inspecting its extension.
+    /// Uses `Path::extension` and ASCII case-insensitive comparison to avoid
+    /// allocations. Known mappings:
+    /// - .json -> Json
+    /// - .yaml, .yml -> Yaml
+    pub fn from_filename(name: &str) -> Self {
+        use std::path::Path;
+        const EXT_FORMATS: &[(&str, Format)] = &[
+            ("json", Format::Json),
+            ("yaml", Format::Yaml),
+            ("yml", Format::Yaml),
+        ];
+        if let Some(ext) = Path::new(name).extension().and_then(|e| e.to_str())
+        {
+            for (pat, fmt) in EXT_FORMATS {
+                if ext.eq_ignore_ascii_case(pat) {
+                    return *fmt;
+                }
+            }
+        }
+        Format::Unknown
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Format;
+
+    #[test]
+    #[allow(
+        clippy::cognitive_complexity,
+        reason = "Single test covers multiple assertions compactly."
+    )]
+    fn maps_common_extensions() {
+        assert_eq!(Format::from_filename("a.json"), Format::Json);
+        assert_eq!(Format::from_filename("b.yaml"), Format::Yaml);
+        assert_eq!(Format::from_filename("c.yml"), Format::Yaml);
+        assert_eq!(Format::from_filename("d.JSON"), Format::Json);
+        assert_eq!(Format::from_filename("e.YmL"), Format::Yaml);
+        assert_eq!(Format::from_filename("noext"), Format::Unknown);
+        assert_eq!(Format::from_filename("weird.tar.gz"), Format::Unknown);
+    }
+}
