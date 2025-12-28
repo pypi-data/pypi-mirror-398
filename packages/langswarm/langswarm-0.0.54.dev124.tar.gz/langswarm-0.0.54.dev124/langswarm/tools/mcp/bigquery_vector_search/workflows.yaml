@@ -1,0 +1,65 @@
+workflows:
+  main_workflow:
+    - id: bigquery_search_workflow
+      description: "Universal workflow for all BigQuery vector search operations with intelligent routing"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        # CONSOLIDATED STEP 1: Parse intent and extract base parameters
+        # Replaces: normalize_input + classify_intent + clean_intent + extract_parameters
+        - id: parse_and_extract
+          agent: intent_and_param_extractor
+          input: |
+            User input: ${user_input}
+            User query: ${user_query}
+            
+            Parse this request and extract the operation type and base parameters.
+          output:
+            to: enhance_and_finalize
+
+        # CONSOLIDATED STEP 2: Enhance query and finalize parameters
+        # Replaces: enhance_query + build_tool_parameters
+        # Note: Enhancement only applied for similarity_search, others pass through unchanged
+        - id: enhance_and_finalize
+          agent: query_enhancer_and_finalizer
+          input: |
+            ${context.step_outputs.parse_and_extract}
+          output:
+            to: execute_search
+
+        - id: execute_search
+          function: langswarm.core.utils.workflows.functions.mcp_call
+          args:
+            mcp_url: "local://bigquery_vector_search"
+            payload:
+              name: ${context.step_outputs.parse_and_extract.operation}
+              arguments: ${context.step_outputs.enhance_and_finalize}
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.execute_search.success} == True"
+                  then: format_response
+                  else: handle_error
+
+        - id: format_response
+          agent: search_response_formatter
+          input: |
+            Operation: ${context.step_outputs.parse_and_extract.operation}
+            Raw results: ${context.step_outputs.execute_search}
+            Original request: ${user_query}
+            
+            Format this into a comprehensive, user-friendly response.
+          output:
+            to: user
+
+        - id: handle_error
+          agent: error_handler
+          input: |
+            Error details: ${context.step_outputs.execute_search}
+            User request: ${user_query}
+            Attempted operation: ${context.step_outputs.parse_and_extract.operation}
+            
+            Provide helpful error guidance and suggest alternatives.
+          output:
+            to: user

@@ -1,0 +1,133 @@
+# GCP Environment Intelligence MCP Tool - Workflow Configuration
+# Single comprehensive workflow for all GCP environment operations
+
+workflows:
+  main_workflow:
+    - id: gcp_environment_workflow
+      description: "Universal workflow for GCP environment analysis, optimization, and management"
+      inputs:
+        - user_input
+        - user_query
+      steps:
+        - id: normalize_input
+          agent: input_normalizer
+          input: |
+            user_input: ${user_input}
+            user_query: ${user_query}
+          output:
+            to: classify_gcp_intent
+
+        - id: classify_gcp_intent
+          agent: gcp_intent_classifier
+          input: |
+            User request: ${context.step_outputs.normalize_input}
+            
+            Classify this GCP request as one of:
+            - environment_assessment: Analyze current GCP setup
+            - cost_optimization: Analyze and optimize costs
+            - security_review: Security assessment and recommendations
+            - performance_optimization: Performance analysis and tuning
+            - resource_management: Manage GCP resources
+            - compliance_check: Compliance and governance review
+            - migration_planning: Plan migrations or deployments
+            
+            Return the classification and specific focus areas.
+          output:
+            to: gather_environment_context
+
+        - id: gather_environment_context
+          agent: gcp_context_gatherer
+          input: |
+            Operation type: ${context.step_outputs.classify_gcp_intent}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Gather relevant GCP environment context for this operation.
+          output:
+            to: execute_gcp_analysis
+
+        - id: execute_gcp_analysis
+          agent: gcp_optimizer
+          input: |
+            Operation: ${context.step_outputs.classify_gcp_intent.type}
+            Context: ${context.step_outputs.gather_environment_context}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Perform the requested GCP analysis or operation.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.execute_gcp_analysis.success} == true"
+                  then: check_recommendations_needed
+                  else: handle_gcp_error
+
+        - id: check_recommendations_needed
+          agent: recommendation_checker
+          input: |
+            Analysis results: ${context.step_outputs.execute_gcp_analysis}
+            Operation type: ${context.step_outputs.classify_gcp_intent.type}
+            
+            Determine if recommendations should be generated.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.classify_gcp_intent.type} != 'resource_management'"
+                  then: generate_recommendations
+                  else: check_implementation_needed
+
+        - id: generate_recommendations
+          agent: gcp_recommendation_engine
+          input: |
+            Analysis results: ${context.step_outputs.execute_gcp_analysis}
+            Operation type: ${context.step_outputs.classify_gcp_intent.type}
+            
+            Generate specific, actionable recommendations based on the analysis.
+          output:
+            to: check_implementation_needed
+
+        - id: check_implementation_needed
+          agent: implementation_checker
+          input: |
+            Operation type: ${context.step_outputs.classify_gcp_intent.type}
+            Recommendations: ${context.step_outputs.generate_recommendations}
+            
+            Determine if an implementation plan is needed.
+          output:
+            to:
+              - condition:
+                  if: "${context.step_outputs.classify_gcp_intent.type} contains 'optimization' || ${context.step_outputs.classify_gcp_intent.type} contains 'migration'"
+                  then: create_implementation_plan
+                  else: format_gcp_response
+
+        - id: create_implementation_plan
+          agent: gcp_implementation_planner
+          input: |
+            Recommendations: ${context.step_outputs.generate_recommendations}
+            Operation type: ${context.step_outputs.classify_gcp_intent.type}
+            
+            Create a detailed implementation plan.
+          output:
+            to: format_gcp_response
+
+        - id: format_gcp_response
+          agent: gcp_response_formatter
+          input: |
+            Operation: ${context.step_outputs.classify_gcp_intent.type}
+            Analysis: ${context.step_outputs.execute_gcp_analysis}
+            Recommendations: ${context.step_outputs.generate_recommendations}
+            Implementation plan: ${context.step_outputs.create_implementation_plan}
+            Original request: ${context.step_outputs.normalize_input}
+            
+            Format a comprehensive response.
+          output:
+            to: user
+
+        - id: handle_gcp_error
+          agent: gcp_error_handler
+          input: |
+            Error details: ${context.step_outputs.execute_gcp_analysis}
+            Operation attempted: ${context.step_outputs.classify_gcp_intent.type}
+            User request: ${context.step_outputs.normalize_input}
+            
+            Provide helpful error guidance and alternative approaches.
+          output:
+            to: user
