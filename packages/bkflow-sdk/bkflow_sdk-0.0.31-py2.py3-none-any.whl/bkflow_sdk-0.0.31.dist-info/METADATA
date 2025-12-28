@@ -1,0 +1,251 @@
+Metadata-Version: 2.4
+Name: bkflow-sdk
+Version: 0.0.31
+Summary: A Django app to provide bkflow interface api.
+Author-email: blueking <blueking@tencent.com>
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django >=3.2, <5
+Requires-Dist: djangorestframework >= 3.14, <4
+Requires-Dist: drf-yasg >= 1.20.0, <2
+Requires-Dist: requests >= 2.28.2, <3
+Requires-Dist: pytest >=7.0.1,<8 ; extra == "test"
+Requires-Dist: pytest-django>=4.5.2,<5.0 ; extra == "test"
+Requires-Dist: pytest-cov>=4.0.0 ; extra == "test"
+Requires-Dist: djangorestframework >3, <4 ; extra == "test"
+Project-URL: Home, https://github.com/TencentBlueKing/bkflow-sdk
+Provides-Extra: test
+
+# BKFlow SDK
+
+[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Django Version](https://img.shields.io/badge/django-3.2%2B-green.svg)](https://www.djangoproject.com/)
+
+[English](README_EN.md) | 简体中文
+
+## 📖 项目简介
+
+BKFlow SDK 是一个用于集成蓝鲸流程引擎（BlueKing Flow Engine）的 Django 应用程序 SDK。它提供了一套完整的 API 接口和客户端，帮助开发者快速在自己的 Django 项目中对接 BKFlow 流程编排能力。
+
+### ✨ 核心特性
+
+- 🚀 **快速集成**：只需简单配置即可在 Django 项目中使用
+- 🔌 **完整的 API 封装**：提供流程模板、任务、插件等完整的 API 接口
+- 🎯 **灵活的扩展**：支持通过 Signal 机制自定义业务逻辑
+- 🛡️ **安全认证**：内置完善的认证和权限管理
+- 📊 **丰富的功能**：支持流程模板管理、任务执行、插件系统、变量管理等
+- 🔧 **自定义请求头**：支持在 API 调用时传入自定义 headers，灵活控制请求行为
+
+### 🎯 主要功能
+
+- **流程模板管理**：创建、查询、更新、删除流程模板，流程模板列表查询和筛选，流程操作记录追踪
+- **任务管理**：创建和执行任务，查询任务状态和详情，批量获取任务状态，任务 Mock 数据获取
+- **插件系统**：内置插件管理，第三方插件集成，插件元信息查询，决策表插件支持
+- **变量管理**：系统变量管理，自定义变量管理，变量引用分析，变量预览功能
+
+## 🚀 快速开始
+
+### 📦 安装
+
+```bash
+pip install bkflow-sdk
+```
+
+### ⚙️ 配置
+
+#### 1. 添加到 Django 项目
+
+在 Django 项目的 `settings.py` 中添加配置：
+
+```python
+INSTALLED_APPS = [
+    # ... 其他应用
+    "bkflow.interface",
+]
+
+# BKFlow SDK 配置（必填）
+BKFLOW_SDK_APIGW_HOST = "https://your-bkflow-api-gateway.com"  # BKFlow API 网关地址
+BKFLOW_SDK_DEFAULT_SPACE_ID = 1  # 默认空间ID（可选，如果不配置 BKFLOW_SDK_SPACE_TRANSFORMER 则必须配置）
+BKFLOW_SDK_SPACE_TRANSFORMER = "your_module.path.function_name"  # 可执行函数路径（可选），用于根据 scope_type 和 scope_value 动态获取 space_id，格式：module.path.function_name 或 module.path.ClassName.method_name
+
+# 蓝鲸应用配置（必填）
+APP_CODE = "your-app-code"  # 蓝鲸应用ID
+SECRET_KEY = "your-secret-key"  # 蓝鲸应用密钥
+```
+
+#### 2. 配置 URL 路由
+
+在项目的 `urls.py` 中添加路由：
+
+```python
+# urls.py
+from django.urls import include, path
+
+urlpatterns = [
+    # ... 其他路由
+    path("api/bkflow/", include("bkflow.interface.urls")),
+]
+```
+
+#### 3. 环境变量配置（可选）
+
+```bash
+# .env 文件
+export BKFLOW_SDK_APIGW_HOST="https://your-bkflow-api-gateway.com"
+export BKFLOW_SDK_DEFAULT_SPACE_ID=1
+export BKFLOW_SDK_SPACE_TRANSFORMER="your_module.path.function_name"  # 可选，用于动态获取 space_id，支持 module.path.function_name 或 module.path.ClassName.method_name
+export BK_APIGW_STAGE_NAME="prod"  # 环境：prod/stag/test
+```
+
+## 📚 基本使用
+
+### 使用 API 客户端
+
+```python
+from bkflow.client.core import get_client_by_user
+
+# 获取客户端实例
+client = get_client_by_user("admin")
+
+# 获取流程模板列表
+templates = client.bkflow.list_templates(
+    path_params={"space_id": 1},
+    limit=20,
+    offset=0
+)
+
+# 创建流程模板
+template = client.bkflow.create_template(
+    path_params={"space_id": 1},
+    name="测试流程",
+    pipeline_tree={
+        "activities": {},
+        "constants": {},
+        "gateways": {},
+    },
+    operator="admin"
+)
+
+# 创建任务
+task = client.bkflow.create_task(
+    {
+        "template_id": 100,
+        "name": "测试任务",
+        "creator": "admin",
+        "description": "这是一个测试任务",
+        "constants": {"key1": "value1"}
+    },
+    path_params={"space_id": 1}
+)
+```
+
+### 使用自定义 Headers
+
+对于需要 token 认证的接口，需要在 headers 中传入 token：
+
+```python
+from bkflow.client.core import get_client_by_user
+from bkflow.config.default import API_TOKEN_HEADER_KEY
+
+client = get_client_by_user("admin")
+
+# 调用需要 token 的接口
+template = client.bkflow.fetch_template(
+    path_params={"template_id": 100},
+    headers={API_TOKEN_HEADER_KEY: "your-token-value"}
+)
+
+# 传入自定义 headers
+result = client.bkflow.list_templates(
+    path_params={"space_id": 1},
+    headers={
+        "X-Request-ID": "req-12345",
+        "X-Client-Version": "1.0.0",
+    }
+)
+```
+
+## ⚠️ 重要注意事项
+
+### 1. 配置要求
+
+- **必填配置**：
+  - `BKFLOW_SDK_APIGW_HOST`：BKFlow API 网关地址，必须正确配置
+  - `APP_CODE` 和 `SECRET_KEY`：蓝鲸应用认证信息，必须配置
+
+- **可选配置**：
+  - `BKFLOW_SDK_DEFAULT_SPACE_ID`：默认空间ID，如果不配置 `BKFLOW_SDK_SPACE_TRANSFORMER` 则必须配置此选项
+  - `BKFLOW_SDK_SPACE_TRANSFORMER`：可执行函数路径，格式为 `module.path.function_name` 或 `module.path.ClassName.method_name`，用于根据 `scope_type` 和 `scope_value` 动态获取 `space_id`。该函数接收两个参数：`scope_type` 和 `scope_value`，返回 `space_id`。如果配置了此选项，将优先使用此函数获取 `space_id`，否则使用 `BKFLOW_SDK_DEFAULT_SPACE_ID`
+  - `BK_APIGW_STAGE_NAME`：API 网关环境，默认为 `prod`
+
+### 2. Token 认证
+
+部分接口需要 token 认证（标记为 `token_required=True`），调用这些接口时必须在 headers 中传入 `BKFLOW-TOKEN`：
+
+```python
+from bkflow.config.default import API_TOKEN_HEADER_KEY
+
+# 需要 token 的接口示例
+client.bkflow.fetch_template(
+    path_params={"template_id": 100},
+    headers={API_TOKEN_HEADER_KEY: "your-token"}
+)
+```
+
+### 3. Headers 合并规则
+
+- `BaseAPIClient`：调用时传入的 headers 会覆盖客户端实例的 headers
+- `RequestAPIClient`：客户端实例的 headers 会覆盖调用时传入的 headers
+
+### 4. 错误处理
+
+SDK 会自动处理 API 调用异常，返回统一的错误格式：
+
+```python
+{
+    "result": False,
+    "message": "错误信息",
+    "data": None
+}
+```
+
+### 5. 用户认证
+
+使用 `get_client_by_user()` 时，需要确保：
+- 用户已通过蓝鲸认证
+- 已正确配置 `bkoauth` 或使用 `bk_ticket`/`bk_token` 进行认证
+
+## 📋 版本历史
+
+查看 [release.md](release.md) 了解版本更新历史。
+
+### 当前版本
+
+- **最新版本** - 功能更新
+  - ✨ **新增功能**：支持在 API 调用时传入自定义 headers
+  - 🐛 **Bug 修复**：修复了 token 验证逻辑
+  - ✅ **测试完善**：添加了自定义 headers 功能的完整测试用例
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+## 🔗 相关链接
+
+- [蓝鲸智云官网](https://bk.tencent.com/)
+- [项目主页](https://github.com/TencentBlueKing/bkflow-sdk)
+- [问题反馈](https://github.com/TencentBlueKing/bkflow-sdk/issues)
+
+## 💬 支持
+
+如果您在使用过程中遇到问题，可以通过以下方式获取帮助：
+
+- 提交 [Issue](https://github.com/TencentBlueKing/bkflow-sdk/issues)
+- 查看项目文档
+- 加入蓝鲸社区讨论
+
+---
+
+Copyright © 2022 THL A29 Limited, a Tencent company. All Rights Reserved.
+
