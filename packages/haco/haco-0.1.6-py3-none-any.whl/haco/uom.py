@@ -1,0 +1,142 @@
+from enum import StrEnum
+
+
+class Uom(StrEnum):
+    """
+
+    Sourced from: https://github.com/home-assistant/core/blob/03b1c7ad1deb4b9494df01b27ef8e1d7dfe179ba/homeassistant/const.py#L489
+
+    """
+    POWER_WATT = "W"
+    POWER_KILO_WATT = "kW"
+
+    VOLT = "V"
+
+    ENERGY_WATT_HOUR = "Wh"
+    ENERGY_KILO_WATT_HOUR = "kWh"
+
+    ELECTRICAL_CURRENT_AMPERE = "A"
+    ELECTRICAL_VOLT_AMPERE = "VA"
+
+    DEGREE = "°"
+
+    CURRENCY_EURO = "€"
+    CURRENCY_DOLLAR = "$"
+    CURRENCY_CENT = "¢"
+
+    TEMP_CELSIUS = "°C"
+    TEMP_FAHRENHEIT = "°F"
+    TEMP_KELVIN = "K"
+
+    TIME_MICROSECONDS = "μs"
+    TIME_MILLISECONDS = "ms"
+    TIME_SECONDS = "s"
+    TIME_MINUTES = "min"
+    TIME_HOURS = "h"
+    TIME_DAYS = "d"
+    TIME_WEEKS = "w"
+    TIME_MONTHS = "m"
+    TIME_YEARS = "y"
+
+    LENGTH_MILLIMETERS = "mm"
+    LENGTH_CENTIMETERS = "cm"
+    LENGTH_METERS = "m"
+    LENGTH_KILOMETERS = "km"
+
+    LENGTH_INCHES = "in"
+    LENGTH_FEET = "ft"
+    LENGTH_YARD = "yd"
+    LENGTH_MILES = "mi"
+
+    FREQUENCY_HERTZ = "Hz"
+    FREQUENCY_GIGAHERTZ = "GHz"
+
+    PRESSURE_PA = "Pa"
+    PRESSURE_HPA = "hPa"
+    PRESSURE_BAR = "bar"
+    PRESSURE_MBAR = "mbar"
+    PRESSURE_INHG = "inHg"
+    PRESSURE_PSI = "psi"
+
+    VOLUME_LITERS = "L"
+    VOLUME_MILLILITERS = "mL"
+    VOLUME_CUBIC_METERS = "m³"
+    VOLUME_CUBIC_FEET = "ft³"
+
+    VOLUME_GALLONS = "gal"
+    VOLUME_FLUID_OUNCE = "fl. oz."
+
+    VOLUME_FLOW_RATE_CUBIC_METERS_PER_HOUR = "m³/h"
+    VOLUME_FLOW_RATE_CUBIC_FEET_PER_MINUTE = "ft³/m"
+
+    AREA_SQUARE_METERS = "m²"
+
+    MASS_GRAMS = "g"
+    MASS_KILOGRAMS = "kg"
+    MASS_MILLIGRAMS = "mg"
+    MASS_MICROGRAMS = "µg"
+
+    MASS_OUNCES = "oz"
+    MASS_POUNDS = "lb"
+
+    CONDUCTIVITY = "µS/cm"
+
+    LIGHT_LUX = "lx"
+
+    UV_INDEX = "UV index"
+
+    PERCENTAGE = "%"
+
+    IRRADIATION_WATTS_PER_SQUARE_METER = "W/m²"
+
+    PRECIPITATION_MILLIMETERS_PER_HOUR = "mm/h"
+
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER = "µg/m³"
+    CONCENTRATION_MILLIGRAMS_PER_CUBIC_METER = "mg/m³"
+    CONCENTRATION_PARTS_PER_CUBIC_METER = "p/m³"
+    CONCENTRATION_PARTS_PER_MILLION = "ppm"
+    CONCENTRATION_PARTS_PER_BILLION = "ppb"
+
+    SPEED_MILLIMETERS_PER_DAY = "mm/d"
+    SPEED_INCHES_PER_DAY = "in/d"
+    SPEED_METERS_PER_SECOND = "m/s"
+    SPEED_INCHES_PER_HOUR = "in/h"
+    SPEED_KILOMETERS_PER_HOUR = "km/h"
+    SPEED_MILES_PER_HOUR = "mph"
+
+    SIGNAL_STRENGTH_DECIBELS = "dB"
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT = "dBm"
+
+    DATA_BITS = "bit"
+    DATA_KILOBITS = "kbit"
+    DATA_MEGABITS = "Mbit"
+    DATA_GIGABITS = "Gbit"
+    DATA_BYTES = "B"
+    DATA_KILOBYTES = "kB"
+    DATA_MEGABYTES = "MB"
+    DATA_GIGABYTES = "GB"
+    DATA_TERABYTES = "TB"
+    DATA_PETABYTES = "PB"
+    DATA_EXABYTES = "EB"
+    DATA_ZETTABYTES = "ZB"
+    DATA_YOTTABYTES = "YB"
+    DATA_KIBIBYTES = "KiB"
+    DATA_MEBIBYTES = "MiB"
+    DATA_GIBIBYTES = "GiB"
+    DATA_TEBIBYTES = "TiB"
+    DATA_PEBIBYTES = "PiB"
+    DATA_EXBIBYTES = "EiB"
+    DATA_ZEBIBYTES = "ZiB"
+    DATA_YOBIBYTES = "YiB"
+
+    DATA_RATE_BITS_PER_SECOND = "bit/s"
+    DATA_RATE_KILOBITS_PER_SECOND = "kbit/s"
+    DATA_RATE_MEGABITS_PER_SECOND = "Mbit/s"
+    DATA_RATE_GIGABITS_PER_SECOND = "Gbit/s"
+    DATA_RATE_BYTES_PER_SECOND = "B/s"
+    DATA_RATE_KILOBYTES_PER_SECOND = "kB/s"
+    DATA_RATE_MEGABYTES_PER_SECOND = "MB/s"
+    DATA_RATE_GIGABYTES_PER_SECOND = "GB/s"
+    DATA_RATE_KIBIBYTES_PER_SECOND = "KiB/s"
+    DATA_RATE_MEBIBYTES_PER_SECOND = "MiB/s"
+    DATA_RATE_GIBIBYTES_PER_SECOND = "GiB/s"
