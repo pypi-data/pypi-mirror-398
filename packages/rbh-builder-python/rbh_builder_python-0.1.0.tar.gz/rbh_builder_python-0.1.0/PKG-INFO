@@ -1,0 +1,103 @@
+Metadata-Version: 2.4
+Name: rbh-builder-python
+Version: 0.1.0
+Summary: Python client/builder for Rainbow Hospitality Gateway REST and WebSocket APIs.
+Project-URL: Homepage, https://rhg.openrainbow.io
+Project-URL: Repository, https://rhg.openrainbow.io
+Author-email: Samuel Yip Kah Yean <samuel.yip@al-enterprise.com>
+License-File: LICENSE
+Requires-Python: >=3.9
+Requires-Dist: requests>=2.31.0
+Provides-Extra: ws
+Requires-Dist: websockets>=12.0; extra == 'ws'
+Description-Content-Type: text/markdown
+
+# Rainbow Hospitality Gateway Python Client (rbh-builder-python)
+
+Thin Python wrapper around the Rainbow Hospitality Gateway REST and WebSocket APIs (`Edition 07` of the guide). It supports login, core reservation flows, guest management, wake-up calls, and the GraphQL WebSocket feed for call logs.
+
+## Installation
+
+```bash
+pip install -e .             # from this repo
+pip install rbh-builder-python[ws]     # if published, includes optional websocket support
+```
+
+## Quickstart
+
+```python
+from rbh_builder import RainbowClient
+
+client = (
+    RainbowClient.builder(base_url="https://red-rhg.openrainbow.io/provisioningapi/api")
+    .with_credentials(username="api_user", password="api_password")
+    .build()
+)
+
+# Rooms
+rooms = client.get_rooms(page_number=1, page_size=20)
+
+# Check-in
+client.checkin(
+    room_id="101",
+    checkout_date="2025-12-31",
+    first_name="John",
+    last_name="Doe",
+    barring="local",  # local | nat_local | int_nat_local
+)
+
+# Wake-up call
+client.create_wakeup_call(
+    room_id="101",
+    alarm_time="2025-12-24T07:00:00",
+    followup_time="2025-12-24T07:10:00",
+    frequency="Once",
+)
+```
+
+## WebSocket call logs (GraphQL)
+
+```python
+import asyncio
+from rbh_builder.ws import RainbowWebSocketClient
+
+async def stream_logs():
+    ws = RainbowWebSocketClient(
+        access_token=client.access_token,
+        app_key="your-app-key",
+        company_id=client.company_id,
+    )
+    async for event in ws.subscribe_call_logs():
+        print(event)
+
+asyncio.run(stream_logs())
+```
+
+## Endpoints covered
+- `POST /Login` to obtain JWT + company ID.
+- `GET /GetRooms`
+- `GET /GetGuests`
+- `GET /GetCallLogs`
+- `POST /Checkin`, `POST /Checkout`, `POST /MoveRoom`
+- `POST /CreateGuest`, `PUT /UpdateGuest`, `DELETE /DeleteGuest`
+- `POST /CreateWakeupCall`, `PUT /UpdateWakeupCall`, `DELETE /DeleteWakeupCall`, `GET /GetWakeupCalls`
+- WebSocket `wss://rhg.openrainbow.io/provisioningapi/graphql` subscription for call logs.
+
+## Notes from the API guide
+- Base URL: `https://red-rhg.openrainbow.io/provisioningapi/api` (update as needed for your environment)
+- Auth: `POST /Login` with JSON `{Username, Password}` returns `AccessToken` (JWT) and `CompanyID`.
+- Subsequent calls use header `Authorization: Bearer <jwt>`.
+- Pagination params: `pageNumber`, `pageSize`; most list endpoints require `CompanyID` and return `{ Code, Data: { Data, TotalCount, PageNumber, PageSize, TotalPages }, Status }`.
+- `Checkin` requires `CompanyID`, `RoomId`, `CheckoutDate`, `FirstName`, `LastName`, `Barring` (one of `local|nat_local|int_nat_local`), optional `GuestId`.
+- `Checkout` requires `CompanyID`, `RoomId`, optional `DeleteGuest` flag.
+- `MoveRoom` requires `CompanyID`, `RoomId` (old), `NewRoomId`.
+- Guest create/update payloads include contact details; delete uses `GuestId` + `CompanyID`.
+- Wakeup calls: create `{CompanyId, RoomId, AlarmTime, FollowupTime, Frequency}`, update `{Id, AlarmTime, FollowupTime}`, delete `{Id}`, list requires `CompanyID`.
+- WebSocket uses GraphQL `graphql-transport-ws` subprotocol; connection init includes `Authorization` and `x-app-key`, then a subscription to `logsArrived(companyId: $companyId)`; keep alive via `{"type":"ping"}`.
+
+## Auth refresh
+- When instantiated via the Builder (i.e., with credentials), the client will retry once on `401` by re-running `POST /Login` and refreshing the bearer token, then re-issuing the original request. If constructed with an access token only, refresh is not possible.
+
+## License
+
+MIT (placeholder).
