@@ -1,0 +1,74 @@
+# Virtual Tissue Configuration
+
+# Data Paths
+data:
+  input_anndata: "path/to/combined_data.h5ad"
+  output_dir: "output/experiment_1"
+  save_modified_anndata: true
+
+# Column Mappings in AnnData.obs
+columns:
+  image_id: "imageid"
+  phenotype: "phenotype"
+  x_centroid: "X_centroid"
+  y_centroid: "Y_centroid"
+
+# Spatial Parameters
+spatial:
+  default_mpp: 0.5  # Default microns per pixel if not specified in mpp_map
+  n_fourier_freqs: 10  # Number of Fourier frequency bands for spatial encoding (produces 4*n_fourier_freqs features)
+  mpp_map:          # Optional: Per-image MPP overrides
+    image_1: 0.3
+    image_2: 0.5
+  k_neighbors: 10
+  radius: null      # Set to float to use radius graph instead of KNN
+  algorithm: 'auto' # 'auto', 'ball_tree', 'kd_tree', 'brute'
+  n_jobs: -1        # Number of parallel jobs (-1 for all cores)
+
+# Model Architecture
+model:
+  d_model: 128
+  n_heads: 4
+  n_layers: 2
+  dropout: 0.1
+  n_global_tokens: 8
+  n_global_tokens_global: null
+  n_global_tokens_local: null
+
+# Training Parameters
+training:
+  batch_size: 4
+  epochs: 50
+  learning_rate: 0.001
+  val_split: 0.1
+  test_split: 0.1
+  seed: 42
+  save_recent_every: 5
+  n_anchors: 4
+  resume_from: null
+
+# Loss Weights
+loss:
+  lambda_expr_mask: 1.0
+  lambda_reconstruction: 0.5
+  lambda_celltype: 0.1
+  lambda_cnp: 0.0
+  cnp_temperature: 0.1
+  cnp_enable_subsample: true # Prefer full graph; subsample only when graph is very large
+  cnp_max_nodes: 8192       # Max valid nodes used in CNP; under this, use full graph
+  cnp_subsample_ratio: 1.0  # Fraction of valid nodes for CNP (1.0 = no subsample)
+  lambda_coord: 0.0
+  spatial_weight_lambda: 0.0
+  spatial_weight_method: moran
+  lambda_token_specialization: 0.0
+
+# Masking Ratios
+masking:
+  expr_ratio: 0.15
+  edge_ratio: 0.15
+  phenotype_ratio: 0.15
+  cell_expr_ratio: 0.0
+
+memory:
+  policy: auto
+  feature_dtype: float32
