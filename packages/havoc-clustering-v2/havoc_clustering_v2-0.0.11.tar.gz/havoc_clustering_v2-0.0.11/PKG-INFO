@@ -1,0 +1,118 @@
+Metadata-Version: 2.4
+Name: havoc-clustering-v2
+Version: 0.0.11
+Summary: Histomic Atlases of Variation Of Cancers (HAVOC) is a versatile tool that helps map histomic heterogeneity across H&E-stained digital slide images to help guide regional deployment of molecular resources to the most relevant/biodiverse tumor niches
+Project-URL: Homepage, https://bitbucket.org/diamandislabii/havoc
+Author-email: Kevin Faust <kevin.faust@alumni.utoronto.ca>
+License-File: LICENSE
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Requires-Dist: huggingface-hub
+Requires-Dist: matplotlib
+Requires-Dist: opencv-python
+Requires-Dist: openslide-bin
+Requires-Dist: openslide-python
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: seaborn
+Requires-Dist: umap-learn
+Description-Content-Type: text/markdown
+
+# Histomic Atlases of Variation Of Cancers (HAVOC)
+
+HAVOC is a versatile tool that maps histomic heterogeneity across H&E-stained digital slide images to help guide regional deployment of molecular resources to the most relevant/biodiverse tumor niches
+
+## Cloud usage
+Explore HAVOC on https://www.codido.co to run on the cloud
+
+## Version Notes
+
+- Current: Uses a foundation-model feature extractor ([Prov-GigaPath](https://huggingface.co/prov-gigapath/prov-gigapath)). This is recommended for all new applications.
+
+- Legacy: VGG19-based implementation used in the original paper. Please visit the `paper` branch for more info (No longer updated).
+
+## Installation
+
+> **Note:** HAVOC requires the **torch**, **torchvision**, and **timm** packages, which are not installed automatically. Please install the appropriate PyTorch build (CPU or GPU) *before* installing HAVOC.
+
+> **Note:** System-level OpenSlide must be installed manually from: https://openslide.org/download/
+> 
+> 
+
+Use the package manager [pip](https://pip.pypa.io/en/stable/) to install havoc-clustering.
+
+```bash
+pip install havoc-clustering-v2
+```
+
+## Usage
+
+
+```python
+from huggingface_hub import login
+from havoc_clustering_v2.havoc import HAVOC, HAVOCConfig
+from havoc_clustering_v2.general_utility.slide import Slide
+
+# Required to perform initial download of the feature extractor (prov-gigapath) from Huggingface.
+login(token=hf_token)
+
+# To run HAVOC, it requires:
+# 1. a Slide object
+#   - if the MPP cannot be detected, you must manually specify
+s = Slide(slide_path, mpp=None)
+
+# 2. a HAVOCConfig object
+# Below are the default config values
+config = HAVOCConfig(
+    out_dir='./', # root save dir. results will be stored per slide in `root_save_dir`\<slide_name>\`
+    k_vals=[7, 8, 9],
+    # save the tiles belonging to each color cluster within the havoc map for a given k
+    # ie [7,9] would save the colored tiles belonging to k=7 and k=9
+    # NOTE: this should be a subset of k_vals
+    save_tiles_k_vals=[], 
+
+    tile_size=512, # tiles extracted at 20x magnification. tile size must be a multiple of 256
+
+    min_tissue_amt=0.5, # blank filtering
+    
+    # for each k value, make a umap and/or dendrogram and/or pearson coefficient clustermap
+    extra_metrics=['umap', 'dendrogram', 'corr_clustmap']
+)
+    
+
+havoc = HAVOC(config)
+havoc.run(s)
+```
+
+
+## Result output
+- Colortiled maps
+- CSV file of cluster info + DLFVs (cluster_info_df.csv)
+- Optionally:
+    - Original slide thumbnail
+    - UMAPs
+    - Dendrograms
+    - Correlation clustermap
+
+## Multi-slide correlation map
+
+By running HAVOC on multiple slides, you may want to combine all the generated correlation clustermaps into a mega clustermap.
+
+1. Create a folder containing each slide's cluster_info_df.csv file
+2. 
+```python
+from havoc_clustering_v2.correlation_of_dlfv_groups import create_correlation_clustermap_multi_slide
+
+create_correlation_clustermap_multi_slide(folder_of_csvs, target_k=9)
+```
+
+NOTE: the target_k should be a k-value you ran HAVOC with 
+
+## Citation
+
+Please refer to the paper "HAVOC: Small-scale histomic mapping of cancer biodiversity across large tissue distances using deep neural networks" (DOI: [10.1126/sciadv.adg1894](https://doi.org/10.1126/sciadv.adg1894))
+
+## License
+[GNU General Public License v3 (GPLv3)](https://www.gnu.org/licenses/gpl-3.0.txt)
