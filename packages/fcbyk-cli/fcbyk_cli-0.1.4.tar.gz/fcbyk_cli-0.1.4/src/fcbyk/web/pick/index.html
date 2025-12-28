@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FCBYK PICK</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      padding: 32px 12px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .status {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+    @media (max-width: 880px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    .panel {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .panel h3 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      color: var(--text);
+    }
+    .list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .item {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      word-break: break-word;
+    }
+    .item .badge {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      background: rgba(34,211,238,0.2);
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .item.active {
+      border-color: rgba(34,211,238,0.5);
+      box-shadow: 0 8px 18px rgba(34,211,238,0.18);
+      transform: translateY(-1px);
+    }
+    .result {
+      background: linear-gradient(135deg, rgba(34,211,238,0.12), rgba(168,85,247,0.12));
+      border: 1px solid rgba(34,211,238,0.35);
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+    }
+    .result .title {
+      color: var(--muted);
+      letter-spacing: 0.4px;
+    }
+    .result .value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--primary);
+      text-shadow: 0 6px 24px rgba(34,211,238,0.3);
+      word-break: break-word;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .badge-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 12px rgba(34,211,238,0.7);
+    }
+    .status.ok { color: var(--success); }
+    .status.err { color: var(--danger); }
+    .toggle-switch {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .toggle-switch:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.1);
+    }
+    .toggle-switch input[type="checkbox"] {
+      width: 44px;
+      height: 24px;
+      appearance: none;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .toggle-switch input[type="checkbox"]:checked {
+      background: var(--primary);
+    }
+    .toggle-switch input[type="checkbox"]::before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .toggle-switch input[type="checkbox"]:checked::before {
+      transform: translateX(20px);
+    }
+    .toggle-switch label {
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .item.drawn {
+      opacity: 0.4;
+      background: rgba(255,255,255,0.02);
+      border-color: rgba(255,255,255,0.03);
+      pointer-events: none;
+    }
+    .item.drawn .badge {
+      background: rgba(128,128,128,0.2);
+      color: rgba(128,128,128,0.6);
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p class="desc">列表数据直接来自命令行的配置文件，使用 <code>fcbyk pick --add</code> 即可更新。</p>
+
+    <div class="toolbar">
+      <button id="start-btn" class="primary">开始选择</button>
+      <button id="refresh-btn" class="secondary">刷新列表</button>
+      <div class="toggle-switch" id="toggle-container">
+        <input type="checkbox" id="no-repeat-toggle">
+        <label for="no-repeat-toggle">无放回模式</label>
+      </div>
+      <div class="speed-control">
+        <label for="speed-slider">抽奖速度：</label>
+        <input type="range" id="speed-slider" min="1" max="8" value="3" step="0.5">
+        <span class="speed-value" id="speed-value">3秒</span>
+      </div>
+      <button id="reset-btn" class="secondary" style="display:none;">重置已抽取</button>
+    </div>
+
+    <div class="status" id="status">
+      <span class="badge-dot"></span>
+      正在加载列表...
+    </div>
+
+    <div class="layout">
+      <section class="panel">
+        <h3>候选列表</h3>
+        <div id="list" class="list"></div>
+        <p class="muted" id="empty-hint" style="display:none;">列表为空，请在终端执行 <code>fcbyk pick --add 项目</code> 添加。</p>
+      </section>
+
+      <section class="panel">
+        <h3>最终结果</h3>
+        <div class="result" id="result">
+          <div class="title">点击「开始」随机选出一项</div>
+          <div class="value">—</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    let items = [];
+    let animationTimer = null;
+    let drawnIndices = new Set(); // 已抽取的索引集合
+    let noRepeatMode = false; // 无放回模式开关
+    let drawSpeed = 3; // 抽奖速度（秒），默认3秒
+
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+    const emptyHintEl = document.getElementById('empty-hint');
+    const resultEl = document.getElementById('result');
+    const startBtn = document.getElementById('start-btn');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const noRepeatToggle = document.getElementById('no-repeat-toggle');
+    const resetBtn = document.getElementById('reset-btn');
+    const speedSlider = document.getElementById('speed-slider');
+    const speedValue = document.getElementById('speed-value');
+
+    function setStatus(text, type = '') {
+      statusEl.textContent = text;
+      statusEl.classList.toggle('ok', type === 'ok');
+      statusEl.classList.toggle('err', type === 'err');
+    }
+
+    function renderList() {
+      listEl.innerHTML = '';
+      if (!items.length) {
+        emptyHintEl.style.display = 'block';
+        return;
+      }
+      emptyHintEl.style.display = 'none';
+      items.forEach((item, idx) => {
+        const card = document.createElement('div');
+        card.className = 'item';
+        if (drawnIndices.has(idx)) {
+          card.classList.add('drawn');
+        }
+        card.innerHTML = `<span class="badge">${idx + 1}</span><span>${item}</span>`;
+        listEl.appendChild(card);
+      });
+      updateResetButton();
+    }
+
+    async function loadItems() {
+      setStatus('正在加载列表...');
+      try {
+        const res = await fetch('/api/items');
+        const data = await res.json();
+        items = Array.isArray(data.items) ? data.items : [];
+        // 刷新列表时重置已抽取记录
+        drawnIndices.clear();
+        renderList();
+        if (!items.length) {
+          setStatus('列表为空，请先在命令行使用 --add 添加项目', 'err');
+        } else {
+          setStatus(`已加载 ${items.length} 条候选项`, 'ok');
+        }
+      } catch (err) {
+        setStatus('加载列表失败，请稍后重试', 'err');
+      }
+    }
+
+    function updateResetButton() {
+      if (drawnIndices.size > 0) {
+        resetBtn.style.display = 'block';
+      } else {
+        resetBtn.style.display = 'none';
+      }
+    }
+
+    function resetDrawn() {
+      drawnIndices.clear();
+      renderList();
+      setStatus('已重置，所有项目可重新抽取', 'ok');
+    }
+
+    function getAvailableIndices() {
+      if (!noRepeatMode) {
+        return items.map((_, idx) => idx);
+      }
+      return items.map((_, idx) => idx).filter(idx => !drawnIndices.has(idx));
+    }
+
+    function stopAnimation() {
+      if (animationTimer) {
+        clearInterval(animationTimer);
+        clearTimeout(animationTimer);
+        animationTimer = null;
+      }
+      document.querySelectorAll('.item').forEach(el => el.classList.remove('active'));
+    }
+
+    function highlight(cards, index) {
+      cards.forEach(el => el.classList.remove('active'));
+      if (cards[index] && !cards[index].classList.contains('drawn')) {
+        cards[index].classList.add('active');
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(res => animationTimer = setTimeout(res, ms));
+    }
+
+    async function spinToTarget(cards, targetIndex, availableIndices) {
+      // 创建可用索引到卡片索引的映射（因为 cards 数组包含所有元素，包括已抽取的）
+      const indexMap = new Map();
+      availableIndices.forEach((origIdx, pos) => {
+        indexMap.set(origIdx, pos);
+      });
+      
+      // 找到目标在可用列表中的位置
+      const targetPos = indexMap.get(targetIndex);
+      if (targetPos === undefined) return targetIndex;
+
+      // 根据速度计算延迟因子（速度越快，因子越小）
+      // 默认3秒对应的因子为1，1秒对应约0.15，8秒对应约2.5
+      const speedFactor = drawSpeed / 3;
+
+      // 先做一段快速随机旋转，只遍历可用元素
+      let currentPos = -1;
+      const availableCount = availableIndices.length;
+      
+      // 根据元素数量动态计算步数
+      // 快速阶段：至少轮完2.5-4圈，加上随机0-60%的额外步数
+      const fastMinCircles = 2.5;
+      const fastMaxCircles = 4.0;
+      const fastBaseSteps = Math.floor(availableCount * (fastMinCircles + Math.random() * (fastMaxCircles - fastMinCircles)));
+      const fastExtraSteps = Math.floor(fastBaseSteps * Math.random() * 0.6); // 额外0-60%的随机步数
+      const fastSteps = fastBaseSteps + fastExtraSteps;
+      
+      // 过渡阶段：轮完0.6-1.2圈，加上随机0-40%的额外步数
+      const transitionMinCircles = 0.6;
+      const transitionMaxCircles = 1.2;
+      const transitionBaseSteps = Math.floor(availableCount * (transitionMinCircles + Math.random() * (transitionMaxCircles - transitionMinCircles)));
+      const transitionExtraSteps = Math.floor(transitionBaseSteps * Math.random() * 0.4); // 额外0-40%的随机步数
+      const transitionSteps = transitionBaseSteps + transitionExtraSteps;
+      
+      const stages = [
+        { steps: fastSteps, delay: 50 },   // 快速：动态计算
+        { steps: transitionSteps, delay: 120 }   // 过渡：动态计算
+      ];
+      for (const stage of stages) {
+        for (let i = 0; i < stage.steps; i++) {
+          currentPos = (currentPos + 1) % availableCount;
+          const currentIndex = availableIndices[currentPos];
+          highlight(cards, currentIndex);
+          await sleep(stage.delay * speedFactor);
+        }
+      }
+
+      // 计算到目标的剩余步数，多绕 2 圈再落到目标，做减速效果
+      const distance = ((targetPos - currentPos) % availableCount + availableCount) % availableCount;
+      const totalSteps = distance + availableCount * 2;
+      const finalDelayStart = 180;
+      const finalDelayEnd = 550;
+      for (let step = 0; step < totalSteps; step++) {
+        currentPos = (currentPos + 1) % availableCount;
+        const currentIndex = availableIndices[currentPos];
+        highlight(cards, currentIndex);
+        // 逐步放慢：线性插值 delay
+        const t = step / Math.max(1, totalSteps - 1);
+        const delay = (finalDelayStart + (finalDelayEnd - finalDelayStart) * t) * speedFactor;
+        await sleep(delay);
+      }
+      return availableIndices[currentPos];
+    }
+
+    async function startDraw() {
+      if (!items.length) {
+        setStatus('列表为空，请先添加候选项', 'err');
+        return;
+      }
+
+      const availableIndices = getAvailableIndices();
+      if (availableIndices.length === 0) {
+        setStatus('所有项目已抽取完毕，请点击「重置已抽取」或刷新列表', 'err');
+        return;
+      }
+
+      startBtn.disabled = true;
+      setStatus('正在选择...');
+      stopAnimation();
+      const cards = Array.from(document.querySelectorAll('.item'));
+      if (!cards.length) {
+        setStatus('列表为空，请刷新后重试', 'err');
+        startBtn.disabled = false;
+        return;
+      }
+
+      try {
+        // 从可用索引中随机选择
+        const randomPos = Math.floor(Math.random() * availableIndices.length);
+        const targetIndex = availableIndices[randomPos];
+        const winner = items[targetIndex];
+
+        await spinToTarget(cards, targetIndex, availableIndices);
+        
+        // 标记为已抽取
+        if (noRepeatMode) {
+          drawnIndices.add(targetIndex);
+          renderList();
+        }
+
+        setStatus('选择完成！', 'ok');
+        resultEl.innerHTML = `
+          <div class="title">本轮选中</div>
+          <div class="value">${winner}</div>
+          <div class="muted">数据来源：本地配置文件 ~/.fcbyk/pick.json</div>
+          ${noRepeatMode && drawnIndices.size > 0 ? `<div class="muted">已抽取 ${drawnIndices.size}/${items.length} 项</div>` : ''}
+        `;
+      } catch (err) {
+        stopAnimation();
+        setStatus(err.message || '随机选择失败', 'err');
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
+
+    startBtn.addEventListener('click', startDraw);
+    refreshBtn.addEventListener('click', loadItems);
+    resetBtn.addEventListener('click', resetDrawn);
+    noRepeatToggle.addEventListener('change', (e) => {
+      noRepeatMode = e.target.checked;
+      if (!noRepeatMode) {
+        // 关闭无放回模式时，不清空已抽取记录，但允许重新抽取
+        renderList();
+      }
+    });
+    speedSlider.addEventListener('input', (e) => {
+      drawSpeed = parseFloat(e.target.value);
+      speedValue.textContent = `${drawSpeed}秒`;
+    });
+    // 初始化速度显示
+    speedValue.textContent = `${drawSpeed}秒`;
+    loadItems();
+  </script>
+</body>
+</html>
+

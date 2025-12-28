@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>兑换码管理</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .card {
+            width: min(720px, 100%);
+            background: rgba(30, 41, 59, 0.9);
+            padding: 24px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 24px;
+        }
+
+        /* ===== 登录 ===== */
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: rgba(15, 23, 42, 0.8);
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.4);
+        }
+
+        button.small {
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        /* ===== 统计条 ===== */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 12px 14px;
+            text-align: center;
+        }
+
+        .stat .label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .stat .value {
+            font-size: 22px;
+            font-weight: 800;
+            margin-top: 4px;
+        }
+
+        .stat .value.used {
+            color: var(--accent);
+        }
+
+        .stat .value.left {
+            color: var(--primary);
+        }
+
+        /* ===== 列表 ===== */
+        .table {
+            margin-top: 8px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .row:last-child {
+            border-bottom: none;
+        }
+
+        .code {
+            font-size: 15px;
+        }
+
+        .hidden {
+            background: rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+            padding: 6px 12px;
+        }
+
+        .used {
+            /* text-decoration: line-through; */
+            color: var(--muted);
+        }
+
+        .status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .ok {
+            color: var(--success);
+        }
+
+        .bad {
+            color: var(--danger);
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        /* ===== 新增兑换码 ===== */
+        .add-code-section {
+            margin-bottom: 16px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+        }
+
+        .add-code-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .add-code-form input {
+            flex: 1;
+            margin: 0;
+        }
+
+        .add-code-form button {
+            white-space: nowrap;
+        }
+
+        .add-code-msg {
+            margin-top: 8px;
+            font-size: 13px;
+            min-height: 18px;
+        }
+
+        .add-code-msg.success {
+            color: var(--success);
+        }
+
+        .add-code-msg.error {
+            color: var(--danger);
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 640px) {
+            .row {
+                grid-template-columns: 1fr auto;
+                grid-template-areas:
+                    "code status"
+                    "actions actions";
+            }
+
+            .code {
+                grid-area: code;
+            }
+
+            .status {
+                grid-area: status;
+                justify-self: end;
+            }
+
+            .actions {
+                grid-area: actions;
+                justify-content: flex-end;
+                margin-top: 6px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="card">
+        <h1>兑换码管理</h1>
+        <p class="desc">管理员查看与分发抽奖码</p>
+
+        <!-- 登录 -->
+        <div id="login">
+            <input id="pw" type="password" placeholder="请输入管理员密码" />
+            <button class="primary" style="margin-top:12px" onclick="login()">登录</button>
+            <p id="err" style="color:var(--danger);font-size:13px"></p>
+        </div>
+
+        <!-- 面板 -->
+        <div id="panel" style="display:none">
+
+            <!-- 统计条 -->
+            <div class="stats">
+                <div class="stat">
+                    <div class="label">总数</div>
+                    <div class="value" id="stat-total">0</div>
+                </div>
+                <div class="stat">
+                    <div class="label">已使用</div>
+                    <div class="value used" id="stat-used">0</div>
+                </div>
+                <div class="stat">
+                    <div class="label">剩余</div>
+                    <div class="value left" id="stat-left">0</div>
+                </div>
+            </div>
+
+            <!-- 新增兑换码 -->
+            <div class="add-code-section">
+                <div class="add-code-form">
+                    <input id="new-code-input" type="text" placeholder="请输入兑换码" maxlength="20" />
+                    <button class="primary" onclick="addCode()">新增</button>
+                </div>
+                <div id="add-code-msg" class="add-code-msg"></div>
+            </div>
+
+            <!-- 列表 -->
+            <div class="table">
+                <div id="list"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const KEY_AUTH = 'admin_authed';
+        const KEY_PW = 'admin_pw';
+
+        let adminPw = '';
+
+        function login() {
+            const pw = document.getElementById('pw').value;
+            fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pw })
+            })
+                .then(r => {
+                    if (!r.ok) throw new Error('密码错误');
+                    sessionStorage.setItem(KEY_AUTH, '1');
+                    sessionStorage.setItem(KEY_PW, pw);
+                    adminPw = pw;
+                    showPanel();
+                })
+                .catch(e => document.getElementById('err').innerText = e.message);
+        }
+
+        function showPanel() {
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('panel').style.display = 'block';
+            loadCodes();
+        }
+
+        function mask(code) {
+            return '████████'.slice(0, code.length);
+        }
+
+        function loadCodes() {
+            fetch('/api/admin/codes', {
+                headers: { 'X-Admin-Password': adminPw }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    const total = data.codes.length;
+                    const used = data.codes.filter(c => c.used).length;
+
+                    document.getElementById('stat-total').textContent = total;
+                    document.getElementById('stat-used').textContent = used;
+                    document.getElementById('stat-left').textContent = total - used;
+
+                    const list = document.getElementById('list');
+                    list.innerHTML = '';
+
+                    data.codes.forEach(c => {
+                        const row = document.createElement('div');
+                        row.className = 'row';
+                        row.innerHTML = `
+        <div class="code ${c.used ? 'used' : ''}">
+          <span class="hidden" data-code="${c.code}">
+            ${c.used ? c.code : mask(c.code)}
+          </span>
+        </div>
+
+        <div class="status ${c.used ? 'bad' : 'ok'}">
+          ${c.used ? '已使用' : '未使用'}
+        </div>
+
+        <div class="actions">
+          ${c.used ? '' : `<button class="secondary small" onclick="reveal(this)">查看</button>`}
+          <button class="primary small" onclick="copy('${c.code}', this)">复制</button>
+        </div>
+      `;
+                        list.appendChild(row);
+                    });
+                });
+        }
+
+        function reveal(btn) {
+            const span = btn.closest('.row').querySelector('.hidden');
+            const code = span.dataset.code;
+            const isRevealed = span.textContent === code;
+            
+            if (isRevealed) {
+                // 当前已显示，切换为隐藏
+                span.textContent = mask(code);
+                btn.textContent = '查看';
+            } else {
+                // 当前已隐藏，切换为显示
+                span.textContent = code;
+                btn.textContent = '隐藏';
+            }
+        }
+
+        function copy(code, btn) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(code).then(() => flash(btn));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                flash(btn);
+            }
+        }
+
+        function flash(btn) {
+            const old = btn.textContent;
+            btn.textContent = '已复制';
+            setTimeout(() => btn.textContent = old, 800);
+        }
+
+        function addCode() {
+            const input = document.getElementById('new-code-input');
+            const msg = document.getElementById('add-code-msg');
+            const code = input.value.trim().toUpperCase();
+            
+            if (!code) {
+                msg.textContent = '请输入兑换码';
+                msg.className = 'add-code-msg error';
+                return;
+            }
+
+            // 验证格式：只允许字母和数字
+            if (!/^[A-Z0-9]+$/.test(code)) {
+                msg.textContent = '兑换码只能包含字母和数字';
+                msg.className = 'add-code-msg error';
+                return;
+            }
+
+            fetch('/api/admin/codes/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Admin-Password': adminPw
+                },
+                body: JSON.stringify({ code: code })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        msg.textContent = data.error;
+                        msg.className = 'add-code-msg error';
+                    } else {
+                        msg.textContent = `成功新增兑换码: ${code}`;
+                        msg.className = 'add-code-msg success';
+                        input.value = '';
+                        loadCodes(); // 重新加载列表
+                        setTimeout(() => {
+                            msg.textContent = '';
+                            msg.className = 'add-code-msg';
+                        }, 2000);
+                    }
+                })
+                .catch(e => {
+                    msg.textContent = '添加失败: ' + e.message;
+                    msg.className = 'add-code-msg error';
+                });
+        }
+
+        // 支持回车键提交
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('new-code-input');
+            if (input) {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        addCode();
+                    }
+                });
+            }
+        });
+
+        /* 自动恢复登录 */
+        if (sessionStorage.getItem(KEY_AUTH) === '1') {
+            adminPw = sessionStorage.getItem(KEY_PW) || '';
+            showPanel();
+        }
+    </script>
+
+</body>
+
+</html>
