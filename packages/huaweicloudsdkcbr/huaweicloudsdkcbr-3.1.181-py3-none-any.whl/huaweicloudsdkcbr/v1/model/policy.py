@@ -1,0 +1,297 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class Policy:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'enabled': 'bool',
+        'id': 'str',
+        'name': 'str',
+        'operation_definition': 'PolicyoODCreate',
+        'operation_type': 'str',
+        'trigger': 'PolicyTriggerResp',
+        'associated_vaults': 'list[PolicyAssociateVault]',
+        'policy_type': 'str'
+    }
+
+    attribute_map = {
+        'enabled': 'enabled',
+        'id': 'id',
+        'name': 'name',
+        'operation_definition': 'operation_definition',
+        'operation_type': 'operation_type',
+        'trigger': 'trigger',
+        'associated_vaults': 'associated_vaults',
+        'policy_type': 'policy_type'
+    }
+
+    def __init__(self, enabled=None, id=None, name=None, operation_definition=None, operation_type=None, trigger=None, associated_vaults=None, policy_type=None):
+        r"""Policy
+
+        The model defined in huaweicloud sdk
+
+        :param enabled: 策略是否启用
+        :type enabled: bool
+        :param id: 策略ID
+        :type id: str
+        :param name: 策略名称
+        :type name: str
+        :param operation_definition: 
+        :type operation_definition: :class:`huaweicloudsdkcbr.v1.PolicyoODCreate`
+        :param operation_type: 策略类型,例如 ‘backup’：自动备份
+        :type operation_type: str
+        :param trigger: 
+        :type trigger: :class:`huaweicloudsdkcbr.v1.PolicyTriggerResp`
+        :param associated_vaults: 关联的存储库
+        :type associated_vaults: list[:class:`huaweicloudsdkcbr.v1.PolicyAssociateVault`]
+        :param policy_type: 策略类型，取值范围如下： - custom_policy：普通用户策略 - organization_policy_v1：老版本组织策略 - organization_policy_v2：新版本组织策略 - organization_policy_removed：退出组织的用户已绑定在存储库上的新版本组织策略（不自动解绑策略与存储库绑定关系，但是不能新绑定存储库）
+        :type policy_type: str
+        """
+        
+        
+
+        self._enabled = None
+        self._id = None
+        self._name = None
+        self._operation_definition = None
+        self._operation_type = None
+        self._trigger = None
+        self._associated_vaults = None
+        self._policy_type = None
+        self.discriminator = None
+
+        self.enabled = enabled
+        self.id = id
+        self.name = name
+        self.operation_definition = operation_definition
+        self.operation_type = operation_type
+        self.trigger = trigger
+        if associated_vaults is not None:
+            self.associated_vaults = associated_vaults
+        if policy_type is not None:
+            self.policy_type = policy_type
+
+    @property
+    def enabled(self):
+        r"""Gets the enabled of this Policy.
+
+        策略是否启用
+
+        :return: The enabled of this Policy.
+        :rtype: bool
+        """
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, enabled):
+        r"""Sets the enabled of this Policy.
+
+        策略是否启用
+
+        :param enabled: The enabled of this Policy.
+        :type enabled: bool
+        """
+        self._enabled = enabled
+
+    @property
+    def id(self):
+        r"""Gets the id of this Policy.
+
+        策略ID
+
+        :return: The id of this Policy.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this Policy.
+
+        策略ID
+
+        :param id: The id of this Policy.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def name(self):
+        r"""Gets the name of this Policy.
+
+        策略名称
+
+        :return: The name of this Policy.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this Policy.
+
+        策略名称
+
+        :param name: The name of this Policy.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def operation_definition(self):
+        r"""Gets the operation_definition of this Policy.
+
+        :return: The operation_definition of this Policy.
+        :rtype: :class:`huaweicloudsdkcbr.v1.PolicyoODCreate`
+        """
+        return self._operation_definition
+
+    @operation_definition.setter
+    def operation_definition(self, operation_definition):
+        r"""Sets the operation_definition of this Policy.
+
+        :param operation_definition: The operation_definition of this Policy.
+        :type operation_definition: :class:`huaweicloudsdkcbr.v1.PolicyoODCreate`
+        """
+        self._operation_definition = operation_definition
+
+    @property
+    def operation_type(self):
+        r"""Gets the operation_type of this Policy.
+
+        策略类型,例如 ‘backup’：自动备份
+
+        :return: The operation_type of this Policy.
+        :rtype: str
+        """
+        return self._operation_type
+
+    @operation_type.setter
+    def operation_type(self, operation_type):
+        r"""Sets the operation_type of this Policy.
+
+        策略类型,例如 ‘backup’：自动备份
+
+        :param operation_type: The operation_type of this Policy.
+        :type operation_type: str
+        """
+        self._operation_type = operation_type
+
+    @property
+    def trigger(self):
+        r"""Gets the trigger of this Policy.
+
+        :return: The trigger of this Policy.
+        :rtype: :class:`huaweicloudsdkcbr.v1.PolicyTriggerResp`
+        """
+        return self._trigger
+
+    @trigger.setter
+    def trigger(self, trigger):
+        r"""Sets the trigger of this Policy.
+
+        :param trigger: The trigger of this Policy.
+        :type trigger: :class:`huaweicloudsdkcbr.v1.PolicyTriggerResp`
+        """
+        self._trigger = trigger
+
+    @property
+    def associated_vaults(self):
+        r"""Gets the associated_vaults of this Policy.
+
+        关联的存储库
+
+        :return: The associated_vaults of this Policy.
+        :rtype: list[:class:`huaweicloudsdkcbr.v1.PolicyAssociateVault`]
+        """
+        return self._associated_vaults
+
+    @associated_vaults.setter
+    def associated_vaults(self, associated_vaults):
+        r"""Sets the associated_vaults of this Policy.
+
+        关联的存储库
+
+        :param associated_vaults: The associated_vaults of this Policy.
+        :type associated_vaults: list[:class:`huaweicloudsdkcbr.v1.PolicyAssociateVault`]
+        """
+        self._associated_vaults = associated_vaults
+
+    @property
+    def policy_type(self):
+        r"""Gets the policy_type of this Policy.
+
+        策略类型，取值范围如下： - custom_policy：普通用户策略 - organization_policy_v1：老版本组织策略 - organization_policy_v2：新版本组织策略 - organization_policy_removed：退出组织的用户已绑定在存储库上的新版本组织策略（不自动解绑策略与存储库绑定关系，但是不能新绑定存储库）
+
+        :return: The policy_type of this Policy.
+        :rtype: str
+        """
+        return self._policy_type
+
+    @policy_type.setter
+    def policy_type(self, policy_type):
+        r"""Sets the policy_type of this Policy.
+
+        策略类型，取值范围如下： - custom_policy：普通用户策略 - organization_policy_v1：老版本组织策略 - organization_policy_v2：新版本组织策略 - organization_policy_removed：退出组织的用户已绑定在存储库上的新版本组织策略（不自动解绑策略与存储库绑定关系，但是不能新绑定存储库）
+
+        :param policy_type: The policy_type of this Policy.
+        :type policy_type: str
+        """
+        self._policy_type = policy_type
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, Policy):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

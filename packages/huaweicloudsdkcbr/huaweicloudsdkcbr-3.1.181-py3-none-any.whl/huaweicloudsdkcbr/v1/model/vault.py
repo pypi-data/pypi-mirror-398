@@ -1,0 +1,616 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class Vault:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'billing': 'Billing',
+        'description': 'str',
+        'id': 'str',
+        'name': 'str',
+        'project_id': 'str',
+        'provider_id': 'str',
+        'resources': 'list[ResourceResp]',
+        'tags': 'list[Tag]',
+        'enterprise_project_id': 'str',
+        'auto_bind': 'bool',
+        'bind_rules': 'VaultBindRules',
+        'user_id': 'str',
+        'created_at': 'str',
+        'auto_expand': 'bool',
+        'smn_notify': 'bool',
+        'threshold': 'int',
+        'sys_lock_source_service': 'str',
+        'locked': 'bool',
+        'availability_zone': 'str'
+    }
+
+    attribute_map = {
+        'billing': 'billing',
+        'description': 'description',
+        'id': 'id',
+        'name': 'name',
+        'project_id': 'project_id',
+        'provider_id': 'provider_id',
+        'resources': 'resources',
+        'tags': 'tags',
+        'enterprise_project_id': 'enterprise_project_id',
+        'auto_bind': 'auto_bind',
+        'bind_rules': 'bind_rules',
+        'user_id': 'user_id',
+        'created_at': 'created_at',
+        'auto_expand': 'auto_expand',
+        'smn_notify': 'smn_notify',
+        'threshold': 'threshold',
+        'sys_lock_source_service': 'sys_lock_source_service',
+        'locked': 'locked',
+        'availability_zone': 'availability_zone'
+    }
+
+    def __init__(self, billing=None, description=None, id=None, name=None, project_id=None, provider_id=None, resources=None, tags=None, enterprise_project_id=None, auto_bind=None, bind_rules=None, user_id=None, created_at=None, auto_expand=None, smn_notify=None, threshold=None, sys_lock_source_service=None, locked=None, availability_zone=None):
+        r"""Vault
+
+        The model defined in huaweicloud sdk
+
+        :param billing: 
+        :type billing: :class:`huaweicloudsdkcbr.v1.Billing`
+        :param description: 存储库自定义描述信息。
+        :type description: str
+        :param id: 存储库ID
+        :type id: str
+        :param name: 存储库名称
+        :type name: str
+        :param project_id: 项目ID
+        :type project_id: str
+        :param provider_id: 存储库资源类型id
+        :type provider_id: str
+        :param resources: 存储库资源
+        :type resources: list[:class:`huaweicloudsdkcbr.v1.ResourceResp`]
+        :param tags: 存储库标签
+        :type tags: list[:class:`huaweicloudsdkcbr.v1.Tag`]
+        :param enterprise_project_id: 企业项目id，默认为‘0’。
+        :type enterprise_project_id: str
+        :param auto_bind: 是否自动绑定，默认为false，不支持。
+        :type auto_bind: bool
+        :param bind_rules: 
+        :type bind_rules: :class:`huaweicloudsdkcbr.v1.VaultBindRules`
+        :param user_id: 用户id
+        :type user_id: str
+        :param created_at: 创建时间,例如:\&quot;2020-02-05T10:38:34.209782\&quot;
+        :type created_at: str
+        :param auto_expand: 是否开启存储库自动扩容能力（只支持按需存储库）。
+        :type auto_expand: bool
+        :param smn_notify: 存储库smn消息通知开关
+        :type smn_notify: bool
+        :param threshold: 存储库容量阈值，已用容量占总容量达到此百分比即发送相关通知
+        :type threshold: int
+        :param sys_lock_source_service: 用于标识SMB服务
+        :type sys_lock_source_service: str
+        :param locked: 用于标识该存储库是否已锁定
+        :type locked: bool
+        :param availability_zone: 存储库可用区信息，最大支持32字符。
+        :type availability_zone: str
+        """
+        
+        
+
+        self._billing = None
+        self._description = None
+        self._id = None
+        self._name = None
+        self._project_id = None
+        self._provider_id = None
+        self._resources = None
+        self._tags = None
+        self._enterprise_project_id = None
+        self._auto_bind = None
+        self._bind_rules = None
+        self._user_id = None
+        self._created_at = None
+        self._auto_expand = None
+        self._smn_notify = None
+        self._threshold = None
+        self._sys_lock_source_service = None
+        self._locked = None
+        self._availability_zone = None
+        self.discriminator = None
+
+        self.billing = billing
+        if description is not None:
+            self.description = description
+        self.id = id
+        self.name = name
+        self.project_id = project_id
+        self.provider_id = provider_id
+        self.resources = resources
+        if tags is not None:
+            self.tags = tags
+        if enterprise_project_id is not None:
+            self.enterprise_project_id = enterprise_project_id
+        if auto_bind is not None:
+            self.auto_bind = auto_bind
+        if bind_rules is not None:
+            self.bind_rules = bind_rules
+        if user_id is not None:
+            self.user_id = user_id
+        if created_at is not None:
+            self.created_at = created_at
+        if auto_expand is not None:
+            self.auto_expand = auto_expand
+        if smn_notify is not None:
+            self.smn_notify = smn_notify
+        if threshold is not None:
+            self.threshold = threshold
+        if sys_lock_source_service is not None:
+            self.sys_lock_source_service = sys_lock_source_service
+        if locked is not None:
+            self.locked = locked
+        if availability_zone is not None:
+            self.availability_zone = availability_zone
+
+    @property
+    def billing(self):
+        r"""Gets the billing of this Vault.
+
+        :return: The billing of this Vault.
+        :rtype: :class:`huaweicloudsdkcbr.v1.Billing`
+        """
+        return self._billing
+
+    @billing.setter
+    def billing(self, billing):
+        r"""Sets the billing of this Vault.
+
+        :param billing: The billing of this Vault.
+        :type billing: :class:`huaweicloudsdkcbr.v1.Billing`
+        """
+        self._billing = billing
+
+    @property
+    def description(self):
+        r"""Gets the description of this Vault.
+
+        存储库自定义描述信息。
+
+        :return: The description of this Vault.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this Vault.
+
+        存储库自定义描述信息。
+
+        :param description: The description of this Vault.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def id(self):
+        r"""Gets the id of this Vault.
+
+        存储库ID
+
+        :return: The id of this Vault.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this Vault.
+
+        存储库ID
+
+        :param id: The id of this Vault.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def name(self):
+        r"""Gets the name of this Vault.
+
+        存储库名称
+
+        :return: The name of this Vault.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this Vault.
+
+        存储库名称
+
+        :param name: The name of this Vault.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def project_id(self):
+        r"""Gets the project_id of this Vault.
+
+        项目ID
+
+        :return: The project_id of this Vault.
+        :rtype: str
+        """
+        return self._project_id
+
+    @project_id.setter
+    def project_id(self, project_id):
+        r"""Sets the project_id of this Vault.
+
+        项目ID
+
+        :param project_id: The project_id of this Vault.
+        :type project_id: str
+        """
+        self._project_id = project_id
+
+    @property
+    def provider_id(self):
+        r"""Gets the provider_id of this Vault.
+
+        存储库资源类型id
+
+        :return: The provider_id of this Vault.
+        :rtype: str
+        """
+        return self._provider_id
+
+    @provider_id.setter
+    def provider_id(self, provider_id):
+        r"""Sets the provider_id of this Vault.
+
+        存储库资源类型id
+
+        :param provider_id: The provider_id of this Vault.
+        :type provider_id: str
+        """
+        self._provider_id = provider_id
+
+    @property
+    def resources(self):
+        r"""Gets the resources of this Vault.
+
+        存储库资源
+
+        :return: The resources of this Vault.
+        :rtype: list[:class:`huaweicloudsdkcbr.v1.ResourceResp`]
+        """
+        return self._resources
+
+    @resources.setter
+    def resources(self, resources):
+        r"""Sets the resources of this Vault.
+
+        存储库资源
+
+        :param resources: The resources of this Vault.
+        :type resources: list[:class:`huaweicloudsdkcbr.v1.ResourceResp`]
+        """
+        self._resources = resources
+
+    @property
+    def tags(self):
+        r"""Gets the tags of this Vault.
+
+        存储库标签
+
+        :return: The tags of this Vault.
+        :rtype: list[:class:`huaweicloudsdkcbr.v1.Tag`]
+        """
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        r"""Sets the tags of this Vault.
+
+        存储库标签
+
+        :param tags: The tags of this Vault.
+        :type tags: list[:class:`huaweicloudsdkcbr.v1.Tag`]
+        """
+        self._tags = tags
+
+    @property
+    def enterprise_project_id(self):
+        r"""Gets the enterprise_project_id of this Vault.
+
+        企业项目id，默认为‘0’。
+
+        :return: The enterprise_project_id of this Vault.
+        :rtype: str
+        """
+        return self._enterprise_project_id
+
+    @enterprise_project_id.setter
+    def enterprise_project_id(self, enterprise_project_id):
+        r"""Sets the enterprise_project_id of this Vault.
+
+        企业项目id，默认为‘0’。
+
+        :param enterprise_project_id: The enterprise_project_id of this Vault.
+        :type enterprise_project_id: str
+        """
+        self._enterprise_project_id = enterprise_project_id
+
+    @property
+    def auto_bind(self):
+        r"""Gets the auto_bind of this Vault.
+
+        是否自动绑定，默认为false，不支持。
+
+        :return: The auto_bind of this Vault.
+        :rtype: bool
+        """
+        return self._auto_bind
+
+    @auto_bind.setter
+    def auto_bind(self, auto_bind):
+        r"""Sets the auto_bind of this Vault.
+
+        是否自动绑定，默认为false，不支持。
+
+        :param auto_bind: The auto_bind of this Vault.
+        :type auto_bind: bool
+        """
+        self._auto_bind = auto_bind
+
+    @property
+    def bind_rules(self):
+        r"""Gets the bind_rules of this Vault.
+
+        :return: The bind_rules of this Vault.
+        :rtype: :class:`huaweicloudsdkcbr.v1.VaultBindRules`
+        """
+        return self._bind_rules
+
+    @bind_rules.setter
+    def bind_rules(self, bind_rules):
+        r"""Sets the bind_rules of this Vault.
+
+        :param bind_rules: The bind_rules of this Vault.
+        :type bind_rules: :class:`huaweicloudsdkcbr.v1.VaultBindRules`
+        """
+        self._bind_rules = bind_rules
+
+    @property
+    def user_id(self):
+        r"""Gets the user_id of this Vault.
+
+        用户id
+
+        :return: The user_id of this Vault.
+        :rtype: str
+        """
+        return self._user_id
+
+    @user_id.setter
+    def user_id(self, user_id):
+        r"""Sets the user_id of this Vault.
+
+        用户id
+
+        :param user_id: The user_id of this Vault.
+        :type user_id: str
+        """
+        self._user_id = user_id
+
+    @property
+    def created_at(self):
+        r"""Gets the created_at of this Vault.
+
+        创建时间,例如:\"2020-02-05T10:38:34.209782\"
+
+        :return: The created_at of this Vault.
+        :rtype: str
+        """
+        return self._created_at
+
+    @created_at.setter
+    def created_at(self, created_at):
+        r"""Sets the created_at of this Vault.
+
+        创建时间,例如:\"2020-02-05T10:38:34.209782\"
+
+        :param created_at: The created_at of this Vault.
+        :type created_at: str
+        """
+        self._created_at = created_at
+
+    @property
+    def auto_expand(self):
+        r"""Gets the auto_expand of this Vault.
+
+        是否开启存储库自动扩容能力（只支持按需存储库）。
+
+        :return: The auto_expand of this Vault.
+        :rtype: bool
+        """
+        return self._auto_expand
+
+    @auto_expand.setter
+    def auto_expand(self, auto_expand):
+        r"""Sets the auto_expand of this Vault.
+
+        是否开启存储库自动扩容能力（只支持按需存储库）。
+
+        :param auto_expand: The auto_expand of this Vault.
+        :type auto_expand: bool
+        """
+        self._auto_expand = auto_expand
+
+    @property
+    def smn_notify(self):
+        r"""Gets the smn_notify of this Vault.
+
+        存储库smn消息通知开关
+
+        :return: The smn_notify of this Vault.
+        :rtype: bool
+        """
+        return self._smn_notify
+
+    @smn_notify.setter
+    def smn_notify(self, smn_notify):
+        r"""Sets the smn_notify of this Vault.
+
+        存储库smn消息通知开关
+
+        :param smn_notify: The smn_notify of this Vault.
+        :type smn_notify: bool
+        """
+        self._smn_notify = smn_notify
+
+    @property
+    def threshold(self):
+        r"""Gets the threshold of this Vault.
+
+        存储库容量阈值，已用容量占总容量达到此百分比即发送相关通知
+
+        :return: The threshold of this Vault.
+        :rtype: int
+        """
+        return self._threshold
+
+    @threshold.setter
+    def threshold(self, threshold):
+        r"""Sets the threshold of this Vault.
+
+        存储库容量阈值，已用容量占总容量达到此百分比即发送相关通知
+
+        :param threshold: The threshold of this Vault.
+        :type threshold: int
+        """
+        self._threshold = threshold
+
+    @property
+    def sys_lock_source_service(self):
+        r"""Gets the sys_lock_source_service of this Vault.
+
+        用于标识SMB服务
+
+        :return: The sys_lock_source_service of this Vault.
+        :rtype: str
+        """
+        return self._sys_lock_source_service
+
+    @sys_lock_source_service.setter
+    def sys_lock_source_service(self, sys_lock_source_service):
+        r"""Sets the sys_lock_source_service of this Vault.
+
+        用于标识SMB服务
+
+        :param sys_lock_source_service: The sys_lock_source_service of this Vault.
+        :type sys_lock_source_service: str
+        """
+        self._sys_lock_source_service = sys_lock_source_service
+
+    @property
+    def locked(self):
+        r"""Gets the locked of this Vault.
+
+        用于标识该存储库是否已锁定
+
+        :return: The locked of this Vault.
+        :rtype: bool
+        """
+        return self._locked
+
+    @locked.setter
+    def locked(self, locked):
+        r"""Sets the locked of this Vault.
+
+        用于标识该存储库是否已锁定
+
+        :param locked: The locked of this Vault.
+        :type locked: bool
+        """
+        self._locked = locked
+
+    @property
+    def availability_zone(self):
+        r"""Gets the availability_zone of this Vault.
+
+        存储库可用区信息，最大支持32字符。
+
+        :return: The availability_zone of this Vault.
+        :rtype: str
+        """
+        return self._availability_zone
+
+    @availability_zone.setter
+    def availability_zone(self, availability_zone):
+        r"""Sets the availability_zone of this Vault.
+
+        存储库可用区信息，最大支持32字符。
+
+        :param availability_zone: The availability_zone of this Vault.
+        :type availability_zone: str
+        """
+        self._availability_zone = availability_zone
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, Vault):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
