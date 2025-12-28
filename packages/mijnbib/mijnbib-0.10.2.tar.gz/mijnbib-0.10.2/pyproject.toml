@@ -1,0 +1,91 @@
+[build-system]
+requires = ["uv_build>=0.7.19,<0.8.0"]
+build-backend = "uv_build"
+
+[project]
+name = "mijnbib"
+version = "0.10.2"
+description = "Python API voor de website mijn.bibliotheek.be"
+readme = "README.md"
+authors = [{ name = "Ward Van Heddeghem", email = "wardvh@fastmail.fm" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["mijn bibliotheek", "bibliotheek"]
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "requests>=2.32.3",
+]
+requires-python = ">=3.8"
+
+# [project.optional-dependencies]
+# dev = ["ruff >=0.4", "pytest"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "requests-mock>=1.12.1",
+    "ruff>=0.14.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/wvanhed/mijnbib"
+Changelog = "https://github.com/wvanhed/mijnbib/blob/main/changelog.md"
+
+[project.scripts]
+mijnbib = "mijnbib.__main__:main"
+
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+# addopts = "--doctest-modules --doctest-continue-on-failure"
+markers = [
+    "real: test that performs real http requests (to mijn.bibliotheek.be)",
+]
+
+[tool.ruff]
+line-length = 95 # same as Black
+src = ["src"]    # consider folder as first-party import
+
+[tool.ruff.lint]
+extend-select = [
+    "B",      # flake8-bugbear
+    "D212",   # docstring first line should end with period
+    "D415",   # multiline docstring should start at first line
+    "FA",     # forgotten future annotations
+    "I",      # isort
+    "INP001", # missing __init__.py files
+    "N",      # pep8 naming
+    "PT",     # pytest
+    "PTH",    # pathlib (instead of os.path)
+    "RUF",    # ruff specific rules
+    "S",      # bandit, security checks
+    "SIM",    # flake8-simplify, for simplified code
+    "T2",     # flake8-print (avoiding prints)
+    "W",      # warning
+]
+ignore = [
+    "N818",   # error suffix in exception names
+    "RUF100", # unused noqa directive
+    "SIM105", # suppressible-exception (contextlib usage)
+    "SIM910", # dict-get-with-none-default
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/*" = [
+    "S101", # Use of `assert` detected
+    "T",    # flake8-print (avoiding prints)
+]
+"examples/*" = ["T"]
+
+[tool.uv-ship]
+release-branch = "main"
+tag-prefix = "v"
+allow-dirty = false
+changelog-path = "changelog.md"
+changelog-template = "- {message}"
+commit-message = "new version {new_ver}"
