@@ -1,0 +1,158 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class CreateEWFirewallResp:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'id': 'str',
+        'er': 'Er',
+        'inspertion_vpc': 'CreateEWFirewallInspectVpcResp'
+    }
+
+    attribute_map = {
+        'id': 'id',
+        'er': 'er',
+        'inspertion_vpc': 'inspertion_vpc'
+    }
+
+    def __init__(self, id=None, er=None, inspertion_vpc=None):
+        r"""CreateEWFirewallResp
+
+        The model defined in huaweicloud sdk
+
+        :param id: 东西向防护id，对应object_id字段
+        :type id: str
+        :param er: 
+        :type er: :class:`huaweicloudsdkcfw.v1.Er`
+        :param inspertion_vpc: 
+        :type inspertion_vpc: :class:`huaweicloudsdkcfw.v1.CreateEWFirewallInspectVpcResp`
+        """
+        
+        
+
+        self._id = None
+        self._er = None
+        self._inspertion_vpc = None
+        self.discriminator = None
+
+        if id is not None:
+            self.id = id
+        if er is not None:
+            self.er = er
+        if inspertion_vpc is not None:
+            self.inspertion_vpc = inspertion_vpc
+
+    @property
+    def id(self):
+        r"""Gets the id of this CreateEWFirewallResp.
+
+        东西向防护id，对应object_id字段
+
+        :return: The id of this CreateEWFirewallResp.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this CreateEWFirewallResp.
+
+        东西向防护id，对应object_id字段
+
+        :param id: The id of this CreateEWFirewallResp.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def er(self):
+        r"""Gets the er of this CreateEWFirewallResp.
+
+        :return: The er of this CreateEWFirewallResp.
+        :rtype: :class:`huaweicloudsdkcfw.v1.Er`
+        """
+        return self._er
+
+    @er.setter
+    def er(self, er):
+        r"""Sets the er of this CreateEWFirewallResp.
+
+        :param er: The er of this CreateEWFirewallResp.
+        :type er: :class:`huaweicloudsdkcfw.v1.Er`
+        """
+        self._er = er
+
+    @property
+    def inspertion_vpc(self):
+        r"""Gets the inspertion_vpc of this CreateEWFirewallResp.
+
+        :return: The inspertion_vpc of this CreateEWFirewallResp.
+        :rtype: :class:`huaweicloudsdkcfw.v1.CreateEWFirewallInspectVpcResp`
+        """
+        return self._inspertion_vpc
+
+    @inspertion_vpc.setter
+    def inspertion_vpc(self, inspertion_vpc):
+        r"""Sets the inspertion_vpc of this CreateEWFirewallResp.
+
+        :param inspertion_vpc: The inspertion_vpc of this CreateEWFirewallResp.
+        :type inspertion_vpc: :class:`huaweicloudsdkcfw.v1.CreateEWFirewallInspectVpcResp`
+        """
+        self._inspertion_vpc = inspertion_vpc
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, CreateEWFirewallResp):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

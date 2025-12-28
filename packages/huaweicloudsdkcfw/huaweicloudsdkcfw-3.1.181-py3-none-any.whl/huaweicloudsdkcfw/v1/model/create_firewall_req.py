@@ -1,0 +1,213 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class CreateFirewallReq:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'name': 'str',
+        'enterprise_project_id': 'str',
+        'tags': 'list[CreateFirewallReqTags]',
+        'flavor': 'CreateFirewallReqFlavor',
+        'charge_info': 'CreateFirewallReqChargeInfo'
+    }
+
+    attribute_map = {
+        'name': 'name',
+        'enterprise_project_id': 'enterprise_project_id',
+        'tags': 'tags',
+        'flavor': 'flavor',
+        'charge_info': 'charge_info'
+    }
+
+    def __init__(self, name=None, enterprise_project_id=None, tags=None, flavor=None, charge_info=None):
+        r"""CreateFirewallReq
+
+        The model defined in huaweicloud sdk
+
+        :param name: 防火墙名称
+        :type name: str
+        :param enterprise_project_id: 企业项目ID，用户根据组织规划企业项目，对应的ID为企业项目ID，可通过[如何获取企业项目ID](cfw_02_0027.xml)获取，用户未开启企业项目时为0
+        :type enterprise_project_id: str
+        :param tags: 服务资源标签列表，防火墙资源添加标签后，可根据键、值组合查询资源，同时可根据键、值组合进行话单合并统计。
+        :type tags: list[:class:`huaweicloudsdkcfw.v1.CreateFirewallReqTags`]
+        :param flavor: 
+        :type flavor: :class:`huaweicloudsdkcfw.v1.CreateFirewallReqFlavor`
+        :param charge_info: 
+        :type charge_info: :class:`huaweicloudsdkcfw.v1.CreateFirewallReqChargeInfo`
+        """
+        
+        
+
+        self._name = None
+        self._enterprise_project_id = None
+        self._tags = None
+        self._flavor = None
+        self._charge_info = None
+        self.discriminator = None
+
+        self.name = name
+        if enterprise_project_id is not None:
+            self.enterprise_project_id = enterprise_project_id
+        if tags is not None:
+            self.tags = tags
+        self.flavor = flavor
+        self.charge_info = charge_info
+
+    @property
+    def name(self):
+        r"""Gets the name of this CreateFirewallReq.
+
+        防火墙名称
+
+        :return: The name of this CreateFirewallReq.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this CreateFirewallReq.
+
+        防火墙名称
+
+        :param name: The name of this CreateFirewallReq.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def enterprise_project_id(self):
+        r"""Gets the enterprise_project_id of this CreateFirewallReq.
+
+        企业项目ID，用户根据组织规划企业项目，对应的ID为企业项目ID，可通过[如何获取企业项目ID](cfw_02_0027.xml)获取，用户未开启企业项目时为0
+
+        :return: The enterprise_project_id of this CreateFirewallReq.
+        :rtype: str
+        """
+        return self._enterprise_project_id
+
+    @enterprise_project_id.setter
+    def enterprise_project_id(self, enterprise_project_id):
+        r"""Sets the enterprise_project_id of this CreateFirewallReq.
+
+        企业项目ID，用户根据组织规划企业项目，对应的ID为企业项目ID，可通过[如何获取企业项目ID](cfw_02_0027.xml)获取，用户未开启企业项目时为0
+
+        :param enterprise_project_id: The enterprise_project_id of this CreateFirewallReq.
+        :type enterprise_project_id: str
+        """
+        self._enterprise_project_id = enterprise_project_id
+
+    @property
+    def tags(self):
+        r"""Gets the tags of this CreateFirewallReq.
+
+        服务资源标签列表，防火墙资源添加标签后，可根据键、值组合查询资源，同时可根据键、值组合进行话单合并统计。
+
+        :return: The tags of this CreateFirewallReq.
+        :rtype: list[:class:`huaweicloudsdkcfw.v1.CreateFirewallReqTags`]
+        """
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        r"""Sets the tags of this CreateFirewallReq.
+
+        服务资源标签列表，防火墙资源添加标签后，可根据键、值组合查询资源，同时可根据键、值组合进行话单合并统计。
+
+        :param tags: The tags of this CreateFirewallReq.
+        :type tags: list[:class:`huaweicloudsdkcfw.v1.CreateFirewallReqTags`]
+        """
+        self._tags = tags
+
+    @property
+    def flavor(self):
+        r"""Gets the flavor of this CreateFirewallReq.
+
+        :return: The flavor of this CreateFirewallReq.
+        :rtype: :class:`huaweicloudsdkcfw.v1.CreateFirewallReqFlavor`
+        """
+        return self._flavor
+
+    @flavor.setter
+    def flavor(self, flavor):
+        r"""Sets the flavor of this CreateFirewallReq.
+
+        :param flavor: The flavor of this CreateFirewallReq.
+        :type flavor: :class:`huaweicloudsdkcfw.v1.CreateFirewallReqFlavor`
+        """
+        self._flavor = flavor
+
+    @property
+    def charge_info(self):
+        r"""Gets the charge_info of this CreateFirewallReq.
+
+        :return: The charge_info of this CreateFirewallReq.
+        :rtype: :class:`huaweicloudsdkcfw.v1.CreateFirewallReqChargeInfo`
+        """
+        return self._charge_info
+
+    @charge_info.setter
+    def charge_info(self, charge_info):
+        r"""Sets the charge_info of this CreateFirewallReq.
+
+        :param charge_info: The charge_info of this CreateFirewallReq.
+        :type charge_info: :class:`huaweicloudsdkcfw.v1.CreateFirewallReqChargeInfo`
+        """
+        self._charge_info = charge_info
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, CreateFirewallReq):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
