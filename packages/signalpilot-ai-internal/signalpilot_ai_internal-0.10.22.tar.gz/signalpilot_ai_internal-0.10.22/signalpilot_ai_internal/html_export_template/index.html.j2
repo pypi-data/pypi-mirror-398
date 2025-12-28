@@ -1,0 +1,140 @@
+{% extends 'lab/index.html.j2' %}
+
+{% block html_head %}
+{{ super() }}
+<script src="https://code.jquery.com/jquery-3.4.1.min.js"
+        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+        crossorigin="anonymous"></script>
+
+<script>
+$(document).ready(function() {
+    // Add Show All / Hide All buttons above first code cell (if not already added)
+    if ($('.html-toggle-all-buttons').length === 0) {
+        // Only add buttons if there is at least one code_shower present
+        if ($('.code_shower').length === 0) {
+            return;
+        }
+        var $btnContainer = $('<div class="html-toggle-all-buttons"></div>');
+        var $showAllBtn = $('<button type="button" class="html-toggle-btn">Show All Code</button>');
+        var $hideAllBtn = $('<button type="button" class="html-toggle-btn">Hide All Code</button>');
+        $btnContainer.append($showAllBtn).append($hideAllBtn);
+
+        // Insert at the top of the <body>
+        $('body').prepend($btnContainer);
+
+        // "Show All" callback
+        $showAllBtn.on('click', function() {
+            $('.code_shower').each(function() {
+                var header = $(this);
+                var codecell = header.next();
+                // Only toggle if it's hidden
+                if (codecell.is(':hidden')) {
+                    // Update styles and text as necessary
+                    var wrapper = codecell.parent();
+                    wrapper.css('display', 'flex');
+                    wrapper.css('flex-direction', 'column');
+                    header.css('font-family', 'var(--jp-content-font-family)');
+                    header.text("Hide Code Cell");
+                    header.css("border-radius", "2px 2px 0px 0px");
+                    codecell.slideDown(0);
+                }
+            });
+        });
+
+        // "Hide All" callback
+        $hideAllBtn.on('click', function() {
+            $('.code_shower').each(function() {
+                var header = $(this);
+                var codecell = header.next();
+                // Only toggle if it's visible
+                if (codecell.is(':visible')) {
+                    var wrapper = codecell.parent();
+                    wrapper.css('display', 'flex');
+                    wrapper.css('flex-direction', 'column');
+                    header.css('font-family', 'var(--jp-content-font-family)');
+                    header.text("Show Code Cell");
+                    header.css("border-radius", "2px 2px 2px 2px");
+                    codecell.slideUp(0);
+                }
+            });
+        });
+    }
+
+    $('.code_shower').on('click', function() {
+        var header = $(this);
+        var codecell = $(this).next();
+
+        // Ensure the codecell's parent is a flex column wrapper
+        var wrapper = codecell.parent();
+        wrapper.css('display', 'flex');
+        wrapper.css('flex-direction', 'column');
+
+        // Ensure header uses the content font family
+        header.css('font-family', 'var(--jp-content-font-family)');
+
+        codecell.slideToggle(0, function() {
+            if (codecell.is(':hidden')) {
+                header.text("Show Code Cell");
+                header.css("border-radius", "2px 2px 2px 2px");
+            } else {
+                header.text("Hide Code Cell");
+                header.css("border-radius", "2px 2px 0px 0px");
+            }
+        });
+    });
+    $('.hidden_default').next().hide();
+});
+
+</script>
+
+<style>
+div.input {
+    flex-direction: column !important;
+}
+
+div.input_area {
+    border-radius: 0px 0px 2px 2px;
+}
+
+div.code_shower {
+    background: lightgray;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 2px 2px 0px 0px;
+    font-family: var(--jp-content-font-family);
+}
+
+/* Container and button styles for Show/Hide All controls */
+.html-toggle-all-buttons {
+    display: flex;
+    justify-content: end;
+    gap: 8px;
+}
+
+.html-toggle-all-buttons .html-toggle-btn {
+    background: lightgray;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    border: none;
+    font-family: var(--jp-content-font-family);
+}
+
+</style>
+{% endblock html_head %}
+
+{% block input %}
+{% if 'code_shown' in cell['metadata'].get('tags', []) %}
+<div class="code_shower">Hide Code</div>
+{% else %}
+<div class="code_shower hidden_default">Show Code</div>
+{% endif %}
+
+{{ super() }}
+{% endblock input %}
+
+{% block output_prompt %}
+{% endblock output_prompt %}
+
+{% block in_prompt %}
+{% endblock in_prompt %}

@@ -1,0 +1,499 @@
+[
+  {
+    "name": "notebook-edit_plan",
+    "description": "Updates the notebook plan. You can either provide the full plan markdown directly, or set should_think=true to have the system generate a plan based on your immediate action. DO NOT PROVIDE AN UPDATED PLAN STRING IF SHOULD_THINK IS TRUE\n\nArgs:\n    updated_plan_string: The full updated plan in markdown format with tasks marked as [x] for complete or [ ] for incomplete.\n    current_step_string: Description of the current step being worked on.\n    next_step_string: Description of the next step to work on.\n    should_think: Set to true ONLY when creating a brand new plan to deeply analyze and generate it. Default is false - use direct plan update.\n    immediate_action: Required only when should_think=true. What you are about to do next - be specific about the immediate task.\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\n\nReturns:\n    str: The updated plan in markdown format.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "updated_plan_string": {
+          "title": "Updated Plan String",
+          "type": "string",
+          "description": "The complete updated plan in markdown format"
+        },
+        "current_step_string": {
+          "title": "Current Step String",
+          "type": "string",
+          "description": "Description of the current step being worked on",
+          "default": ""
+        },
+        "next_step_string": {
+          "title": "Next Step String",
+          "type": "string",
+          "description": "Description of the next step to work on",
+          "default": ""
+        },
+        "should_think": {
+          "title": "Should Think",
+          "type": "boolean",
+          "description": "Set to true to generate a new plan using deep analysis. Do not send updated_plan_string if true",
+          "default": false
+        },
+        "immediate_action": {
+          "title": "Immediate Action",
+          "type": "string",
+          "description": "What you are about to do next. Required when should_think is true.",
+          "default": ""
+        },
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        }
+      },
+      "required": [
+        "updated_plan_string"
+      ],
+      "title": "edit_planArguments"
+    }
+  },
+  {
+    "name": "notebook-read_cells",
+    "description": "Reads the specified cells (max 5) and returns content as JSON.\n\nArgs:\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\n    start_index: int 0-based start index for cell slice. Default 0.\n    end_index: int 0-based end index (inclusive) for cell slice. Default -1 (last cell).\n\nReturns:\n    str: JSON string representing the notebook slice (cells, metadata).\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        },
+        "start_index": {
+          "default": 0,
+          "title": "Start Index",
+          "type": "integer"
+        },
+        "end_index": {
+          "default": -1,
+          "title": "End Index",
+          "type": "integer"
+        }
+      },
+      "title": "read_cellsArguments"
+    }
+  },
+  {
+    "name": "notebook-add_cell",
+    "description": "Adds a new cell (code or markdown) to the specified notebook at an optional position, returning its unique ID.\n\nArgs:\n    position: 0-based index for insertion (Appends if null), cell_type: Type of cell (\"code\" or \"markdown\").\n    source: Initial source content for the cell.\n    summary: A summary of the cell's content.\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\nReturns:\n    str: The unique ID of the newly created cell.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position"
+        },
+        "cell_type": {
+          "title": "Cell Type",
+          "type": "string",
+          "enum": [
+            "code",
+            "markdown"
+          ],
+          "description": "Type of cell to add. Must be either 'code' or 'markdown'. 'raw' is not supported."
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        }
+      },
+      "required": [
+        "cell_type",
+        "source",
+        "summary"
+      ],
+      "title": "add_cellArguments"
+    }
+  },
+  {
+    "name": "notebook-remove_cells",
+    "description": "Removes a list of cells from the specified notebook using their IDs. Returns True if at least one cell was removed.\n\nArgs:\n    cell_ids: A list of unique identifiers of the cells to remove.\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\n\nReturns:\n    bool: True if at least one cell was found and removed, False otherwise.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cell_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cell Ids",
+          "type": "array"
+        },
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        }
+      },
+      "required": [
+        "cell_ids"
+      ],
+      "title": "remove_cellsArguments"
+    }
+  },
+  {
+    "name": "notebook-edit_cell",
+    "description": "Modifies the source content of an existing cell. Returns True on success.\n\nArgs:\n    cell_id: Unique identifier of the cell to edit.\n    new_source: New source content for the cell.\n    summary: A summary of the cell's new content.\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\n\nReturns:\n    bool: True if the cell was found and updated, False otherwise.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cell_id": {
+          "title": "Cell Id",
+          "type": "string"
+        },
+        "new_source": {
+          "title": "New Source",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        }
+      },
+      "required": [
+        "cell_id",
+        "new_source",
+        "summary"
+      ],
+      "title": "edit_cellArguments"
+    }
+  },
+  {
+    "name": "notebook-run_cell",
+    "description": "Runs a code cell in the specified notebook and returns its formatted output.\n\nArgs:\n    cell_id: Unique identifier of the code cell to execute.\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\n    kernel_id: Specific kernel ID to use (system-managed and should not be set by LLM).\n\nReturns:\n    List[str]: Formatted output strings from the cell's execution.\nRaises:\n    ValueError: If cell_id is invalid or not a code cell.\n    RuntimeError: If kernel or server communication fails.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cell_id": {
+          "title": "Cell Id",
+          "type": "string"
+        },
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        },
+        "kernel_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kernel Id"
+        }
+      },
+      "required": [
+        "cell_id"
+      ],
+      "title": "run_cellArguments"
+    }
+  },
+  {
+    "name": "notebook-wait_user_reply",
+    "description": "Displays a UI component to inform the user that the agent has completed its turn and is now waiting for a user reply.\n\nThis tool should be called as the final action in an assistant's turn after providing a complete response or asking a question. It signals that the agent is done processing and is awaiting the user's next instruction or answer.\n\nThe `recommended_next_prompts` field can be used to suggest up to three possible follow-up responses the user might choose from. These should be **valid, reasonable, and contextually relevant** to the conversation at the time the tool is called. They are meant to guide the user toward likely next actions or replies without restricting them.\n\nWhen generating these suggestions:\n- Include at most **three** prompts.\n- Ensure **each prompt is distinctly different** — do not provide multiple variations of the same phrase.\n- Suggestions should be short, clear, and actionable.\n- At least one suggestion should be a generic progression option such as \"Continue\".\n- Other prompts should be tailored to the specific conversation or content just presented.\n\nExamples of valid `recommended_next_prompts` for different contexts:\n- After explaining a concept: [\"Continue\", \"Can you give an example?\", \"Explain it in simpler terms\"]\n- After showing data: [\"Continue\", \"Show me a chart of this data\", \"Compare with last month\"]\n\nArgs:\n    notebook_path: Path to the notebook file. System-managed, should not be set by LLM.\n    recommended_next_prompts: An optional list of up to three distinct, relevant suggestions for how the user might respond next.\n\nReturns:\n    bool: True if the waiting reply box was shown successfully, False otherwise.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "notebook_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook Path"
+        },
+        "recommended_next_prompts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Queries",
+          "default": null,
+          "type": "array"
+        }
+      },
+      "title": "wait_user_replyArguments"
+    }
+  },
+  {
+    "name": "terminal-execute_command",
+    "description": "Execute a shell command in the terminal and return its output. Command runs in the current working directory where Jupyter was launched. Commands will timeout after 300 seconds if not completed. Output is truncated to first 50 lines and last 50 lines.\n\nArgs:\n    command: Shell command to execute (required)\n    summary: A brief one sentence summary of what this command does (required, e.g., \"Installing seaborn package\", \"Listing directory contents\", \"Checking git status\")\n\nReturns:\n    str: JSON object with command output (stdout, stderr) and exit code.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "title": "Command",
+          "type": "string",
+          "description": "Shell command to execute"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string",
+          "description": "A brief one sentence summary of what this command does (e.g., 'Installing seaborn package', 'Listing directory contents')"
+        }
+      },
+      "required": [
+        "command",
+        "summary"
+      ],
+      "title": "execute_commandArguments"
+    }
+  },
+  {
+    "name": "filesystem-read_dataset",
+    "description": "Read lines from a dataset in data dir (max 10 lines)\n\nArgs:\n    filepath (str): Path to the file to read\n    start (int): Starting line default 0\n    end (int): Ending line default 10\n\nReturns:\n    str: JSON object with file contents or error message\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "filepath": {
+          "title": "Filepath",
+          "type": "string"
+        },
+        "start": {
+          "default": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "default": 10,
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filepath"
+      ],
+      "title": "read_datasetArguments"
+    }
+  },
+  {
+    "name": "web-search_dataset",
+    "description": "\nSearch for tickers matching the provided query strings.\nThe search is performed using a fuzzy matching algorithm, so precise queries will generally yield better results.\n\nArgs:\n    queries: (List[str]) List of search strings to match against ticker symbols or names.\n    limit: Maximum number of results to return (default: 5, max: 10)\n\nReturns:\n    A list of matching ticker dictionaries, aggregated from all queries.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "queries": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Queries",
+          "type": "array"
+        },
+        "limit": {
+          "default": 10,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "queries",
+        "database_names"
+      ],
+      "title": "search_datasetArguments"
+    }
+  },
+  {
+    "name": "database-search_tables",
+    "description": "Search database tables using semantic queries. This tool searches through the active database configuration's schema to find the most relevant tables matching each query.\n\nArgs:\n    queries: List of search queries to find relevant tables (required)\n    database_names: Optional list of database names to limit the search scope (optional)\n\nReturns:\n    JSON string with the top 10 most relevant tables per query, including table names, schema names, column information, primary keys, and foreign keys.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "queries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Queries",
+          "description": "List of search queries to find relevant tables"
+        },
+        "database_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Database Names",
+          "description": "List of database names to limit the search scope"
+        }
+      },
+      "required": [
+        "queries",
+        "database_names"
+      ],
+      "title": "search_tablesArguments"
+    }
+  },
+  {
+    "name": "database-schema_search",
+    "description": "Run an indexed schema search using the backend SchemaSearch service for the selected PostgreSQL, MySQL, or Snowflake connection.\n\nArgs:\n    queries: List of search queries to evaluate (required)\n    database_names: List containing exactly one database configuration name to target (required)\n    limit: Maximum number of results to return per query (default: 5, max: 10)\n\nReturns:\n    JSON string containing the search results grouped by query as returned by SchemaSearch.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "queries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Queries",
+          "description": "List of search queries to locate relevant tables"
+        },
+        "database_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Database Names",
+          "description": "Database configuration names to limit the search scope (exactly one)",
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "limit": {
+          "type": "integer",
+          "title": "Result Limit"
+        }
+      },
+      "required": [
+        "queries"
+      ],
+      "title": "schema_searchArguments"
+    }
+  },
+  {
+    "name": "database-read_databases",
+    "description": "Read data from specific database tables found via search. This tool executes SELECT queries on the specified table in the active database configuration.\n\nArgs:\n    table_name: Name of the table to read from (required)\n    schema_name: Schema name (optional, defaults to 'public')\n    limit: Maximum number of rows to return (default: 10)\n    columns: Specific columns to select (optional, defaults to all columns)\n    where_clause: Optional WHERE clause for filtering data\n\nReturns:\n    JSON string with query results including the executed query and data rows.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "table_name": {
+          "type": "string",
+          "title": "Table Name",
+          "description": "Name of the table to read from"
+        },
+        "schema_name": {
+          "type": "string",
+          "title": "Schema Name",
+          "default": "public",
+          "description": "Schema name (optional, defaults to 'public')"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 10,
+          "title": "Limit",
+          "description": "Maximum number of rows to return"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Columns",
+          "description": "Specific columns to select (optional, defaults to all columns)"
+        },
+        "where_clause": {
+          "type": "string",
+          "title": "Where Clause",
+          "description": "Optional WHERE clause for filtering data"
+        }
+      },
+      "required": [
+        "table_name"
+      ],
+      "title": "read_databasesArguments"
+    }
+  },
+  {
+    "name": "chat-compress_history",
+    "description": "Compresses the current chat history by summarizing older messages while preserving important context. Use this tool when the conversation becomes too long and you need to manage token usage efficiently. The compression creates a concise summary of earlier messages while keeping recent messages intact.\n\nArgs:\n    notebook_id: ID of the notebook whose chat history to compress. System-managed, should not be set by LLM.\n    keep_recent_count: Number of recent messages to keep uncompressed (default: 10)\n\nReturns:\n    str: JSON object with compression status and summary of what was compressed.\n",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "notebook_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notebook ID"
+        },
+        "keep_recent_count": {
+          "type": "integer",
+          "default": 10,
+          "title": "Keep Recent Count",
+          "description": "Number of most recent messages to keep uncompressed"
+        }
+      },
+      "title": "compress_historyArguments"
+    }
+  }
+]
