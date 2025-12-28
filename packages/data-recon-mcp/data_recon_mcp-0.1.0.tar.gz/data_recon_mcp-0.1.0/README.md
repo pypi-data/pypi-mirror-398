@@ -1,0 +1,151 @@
+# Data Recon MCP Server
+
+An MCP (Model Context Protocol) server for data reconciliation between MySQL and Snowflake databases. Enables LLM agents like Claude, Antigravity, and Perplexity to validate data integrity during migrations, ETL processes, and ongoing monitoring.
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install git+https://github.com/hindocharaj1997/data-recon-mcp.git
+```
+
+### Configuration
+
+Add to your MCP client configuration:
+
+**For Claude Desktop** (`~/.config/claude/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "data-recon": {
+      "command": "data-recon-server"
+    }
+  }
+}
+```
+
+**For Antigravity** (`~/.gemini/antigravity/mcp_config.json`):
+```json
+{
+  "data-recon": {
+    "command": "data-recon-server"
+  }
+}
+```
+
+That's it! The server automatically starts an embedded backend - no separate processes needed.
+
+## ✨ Features
+
+- **All-in-One** - Single command starts everything (MCP server + FastAPI backend)
+- **23 MCP Tools** for comprehensive data reconciliation
+- **MySQL and Snowflake** support
+- **Async job execution** with progress tracking
+- **SQLite metadata storage** - datasource configs persist locally
+
+## 🔧 Advanced Configuration
+
+### Using a Centralized Backend
+
+For team environments where you want everyone to share the same datasources and configuration, you can run a separate FastAPI backend server:
+
+**1. Start the centralized backend:**
+```bash
+# On your server
+git clone https://github.com/hindocharaj1997/data-recon-mcp.git
+cd data-recon-mcp
+pip install -e .
+uvicorn data_recon.main:app --host 0.0.0.0 --port 8000
+```
+
+**2. Configure clients to use it:**
+```json
+{
+  "data-recon": {
+    "command": "data-recon-server",
+    "env": {
+      "FASTAPI_URL": "http://your-server.company.com:8000"
+    }
+  }
+}
+```
+
+When `FASTAPI_URL` is set, the MCP server **skips** starting an embedded backend and uses your centralized server instead.
+
+### Pre-configured Data Sources
+
+You can pre-register data sources via environment variables:
+
+```json
+{
+  "data-recon": {
+    "command": "data-recon-server",
+    "env": {
+      "DATASOURCE_MYSQL_PROD": "{\"type\":\"mysql\",\"host\":\"localhost\",\"port\":3306,\"username\":\"user\",\"password\":\"pass\",\"database\":\"mydb\"}",
+      "DATASOURCE_SNOWFLAKE_DW": "{\"type\":\"snowflake\",\"account\":\"xxx-yyy\",\"username\":\"user\",\"password\":\"pass\",\"warehouse\":\"COMPUTE_WH\"}"
+    }
+  }
+}
+```
+
+## 📊 MCP Tools
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **Data Source Management** | 7 | Add, list, test, remove datasources |
+| **Discovery & Validation** | 7 | Search tables, validate existence, preview data |
+| **Individual Checks** | 4 | Row count, aggregates, schema, sample rows |
+| **Job Management** | 5 | Create/monitor reconciliation jobs |
+
+### Key Tools
+
+- `add_datasource` - Register a MySQL or Snowflake connection
+- `search_tables` - Find tables by pattern
+- `run_row_count_check` - Compare row counts between source and target
+- `run_aggregate_check` - Compare SUM, AVG, MIN, MAX values
+- `create_recon_job` - Run comprehensive reconciliation with all checks
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    LLM Client                           │
+│              (Claude, Antigravity, etc.)                │
+└─────────────────────┬───────────────────────────────────┘
+                      │ MCP Protocol (stdio)
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│                 MCP Server                              │
+│            (data-recon-server)                          │
+├─────────────────────────────────────────────────────────┤
+│  Embedded FastAPI Backend (or external via FASTAPI_URL) │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐ │
+│  │   SQLite    │  │   MySQL     │  │   Snowflake     │ │
+│  │  (metadata) │  │  Connector  │  │   Connector     │ │
+│  └─────────────┘  └─────────────┘  └─────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 🧪 Development
+
+```bash
+# Clone and setup
+git clone https://github.com/hindocharaj1997/data-recon-mcp.git
+cd data-recon-mcp
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Start local MySQL for testing
+docker compose -f tests/docker-compose.yml up -d
+```
+
+## 📝 License
+
+MIT
+
+## 🤝 Contributing
+
+Contributions welcome! Please open an issue first to discuss proposed changes.
