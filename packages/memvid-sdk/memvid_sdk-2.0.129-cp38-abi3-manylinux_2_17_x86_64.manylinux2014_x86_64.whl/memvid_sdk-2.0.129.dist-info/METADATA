@@ -1,0 +1,504 @@
+Metadata-Version: 2.4
+Name: memvid-sdk
+Version: 2.0.129
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Database
+Classifier: Intended Audience :: Developers
+Requires-Dist: typing-extensions>=4.0.0
+Requires-Dist: langchain-core>=0.3,<3.0 ; extra == 'langchain'
+Requires-Dist: llama-index>=0.12,<1.0 ; extra == 'llamaindex'
+Requires-Dist: openai>=1.0,<3.0 ; extra == 'openai'
+Requires-Dist: crewai>=0.70,<3.0 ; extra == 'crewai'
+Requires-Dist: ai>=4.0,<6.0 ; extra == 'vercel-ai'
+Requires-Dist: autogen-agentchat>=0.4,<1.0 ; extra == 'autogen'
+Requires-Dist: haystack-ai>=2.8,<4.0 ; extra == 'haystack'
+Requires-Dist: langgraph>=0.2,<3.0 ; extra == 'langgraph'
+Requires-Dist: semantic-kernel>=1.17,<2.0 ; extra == 'semantic-kernel'
+Requires-Dist: langchain-core>=0.3,<3.0 ; extra == 'full'
+Requires-Dist: llama-index>=0.12,<1.0 ; extra == 'full'
+Requires-Dist: openai>=1.0,<3.0 ; extra == 'full'
+Requires-Dist: crewai>=0.70,<3.0 ; extra == 'full'
+Requires-Dist: ai>=4.0,<6.0 ; extra == 'full'
+Requires-Dist: autogen-agentchat>=0.4,<1.0 ; extra == 'full'
+Requires-Dist: haystack-ai>=2.8,<4.0 ; extra == 'full'
+Requires-Dist: langgraph>=0.2,<3.0 ; extra == 'full'
+Requires-Dist: semantic-kernel>=1.17,<2.0 ; extra == 'full'
+Provides-Extra: langchain
+Provides-Extra: llamaindex
+Provides-Extra: openai
+Provides-Extra: crewai
+Provides-Extra: vercel-ai
+Provides-Extra: autogen
+Provides-Extra: haystack
+Provides-Extra: langgraph
+Provides-Extra: semantic-kernel
+Provides-Extra: full
+License-File: LICENSE
+Summary: Single-file AI memory system for Python. Store, search, and query documents with built-in RAG.
+Keywords: ai,memory,rag,vector-search,semantic-search,langchain,llamaindex,embeddings
+Author: Memvid Inc.
+License: Apache-2.0
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://memvid.com
+Project-URL: Repository, https://github.com/memvid/memvid
+Project-URL: Documentation, https://docs.memvid.com
+
+# memvid-sdk
+
+Single-file AI memory system for Python. Store documents, search with BM25 ranking, and run retrieval-augmented generation (RAG) queries from a portable `.mv2` file.
+
+Built on Rust with PyO3 bindings. No database setup, no network dependencies, no configuration files.
+
+## Install
+
+```bash
+pip install memvid-sdk
+```
+
+Optional extras for framework integrations:
+
+```bash
+pip install "memvid-sdk[langchain]"     # LangChain tools
+pip install "memvid-sdk[llamaindex]"    # LlamaIndex query engine
+pip install "memvid-sdk[openai]"        # OpenAI function schemas
+pip install "memvid-sdk[crewai]"        # CrewAI tools
+pip install "memvid-sdk[full]"          # All integrations
+```
+
+## Quick start
+
+```python
+from memvid_sdk import use, create
+
+# Create a new memory file
+mv = use("basic", "notes.mv2", mode="auto")
+
+# Store a document
+mv.put(
+    title="Project kickoff",
+    label="meeting",
+    metadata={"date": "2024-01-15"},
+    text="Discussed timeline, assigned tasks to team members.",
+)
+
+# Search by keyword
+results = mv.find("timeline")
+print(results["hits"])
+
+# Ask a question (retrieves relevant context)
+answer = mv.ask("What was discussed in the kickoff?")
+print(answer["context"])
+
+# Commit changes
+mv.seal()
+```
+
+## Embeddings & semantic search
+
+Semantic search (`mode="sem"`) and hybrid search (`mode="auto"`) require a vector index:
+
+```python
+from memvid_sdk import create
+
+mv = create("notes.mv2", enable_vec=True)
+```
+
+### Generate embeddings during ingestion (local or OpenAI)
+
+```python
+mv.put(
+    title="Doc",
+    label="note",
+    metadata={},
+    text="alpha fastembed test",
+    enable_embedding=True,
+    embedding_model="bge-small",  # local (fastembed)
+)
+```
+
+Batch mode:
+
+```python
+mv.put_many(
+    [{"title": "Doc", "label": "note", "text": "alpha"}],
+    opts={"enable_embedding": True, "embedding_model": "bge-small"},
+)
+```
+
+Supported `embedding_model` values:
+`bge-small`, `bge-base`, `nomic`, `gte-large`, `openai-small`, `openai-large`, `openai-ada`.
+
+### Bring your own embeddings (precomputed)
+
+Store embedding identity metadata so semantic queries can auto-detect the right model later:
+
+```python
+mv.put_many(
+    [{"title": "Doc", "label": "note", "text": "alpha"}],
+    embeddings=[[0.1, 0.2, 0.3, 0.4]],
+    embedding_identity={"provider": "custom", "model": "my-embedder-v1"},
+)
+```
+
+### Use an embedder (SDK-managed query embeddings)
+
+```python
+from memvid_sdk.embeddings import HashEmbeddings
+
+embedder = HashEmbeddings(dimension=32)  # deterministic offline embedder for tests
+mv.put_many(
+    [{"title": "Doc", "label": "note", "text": "alpha"}],
+    embedder=embedder,
+)
+
+mv.find("alpha", mode="sem", embedder=embedder)
+mv.ask("alpha", mode="sem", context_only=True, embedder=embedder)
+```
+
+Built-in embedders:
+`OpenAIEmbeddings` (`OPENAI_API_KEY`), `CohereEmbeddings` (`COHERE_API_KEY`),
+`VoyageEmbeddings` (`VOYAGE_API_KEY`), `NvidiaEmbeddings` (`NVIDIA_API_KEY`),
+`HuggingFaceEmbeddings` (local), `HashEmbeddings` (offline deterministic).
+
+```python
+from memvid_sdk.embeddings import NvidiaEmbeddings
+
+embedder = NvidiaEmbeddings(model="nvidia/nv-embed-v1")  # uses NVIDIA_API_KEY
+mv.put_many([{"title": "Doc", "label": "note", "text": "alpha"}], embedder=embedder)
+mv.find("alpha", mode="sem", embedder=embedder)
+```
+
+### Auto query embeddings (no `query_embedding` required)
+
+If the memory contains `memvid.embedding.*` identity metadata (recommended) or a known vector
+dimension (fallback), semantic queries can embed the query automatically:
+
+```python
+mv.find("alpha", mode="sem")
+mv.find("alpha", mode="sem", query_embedding_model="bge-small")  # override/force
+```
+
+## Core API
+
+### Opening a memory
+
+```python
+mv = use(kind, path, apikey=None, **options)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `kind` | `str` | Adapter type: `"basic"`, `"langchain"`, `"llamaindex"`, `"openai"`, `"crewai"`, `"vercel-ai"`, `"autogen"` |
+| `path` | `str` | Path to `.mv2` file |
+| `mode` | `str` | `"open"` (default), `"create"`, or `"auto"` |
+| `enable_lex` | `bool` | Enable lexical index (default: `True`) |
+| `enable_vec` | `bool` | Enable vector index (default: `False`) |
+| `read_only` | `bool` | Open in read-only mode (default: `False`) |
+| `lock_timeout_ms` | `int` | Lock acquisition timeout in milliseconds (default: `250`) |
+| `force` | `str \| None` | Set to `"stale_only"` to force-release stale locks |
+| `force_writable` | `bool` | Open read-only first, then re-open writable (best-effort) |
+
+Context manager support:
+
+```python
+with use("basic", "notes.mv2") as mv:
+    mv.put(title="Note", label="general", metadata={}, text="Content")
+# File handle automatically closed
+```
+
+### Storing documents
+
+```python
+frame_id = mv.put(
+    title="Document title",
+    label="category",
+    metadata={"key": "value"},
+    text="Document content...",
+    uri="mv2://custom/path",
+    tags=["tag1", "tag2"],
+)
+```
+
+### Batch ingestion
+
+For bulk imports, `put_many` processes documents in parallel with 100x+ speedup over individual calls:
+
+```python
+docs = [
+    {"title": "Doc 1", "label": "news", "text": "First document..."},
+    {"title": "Doc 2", "label": "news", "text": "Second document..."},
+    # ... thousands more
+]
+
+frame_ids = mv.put_many(docs, opts={"compression_level": 3})
+print(f"Ingested {len(frame_ids)} documents")
+```
+
+### Searching
+
+```python
+results = mv.find(query, k=5, snippet_chars=240, scope=None, mode=None)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query` | `str` | Search query |
+| `k` | `int` | Number of results (default: `5`) |
+| `snippet_chars` | `int` | Snippet length (default: `240`) |
+| `scope` | `str` | Filter by URI prefix |
+| `mode` | `str` | `"auto"`, `"lex"`, or `"sem"` |
+
+Semantic/hybrid options (when `mode != "lex"`):
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query_embedding` | `list[float] \| None` | Precomputed query embedding |
+| `query_embedding_model` | `str \| None` | Force embedding model for auto query embeddings |
+| `adaptive` | `bool \| None` | Enable adaptive retrieval cutoff |
+| `min_relevancy` | `float \| None` | Minimum relevancy (default: `0.5` when adaptive) |
+| `max_k` | `int \| None` | Maximum results (default: `100` when adaptive) |
+| `adaptive_strategy` | `str \| None` | One of: `relative`, `absolute`, `cliff`, `elbow`, `combined` |
+
+### Retrieval-augmented generation
+
+```python
+response = mv.ask(
+    question,
+    k=6,
+    mode="auto",
+    model="openai:gpt-4o-mini",
+    api_key=os.environ.get("OPENAI_API_KEY"),
+    context_only=False,
+    mask_pii=False,
+)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `question` | `str` | Question to answer |
+| `k` | `int` | Documents to retrieve (default: `6`) |
+| `mode` | `str` | `"auto"`, `"lex"`, or `"sem"` |
+| `model` | `str` | LLM for synthesis (e.g., `"openai:gpt-4o-mini"`, `"nvidia:meta/llama3-8b-instruct"`) |
+| `api_key` | `str` | API key for the LLM provider |
+| `context_only` | `bool` | Skip synthesis, return context only |
+| `mask_pii` | `bool` | Redact PII from response |
+
+Semantic/hybrid options (when `mode != "lex"`):
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query_embedding` | `list[float] \| None` | Precomputed query embedding |
+| `query_embedding_model` | `str \| None` | Force embedding model for auto query embeddings |
+| `adaptive` | `bool \| None` | Enable adaptive retrieval cutoff |
+| `min_relevancy` | `float \| None` | Minimum relevancy (default: `0.5` when adaptive) |
+| `max_k` | `int \| None` | Maximum results (default: `100` when adaptive) |
+| `adaptive_strategy` | `str \| None` | One of: `relative`, `absolute`, `cliff`, `elbow`, `combined` |
+
+### Best practices: Adaptive retrieval
+
+For best search quality, enable adaptive retrieval with the `combined` strategy. This dynamically adjusts result counts based on relevance scores rather than returning a fixed `k`:
+
+```python
+# Recommended for find()
+results = mv.find(
+    "your query",
+    mode="sem",  # or "auto"
+    adaptive=True,
+    adaptive_strategy="combined",
+)
+
+# Recommended for ask()
+answer = mv.ask(
+    "your question",
+    mode="auto",
+    adaptive=True,
+    adaptive_strategy="combined",
+)
+```
+
+The `combined` strategy uses both relative thresholds and score cliff detection to filter out low-relevance results, providing higher quality context for RAG applications.
+
+### Timeline queries
+
+```python
+entries = mv.timeline(limit=100, since=1704067200, reverse=True)
+```
+
+### Statistics
+
+```python
+stats = mv.stats()
+# {'frame_count': 42, 'size_bytes': 1048576, 'has_lex_index': True, ...}
+```
+
+### File operations
+
+```python
+# Commit pending changes
+mv.seal()
+
+# Explicit commit without sealing
+mv.commit()
+
+# Verify file integrity
+report = mv.verify(deep=True)
+report = Memvid.verify("notes.mv2", deep=True)  # also supported
+
+# Repair indexes
+result = mv.doctor(dry_run=True)
+result = Memvid.doctor("notes.mv2", rebuild_time_index=True)
+```
+
+### Diagnostics
+
+```python
+from memvid_sdk import info, lock_who, lock_nudge, verify_single_file
+
+print(info())                       # versions + enabled features
+print(lock_who("notes.mv2"))        # lock status + owner (if locked)
+print(lock_nudge("notes.mv2"))      # request stale lock release
+verify_single_file("notes.mv2")     # ensure no sidecar files exist
+```
+
+## Framework adapters
+
+Adapters expose framework-native tools when the corresponding dependency is installed.
+
+### LangChain
+
+```python
+mv = use("langchain", "notes.mv2")
+tools = mv.tools  # List of StructuredTool instances
+```
+
+### LlamaIndex
+
+```python
+mv = use("llamaindex", "notes.mv2")
+engine = mv.as_query_engine()
+response = engine.query("What is the timeline?")
+```
+
+### OpenAI function calling
+
+```python
+mv = use("openai", "notes.mv2")
+functions = mv.functions  # JSON schemas for tool_calls
+```
+
+### CrewAI
+
+```python
+mv = use("crewai", "notes.mv2")
+tools = mv.tools  # CrewAI-compatible tools
+```
+
+## Table extraction
+
+Extract structured tables from PDFs:
+
+```python
+result = mv.put_pdf_tables("report.pdf", embed_rows=True)
+print(f"Extracted {result['tables_count']} tables")
+
+tables = mv.list_tables()
+data = mv.get_table(tables[0]["table_id"], format="dict")
+```
+
+## Error handling
+
+Typed exceptions with stable codes:
+
+| Code | Exception | Description |
+|------|-----------|-------------|
+| MV001 | `CapacityExceededError` | Storage capacity exceeded |
+| MV002 | `TicketInvalidError` | Invalid ticket signature |
+| MV003 | `TicketReplayError` | Ticket replay detected |
+| MV004 | `LexIndexDisabledError` | Lexical index not enabled |
+| MV005 | `TimeIndexMissingError` | Time index missing |
+| MV006 | `VerifyFailedError` | Verification failed |
+| MV007 | `LockedError` | File locked by another process |
+| MV008 | `ApiKeyRequiredError` | API key required |
+| MV009 | `MemoryAlreadyBoundError` | File bound to another memory |
+| MV010 | `FrameNotFoundError` | Frame not found |
+| MV011 | `VecIndexDisabledError` | Vector index not enabled |
+| MV012 | `CorruptFileError` | Corrupt file / invalid TOC |
+| MV013 | `FileNotFoundError` | File not found |
+| MV014 | `VecDimensionMismatchError` | Vector dimension mismatch |
+| MV015 | `EmbeddingFailedError` | Embedding failed |
+| MV016 | `ClipIndexDisabledError` | CLIP index not enabled |
+| MV017 | `NerModelNotAvailableError` | NER model not available |
+
+```python
+from memvid_sdk import CapacityExceededError
+
+try:
+    mv.put(...)
+except CapacityExceededError:
+    print("Out of storage capacity")
+```
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `MEMVID_API_KEY` | API key for capacity beyond free tier |
+| `MEMVID_API_URL` | Control plane URL (for enterprise deployments) |
+| `MEMVID_OFFLINE` | Set to `1` to disable network providers and model downloads |
+| `MEMVID_MODELS_DIR` | Path to local embedding model cache (fastembed) |
+| `MEMVID_CLIP_MODEL` | Local CLIP model name (default: `mobileclip-s2`) |
+| `OPENAI_API_KEY` | API key for OpenAI embeddings (and can be used for `ask()` examples) |
+| `OPENAI_BASE_URL` | Optional OpenAI-compatible base URL for embeddings |
+| `NVIDIA_API_KEY` | API key for NVIDIA Integrate embeddings |
+| `NVIDIA_BASE_URL` | Optional NVIDIA Integrate base URL (default: `https://integrate.api.nvidia.com`) |
+| `NVIDIA_EMBEDDING_MODEL` | Optional NVIDIA embedding model override |
+
+## Development
+
+Build from source:
+
+```bash
+cd proprietary/memvid-bindings/python
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dev dependencies
+pip install maturin
+
+# Build native extension
+maturin develop --release --skip-install
+
+# Run tests
+./.venv/bin/python -m pytest -q
+
+# Smoke-run offline-safe examples
+./.venv/bin/python scripts/test_examples.py
+
+# Optional: run gated embedding runtime tests
+MEMVID_TEST_FASTEMBED=1 ./.venv/bin/python -m pytest -q tests/test_runtime_embeddings_gated.py
+MEMVID_TEST_OPENAI=1 OPENAI_API_KEY=... ./.venv/bin/python -m pytest -q tests/test_runtime_embeddings_gated.py
+MEMVID_TEST_NVIDIA=1 NVIDIA_API_KEY=... ./.venv/bin/python -m pytest -q tests/test_runtime_embeddings_gated.py
+
+# Optional: run gated local model tests (requires `memvid models install ...`)
+MEMVID_TEST_CLIP=1 ./.venv/bin/python -m pytest -q tests/test_phase2_models_tables.py
+MEMVID_TEST_NER=1 ./.venv/bin/python -m pytest -q tests/test_phase2_models_tables.py
+```
+
+## Requirements
+
+- Python 3.8+
+- macOS (Apple Silicon or Intel), Linux (x64), or Windows (x64)
+
+## License
+
+Apache-2.0. See [LICENSE](./LICENSE).
+
