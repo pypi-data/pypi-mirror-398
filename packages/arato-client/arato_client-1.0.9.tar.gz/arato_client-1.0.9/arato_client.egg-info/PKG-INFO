@@ -1,0 +1,102 @@
+Metadata-Version: 2.4
+Name: arato-client
+Version: 1.0.9
+Summary: The official Python Client for the Arato API for testing, experimenting, and evaluating LLM-based applications.
+Author-email: Arato AI <support@arato.ai>
+License: MIT License
+Project-URL: Homepage, https://arato.ai
+Project-URL: Documentation, https://help.arato.ai/en/
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: typing-extensions>=4.0.0
+Provides-Extra: test
+Requires-Dist: pytest>=7.4.0; extra == "test"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "test"
+Requires-Dist: pytest-cov>=4.1.0; extra == "test"
+Requires-Dist: pytest-mock>=3.11.0; extra == "test"
+
+# Arato Python SDK
+
+The official Python SDK for the [Arato API](https://arato.ai/).
+
+Arato is a platform for testing, experimenting, and evaluating LLM-based applications. This library provides a convenient, developer-friendly interface for interacting with Arato resources programmatically.
+
+## Installation
+
+Install the SDK from PyPI using pip:
+
+```bash
+pip install arato-client
+```
+
+Or, to install from source, navigate to the root directory of this project (where `pyproject.toml` is located) and run:
+
+```bash
+pip install .
+```
+
+## Usage
+
+First, ensure you have your Arato API key. You can pass it directly to the client or set it as an environment variable named `ARATO_API_KEY`.
+
+### Synchronous Client
+
+```python
+import os
+from arato_client import AratoClient, NotFoundError
+
+# Initialize the client (automatically uses ARATO_API_KEY env var)
+# If the environment variable is not set, pass the key directly:
+# client = AratoClient(api_key="your-arato-api-key")
+client = AratoClient()
+
+# List all notebooks
+try:
+    notebooks_response = client.notebooks.list()
+    notebooks = notebooks_response.get('notebooks', [])
+    print(f"Found {len(notebooks)} notebooks.")
+
+    if notebooks:
+        notebook_id = notebooks['id']
+
+        # List experiments for the first notebook
+        experiments_response = client.notebooks.experiments.list(notebook_id=notebook_id)
+        experiments = experiments_response.get('experiments', [])
+        print(f"Found {len(experiments)} experiments in notebook {notebook_id}.")
+
+except NotFoundError as e:
+    print(f"Error: A resource was not found. {e}")
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+```
+
+### Asynchronous Client
+
+The SDK also provides an async client for use with `asyncio`.
+
+```python
+import asyncio
+from arato_client import AsyncAratoClient
+
+async def main():
+    async with AsyncAratoClient() as client:
+        # List all notebooks
+        notebooks_response = await client.notebooks.list()
+        notebooks = notebooks_response.get('notebooks', [])
+        print(f"Found {len(notebooks)} notebooks.")
+
+if __name__ == "__main__":
+    # Ensure ARATO_API_KEY is set in your environment before running
+    if os.getenv("ARATO_API_KEY"):
+        asyncio.run(main())
+    else:
+        print("Please set the ARATO_API_KEY environment variable.")
+```
+
+See `example.py` for a more detailed demonstration of the SDK's capabilities.
