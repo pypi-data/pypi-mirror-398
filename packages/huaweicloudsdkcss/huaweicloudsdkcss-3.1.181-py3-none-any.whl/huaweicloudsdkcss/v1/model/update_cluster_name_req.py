@@ -1,0 +1,136 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class UpdateClusterNameReq:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'display_name': 'str',
+        'desc': 'str'
+    }
+
+    attribute_map = {
+        'display_name': 'display_name',
+        'desc': 'desc'
+    }
+
+    def __init__(self, display_name=None, desc=None):
+        r"""UpdateClusterNameReq
+
+        The model defined in huaweicloud sdk
+
+        :param display_name: 修改后集群名称。
+        :type display_name: str
+        :param desc: 修改后集群描述。
+        :type desc: str
+        """
+        
+        
+
+        self._display_name = None
+        self._desc = None
+        self.discriminator = None
+
+        self.display_name = display_name
+        if desc is not None:
+            self.desc = desc
+
+    @property
+    def display_name(self):
+        r"""Gets the display_name of this UpdateClusterNameReq.
+
+        修改后集群名称。
+
+        :return: The display_name of this UpdateClusterNameReq.
+        :rtype: str
+        """
+        return self._display_name
+
+    @display_name.setter
+    def display_name(self, display_name):
+        r"""Sets the display_name of this UpdateClusterNameReq.
+
+        修改后集群名称。
+
+        :param display_name: The display_name of this UpdateClusterNameReq.
+        :type display_name: str
+        """
+        self._display_name = display_name
+
+    @property
+    def desc(self):
+        r"""Gets the desc of this UpdateClusterNameReq.
+
+        修改后集群描述。
+
+        :return: The desc of this UpdateClusterNameReq.
+        :rtype: str
+        """
+        return self._desc
+
+    @desc.setter
+    def desc(self, desc):
+        r"""Sets the desc of this UpdateClusterNameReq.
+
+        修改后集群描述。
+
+        :param desc: The desc of this UpdateClusterNameReq.
+        :type desc: str
+        """
+        self._desc = desc
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, UpdateClusterNameReq):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
