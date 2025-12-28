@@ -1,0 +1,195 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowCoordinatorsRespCoordinators:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'group_id': 'str',
+        'id': 'int',
+        'host': 'str',
+        'port': 'int'
+    }
+
+    attribute_map = {
+        'group_id': 'group_id',
+        'id': 'id',
+        'host': 'host',
+        'port': 'port'
+    }
+
+    def __init__(self, group_id=None, id=None, host=None, port=None):
+        r"""ShowCoordinatorsRespCoordinators
+
+        The model defined in huaweicloud sdk
+
+        :param group_id: **参数解释**： 消费组ID。 **取值范围**： 不涉及。
+        :type group_id: str
+        :param id: **参数解释**： 对应协调器的broker id。 **取值范围**： 不涉及。
+        :type id: int
+        :param host: **参数解释**： 对应协调器的地址。 **取值范围**： 不涉及。
+        :type host: str
+        :param port: **参数解释**： 端口号。 **取值范围**： 不涉及。
+        :type port: int
+        """
+        
+        
+
+        self._group_id = None
+        self._id = None
+        self._host = None
+        self._port = None
+        self.discriminator = None
+
+        if group_id is not None:
+            self.group_id = group_id
+        if id is not None:
+            self.id = id
+        if host is not None:
+            self.host = host
+        if port is not None:
+            self.port = port
+
+    @property
+    def group_id(self):
+        r"""Gets the group_id of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 消费组ID。 **取值范围**： 不涉及。
+
+        :return: The group_id of this ShowCoordinatorsRespCoordinators.
+        :rtype: str
+        """
+        return self._group_id
+
+    @group_id.setter
+    def group_id(self, group_id):
+        r"""Sets the group_id of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 消费组ID。 **取值范围**： 不涉及。
+
+        :param group_id: The group_id of this ShowCoordinatorsRespCoordinators.
+        :type group_id: str
+        """
+        self._group_id = group_id
+
+    @property
+    def id(self):
+        r"""Gets the id of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 对应协调器的broker id。 **取值范围**： 不涉及。
+
+        :return: The id of this ShowCoordinatorsRespCoordinators.
+        :rtype: int
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 对应协调器的broker id。 **取值范围**： 不涉及。
+
+        :param id: The id of this ShowCoordinatorsRespCoordinators.
+        :type id: int
+        """
+        self._id = id
+
+    @property
+    def host(self):
+        r"""Gets the host of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 对应协调器的地址。 **取值范围**： 不涉及。
+
+        :return: The host of this ShowCoordinatorsRespCoordinators.
+        :rtype: str
+        """
+        return self._host
+
+    @host.setter
+    def host(self, host):
+        r"""Sets the host of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 对应协调器的地址。 **取值范围**： 不涉及。
+
+        :param host: The host of this ShowCoordinatorsRespCoordinators.
+        :type host: str
+        """
+        self._host = host
+
+    @property
+    def port(self):
+        r"""Gets the port of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 端口号。 **取值范围**： 不涉及。
+
+        :return: The port of this ShowCoordinatorsRespCoordinators.
+        :rtype: int
+        """
+        return self._port
+
+    @port.setter
+    def port(self, port):
+        r"""Sets the port of this ShowCoordinatorsRespCoordinators.
+
+        **参数解释**： 端口号。 **取值范围**： 不涉及。
+
+        :param port: The port of this ShowCoordinatorsRespCoordinators.
+        :type port: int
+        """
+        self._port = port
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowCoordinatorsRespCoordinators):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
