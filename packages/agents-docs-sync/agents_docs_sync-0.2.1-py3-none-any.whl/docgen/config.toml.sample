@@ -1,0 +1,225 @@
+# 汎用ドキュメント自動生成システム 設定ファイル
+# 詳細な設定ガイドは docs/CONFIG_GUIDE.md を参照してください
+
+# 一般設定
+[general]
+# デフォルト言語（"en", "ja", "ko" など）
+default_language = "en"
+
+# メッセージ設定
+[messages]
+# デフォルトのプロジェクト説明メッセージ
+default_description = "Please describe this project here."
+
+# 検証設定
+[validator]
+# 技術キーワード設定（多言語対応）
+[validator.technical_keywords]
+# デフォルトのキーワード（英語）
+default = [
+    "function",
+    "class",
+    "method",
+    "module",
+    "package",
+    "import",
+    "export",
+    "implements",
+    "extends",
+    "returns",
+    "parameter",
+    "argument",
+    "type",
+    "defined",
+    "located",
+    "configured",
+]
+
+# 言語ごとの追加キーワード
+[validator.technical_keywords.languages]
+ja = ["関数", "クラス", "メソッド", "モジュール", "パッケージ", "実装", "定義"]
+ko = ["함수", "클래스", "메서드", "모듈", "패키지", "구현", "정의"]
+
+# 実装検証設定
+[validation]
+# 検証を有効化
+enabled = true
+# 厳格モード（検証失敗時に生成を中断）
+strict = false
+# 実装検証を有効化
+check_implementation = true
+# 出典検証を有効化
+check_citations = true
+# 実装されていない参照を警告
+warn_on_missing = true
+
+# 実装検証の詳細設定
+[validation.implementation]
+# 除外パターン（これらのパターンを含む名前は検証対象外）
+exclude_patterns = ["test_", "_test", "mock_"]
+# プライベートメソッドを含めるか
+include_private = false
+
+# 言語設定
+[languages]
+auto_detect = true
+# 優先する言語（auto_detectで複数検出された場合の優先順位）
+preferred = []
+# 無視する言語（検出されてもドキュメント生成の対象外にする）
+# 例: このツール自体をPythonプロジェクトで使用している場合に自言語を除外
+ignored = []
+
+# 出力設定
+[output]
+api_doc = "docs/api.md"
+readme = "README.md"
+agents_doc = "AGENTS.md"
+
+# 生成設定
+[generation]
+update_readme = true
+generate_api_doc = true
+generate_agents_doc = true
+preserve_manual_sections = true
+
+# キャッシュ設定
+[cache]
+enabled = true
+
+[benchmark]
+enabled = true
+
+# AGENTS.md生成設定
+[agents]
+llm_mode = "both"  # "api", "local", "both"
+
+[agents.generation]
+agents_mode = "template"  # "template", "llm", "hybrid"
+readme_mode = "hybrid"
+enable_commit_message = true
+
+# API使用時の設定
+[agents.api]
+provider = "openai"  # "openai", "anthropic", "custom"
+model = "gpt-4o"
+endpoint = ""  # カスタムエンドポイント（オプション）
+api_key_env = "OPENAI_API_KEY"
+timeout = 180
+max_retries = 3
+retry_delay = 1.0
+
+# ローカルLLM使用時の設定
+[agents.local]
+provider = "ollama"  # "ollama", "lmstudio", "custom"
+model = "llama3"
+base_url = "http://localhost:11434"
+timeout = 180
+max_retries = 3
+retry_delay = 1.0
+
+# コーディング規約の設定
+[agents.coding_standards]
+auto_detect = true
+# 手動指定する場合（auto_detect = false の場合）
+# style_guide = "PEP 8"
+# formatter = "black"
+# linter = "ruff"
+
+# プロジェクト固有の指示（オプション）
+# agents.custom_instructions = """
+# - すべての関数にはdocstringを記述すること
+# - テストカバレッジは80%以上を維持すること
+# """
+
+# RAG設定（実験的機能）
+[rag]
+enabled = true
+auto_build_index = true
+
+# 埋め込みモデル設定
+[rag.embedding]
+model = "all-MiniLM-L6-v2"  # sentence-transformersモデル
+device = "cpu"  # "cpu" or "cuda"
+
+# ベクトルインデックス設定
+[rag.index]
+type = "hnswlib"  # "hnswlib" or "faiss"
+ef_construction = 200
+M = 16
+
+# 検索設定
+[rag.retrieval]
+top_k = 6
+score_threshold = 0.3
+
+# チャンク設定
+[rag.chunking]
+max_chunk_size = 512
+overlap = 50
+
+# 除外パターン（機密情報保護）
+[rag.exclude]
+patterns = [
+    '.*\.env$',
+    'secrets/.*',
+    '.*_SECRET.*',
+    '.*API_KEY.*',
+    '.*\.old$',
+]
+files = [
+    "README.md",
+    "AGENTS.md",
+]
+
+# アーキテクチャ生成設定
+[architecture]
+enabled = true
+output_dir = "docs/architecture"
+generator = "mermaid"  # "mermaid", "blockdiag", "matplotlib"
+image_formats = ["png"]  # blockdiag/matplotlib 使用時の画像形式
+
+# 除外設定（言語検出およびファイルスキャン時に適用）
+# これらのディレクトリは言語検出の対象から除外されます
+[exclude]
+# .gitignoreファイルを適用するかどうか（デフォルト: true）
+use_gitignore = true
+
+directories = [
+    ".venv",
+    "venv",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    "htmlcov",
+    "coverage",
+    ".coverage",
+    "site-packages",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "target",
+    "bin",
+    "obj",
+    ".gradle",
+    ".idea",
+    ".vscode",
+    ".DS_Store",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".tox",
+    "docgen",
+    ".tests",
+    "tests",
+    ".test",
+    "test",
+    "__tests__",
+    "__test__",
+    ".old",
+]
+
+patterns = [
+    "*.pyc",
+    "*.pyo",
+    "*.log",
+]
