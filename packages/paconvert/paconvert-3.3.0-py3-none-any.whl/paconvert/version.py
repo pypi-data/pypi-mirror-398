@@ -1,0 +1,2 @@
+# THIS FILE IS GENERATED FROM PACONVERT SETUP.PY
+__version__     = 'v3.3.0'
