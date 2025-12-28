@@ -1,0 +1,160 @@
+Metadata-Version: 2.4
+Name: leanrl
+Version: 0.1.1
+Summary: Easy (non-XML) approach to process XBRL
+License: MIT
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Requires-Dist: pandas>=2.2.0
+Provides-Extra: dev
+Requires-Dist: hatch; extra == 'dev'
+Requires-Dist: mypy; extra == 'dev'
+Requires-Dist: pytest-cov; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# LeanRL
+ Lean (non-XML) approach to process XBRL
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!--[![PyPI version](https://badge.fury.io/py/easyrl.svg)](https://badge.fury.io/py/easyrl)  optional once published -->
+
+A lightweight, memory-efficient, and fast Python library for extracting specific information from XBRL filings and taxonomies — **without loading the entire DTS (Discovery Tree)**.
+
+**Funding Acknowledgment (DFG):** Funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) – Collaborative Research Center (SFB/TRR) Project-ID 403041268 – _TRR 266 Accounting for Transparency_.
+
+
+## Motivation
+
+XBRL is powerful but **complex**:
+- A single filing includes the instance document, company linkbases, and a huge taxonomy (hundreds of XML files)
+- Traditional XBRL processors load the full DTS into memory: slow and memory-intensive
+- In many real-world scenarios (data extraction, analysis, reporting), you only need a small subset of the data
+
+
+**EasyRL** takes a **pragmatic, non-strict** approach:
+- Process **one file at a time** (no full DTS loading)
+- Extract only what you need into simple Python structures (`dict`, `list`, `pandas.DataFrame`)
+- Forget strict XBRL validation and complex object models — focus on **speed and simplicity**
+
+
+
+## Features (Planned)
+
+<!--- Extract facts from instance documents (simple alternative to `brel`, `python-xbrl`, etc.)-->
+- Parse **presentation linkbases** (build hierarchical trees, tables, roll-forwards)
+- Parse **calculation linkbases** (extract summation rules)
+- Parse **definition linkbases** (dimensions, tables, axes)
+- Parse **label linkbases** (English/translated labels)
+- Parse **taxonomy schema files** (elements, types, from `elts/`, `dis/`, `stm/`)
+- Convert XBRL structures to **pandas DataFrames** or **nested dictionaries**
+- Support for both **company filings** and **raw US GAAP/IFRS taxonomies**
+
+## Install
+```shell
+
+git clone https://github.com/reeyarn/EasyRL/
+cd EasyRL
+pip install -e .
+```
+
+or  `uv pip install -e ".[dev]"`
+
+
+## Example
+```python
+from easyrl import parse_label_linkbase, Roles
+
+# Get documentation
+path = "/tmp/us-gaap-2020-01-31/elts/"
+#path = "EasyRL/tests/data/"
+
+filename = "us-gaap-doc-2020-01-31.xml"
+
+docs = parse_label_linkbase(path + filename)
+
+for i, (concept, doc) in enumerate(docs.items()):
+    print(f"{i}: {concept}: {doc}")
+    if i > 32:
+        break
+
+
+# Get display labels
+labels = parse_label_linkbase(path + 'us-gaap-lab-2020-01-31.xml', role=Roles.LABEL)
+
+
+for i, (concept, label) in enumerate(labels.items()):
+    print(f"{i}: {concept}: {label}")
+    if i > 32:
+        break
+```
+
+
+## Project Structure
+```
+easyrl/
+├── src/easyrl/
+│   ├── core/
+│   │   ├── namespaces.py   # qname(), Roles, NS_LINK, etc.
+│   │   └── streaming.py    # stream_xml()
+│   ├── utils/
+│   │   └── href.py         # extract_concept_from_href()
+│   └── linkbases/
+│       └── label.py        # parse_label_linkbase()
+└── tests/fixtures/
+    └── sample_label.xml
+```    
+
+
+
+
+## Attribution & Legal Notices
+
+### ESEF Standard Acknowledgment
+This project supports the **European Single Electronic Format (ESEF)**, established by the **European Securities and Markets Authority (ESMA)** as the mandated digital reporting standard for annual financial reports of listed companies in the European Union. The ESEF specifications and guidelines are sourced from ESMA’s official publications and are adhered to in this implementation. For more information, visit [esma.europa.eu](https://www.esma.europa.eu).
+
+
+### IFRS Taxonomy & ESEF Standards
+This project supports the processing of filings based on the **International Financial Reporting Standards (IFRS)** and the **European Single Electronic Format (ESEF)**.
+
+**IFRS Taxonomy**
+The IFRS Taxonomy is developed and maintained by the **IFRS Foundation**. The taxonomy files included or referenced in this project are sourced from the IFRS Foundation’s official repository.
+* **Copyright:** The IFRS Taxonomy is **Copyright © IFRS Foundation**. All rights reserved.
+* **Disclaimer:** This project is an open-source tool and is not affiliated with, endorsed by, or commercially licensed by the IFRS Foundation. The files are used solely to facilitate the technical validation and creation of XBRL/iXBRL documents. For official standards, please visit [ifrs.org](https://www.ifrs.org).
+
+**ESEF Guidelines**
+The ESEF reporting standard is established by the **European Securities and Markets Authority (ESMA)** for listed companies in the European Union.
+* **Source:** ESEF specifications are sourced from ESMA’s official publications.
+* **Attribution:** Adherence to ESEF guidelines in this project is based on public technical standards available at [esma.europa.eu](https://www.esma.europa.eu).
+
+
+### US GAAP Taxonomy Acknowledgment & License
+
+This project includes copies of the US GAAP Financial Reporting Taxonomy (e.g., `us-gaap-YYYY-MM-DD.xsd`), sourced from official locations (e.g., [fasb.org](https://fasb.org) and [xbrl.us](https://xbrl.us)). These files are **Copyright © Financial Accounting Foundation (FAF)** and, for certain prior versions, **XBRL US, Inc.**
+
+The taxonomy files are redistributed within this project as a **"Permitted Work"** pursuant to the FAF's Copyright Notice and policies. They are provided for public use to assist in the implementation and processing of XBRL data.
+
+**Compliance Conditions:**
+1.  **Non-Modification:** All original copyright notices, XML comments, disclaimers, and license statements embedded in the taxonomy files have been preserved unchanged.
+2.  **No Ownership Claim:** This project does not claim ownership of the taxonomy; rights remain exclusively with the FAF and XBRL US.
+3.  **Authorized Use:** Use of these files is subject to the **Notice of Authorized Uses** maintained by the FAF.
+
+For full license terms, please see the [Official Terms and Conditions](https://xbrl.fasb.org/terms/TaxonomiesTermsConditions.html).
+
+### General Disclaimer & Takedown Notice
+The use of the standards, taxonomies, and schemas listed above is intended to support educational and research purposes in alignment with the open-source goals of this project.
+
+**Rights Infringement Contact:**
+If any use herein is found to infringe upon the rights of the FASB, XBRL US, ESMA, or the IFRS Foundation, please contact the author immediately:
+
+> **Contact:** [reeyarn+github.openesef@gmail.com](mailto:reeyarn+github.openesef@gmail.com)
+
+Upon receipt of a valid notice, the author will promptly remove or adjust the offending content to address any concerns.
