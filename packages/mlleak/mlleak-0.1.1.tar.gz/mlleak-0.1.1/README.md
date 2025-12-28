@@ -1,0 +1,258 @@
+# mlleak 🔍
+
+**ML Data Leakage & Split Sanity Checker**
+
+A focused Python package to detect data leakage and bad train/test splits before they ruin your ML models.
+
+## What Problems Does mlleak Solve?
+
+Data leakage is one of the most insidious bugs in machine learning. It causes:
+- 🎯 Unrealistically high validation scores
+- 💥 Catastrophic production failures
+- ⏰ Wasted time debugging mysterious model behavior
+
+`mlleak` catches these issues **before** you train your model.
+
+## When to Use mlleak
+
+### 🔴 Critical Use Cases (MUST USE)
+
+**1. Recommendation Systems**
+- **Problem**: Same users appearing in both train and test splits
+- **Impact**: Model learns user preferences directly instead of generalizing
+- **Solution**: Use `group_cols=["user_id"]` to detect user overlap
+
+**2. Fraud Detection**
+- **Problem**: Same fraudsters/accounts in training and testing data
+- **Impact**: Perfect fraud detection in validation, fails in production
+- **Solution**: Use `group_cols=["account_id", "device_id"]` to ensure no overlap
+
+**3. Time-Series Forecasting**
+- **Problem**: Test data from earlier time periods than training data
+- **Impact**: Model "predicts" the past, fails on actual future data
+- **Solution**: Use `time_col="timestamp"` to validate temporal ordering
+
+**4. Medical Diagnosis**
+- **Problem**: Same patients appear in both train and test with different scans
+- **Impact**: Model memorizes patients instead of learning disease patterns
+- **Solution**: Use `group_cols=["patient_id"]` to prevent patient leakage
+
+**5. E-commerce Personalization**
+- **Problem**: Same customers/sessions in both splits
+- **Impact**: Overfitted recommendations that don't generalize
+- **Solution**: Use `group_cols=["customer_id", "session_id"]`
+
+### 🟡 Important Use Cases (SHOULD USE)
+
+**6. Customer Churn Prediction**
+- Ensure customers don't appear in both splits
+- Validate temporal ordering (test must be after train)
+
+**7. Image Classification with Augmentation**
+- Detect if augmented versions of same image appear in both sets
+- Critical for medical imaging, satellite imagery
+
+**8. Natural Language Processing**
+- Check for duplicate text samples
+- For user-generated content: ensure same authors don't overlap
+
+**9. Financial Modeling**
+- Validate temporal splits for stock/price predictions
+- Check for duplicate transactions or entities
+
+**10. A/B Testing Data**
+- Ensure same users/sessions don't appear in both groups
+- Validate experiment integrity
+
+## ML Problem Types Where Leakage Occurs
+
+| Problem Type | Leakage Risk | What to Check | mlleak Parameters |
+|-------------|-------------|---------------|-------------------|
+| **Classification** | Medium | Duplicate rows | `mlleak.report(train, test, target="label")` |
+| **Regression** | Medium | Duplicate rows | `mlleak.report(train, test, target="value")` |
+| **Time-Series** | **HIGH** | Temporal order | `time_col="date"` |
+| **Recommendations** | **HIGH** | User/item overlap | `group_cols=["user_id", "item_id"]` |
+| **Fraud Detection** | **CRITICAL** | Entity overlap | `group_cols=["account_id", "user_id"]` |
+| **Medical ML** | **CRITICAL** | Patient overlap | `group_cols=["patient_id"]` |
+| **NLP (user content)** | High | Author overlap | `group_cols=["author_id"]` |
+| **Computer Vision** | Medium-High | Duplicate images | Default duplicate check |
+| **Forecasting** | **HIGH** | Temporal order | `time_col="timestamp"` |
+| **Personalization** | **HIGH** | Customer overlap | `group_cols=["customer_id"]` |
+
+## Real-World Example Scenarios
+
+### ❌ Bad: Model Looks Perfect But Fails in Production
+```python
+# Split without checking - DISASTER WAITING TO HAPPEN
+train, test = train_test_split(df, test_size=0.2)
+model.fit(train[features], train['target'])
+score = model.score(test[features], test['target'])
+# Score: 0.98! 🎉 (But it's a lie...)
+```
+
+### ✅ Good: Validate Split Before Training
+```python
+# Check for leakage FIRST
+import mlleak
+
+mlleak.report(
+    train, 
+    test, 
+    target='target',
+    group_cols=['user_id'],
+    time_col='date'
+)
+# Risk Score: 85/100 - HIGH RISK!
+# Found: 200 overlapping users
+# FIX THE SPLIT BEFORE TRAINING! 🛑
+```
+
+## Who Should Use mlleak?
+
+✅ **Data Scientists** - Before model training  
+✅ **ML Engineers** - In production pipelines  
+✅ **Research Teams** - Validating experimental splits  
+✅ **Kaggle Competitors** - Ensuring fair validation  
+✅ **Anyone doing train/test splits** - Prevention is better than debugging
+
+## Installation
+
+```bash
+pip install mlleak
+```
+
+## Quick Start
+
+```python
+import pandas as pd
+import mlleak
+
+# Option 1: From CSV files
+train_df = pd.read_csv('train.csv')
+test_df = pd.read_csv('test.csv')
+
+# Option 2: From existing DataFrames (any source)
+# train_df and test_df can come from:
+# - Database queries
+# - In-memory variables
+# - sklearn train_test_split
+# - Any pandas DataFrame source
+
+# Run the sanity check
+mlleak.report(
+    train_df, 
+    test_df,
+    target="target_column",
+    group_cols=["user_id"],  # Optional: columns that shouldn't overlap
+    time_col="timestamp"      # Optional: time column for temporal validation
+)
+```
+
+## What It Detects
+
+### 1. **Duplicate Rows** 🔄
+Finds exact row duplicates across train and test sets.
+
+```python
+mlleak.report(train_df, test_df)
+```
+
+### 2. **Time Leakage** ⏰
+Detects if test data has timestamps earlier than training data (future leakage).
+
+```python
+mlleak.report(train_df, test_df, time_col="date")
+```
+
+### 3. **Group Leakage** 👥
+Ensures group identifiers (like user_id, customer_id) don't appear in both splits.
+
+```python
+mlleak.report(train_df, test_df, group_cols=["user_id", "session_id"])
+```
+
+## Example Output
+
+```
+══════════════════════════════════════════════════
+         ML DATA LEAKAGE REPORT
+══════════════════════════════════════════════════
+
+DATASET INFO:
+  Train samples: 8000
+  Test samples:  2000
+  Total features: 15
+
+LEAKAGE CHECKS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Duplicate Rows: PASS
+  No duplicate rows found between splits
+
+✗ Time Leakage: FAIL
+  Found 150 test samples with timestamps before training data
+  Latest train date: 2024-06-30
+  Earliest test date: 2024-05-15
+
+✗ Group Leakage: FAIL
+  Found 45 overlapping groups in 'user_id'
+  This means same users appear in both train and test
+
+OVERALL RISK SCORE: 68/100 (HIGH RISK ⚠️)
+
+RECOMMENDATIONS:
+  • Remove overlapping user_id groups from test set
+  • Ensure test data is strictly after training data
+```
+
+## API Reference
+
+### `mlleak.report()`
+
+```python
+mlleak.report(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    target: str = None,
+    group_cols: List[str] = None,
+    time_col: str = None,
+    verbose: bool = True
+) -> dict
+```
+
+**Parameters:**
+- `train_df`: Training DataFrame
+- `test_df`: Test DataFrame
+- `target`: (Optional) Name of target column to exclude from duplicate checks
+- `group_cols`: (Optional) Columns representing groups that shouldn't overlap
+- `time_col`: (Optional) Time/date column for temporal validation
+- `verbose`: (Optional) Print report to console (default: True)
+
+**Returns:**
+- Dictionary with detailed findings and risk score
+
+## Use Cases
+
+✅ **Before training:** Validate your train/test split  
+✅ **Code reviews:** Ensure proper data splitting practices  
+✅ **CI/CD pipelines:** Automated leakage detection  
+✅ **Debugging:** Understand why your model performs too well  
+
+## Best Practices
+
+1. **Always run mlleak** before training production models
+2. **Check group leakage** for user-based data (recommendations, fraud detection)
+3. **Validate time splits** for time-series and sequential data
+4. **Fix issues immediately** - high risk scores indicate serious problems
+
+## Contributing
+
+Contributions welcome! This is a focused tool - new features should align with the core mission of detecting data leakage.
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Credits
+
+Built for ML practitioners who care about model reliability.
