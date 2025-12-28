@@ -1,0 +1,338 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowNotificationTemplateResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'name': 'str',
+        'type': 'list[str]',
+        'desc': 'str',
+        'source': 'str',
+        'templates': 'list[SubTemplateResBody]',
+        'locale': 'str',
+        'create_time': 'int',
+        'modify_time': 'int',
+        'project_id': 'str'
+    }
+
+    attribute_map = {
+        'name': 'name',
+        'type': 'type',
+        'desc': 'desc',
+        'source': 'source',
+        'templates': 'templates',
+        'locale': 'locale',
+        'create_time': 'create_time',
+        'modify_time': 'modify_time',
+        'project_id': 'project_id'
+    }
+
+    def __init__(self, name=None, type=None, desc=None, source=None, templates=None, locale=None, create_time=None, modify_time=None, project_id=None):
+        r"""ShowNotificationTemplateResponse
+
+        The model defined in huaweicloud sdk
+
+        :param name: **参数解释：**  消息模板名称。 **取值范围：**  不涉及。
+        :type name: str
+        :param type: **参数解释：**  消息通知方式。 **取值范围：**  - sms - dingding - wechat - webhook - email - voice - feishu - welink
+        :type type: list[str]
+        :param desc: **参数解释：**  消息模板描述。 **取值范围：**  不涉及。
+        :type desc: str
+        :param source: **参数解释：**  消息模板来源。 **取值范围：**  不涉及。
+        :type source: str
+        :param templates: **参数解释：**  不同通知渠道下消息模板的详细信息。
+        :type templates: list[:class:`huaweicloudsdklts.v2.SubTemplateResBody`]
+        :param locale: **参数解释：**  消息头语言，系统在发送消息时会默认添加消息头，中文如：“尊敬的用户...”；英文如：“Dear User...”。 **取值范围：**  - zh-cn - en-us
+        :type locale: str
+        :param create_time: 创建时间，为毫秒时间戳
+        :type create_time: int
+        :param modify_time: 更新时间，为毫秒时间戳
+        :type modify_time: int
+        :param project_id: 项目ID，获取方式请参见：获取账号ID、项目ID、日志组ID、日志流ID（https://support.huaweicloud.com/api-lts/lts_api_0006.html）。
+        :type project_id: str
+        """
+        
+        super().__init__()
+
+        self._name = None
+        self._type = None
+        self._desc = None
+        self._source = None
+        self._templates = None
+        self._locale = None
+        self._create_time = None
+        self._modify_time = None
+        self._project_id = None
+        self.discriminator = None
+
+        self.name = name
+        if type is not None:
+            self.type = type
+        if desc is not None:
+            self.desc = desc
+        self.source = source
+        self.templates = templates
+        if locale is not None:
+            self.locale = locale
+        self.create_time = create_time
+        self.modify_time = modify_time
+        self.project_id = project_id
+
+    @property
+    def name(self):
+        r"""Gets the name of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息模板名称。 **取值范围：**  不涉及。
+
+        :return: The name of this ShowNotificationTemplateResponse.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息模板名称。 **取值范围：**  不涉及。
+
+        :param name: The name of this ShowNotificationTemplateResponse.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def type(self):
+        r"""Gets the type of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息通知方式。 **取值范围：**  - sms - dingding - wechat - webhook - email - voice - feishu - welink
+
+        :return: The type of this ShowNotificationTemplateResponse.
+        :rtype: list[str]
+        """
+        return self._type
+
+    @type.setter
+    def type(self, type):
+        r"""Sets the type of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息通知方式。 **取值范围：**  - sms - dingding - wechat - webhook - email - voice - feishu - welink
+
+        :param type: The type of this ShowNotificationTemplateResponse.
+        :type type: list[str]
+        """
+        self._type = type
+
+    @property
+    def desc(self):
+        r"""Gets the desc of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息模板描述。 **取值范围：**  不涉及。
+
+        :return: The desc of this ShowNotificationTemplateResponse.
+        :rtype: str
+        """
+        return self._desc
+
+    @desc.setter
+    def desc(self, desc):
+        r"""Sets the desc of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息模板描述。 **取值范围：**  不涉及。
+
+        :param desc: The desc of this ShowNotificationTemplateResponse.
+        :type desc: str
+        """
+        self._desc = desc
+
+    @property
+    def source(self):
+        r"""Gets the source of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息模板来源。 **取值范围：**  不涉及。
+
+        :return: The source of this ShowNotificationTemplateResponse.
+        :rtype: str
+        """
+        return self._source
+
+    @source.setter
+    def source(self, source):
+        r"""Sets the source of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息模板来源。 **取值范围：**  不涉及。
+
+        :param source: The source of this ShowNotificationTemplateResponse.
+        :type source: str
+        """
+        self._source = source
+
+    @property
+    def templates(self):
+        r"""Gets the templates of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  不同通知渠道下消息模板的详细信息。
+
+        :return: The templates of this ShowNotificationTemplateResponse.
+        :rtype: list[:class:`huaweicloudsdklts.v2.SubTemplateResBody`]
+        """
+        return self._templates
+
+    @templates.setter
+    def templates(self, templates):
+        r"""Sets the templates of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  不同通知渠道下消息模板的详细信息。
+
+        :param templates: The templates of this ShowNotificationTemplateResponse.
+        :type templates: list[:class:`huaweicloudsdklts.v2.SubTemplateResBody`]
+        """
+        self._templates = templates
+
+    @property
+    def locale(self):
+        r"""Gets the locale of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息头语言，系统在发送消息时会默认添加消息头，中文如：“尊敬的用户...”；英文如：“Dear User...”。 **取值范围：**  - zh-cn - en-us
+
+        :return: The locale of this ShowNotificationTemplateResponse.
+        :rtype: str
+        """
+        return self._locale
+
+    @locale.setter
+    def locale(self, locale):
+        r"""Sets the locale of this ShowNotificationTemplateResponse.
+
+        **参数解释：**  消息头语言，系统在发送消息时会默认添加消息头，中文如：“尊敬的用户...”；英文如：“Dear User...”。 **取值范围：**  - zh-cn - en-us
+
+        :param locale: The locale of this ShowNotificationTemplateResponse.
+        :type locale: str
+        """
+        self._locale = locale
+
+    @property
+    def create_time(self):
+        r"""Gets the create_time of this ShowNotificationTemplateResponse.
+
+        创建时间，为毫秒时间戳
+
+        :return: The create_time of this ShowNotificationTemplateResponse.
+        :rtype: int
+        """
+        return self._create_time
+
+    @create_time.setter
+    def create_time(self, create_time):
+        r"""Sets the create_time of this ShowNotificationTemplateResponse.
+
+        创建时间，为毫秒时间戳
+
+        :param create_time: The create_time of this ShowNotificationTemplateResponse.
+        :type create_time: int
+        """
+        self._create_time = create_time
+
+    @property
+    def modify_time(self):
+        r"""Gets the modify_time of this ShowNotificationTemplateResponse.
+
+        更新时间，为毫秒时间戳
+
+        :return: The modify_time of this ShowNotificationTemplateResponse.
+        :rtype: int
+        """
+        return self._modify_time
+
+    @modify_time.setter
+    def modify_time(self, modify_time):
+        r"""Sets the modify_time of this ShowNotificationTemplateResponse.
+
+        更新时间，为毫秒时间戳
+
+        :param modify_time: The modify_time of this ShowNotificationTemplateResponse.
+        :type modify_time: int
+        """
+        self._modify_time = modify_time
+
+    @property
+    def project_id(self):
+        r"""Gets the project_id of this ShowNotificationTemplateResponse.
+
+        项目ID，获取方式请参见：获取账号ID、项目ID、日志组ID、日志流ID（https://support.huaweicloud.com/api-lts/lts_api_0006.html）。
+
+        :return: The project_id of this ShowNotificationTemplateResponse.
+        :rtype: str
+        """
+        return self._project_id
+
+    @project_id.setter
+    def project_id(self, project_id):
+        r"""Sets the project_id of this ShowNotificationTemplateResponse.
+
+        项目ID，获取方式请参见：获取账号ID、项目ID、日志组ID、日志流ID（https://support.huaweicloud.com/api-lts/lts_api_0006.html）。
+
+        :param project_id: The project_id of this ShowNotificationTemplateResponse.
+        :type project_id: str
+        """
+        self._project_id = project_id
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ShowNotificationTemplateResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowNotificationTemplateResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
