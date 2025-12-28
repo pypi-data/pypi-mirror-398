@@ -1,0 +1,137 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class FlinkJobList:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'total_count': 'int',
+        'jobs': 'list[FlinkJob]'
+    }
+
+    attribute_map = {
+        'total_count': 'total_count',
+        'jobs': 'jobs'
+    }
+
+    def __init__(self, total_count=None, jobs=None):
+        r"""FlinkJobList
+
+        The model defined in huaweicloud sdk
+
+        :param total_count: 参数解释:  作业查询结果条数 示例: 1 约束限制:  无 取值范围: 大于等于0的整数 默认取值: 无
+        :type total_count: int
+        :param jobs: 作业信息
+        :type jobs: list[:class:`huaweicloudsdkdli.v1.FlinkJob`]
+        """
+        
+        
+
+        self._total_count = None
+        self._jobs = None
+        self.discriminator = None
+
+        if total_count is not None:
+            self.total_count = total_count
+        if jobs is not None:
+            self.jobs = jobs
+
+    @property
+    def total_count(self):
+        r"""Gets the total_count of this FlinkJobList.
+
+        参数解释:  作业查询结果条数 示例: 1 约束限制:  无 取值范围: 大于等于0的整数 默认取值: 无
+
+        :return: The total_count of this FlinkJobList.
+        :rtype: int
+        """
+        return self._total_count
+
+    @total_count.setter
+    def total_count(self, total_count):
+        r"""Sets the total_count of this FlinkJobList.
+
+        参数解释:  作业查询结果条数 示例: 1 约束限制:  无 取值范围: 大于等于0的整数 默认取值: 无
+
+        :param total_count: The total_count of this FlinkJobList.
+        :type total_count: int
+        """
+        self._total_count = total_count
+
+    @property
+    def jobs(self):
+        r"""Gets the jobs of this FlinkJobList.
+
+        作业信息
+
+        :return: The jobs of this FlinkJobList.
+        :rtype: list[:class:`huaweicloudsdkdli.v1.FlinkJob`]
+        """
+        return self._jobs
+
+    @jobs.setter
+    def jobs(self, jobs):
+        r"""Sets the jobs of this FlinkJobList.
+
+        作业信息
+
+        :param jobs: The jobs of this FlinkJobList.
+        :type jobs: list[:class:`huaweicloudsdkdli.v1.FlinkJob`]
+        """
+        self._jobs = jobs
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, FlinkJobList):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other

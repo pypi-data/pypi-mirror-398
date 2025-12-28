@@ -1,0 +1,248 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class QueueScalingPolicy:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'priority': 'int',
+        'impact_start_time': 'str',
+        'impact_stop_time': 'str',
+        'min_cu': 'int',
+        'max_cu': 'int',
+        'inherit_elastic_resource_pool_max_cu': 'bool'
+    }
+
+    attribute_map = {
+        'priority': 'priority',
+        'impact_start_time': 'impact_start_time',
+        'impact_stop_time': 'impact_stop_time',
+        'min_cu': 'min_cu',
+        'max_cu': 'max_cu',
+        'inherit_elastic_resource_pool_max_cu': 'inherit_elastic_resource_pool_max_cu'
+    }
+
+    def __init__(self, priority=None, impact_start_time=None, impact_stop_time=None, min_cu=None, max_cu=None, inherit_elastic_resource_pool_max_cu=None):
+        r"""QueueScalingPolicy
+
+        The model defined in huaweicloud sdk
+
+        :param priority: 策略优先级1-100，100优先级最高
+        :type priority: int
+        :param impact_start_time: 开始时间
+        :type impact_start_time: str
+        :param impact_stop_time: 结束时间
+        :type impact_stop_time: str
+        :param min_cu: 最小cu数量
+        :type min_cu: int
+        :param max_cu: 最大cu数量
+        :type max_cu: int
+        :param inherit_elastic_resource_pool_max_cu: 是否继承资源池最大CU
+        :type inherit_elastic_resource_pool_max_cu: bool
+        """
+        
+        
+
+        self._priority = None
+        self._impact_start_time = None
+        self._impact_stop_time = None
+        self._min_cu = None
+        self._max_cu = None
+        self._inherit_elastic_resource_pool_max_cu = None
+        self.discriminator = None
+
+        self.priority = priority
+        self.impact_start_time = impact_start_time
+        self.impact_stop_time = impact_stop_time
+        self.min_cu = min_cu
+        self.max_cu = max_cu
+        if inherit_elastic_resource_pool_max_cu is not None:
+            self.inherit_elastic_resource_pool_max_cu = inherit_elastic_resource_pool_max_cu
+
+    @property
+    def priority(self):
+        r"""Gets the priority of this QueueScalingPolicy.
+
+        策略优先级1-100，100优先级最高
+
+        :return: The priority of this QueueScalingPolicy.
+        :rtype: int
+        """
+        return self._priority
+
+    @priority.setter
+    def priority(self, priority):
+        r"""Sets the priority of this QueueScalingPolicy.
+
+        策略优先级1-100，100优先级最高
+
+        :param priority: The priority of this QueueScalingPolicy.
+        :type priority: int
+        """
+        self._priority = priority
+
+    @property
+    def impact_start_time(self):
+        r"""Gets the impact_start_time of this QueueScalingPolicy.
+
+        开始时间
+
+        :return: The impact_start_time of this QueueScalingPolicy.
+        :rtype: str
+        """
+        return self._impact_start_time
+
+    @impact_start_time.setter
+    def impact_start_time(self, impact_start_time):
+        r"""Sets the impact_start_time of this QueueScalingPolicy.
+
+        开始时间
+
+        :param impact_start_time: The impact_start_time of this QueueScalingPolicy.
+        :type impact_start_time: str
+        """
+        self._impact_start_time = impact_start_time
+
+    @property
+    def impact_stop_time(self):
+        r"""Gets the impact_stop_time of this QueueScalingPolicy.
+
+        结束时间
+
+        :return: The impact_stop_time of this QueueScalingPolicy.
+        :rtype: str
+        """
+        return self._impact_stop_time
+
+    @impact_stop_time.setter
+    def impact_stop_time(self, impact_stop_time):
+        r"""Sets the impact_stop_time of this QueueScalingPolicy.
+
+        结束时间
+
+        :param impact_stop_time: The impact_stop_time of this QueueScalingPolicy.
+        :type impact_stop_time: str
+        """
+        self._impact_stop_time = impact_stop_time
+
+    @property
+    def min_cu(self):
+        r"""Gets the min_cu of this QueueScalingPolicy.
+
+        最小cu数量
+
+        :return: The min_cu of this QueueScalingPolicy.
+        :rtype: int
+        """
+        return self._min_cu
+
+    @min_cu.setter
+    def min_cu(self, min_cu):
+        r"""Sets the min_cu of this QueueScalingPolicy.
+
+        最小cu数量
+
+        :param min_cu: The min_cu of this QueueScalingPolicy.
+        :type min_cu: int
+        """
+        self._min_cu = min_cu
+
+    @property
+    def max_cu(self):
+        r"""Gets the max_cu of this QueueScalingPolicy.
+
+        最大cu数量
+
+        :return: The max_cu of this QueueScalingPolicy.
+        :rtype: int
+        """
+        return self._max_cu
+
+    @max_cu.setter
+    def max_cu(self, max_cu):
+        r"""Sets the max_cu of this QueueScalingPolicy.
+
+        最大cu数量
+
+        :param max_cu: The max_cu of this QueueScalingPolicy.
+        :type max_cu: int
+        """
+        self._max_cu = max_cu
+
+    @property
+    def inherit_elastic_resource_pool_max_cu(self):
+        r"""Gets the inherit_elastic_resource_pool_max_cu of this QueueScalingPolicy.
+
+        是否继承资源池最大CU
+
+        :return: The inherit_elastic_resource_pool_max_cu of this QueueScalingPolicy.
+        :rtype: bool
+        """
+        return self._inherit_elastic_resource_pool_max_cu
+
+    @inherit_elastic_resource_pool_max_cu.setter
+    def inherit_elastic_resource_pool_max_cu(self, inherit_elastic_resource_pool_max_cu):
+        r"""Sets the inherit_elastic_resource_pool_max_cu of this QueueScalingPolicy.
+
+        是否继承资源池最大CU
+
+        :param inherit_elastic_resource_pool_max_cu: The inherit_elastic_resource_pool_max_cu of this QueueScalingPolicy.
+        :type inherit_elastic_resource_pool_max_cu: bool
+        """
+        self._inherit_elastic_resource_pool_max_cu = inherit_elastic_resource_pool_max_cu
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, QueueScalingPolicy):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
