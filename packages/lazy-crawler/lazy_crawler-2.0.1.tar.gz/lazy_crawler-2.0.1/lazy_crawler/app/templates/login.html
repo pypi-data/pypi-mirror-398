@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Login | Crawlio Intelligence{% endblock %}
+
+{% block content %}
+<section class="hero"
+    style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: var(--slack-purple);">
+    <div class="container" style="display: flex; justify-content: center; width: 100%;">
+        <div class="auth-card"
+            style="width: 100%; max-width: 420px; padding: 2.5rem; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+            <div class="text-center" style="margin-bottom: 2rem;">
+                <h1 style="color: #1d1c1d; margin-bottom: 0.5rem; font-weight: 800; font-size: 2rem;">Welcome Back</h1>
+                <p style="color: #616061; font-size: 1.1rem;">Sign in to your Crawlio Intelligence account</p>
+            </div>
+
+            <form id="loginForm" style="text-align: left;">
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="email"
+                        style="display: block; margin-bottom: 0.5rem; color: #1d1c1d; font-weight: 600;">Email</label>
+                    <input type="email" id="email" name="username" placeholder="name@work-email.com" required
+                        style="width: 100%; padding: 0.9rem; border-radius: 6px; border: 1px solid #ccc; font-size: 1rem; color: #1d1c1d; transition: border 0.2s;">
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="password"
+                        style="display: block; margin-bottom: 0.5rem; color: #1d1c1d; font-weight: 600;">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Your password" required
+                        style="width: 100%; padding: 0.9rem; border-radius: 6px; border: 1px solid #ccc; font-size: 1rem; color: #1d1c1d; transition: border 0.2s;">
+                </div>
+
+                <button type="submit" class="btn-primary" style="width: 100%; font-size: 1.1rem; padding: 1rem;">
+                    Sign In
+                </button>
+            </form>
+
+            <div style="margin: 1.5rem 0; display: flex; align-items: center; gap: 1rem;">
+                <div style="flex: 1; height: 1px; background: #e0e0e0;"></div>
+                <span style="color: #616061; font-size: 0.9rem;">OR</span>
+                <div style="flex: 1; height: 1px; background: #e0e0e0;"></div>
+            </div>
+
+            <a href="/auth/google" class="btn-google">
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google">
+                Sign in with Google
+            </a>
+
+            <div class="text-center" style="margin-top: 2rem;">
+                <p style="font-size: 0.95rem; color: #616061;">
+                    Don't have an account? <a href="/register"
+                        style="color: var(--slack-blue); font-weight: 600; text-decoration: none;">Sign up</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+
+        try {
+            const response = await fetch('/auth/token', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Store in cookie
+                document.cookie = `access_token=Bearer ${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
+                window.location.href = '/dashboard';
+            } else {
+                alert('Login failed. Please check your credentials.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        }
+    });
+
+    // Check for logout message
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    if (message) {
+        alert(message);
+    }
+</script>
+{% endblock %}
