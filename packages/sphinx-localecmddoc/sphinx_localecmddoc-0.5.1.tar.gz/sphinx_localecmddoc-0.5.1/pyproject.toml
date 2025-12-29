@@ -1,0 +1,143 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sphinx_localecmddoc"
+description = 'Sphinx extension for autodocumenting localecmd modules'
+readme = "README.md"
+version = "0.5.1"
+requires-python = ">=3.8"
+license = "BSD-3-Clause"
+license-files = ["LICENSE*"]
+keywords = []
+authors = [
+  { name = "j-box", email = "j-box@blueline.email" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Framework :: Sphinx :: Extension",
+  "Topic :: Documentation :: Sphinx",
+]
+dependencies = [
+  "sphinx",
+  "myst-parser",
+  "localecmd",
+  "jinja2",
+]
+
+[dependency-groups]
+docs = [
+    "myst-parser",
+    "sphinx-autodoc2",
+    "sphinx-markdown-builder",
+    "sphinx-nefertiti",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+types = [
+    "mypy",
+    "types-docutils",
+    ]
+format = ["ruff"]
+dev = [
+    "build",
+    "commitizen",
+    "pre-commit",
+    "twine",
+    {include-group = "docs"},
+    {include-group = "test"},
+    {include-group = "format"},
+    {include-group = "types"},
+]
+
+[project.urls]
+Documentation = "https://codeberg.org/jbox/sphinx_localecmddoc"
+Issues = "https://codeberg.org/jbox/sphinx_localecmddoc/issues"
+Source = "https://codeberg.org/jbox/sphinx_localecmddoc"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/localecmddoc"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.hatch-test]
+dependencies = [
+    # Hopefully at some point dependency group dev can be used...
+    "pytest-cov",
+]
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report html --cov-config=pyproject.toml --doctest-glob='*.md' --import-mode=importlib "
+
+[tool.coverage.run]
+source_pkgs = ["localecmddoc", "tests"]
+omit = [".venv/*"]
+branch = true
+parallel = true
+
+[tool.coverage.paths]
+localecmd = ["src/localecmddoc", "*/localecmd/src/localecmddoc"]
+tests = ["tests", "*/localecmddoc/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+# Use custom convention: 
+# Single quotes for identifiers, double quotes for natural language
+# See f.ex. https://www.askpython.com/python/string/difference-between-single-and-double-quotes-in-python
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-comprehensions
+    "C4",
+    # flake8-bandit
+    "S",
+    # flake8-future-annotations
+    "FA",
+    # flake8-gettext
+    "INT",
+    # flake8-logging
+    "LOG",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+ignore = ["S101", "SIM108"]
+
+[tool.commitizen]
+version_provider = "pep621"
+version_files = ["pyproject.toml"]
+major_version_zero = true
+template = "CHANGELOG.md.j2"
+changelog_incremental = false
+update_changelog_on_bump = true
+change_type_map = {"feat" = "New features", "fix" = "Fixes", "refactor" = "Changes", "perf" = "Improvements"}
+change_type_order = ["BREAKING CHANGE", "New features", "Fixes", "Changes", "Improvements"]
