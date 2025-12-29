@@ -1,0 +1,63 @@
+# Copyright 2025 UsamaAliceWhite All Rights Reserved
+
+
+## ロギング機能
+
+### 説明
+本機能はアプリ全体で一つの設定を共有する。
+その為、最初にGetLoggerを呼び出した際の設定が、アプリ終了時まで全てのロガーに適応される。
+
+開発目的は「簡単にログを出力できる」事である。
+
+推奨される引数はログファイルの保存先の「log_file_path」とロガー名の「logger_name」である。
+引数の初期値は「毎日00時00分に新しいログファイルを作成する。過去のログファイルは最大99ファイルまで保管される。」である。
+
+
+### 関数と引数
+GetLogger()
+    log_file_path
+        概要：ログファイルの保存先
+        型：パス、文字列
+        初期値：ユーザホームディレクトリ/Unknown.log
+    log_when
+        概要：ログファイルを新しいファイルに切り替えるタイミング
+        型：文字列
+        初期値：00時00分
+    log_interval
+        概要：ログファイルを新しいファイルに切り替える頻度
+        型：整数
+        初期値：毎回
+    log_backup_count
+        概要：保存する過去のログファイルの最大数
+        型：整数
+        初期値：最大99ファイル
+    log_encoding
+        概要：ログファイルの文字コード
+        型：文字列
+        初期値：UTF-8
+    log_level
+        概要：ログハンドラーの出力レベル
+        型：整数
+        初期値：全て出力
+    log_text_format
+        概要：ログの出力形式
+        型：文字列
+        初期値：時刻・ロガー名・関数名・ログレベル・メッセージ
+    log_date_format
+        概要：ログの時刻の表示形式
+        型：文字列
+        初期値：年・月・日・時・分・秒
+    logger_name
+        概要：ロガー名
+        型：文字列
+        初期値：Unknown
+    logger_level
+        概要：ロガーの出力レベル
+        型：整数
+        初期値：全て出力
+
+
+### サンプルコード
+from UsamaAliceWhite import GetLogger
+logger = GetLogger(logger_name= __name__)
+logger.info("LogMessage")
