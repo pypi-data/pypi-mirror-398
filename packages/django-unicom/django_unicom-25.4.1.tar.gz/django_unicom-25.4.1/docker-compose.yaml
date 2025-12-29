@@ -1,0 +1,77 @@
+version: '3.3'
+
+services:
+  db:
+    image: postgres:13.4
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - db.env
+    ports:
+      - "6432:5432"
+    restart: always
+  web:
+    build: .
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["daphne", "-b", "0.0.0.0", "-p", "80", "unicom_project.asgi:application"]
+    env_file:
+      - db.env
+    environment:
+      - DOCKER=true
+    ports:
+      - "800:80"
+    volumes:
+      - .:/app
+    restart: always
+    depends_on:
+      - db
+  unibot-worker:
+    build: .
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["python", "manage.py", "run_worker"]
+    env_file:
+      - db.env
+    environment:
+      - DOCKER=true
+    volumes:
+      - .:/app
+    restart: always
+    depends_on:
+      - db
+  # unibot-worker-scaled:
+  #   build: .
+  #   entrypoint: ["/app/entrypoint.sh"]
+  #   command: ["python", "manage.py", "run_worker"]
+  #   env_file:
+  #     - db.env
+  #   environment:
+  #     - DOCKER=true
+  #   volumes:
+  #     - .:/app
+  #   restart: always
+  #   depends_on:
+  #     - db
+  #   deploy:
+  #     replicas: 5
+  imap-listener:
+    build: .
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["python", "manage.py", "start_imap_listeners"]
+    env_file:
+      - db.env
+    environment:
+      - DOCKER=true
+    volumes:
+      - .:/app
+    restart: always
+    depends_on:
+      - db
+  reacher:
+    image: reacherhq/backend:latest
+    env_file:
+      - reacher.env
+    ports:
+      - "8080:8080"
+    restart: always
+volumes:
+  postgres_data:
