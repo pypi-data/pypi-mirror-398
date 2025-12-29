@@ -1,0 +1,1 @@
+"""Collection functional programming operations."""
