@@ -1,0 +1,168 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbt-rabbit-bigquery"
+version = "1.1.3.1.10.3"
+description = "A dbt adapter that automatically optimizes BigQuery job costs using the Rabbit API"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache License 2.0"}
+authors = [
+    {name = "Rabbit Team", email = "success@followrabbit.ai"}
+]
+maintainers = [
+    {name = "Rabbit Team", email = "success@followrabbit.ai"}
+]
+keywords = [
+    "dbt",
+    "bigquery",
+    "google-cloud",
+    "data-warehouse",
+    "optimization",
+    "cost-optimization",
+    "analytics",
+    "data-engineering",
+    "sql",
+    "rabbit",
+]
+classifiers = [
+    # Development status
+    "Development Status :: 4 - Beta",
+    # Intended audience
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    # License
+    "License :: OSI Approved :: Apache Software License",
+    # Operating systems
+    "Operating System :: OS Independent",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    # Programming language versions
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    # Topics
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business",
+]
+dependencies = [
+    "dbt-bigquery==1.10.3",  # Version range for compatibility; exact version set by sync_dbt_bigquery_version.py
+    "rabbit-bq-job-optimizer>=0.1.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    # Code quality
+    "black>=24.1.0",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "pydocstyle>=6.3.0",
+    # Pre-commit hooks
+    "pre-commit>=3.5.0",
+    # Type stubs
+    "types-requests>=2.31.0",
+    # Package building and publishing
+    "build>=1.0.0",
+    "twine>=4.0.0",
+    "wheel>=0.42.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+docs = [
+    # Documentation (optional)
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+]
+
+[project.urls]
+Homepage = "https://followrabbit.ai"
+Documentation = "https://followrabbit.ai/docs/dbt-adapter"
+"Source Code" = "https://github.com/followtherabbit/dbt-rabbit-bigquery"
+"Bug Tracker" = "https://github.com/followtherabbit/dbt-rabbit-bigquery/issues"
+Changelog = "https://github.com/followtherabbit/dbt-rabbit-bigquery/blob/master/CHANGELOG.md"
+
+[project.entry-points."dbt.adapters"]
+rabbitbigquery = "dbt.adapters.rabbitbigquery"
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["dbt", "dbt.*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"dbt.include.rabbitbigquery" = ["dbt_project.yml", "macros/**/*.sql"]
+
+[tool.black]
+line-length = 160
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+namespace_packages = true
+explicit_package_bases = true
+no_strict_optional = true
+allow_subclassing_any = true
+files = ["dbt/adapters/rabbitbigquery"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--cov=dbt.adapters.rabbitbigquery",
+    "--cov-report=xml",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+source = ["dbt/adapters/rabbitbigquery"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.pydocstyle]
+convention = "google"
+add_ignore = ["D100", "D104", "D202", "D212", "D415"]
+match = "(?!test_).*\\.py"
