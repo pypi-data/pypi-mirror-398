@@ -1,0 +1,589 @@
+# Core Apache Spark Configuration Knowledge Base
+
+spark.sql.shuffle.partitions:
+  description: "Controls the number of partitions created during shuffle operations (joins, aggregations, etc.). The default 200 is optimized for small clusters but may be suboptimal for large-scale workloads."
+  default: "200"
+  scope: "session"
+  type: "int"
+  recommendations:
+    small_data: "50-100 partitions (<10GB data)"
+    medium_data: "200-500 partitions (10-100GB data)"
+    large_data: "1000-2000 partitions (>100GB data)"
+  formula: "num_executors × executor_cores × 2-3"
+  fabric_specific: "On Starter Pools with Native Execution, start with 100-200 and let AQE handle dynamic coalescing."
+  related:
+    - "spark.sql.adaptive.coalescePartitions.enabled"
+    - "spark.sql.files.maxPartitionBytes"
+  examples:
+    - "spark.conf.set('spark.sql.shuffle.partitions', '500')"
+  tags:
+    - "shuffle"
+    - "performance"
+    - "partitioning"
+
+spark.sql.adaptive.enabled:
+  description: "Enables Adaptive Query Execution (AQE), which dynamically optimizes query execution based on runtime statistics. This includes coalescing partitions, optimizing skew joins, and more."
+  default: "true (Spark 3.2+)"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - always enable unless specific compatibility issues"
+  fabric_specific: "CRITICAL: Always enabled on Fabric for optimal performance with Native Execution Engine."
+  related:
+    - "spark.sql.adaptive.coalescePartitions.enabled"
+    - "spark.sql.adaptive.skewJoin.enabled"
+    - "spark.sql.adaptive.localShuffleReader.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.adaptive.enabled', 'true')"
+  tags:
+    - "aqe"
+    - "optimization"
+    - "critical"
+
+spark.sql.adaptive.coalescePartitions.enabled:
+  description: "When enabled with AQE, dynamically reduces the number of shuffle partitions after stages complete, combining small partitions for better efficiency."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - reduces scheduling overhead"
+  related:
+    - "spark.sql.adaptive.enabled"
+    - "spark.sql.adaptive.advisoryPartitionSizeInBytes"
+  examples:
+    - "spark.conf.set('spark.sql.adaptive.coalescePartitions.enabled', 'true')"
+  tags:
+    - "aqe"
+    - "partitioning"
+    - "performance"
+
+spark.sql.adaptive.skewJoin.enabled:
+  description: "Enables automatic handling of data skew in joins by splitting large partitions into smaller sub-partitions."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - critical for workloads with skewed keys"
+  fabric_specific: "Highly recommended on Fabric to prevent single-task bottlenecks."
+  related:
+    - "spark.sql.adaptive.enabled"
+    - "spark.sql.adaptive.skewJoin.skewedPartitionFactor"
+    - "spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes"
+  examples:
+    - "spark.conf.set('spark.sql.adaptive.skewJoin.enabled', 'true')"
+  tags:
+    - "aqe"
+    - "skew"
+    - "joins"
+
+spark.sql.files.maxPartitionBytes:
+  description: "Maximum number of bytes to pack into a single partition when reading files. Larger values reduce the number of tasks but increase per-task memory requirements."
+  default: "134217728 (128MB)"
+  scope: "session"
+  type: "long"
+  recommendations:
+    small_executors: "128MB (4-8GB executor memory)"
+    medium_executors: "256MB (16-32GB executor memory)"
+    large_executors: "512MB-1GB (>32GB executor memory)"
+  fabric_specific: "On large Fabric pools (F128+), consider 256-512MB for better throughput."
+  related:
+    - "spark.sql.files.openCostInBytes"
+    - "spark.executor.memory"
+  examples:
+    - "spark.conf.set('spark.sql.files.maxPartitionBytes', '268435456')  # 256MB"
+  tags:
+    - "partitioning"
+    - "io"
+    - "performance"
+
+spark.executor.memory:
+  description: "Amount of memory to allocate per executor process. This excludes overhead memory."
+  default: "1g"
+  scope: "cluster"
+  type: "string"
+  recommendations:
+    data_processing: "8-16GB for typical workloads"
+    memory_intensive: "32-64GB for large aggregations/joins"
+    small_jobs: "4-8GB for simple transformations"
+  fabric_specific: "Fabric Custom Pools: Size based on your capacity unit (F64=~8GB, F128=~16GB per executor)"
+  related:
+    - "spark.executor.memoryOverhead"
+    - "spark.memory.fraction"
+  examples:
+    - "spark.conf.set('spark.executor.memory', '16g')"
+  tags:
+    - "memory"
+    - "resources"
+
+spark.executor.cores:
+  description: "Number of CPU cores to allocate per executor. More cores = more parallel tasks per executor."
+  default: "1"
+  scope: "cluster"
+  type: "int"
+  recommendations:
+    balanced: "4-8 cores per executor (good balance of parallelism and resource sharing)"
+    io_bound: "2-4 cores (I/O heavy workloads)"
+    cpu_bound: "8+ cores (CPU intensive operations)"
+  fabric_specific: "Fabric typically allocates 4 cores per executor in balanced mode."
+  related:
+    - "spark.executor.memory"
+    - "spark.task.cpus"
+  examples:
+    - "spark.conf.set('spark.executor.cores', '4')"
+  tags:
+    - "cpu"
+    - "parallelism"
+    - "resources"
+
+spark.driver.memory:
+  description: "Amount of memory for the driver process. Critical if you collect large results or broadcast large datasets."
+  default: "1g"
+  scope: "cluster"
+  type: "string"
+  recommendations:
+    normal: "4-8GB for typical notebooks"
+    collect_heavy: "16-32GB if using collect() frequently"
+    broadcast: "Increase if broadcasting large datasets (>1GB)"
+  fabric_specific: "Fabric notebooks: Start with 8GB, increase if seeing OOM errors during collect()."
+  related:
+    - "spark.driver.maxResultSize"
+    - "spark.sql.autoBroadcastJoinThreshold"
+  examples:
+    - "spark.conf.set('spark.driver.memory', '8g')"
+  tags:
+    - "memory"
+    - "driver"
+    - "resources"
+
+spark.driver.maxResultSize:
+  description: "Maximum size of results that can be collected to the driver. Prevents OOM from large collect() operations."
+  default: "1g"
+  scope: "session"
+  type: "string"
+  recommendations:
+    safe: "2-4GB (prevents most OOM issues)"
+    large_results: "8GB+ (if you need to collect large datasets)"
+  related:
+    - "spark.driver.memory"
+  examples:
+    - "spark.conf.set('spark.driver.maxResultSize', '4g')"
+  tags:
+    - "memory"
+    - "driver"
+    - "safety"
+
+spark.sql.autoBroadcastJoinThreshold:
+  description: "Maximum size of a table that will be broadcast to all executors for joins. Set to -1 to disable broadcasting."
+  default: "10485760 (10MB)"
+  scope: "session"
+  type: "long"
+  recommendations:
+    small_dims: "10-50MB (dimension tables < 50MB)"
+    medium_dims: "100MB (with sufficient driver memory)"
+    disable: "-1 (if broadcast causing OOM)"
+  fabric_specific: "On Fabric with Native Execution, broadcast joins are highly optimized. Can safely increase to 50-100MB."
+  related:
+    - "spark.driver.memory"
+    - "spark.sql.broadcastTimeout"
+  examples:
+    - "spark.conf.set('spark.sql.autoBroadcastJoinThreshold', '52428800')  # 50MB"
+  tags:
+    - "joins"
+    - "broadcast"
+    - "performance"
+
+spark.scheduler.mode:
+  description: "Scheduling mode for Spark jobs. FIFO (default) runs jobs in order, FAIR allows concurrent job execution with fair resource sharing."
+  default: "FIFO"
+  scope: "session"
+  type: "string"
+  recommendations:
+    batch: "FIFO - simple sequential execution"
+    interactive: "FAIR - better for concurrent notebook queries"
+    multi_user: "FAIR - share resources across users"
+  related:
+    - "spark.scheduler.allocation.file"
+  examples:
+    - "spark.conf.set('spark.scheduler.mode', 'FAIR')"
+  tags:
+    - "scheduler"
+    - "concurrency"
+
+spark.speculation:
+  description: "If enabled, Spark will launch speculative copies of slow tasks. Useful for handling stragglers but can waste resources."
+  default: "false"
+  scope: "cluster"
+  type: "boolean"
+  recommendations:
+    stable_cluster: "false - avoid wasted work"
+    unreliable_nodes: "true - handle slow/failing nodes"
+  fabric_specific: "Generally keep false on Fabric Starter Pools. Consider true on large Custom Pools if experiencing stragglers."
+  related:
+    - "spark.speculation.interval"
+    - "spark.speculation.multiplier"
+  examples:
+    - "spark.conf.set('spark.speculation', 'false')"
+  tags:
+    - "speculation"
+    - "reliability"
+
+spark.native.enabled:
+  description: "FABRIC CRITICAL: Enables the Native Execution Engine (Velox) for vectorized query processing. Provides 3-10x performance improvement."
+  default: "true (on Fabric)"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_fabric: "true - always enable on Fabric"
+  fabric_specific: "This is THE key configuration for Fabric performance. Enables Velox-based columnar execution. Avoid Python UDFs to maintain native execution."
+  related:
+    - "spark.sql.adaptive.enabled"
+  examples:
+    - "spark.conf.set('spark.native.enabled', 'true')"
+  tags:
+    - "native"
+    - "velox"
+    - "fabric"
+    - "critical"
+    - "performance"
+
+spark.sql.parquet.enableVectorizedReader:
+  description: "Enables vectorized Parquet reader for columnar batch reading, which is much faster than row-by-row reading."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - keep enabled for performance"
+  fabric_specific: "Works in conjunction with Native Execution Engine. Always keep true on Fabric."
+  related:
+    - "spark.native.enabled"
+    - "spark.sql.parquet.columnarReaderBatchSize"
+  examples:
+    - "spark.conf.set('spark.sql.parquet.enableVectorizedReader', 'true')"
+  tags:
+    - "parquet"
+    - "vectorized"
+    - "performance"
+
+spark.sql.parquet.columnarReaderBatchSize:
+  description: "Number of rows to include in a columnar batch when reading Parquet files. Higher values = better throughput but more memory."
+  default: "4096"
+  scope: "session"
+  type: "int"
+  recommendations:
+    small_memory: "4096 (default)"
+    large_memory: "8192-16384 for executors with >16GB RAM"
+  related:
+    - "spark.sql.parquet.enableVectorizedReader"
+  examples:
+    - "spark.conf.set('spark.sql.parquet.columnarReaderBatchSize', '8192')"
+  tags:
+    - "parquet"
+    - "memory"
+    - "performance"
+
+spark.sql.join.preferSortMergeJoin:
+  description: "When true, Spark prefers sort-merge joins over shuffle hash joins. Sort-merge joins are more memory-efficient for large datasets."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    large_joins: "true - more stable for large datasets"
+    small_joins: "false - hash joins may be faster for small data"
+  related:
+    - "spark.sql.autoBroadcastJoinThreshold"
+    - "spark.sql.adaptive.skewJoin.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.join.preferSortMergeJoin', 'true')"
+  tags:
+    - "joins"
+    - "performance"
+
+spark.sql.broadcastTimeout:
+  description: "Timeout in seconds for broadcast joins. If broadcasting takes longer than this, the job fails."
+  default: "300 (5 minutes)"
+  scope: "session"
+  type: "int"
+  recommendations:
+    stable_network: "300 (default)"
+    slow_network: "600-900 for large broadcasts"
+  related:
+    - "spark.sql.autoBroadcastJoinThreshold"
+  examples:
+    - "spark.conf.set('spark.sql.broadcastTimeout', '600')"
+  tags:
+    - "joins"
+    - "broadcast"
+    - "timeout"
+
+spark.dynamicAllocation.enabled:
+  description: "Enables dynamic allocation of executors based on workload. Executors are added when needed and removed when idle."
+  default: "false"
+  scope: "cluster"
+  type: "boolean"
+  recommendations:
+    variable_load: "true - for workloads with varying resource needs"
+    stable_load: "false - for predictable workloads"
+  fabric_specific: "Fabric Starter Pools manage this automatically. Useful for Custom Pools with varying workloads."
+  related:
+    - "spark.dynamicAllocation.minExecutors"
+    - "spark.dynamicAllocation.maxExecutors"
+    - "spark.dynamicAllocation.initialExecutors"
+  examples:
+    - "spark.conf.set('spark.dynamicAllocation.enabled', 'true')"
+  tags:
+    - "resources"
+    - "scaling"
+    - "executors"
+
+spark.dynamicAllocation.minExecutors:
+  description: "Minimum number of executors to keep alive when dynamic allocation is enabled."
+  default: "0"
+  scope: "cluster"
+  type: "int"
+  recommendations:
+    quick_start: "Set to 2-4 to avoid cold start delays"
+    cost_saving: "0 to minimize resource usage when idle"
+  related:
+    - "spark.dynamicAllocation.enabled"
+    - "spark.dynamicAllocation.maxExecutors"
+  examples:
+    - "spark.conf.set('spark.dynamicAllocation.minExecutors', '2')"
+  tags:
+    - "resources"
+    - "scaling"
+
+spark.dynamicAllocation.maxExecutors:
+  description: "Maximum number of executors when dynamic allocation is enabled. Prevents runaway resource consumption."
+  default: "infinity"
+  scope: "cluster"
+  type: "int"
+  recommendations:
+    production: "Set based on capacity limits"
+    development: "Set to prevent accidentally using all resources"
+  related:
+    - "spark.dynamicAllocation.enabled"
+    - "spark.dynamicAllocation.minExecutors"
+  examples:
+    - "spark.conf.set('spark.dynamicAllocation.maxExecutors', '20')"
+  tags:
+    - "resources"
+    - "scaling"
+    - "limits"
+
+spark.memory.fraction:
+  description: "Fraction of heap space used for execution and storage. The rest is reserved for user data structures and internal metadata."
+  default: "0.6 (60%)"
+  scope: "cluster"
+  type: "double"
+  recommendations:
+    data_heavy: "0.6-0.7 (default is fine)"
+    computation_heavy: "0.7-0.8 for complex transformations"
+  related:
+    - "spark.memory.storageFraction"
+    - "spark.executor.memory"
+  examples:
+    - "spark.conf.set('spark.memory.fraction', '0.7')"
+  tags:
+    - "memory"
+    - "tuning"
+
+spark.memory.storageFraction:
+  description: "Fraction of spark.memory.fraction used for caching. The rest is for execution (shuffles, joins, sorts)."
+  default: "0.5 (50%)"
+  scope: "cluster"
+  type: "double"
+  recommendations:
+    cache_heavy: "0.6-0.7 for workloads with lots of caching"
+    no_caching: "0.3-0.4 to give more to execution"
+  related:
+    - "spark.memory.fraction"
+  examples:
+    - "spark.conf.set('spark.memory.storageFraction', '0.6')"
+  tags:
+    - "memory"
+    - "caching"
+
+spark.sql.cbo.enabled:
+  description: "Enables Cost-Based Optimization for query planning. Uses statistics to choose better query plans."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    production: "true - if you maintain table statistics"
+    ad_hoc: "false - if tables don't have statistics"
+  related:
+    - "spark.sql.cbo.joinReorder.enabled"
+    - "spark.sql.statistics.histogram.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.cbo.enabled', 'true')"
+    - "ANALYZE TABLE my_table COMPUTE STATISTICS"
+  tags:
+    - "optimization"
+    - "query-planning"
+
+spark.sql.cbo.joinReorder.enabled:
+  description: "Allows CBO to reorder joins for optimal execution. Only works if spark.sql.cbo.enabled is true."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    complex_queries: "true - for queries with 3+ joins"
+    simple_queries: "false - not needed for simple queries"
+  related:
+    - "spark.sql.cbo.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.cbo.joinReorder.enabled', 'true')"
+  tags:
+    - "optimization"
+    - "joins"
+
+spark.sql.sources.partitionOverwriteMode:
+  description: "Controls partition overwrite behavior. 'static' overwrites all partitions, 'dynamic' only overwrites partitions being written."
+  default: "static"
+  scope: "session"
+  type: "string"
+  recommendations:
+    incremental_loads: "dynamic - only overwrite affected partitions"
+    full_refresh: "static - overwrite entire table"
+  fabric_specific: "Use dynamic for incremental Lakehouse table updates to avoid data loss."
+  related:
+    - "spark.sql.sources.partitionColumnTypeInference.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.sources.partitionOverwriteMode', 'dynamic')"
+  tags:
+    - "partitions"
+    - "write"
+    - "safety"
+
+spark.sql.hive.convertMetastoreParquet:
+  description: "When true, uses Spark's built-in Parquet reader instead of Hive SerDe. Much faster."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - always use Spark's reader"
+  related:
+    - "spark.sql.parquet.enableVectorizedReader"
+  examples:
+    - "spark.conf.set('spark.sql.hive.convertMetastoreParquet', 'true')"
+  tags:
+    - "parquet"
+    - "performance"
+
+spark.sql.orc.enableVectorizedReader:
+  description: "Enables vectorized ORC reader. Similar to Parquet vectorized reader."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    orc_files: "true - for better ORC performance"
+  related:
+    - "spark.sql.parquet.enableVectorizedReader"
+  examples:
+    - "spark.conf.set('spark.sql.orc.enableVectorizedReader', 'true')"
+  tags:
+    - "orc"
+    - "vectorized"
+    - "performance"
+
+spark.serializer:
+  description: "Serializer to use for shuffling data between executors. KryoSerializer is faster than Java serialization."
+  default: "org.apache.spark.serializer.JavaSerializer"
+  scope: "cluster"
+  type: "string"
+  recommendations:
+    all_workloads: "org.apache.spark.serializer.KryoSerializer - 10x faster"
+  related:
+    - "spark.kryo.registrationRequired"
+  examples:
+    - "spark.conf.set('spark.serializer', 'org.apache.spark.serializer.KryoSerializer')"
+  tags:
+    - "serialization"
+    - "performance"
+    - "shuffle"
+
+spark.sql.inMemoryColumnarStorage.compressed:
+  description: "Whether to compress cached columnar batches. Saves memory but adds CPU overhead."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    memory_constrained: "true - save memory"
+    cpu_constrained: "false - save CPU cycles"
+  related:
+    - "spark.sql.inMemoryColumnarStorage.batchSize"
+  examples:
+    - "spark.conf.set('spark.sql.inMemoryColumnarStorage.compressed', 'true')"
+  tags:
+    - "caching"
+    - "memory"
+    - "compression"
+
+spark.sql.inMemoryColumnarStorage.batchSize:
+  description: "Number of rows in a batch for columnar caching. Higher = better compression but more memory per batch."
+  default: "10000"
+  scope: "session"
+  type: "int"
+  recommendations:
+    default: "10000 works well for most cases"
+    wide_tables: "5000 for tables with 100+ columns"
+  related:
+    - "spark.sql.inMemoryColumnarStorage.compressed"
+  examples:
+    - "spark.conf.set('spark.sql.inMemoryColumnarStorage.batchSize', '10000')"
+  tags:
+    - "caching"
+    - "memory"
+
+spark.sql.adaptive.advisoryPartitionSizeInBytes:
+  description: "Target partition size (in bytes) for AQE coalescing. AQE will try to combine partitions to reach this size."
+  default: "67108864 (64MB)"
+  scope: "session"
+  type: "long"
+  recommendations:
+    default: "64MB works well"
+    large_executors: "128MB for executors with >16GB RAM"
+  related:
+    - "spark.sql.adaptive.enabled"
+    - "spark.sql.adaptive.coalescePartitions.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.adaptive.advisoryPartitionSizeInBytes', '134217728')  # 128MB"
+  tags:
+    - "aqe"
+    - "partitioning"
+
+spark.sql.adaptive.skewJoin.skewedPartitionFactor:
+  description: "Multiplier to determine if a partition is skewed. Partition is skewed if size > median * this factor."
+  default: "5"
+  scope: "session"
+  type: "double"
+  recommendations:
+    aggressive: "3 - catch more skew"
+    conservative: "10 - only severe skew"
+  related:
+    - "spark.sql.adaptive.skewJoin.enabled"
+    - "spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes"
+  examples:
+    - "spark.conf.set('spark.sql.adaptive.skewJoin.skewedPartitionFactor', '3')"
+  tags:
+    - "aqe"
+    - "skew"
+    - "joins"
+
+spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes:
+  description: "Minimum size (in bytes) for a partition to be considered for skew handling."
+  default: "268435456 (256MB)"
+  scope: "session"
+  type: "long"
+  recommendations:
+    default: "256MB is reasonable"
+    small_data: "128MB to catch skew in smaller datasets"
+  related:
+    - "spark.sql.adaptive.skewJoin.enabled"
+    - "spark.sql.adaptive.skewJoin.skewedPartitionFactor"
+  examples:
+    - "spark.conf.set('spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes', '134217728')  # 128MB"
+  tags:
+    - "aqe"
+    - "skew"
+    - "joins"

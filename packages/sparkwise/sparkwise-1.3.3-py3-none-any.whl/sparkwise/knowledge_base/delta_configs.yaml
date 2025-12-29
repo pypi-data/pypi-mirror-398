@@ -1,0 +1,954 @@
+# Delta Lake Configuration Knowledge Base
+
+spark.databricks.delta.properties.defaults.enableDeletionVectors:
+  description: "Enables Deletion Vectors for Delta tables, which mark deleted rows without rewriting entire Parquet files. Dramatically speeds up UPDATE and DELETE operations."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    merge_heavy: "true - critical for frequent MERGE/UPDATE/DELETE operations"
+    append_only: "false - not needed for append-only workloads"
+  fabric_specific: "Recommended for Fabric lakehouse tables that undergo frequent updates."
+  related:
+    - "spark.databricks.delta.deletionVectors.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.properties.defaults.enableDeletionVectors', 'true')"
+    - "ALTER TABLE table_name SET TBLPROPERTIES ('delta.enableDeletionVectors' = 'true')"
+  tags:
+    - "delta"
+    - "merge"
+    - "update"
+    - "performance"
+
+spark.databricks.delta.optimizeWrite.enabled:
+  description: "Automatically optimizes file sizes during write operations to prevent small file problems. Combines small files into larger ones at write time."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    read_heavy: "true - critical for read-optimized workloads (readHeavyForSpark, readHeavyForPBI profiles)"
+    write_heavy: "null/false - disabled in writeHeavy profile (default) for faster ingestion"
+    streaming: "true - prevents small file accumulation in streaming workloads"
+  fabric_specific: "Use spark.microsoft.delta.optimizeWrite.enabled on Fabric (Fabric-specific variant). In writeHeavy profile (default for new workspaces), this is set to null/disabled for maximum write throughput."
+  resource_profile_values:
+    writeHeavy: "null - disabled for faster writes"
+    readHeavyForSpark: "true - enabled with binSize 128MB"
+    readHeavyForPBI: "true - enabled with binSize 1GB"
+  related:
+    - "spark.microsoft.delta.optimizeWrite.enabled"
+    - "spark.databricks.delta.autoCompact.enabled"
+    - "spark.databricks.delta.optimizeWrite.binSize"
+    - "spark.databricks.delta.optimizeWrite.partitioned.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.optimizeWrite.enabled', 'true')  # For read-heavy"
+  tags:
+    - "delta"
+    - "write"
+    - "optimization"
+    - "small-files"
+
+spark.microsoft.delta.optimizeWrite.enabled:
+  description: "FABRIC-SPECIFIC: Microsoft Fabric's version of Optimize Write. Controls file size optimization during writes to Delta tables in OneLake."
+  default: "null"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    write_heavy: "null/false - disabled in writeHeavy profile (default) for maximum ingestion throughput"
+    read_heavy_spark: "true - enabled in readHeavyForSpark profile with 128MB binSize"
+    read_heavy_pbi: "true - enabled in readHeavyForPBI profile with 1GB binSize"
+    streaming: "true - for streaming workloads with frequent small writes"
+  why_this_default: "New Fabric workspaces default to writeHeavy profile where optimizeWrite is null/disabled. This maximizes write performance for ETL and data ingestion workloads. Enable for read-heavy or streaming patterns."
+  fabric_specific: "This is the Fabric-specific config. Preferred over spark.databricks.delta.optimizeWrite.enabled on Fabric. Behavior controlled by spark.fabric.resourceProfile setting."
+  resource_profile_values:
+    writeHeavy: "null - optimized for fast ingestion (default for new workspaces)"
+    readHeavyForSpark: "true - with binSize=128MB for balanced read performance"
+    readHeavyForPBI: "true - with binSize=1GB for Power BI/Direct Lake scenarios"
+  related:
+    - "spark.databricks.delta.optimizeWrite.enabled"
+    - "spark.databricks.delta.optimizeWrite.binSize"
+    - "spark.databricks.delta.optimizeWrite.partitioned.enabled"
+    - "spark.fabric.resourceProfile"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.optimizeWrite.enabled', 'true')  # Override for read-heavy"
+    - "spark.conf.set('spark.fabric.resourceProfile', 'readHeavyForSpark')  # Use read-optimized profile"
+  tags:
+    - "delta"
+    - "write"
+    - "optimization"
+    - "fabric"
+    - "resource-profile"
+    - "spark.databricks.delta.optimizeWrite.enabled"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.optimizeWrite.enabled', 'true')"
+  tags:
+    - "delta"
+    - "fabric"
+    - "write"
+    - "optimization"
+
+spark.databricks.delta.autoCompact.enabled:
+  description: "Automatically runs OPTIMIZE after write operations to compact small files. More aggressive than Optimize Write."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    high_frequency_writes: "true - for tables with many small writes"
+    large_batch: "false - manual OPTIMIZE may be more efficient"
+  related:
+    - "spark.databricks.delta.optimizeWrite.enabled"
+    - "spark.databricks.delta.autoCompact.minNumFiles"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.autoCompact.enabled', 'true')"
+  tags:
+    - "delta"
+    - "compaction"
+    - "maintenance"
+
+spark.sql.parquet.vorder.enabled:
+  description: "FABRIC CRITICAL: Enables V-Order, which writes Parquet files in an optimized column order for faster reads by Power BI and Direct Lake."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    power_bi: "true - ESSENTIAL for Power BI/Direct Lake scenarios"
+    all_fabric: "true - benefits all Fabric analytical queries"
+  fabric_specific: "V-Order is a Fabric innovation. Provides 3-10x faster reads for analytical queries, especially from Power BI. Always enable for lakehouse tables."
+  related:
+    - "spark.sql.parquet.columnarReaderBatchSize"
+  examples:
+    - "spark.conf.set('spark.sql.parquet.vorder.enabled', 'true')"
+  tags:
+    - "fabric"
+    - "v-order"
+    - "power-bi"
+    - "critical"
+    - "performance"
+    - "parquet"
+
+spark.databricks.delta.merge.repartitionBeforeWrite.enabled:
+  description: "Repartitions data before writing during MERGE operations to improve file sizes and distribution."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    large_merges: "true - helps with large MERGE operations"
+    small_merges: "false - adds overhead for small merges"
+  related:
+    - "spark.databricks.delta.merge.optimizeInsertOnlyMerge.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.merge.repartitionBeforeWrite.enabled', 'true')"
+  tags:
+    - "delta"
+    - "merge"
+    - "optimization"
+
+spark.databricks.delta.schema.autoMerge.enabled:
+  description: "Automatically merges schema changes during write operations (adds new columns). Useful for evolving schemas."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    evolving_schema: "true - for schemas that change over time"
+    fixed_schema: "false - prevents accidental schema changes"
+  related:
+    - "spark.databricks.delta.schema.typeCheck.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.schema.autoMerge.enabled', 'true')"
+  tags:
+    - "delta"
+    - "schema"
+    - "evolution"
+
+spark.databricks.delta.retentionDurationCheck.enabled:
+  description: "Enforces retention duration checks when running VACUUM to prevent accidental deletion of recent files."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    production: "true - safety against data loss"
+    development: "false - for testing/cleanup"
+  related:
+    - "spark.databricks.delta.vacuum.logging.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.retentionDurationCheck.enabled', 'true')"
+  tags:
+    - "delta"
+    - "vacuum"
+    - "safety"
+    - "maintenance"
+
+spark.databricks.delta.optimizeWrite.binSize:
+  description: "Target file size in bytes when using Optimize Write. Determines how large files should be when combining small files."
+  default: "134217728 (128MB)"
+  scope: "session"
+  type: "long"
+  recommendations:
+    standard: "128-256MB - good balance"
+    large_tables: "512MB-1GB - for very large tables"
+  related:
+    - "spark.databricks.delta.optimizeWrite.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.optimizeWrite.binSize', '268435456')  # 256MB"
+  tags:
+    - "delta"
+    - "optimization"
+    - "file-size"
+
+spark.databricks.delta.checkpoint.writeStatsAsJson:
+  description: "Whether to write partition statistics in checkpoint files as JSON. Helps with metadata queries."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    metadata_queries: "true - for fast metadata operations"
+    write_performance: "false - slightly faster writes"
+  related:
+    - "spark.databricks.delta.stalenessLimit"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.checkpoint.writeStatsAsJson', 'true')"
+  tags:
+    - "delta"
+    - "checkpoint"
+    - "metadata"
+
+spark.databricks.delta.checkpoint.writeStatsAsStruct:
+  description: "Whether to write partition statistics as structs instead of JSON. More efficient for queries."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    modern_delta: "true - more efficient (Delta 2.0+)"
+  related:
+    - "spark.databricks.delta.checkpoint.writeStatsAsJson"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.checkpoint.writeStatsAsStruct', 'true')"
+  tags:
+    - "delta"
+    - "checkpoint"
+    - "performance"
+
+spark.databricks.delta.stalenessLimit:
+  description: "Time in milliseconds that Delta table metadata can be stale before refreshing. Lower = more metadata refreshes."
+  default: "3600000 (1 hour)"
+  scope: "session"
+  type: "long"
+  recommendations:
+    fast_changing: "300000 (5 minutes) for frequently updated tables"
+    stable_tables: "3600000 (default) for less frequently updated tables"
+  related:
+    - "spark.databricks.delta.checkpoint.writeStatsAsJson"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.stalenessLimit', '300000')  # 5 minutes"
+  tags:
+    - "delta"
+    - "metadata"
+    - "caching"
+
+spark.databricks.delta.properties.defaults.minReaderVersion:
+  description: "Minimum Delta reader version required to read tables. Higher versions enable more features."
+  default: "1"
+  scope: "session"
+  type: "int"
+  recommendations:
+    compatibility: "1 - maximum compatibility"
+    modern_features: "2 - for column mapping and other features"
+  related:
+    - "spark.databricks.delta.properties.defaults.minWriterVersion"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.minReaderVersion' = '2')"
+  tags:
+    - "delta"
+    - "versioning"
+    - "compatibility"
+
+spark.databricks.delta.properties.defaults.minWriterVersion:
+  description: "Minimum Delta writer version required to write to tables. Higher versions enable more features."
+  default: "2"
+  scope: "session"
+  type: "int"
+  recommendations:
+    compatibility: "2 - good default"
+    advanced_features: "4+ for deletion vectors and other features"
+  related:
+    - "spark.databricks.delta.properties.defaults.minReaderVersion"
+    - "spark.databricks.delta.properties.defaults.enableDeletionVectors"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.minWriterVersion' = '4')"
+  tags:
+    - "delta"
+    - "versioning"
+    - "features"
+
+spark.databricks.delta.properties.defaults.checkpointInterval:
+  description: "Number of commits before creating a new checkpoint file. Checkpoints speed up metadata reads."
+  default: "10"
+  scope: "session"
+  type: "int"
+  recommendations:
+    frequent_writes: "10 (default)"
+    infrequent_writes: "20-50 to reduce checkpoint overhead"
+  related:
+    - "spark.databricks.delta.checkpoint.writeStatsAsJson"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.checkpointInterval' = '10')"
+  tags:
+    - "delta"
+    - "checkpoint"
+    - "metadata"
+
+spark.databricks.delta.properties.defaults.logRetentionDuration:
+  description: "How long to keep transaction log files. Affects time travel capability."
+  default: "interval 30 days"
+  scope: "session"
+  type: "string"
+  recommendations:
+    time_travel: "interval 90 days - for longer time travel"
+    storage_saving: "interval 7 days - minimum recommended"
+  related:
+    - "spark.databricks.delta.properties.defaults.deletedFileRetentionDuration"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.logRetentionDuration' = 'interval 90 days')"
+  tags:
+    - "delta"
+    - "time-travel"
+    - "retention"
+
+spark.databricks.delta.properties.defaults.deletedFileRetentionDuration:
+  description: "How long to keep deleted data files before VACUUM removes them. Safety net against accidental deletion."
+  default: "interval 7 days"
+  scope: "session"
+  type: "string"
+  recommendations:
+    production: "interval 7 days - minimum for safety"
+    aggressive_cleanup: "interval 1 day - with caution"
+  fabric_specific: "Keep at least 7 days in production Lakehouse tables for rollback safety."
+  related:
+    - "spark.databricks.delta.properties.defaults.logRetentionDuration"
+    - "spark.databricks.delta.retentionDurationCheck.enabled"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.deletedFileRetentionDuration' = 'interval 7 days')"
+  tags:
+    - "delta"
+    - "vacuum"
+    - "retention"
+    - "safety"
+
+spark.databricks.delta.properties.defaults.dataSkippingNumIndexedCols:
+  description: "Number of columns to collect stats for data skipping. More columns = better skipping but larger metadata."
+  default: "32"
+  scope: "session"
+  type: "int"
+  recommendations:
+    wide_tables: "32 (default)"
+    narrow_tables: "50+ for tables with <100 columns"
+  related:
+    - "spark.databricks.delta.stats.skipping"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.dataSkippingNumIndexedCols' = '50')"
+  tags:
+    - "delta"
+    - "statistics"
+    - "performance"
+
+spark.databricks.delta.stats.skipping:
+  description: "Whether to use data skipping to avoid reading unnecessary files based on min/max statistics."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - significant performance improvement"
+  related:
+    - "spark.databricks.delta.properties.defaults.dataSkippingNumIndexedCols"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.stats.skipping', 'true')"
+  tags:
+    - "delta"
+    - "statistics"
+    - "performance"
+
+spark.databricks.delta.merge.optimizeInsertOnlyMerge.enabled:
+  description: "Optimizes MERGE operations that are insert-only (no updates/deletes). Much faster for append-like merges."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    insert_only: "true - for CDC or append patterns"
+    mixed_operations: "already true by default"
+  related:
+    - "spark.databricks.delta.merge.repartitionBeforeWrite.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.merge.optimizeInsertOnlyMerge.enabled', 'true')"
+  tags:
+    - "delta"
+    - "merge"
+    - "optimization"
+
+spark.databricks.delta.vacuum.logging.enabled:
+  description: "Whether to log details about files being removed during VACUUM."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    audit: "true - for compliance and auditing"
+    performance: "false - slightly faster VACUUM"
+  related:
+    - "spark.databricks.delta.retentionDurationCheck.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.vacuum.logging.enabled', 'true')"
+  tags:
+    - "delta"
+    - "vacuum"
+    - "audit"
+
+spark.databricks.delta.merge.maxInsertCount:
+  description: "Maximum number of rows to insert in a single MERGE operation. Prevents OOM on large merges."
+  default: "10000"
+  scope: "session"
+  type: "int"
+  recommendations:
+    large_merges: "10000 (default)"
+    small_merges: "Can increase for better performance"
+  related:
+    - "spark.databricks.delta.merge.optimizeInsertOnlyMerge.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.merge.maxInsertCount', '10000')"
+  tags:
+    - "delta"
+    - "merge"
+    - "memory"
+
+spark.databricks.delta.commitInfo.userMetadata:
+  description: "Custom metadata to include in commit information. Useful for tracking job names, versions, etc."
+  default: "null"
+  scope: "session"
+  type: "string"
+  recommendations:
+    audit: "Set to job name or version for tracking"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.commitInfo.userMetadata', 'daily_pipeline_v2.1')"
+  tags:
+    - "delta"
+    - "audit"
+    - "metadata"
+
+spark.databricks.delta.commitValidation.enabled:
+  description: "Validates Delta commits to ensure consistency. Catches issues before they corrupt tables."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - safety is critical"
+  related:
+    - "spark.databricks.delta.schema.typeCheck.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.commitValidation.enabled', 'true')"
+  tags:
+    - "delta"
+    - "safety"
+    - "validation"
+
+spark.databricks.delta.timeTravel.resolveOnIdentifier.enabled:
+  description: "Allows time travel using @ syntax (e.g., table@version). More convenient than VERSION AS OF."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - convenient syntax"
+  related:
+    - "spark.databricks.delta.properties.defaults.logRetentionDuration"
+  examples:
+    - "spark.read.format('delta').load('table@v10')"
+  tags:
+    - "delta"
+    - "time-travel"
+    - "syntax"
+
+# Delta Lake 3.2 Features
+
+spark.databricks.delta.changeDataFeed.enabled:
+  description: "DELTA 3.2: Enables Change Data Feed (CDF) to track row-level changes (INSERT, UPDATE, DELETE) for CDC pipelines."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    cdc_pipelines: "true - essential for change data capture"
+    audit_trails: "true - for tracking all modifications"
+    standard_batch: "false - adds storage overhead"
+  delta_version: "2.0+ (enhanced in 3.2)"
+  fabric_specific: "Supported in Fabric Runtime 1.2+. Enables incremental ETL patterns."
+  related:
+    - "spark.databricks.delta.properties.defaults.enableChangeDataFeed"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')"
+    - "spark.read.format('delta').option('readChangeFeed', 'true').option('startingVersion', '5').load('table')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "cdc"
+    - "change-tracking"
+
+spark.databricks.delta.properties.defaults.enableChangeDataFeed:
+  description: "DELTA 3.2: Default setting for Change Data Feed on new tables. When enabled, all writes record change events."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    cdc_workspace: "true - if all tables need CDC tracking"
+    mixed_workloads: "false - enable per table"
+  delta_version: "2.0+ (enhanced in 3.2)"
+  related:
+    - "spark.databricks.delta.changeDataFeed.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.properties.defaults.enableChangeDataFeed', 'true')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "cdc"
+    - "defaults"
+
+spark.databricks.delta.rowTracking.enabled:
+  description: "DELTA 3.2: Enables row tracking to assign unique identifiers to each row. Required for MERGE optimization and CDC."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    cdc_pipelines: "true - enables advanced CDC features"
+    merge_heavy: "true - improves MERGE performance"
+    standard_batch: "false - adds metadata overhead"
+  delta_version: "3.1+"
+  why_this_default: "Disabled by default to maintain backwards compatibility. Row tracking adds metadata columns (_row_id, _row_commit_version) that consume ~16 bytes per row."
+  when_to_change: "Enable when using Change Data Feed, when MERGE operations are frequent, or when you need to track individual rows across updates."
+  fabric_specific: "Available in Fabric Runtime 1.2+. Particularly useful for SCD Type 2 patterns."
+  related:
+    - "spark.databricks.delta.changeDataFeed.enabled"
+    - "spark.databricks.delta.properties.defaults.enableDeletionVectors"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.enableRowTracking' = 'true')"
+    - "spark.conf.set('spark.databricks.delta.rowTracking.enabled', 'true')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "row-tracking"
+    - "merge"
+    - "cdc"
+
+spark.databricks.delta.clustering.enabled:
+  description: "DELTA 3.2: Enables Liquid Clustering, which automatically organizes data by clustering columns without static partitioning. Replaces ZORDER."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    high_cardinality: "true - for columns with many distinct values"
+    evolving_queries: "true - query patterns change over time"
+    static_partitions: "false - use traditional partitioning"
+  delta_version: "3.2+"
+  why_this_default: "New feature in Delta 3.2. Disabled by default for backwards compatibility."
+  when_to_change: "Enable for tables where partition keys are high cardinality or when query patterns evolve. Liquid clustering automatically rebalances data based on actual query patterns."
+  fabric_specific: "Available in Fabric Runtime 1.3+. Significantly better than ZORDER for multi-dimensional queries."
+  related:
+    - "spark.databricks.delta.optimize.zorder.enabled"
+  examples:
+    - "CREATE TABLE events USING delta CLUSTER BY (user_id, event_date)"
+    - "ALTER TABLE events CLUSTER BY (user_id, event_type)"
+    - "OPTIMIZE events"
+  benefits:
+    - "No partition pruning required - clustering handles data layout"
+    - "Incremental clustering - only new data gets reorganized"
+    - "Multi-column clustering - up to 4 columns"
+    - "Evolving clustering keys - change without rewriting entire table"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "clustering"
+    - "liquid-clustering"
+    - "optimization"
+    - "performance"
+
+spark.databricks.delta.optimize.zorder.enabled:
+  description: "DELTA 3.2: Enables ZORDER clustering optimization. Being superseded by Liquid Clustering in Delta 3.2."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    legacy_tables: "true - for existing ZORDER optimized tables"
+    new_tables: "false - use Liquid Clustering instead"
+  delta_version: "2.0+"
+  migration_note: "Liquid Clustering (Delta 3.2+) is more efficient and easier to maintain than ZORDER."
+  related:
+    - "spark.databricks.delta.clustering.enabled"
+  examples:
+    - "OPTIMIZE my_table ZORDER BY (col1, col2)"
+  tags:
+    - "delta"
+    - "zorder"
+    - "optimization"
+    - "legacy"
+
+spark.databricks.delta.columnMapping.mode:
+  description: "DELTA 3.2: Enables column mapping to support column renames/drops. Modes: none, id, name."
+  default: "none"
+  scope: "table"
+  type: "string"
+  recommendations:
+    evolving_schema: "id or name - for tables that need column evolution"
+    stable_schema: "none - simpler and faster"
+  delta_version: "2.0+ (stabilized in 3.2)"
+  why_this_default: "Disabled by default for backwards compatibility. Column mapping adds metadata overhead but enables powerful schema evolution."
+  when_to_change: "Enable 'id' mode when you need to rename or drop columns without rewriting data. 'name' mode offers maximum compatibility with Parquet readers."
+  fabric_specific: "Supported in Fabric Runtime 1.2+. Essential for long-lived lakehouse tables with evolving schemas."
+  modes:
+    none: "No column mapping (default) - schema changes require rewrite"
+    id: "Use column IDs - enables rename/drop without rewrite"
+    name: "Use column names - Parquet compatible"
+  related:
+    - "spark.databricks.delta.schema.autoMerge.enabled"
+    - "spark.databricks.delta.properties.defaults.minReaderVersion"
+    - "spark.databricks.delta.properties.defaults.minWriterVersion"
+  examples:
+    - "ALTER TABLE my_table SET TBLPROPERTIES ('delta.columnMapping.mode' = 'id', 'delta.minReaderVersion' = '2', 'delta.minWriterVersion' = '5')"
+    - "ALTER TABLE my_table RENAME COLUMN old_name TO new_name"
+    - "ALTER TABLE my_table DROP COLUMN unwanted_col"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "column-mapping"
+    - "schema-evolution"
+
+spark.databricks.delta.identityColumn.enabled:
+  description: "DELTA 3.2: Enables identity columns (auto-incrementing IDs) on Delta tables."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    surrogate_keys: "true - for tables needing auto-generated IDs"
+    distributed_writes: "false - identity columns require coordination overhead"
+  delta_version: "3.0+ (enhanced in 3.2)"
+  why_this_default: "Disabled by default. Identity columns add coordination overhead during writes and are not needed for most use cases."
+  when_to_change: "Enable when migrating from traditional databases that use IDENTITY/AUTO_INCREMENT columns, or when you need guaranteed unique sequential IDs."
+  fabric_specific: "Available in Fabric Runtime 1.2+. Useful for data warehouse migration scenarios."
+  related:
+    - "spark.databricks.delta.properties.defaults.minWriterVersion"
+  examples:
+    - "CREATE TABLE users (id BIGINT GENERATED ALWAYS AS IDENTITY, name STRING) USING delta"
+    - "CREATE TABLE orders (order_id BIGINT GENERATED BY DEFAULT AS IDENTITY (START WITH 1000 INCREMENT BY 1), customer_id INT) USING delta"
+  limitations:
+    - "Requires writer version 6+"
+    - "Adds write coordination overhead"
+    - "Not recommended for high-throughput streaming"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "identity-columns"
+    - "surrogate-keys"
+
+spark.databricks.delta.vacuum.parallelDelete.enabled:
+  description: "DELTA 3.2: Enables parallel deletion during VACUUM operations for faster cleanup."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    large_tables: "true - significantly faster VACUUM on large tables"
+    cloud_storage: "true - leverages parallel delete APIs"
+  delta_version: "2.1+ (enhanced in 3.2)"
+  fabric_runtime_1_2: "true"
+  why_this_default: "Enabled in Fabric Runtime 1.2. Parallel delete uses cloud storage batch delete APIs (Azure Blob Batch Delete) which are 10-100x faster than sequential deletes."
+  when_to_change: "Leave enabled. Only disable if you encounter issues with cloud storage APIs or need to debug VACUUM operations."
+  fabric_specific: "Always enabled in Fabric Runtime 1.2+. Fabric automatically uses Azure Data Lake Gen2 batch delete APIs."
+  related:
+    - "spark.databricks.delta.retentionDurationCheck.enabled"
+    - "spark.databricks.delta.properties.defaults.deletedFileRetentionDuration"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.vacuum.parallelDelete.enabled', 'true')"
+    - "VACUUM my_table RETAIN 168 HOURS"
+  performance:
+    - "10-100x faster than sequential delete"
+    - "Scales with number of files to delete"
+    - "Minimal memory overhead"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "vacuum"
+    - "performance"
+    - "maintenance"
+
+spark.databricks.delta.optimizeWrite.partitioned.enabled:
+  description: "DELTA 3.2: Enables optimize write for partitioned tables, combining small files within each partition."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    partitioned_tables: "true - essential for partitioned streaming writes"
+    unpartitioned_tables: "false - use regular optimizeWrite.enabled"
+  delta_version: "3.0+"
+  fabric_runtime_1_2: "Used in writeHeavy and readHeavyForSpark resource profiles"
+  why_this_default: "Disabled by default. Partitioned optimize write adds coordination overhead but prevents small file problems in each partition."
+  when_to_change: "Enable when writing to partitioned tables, especially with streaming workloads that create many small files per partition."
+  fabric_specific: "Automatically enabled in Fabric's writeHeavy and readHeavyForSpark resource profiles."
+  related:
+    - "spark.databricks.delta.optimizeWrite.enabled"
+    - "spark.databricks.delta.optimizeWrite.binSize"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.optimizeWrite.partitioned.enabled', 'true')"
+    - "df.write.format('delta').partitionBy('date').mode('append').save('table')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "optimize-write"
+    - "partitioning"
+    - "streaming"
+
+spark.databricks.delta.merge.materializeSource:
+  description: "DELTA 3.2: Controls whether to materialize the source DataFrame during MERGE operations."
+  default: "auto"
+  scope: "session"
+  type: "string"
+  recommendations:
+    small_source: "false - for small source data that fits in memory"
+    large_source: "true - prevents recomputation of complex source queries"
+    default: "auto - let Spark decide based on source complexity"
+  delta_version: "3.2+"
+  why_this_default: "Auto mode lets Spark's optimizer decide. Materializing prevents recomputation but uses more memory."
+  when_to_change: "Set to 'true' when source is a complex query that's expensive to recompute. Set to 'false' for simple sources to save memory."
+  related:
+    - "spark.databricks.delta.merge.optimizeInsertOnlyMerge.enabled"
+    - "spark.databricks.delta.merge.repartitionBeforeWrite.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.merge.materializeSource', 'true')"
+    - "MERGE INTO target USING (SELECT * FROM complex_query) source ON ..."
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "merge"
+    - "performance"
+
+spark.databricks.delta.stats.collect.using.tableSchema:
+  description: "DELTA 3.2: Collect statistics using table schema instead of data schema. Improves consistency with column mapping."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    column_mapping: "true - essential when using column mapping"
+    standard_tables: "true - more consistent behavior"
+  delta_version: "3.2+"
+  related:
+    - "spark.databricks.delta.columnMapping.mode"
+    - "spark.databricks.delta.properties.defaults.dataSkippingNumIndexedCols"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.stats.collect.using.tableSchema', 'true')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "statistics"
+    - "column-mapping"
+
+# Microsoft Fabric Delta Extensions (Delta 3.2 based)
+
+spark.microsoft.delta.stats.injection.enabled:
+  description: "FABRIC-SPECIFIC DELTA 3.2: Automatically injects extended statistics for Power BI Direct Lake optimization."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  fabric_runtime_1_2: "true"
+  recommendations:
+    power_bi: "true - essential for Direct Lake performance"
+    spark_only: "false - adds overhead without benefit"
+  why_this_default: "Enabled in Fabric Runtime 1.2. Fabric automatically collects extended statistics optimized for Power BI's Direct Lake mode."
+  when_to_change: "Leave enabled in Fabric. Only disable for Spark-only workloads that never use Power BI."
+  fabric_specific: "This is a Fabric innovation. Injects statistics that enable Direct Lake to skip partitions and optimize query execution."
+  related:
+    - "spark.microsoft.delta.stats.collect.extended.property.setAtTableCreation"
+    - "spark.sql.parquet.vorder.default"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.stats.injection.enabled', 'true')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "fabric"
+    - "power-bi"
+    - "direct-lake"
+    - "statistics"
+
+spark.microsoft.delta.stats.collect.extended.property.setAtTableCreation:
+  description: "FABRIC-SPECIFIC DELTA 3.2: Automatically sets extended statistics collection property when creating tables."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  fabric_runtime_1_2: "true"
+  recommendations:
+    all_fabric: "true - ensures all new tables have proper statistics"
+  why_this_default: "Enabled in Fabric Runtime 1.2. Ensures all newly created tables automatically collect extended statistics for Direct Lake."
+  fabric_specific: "Fabric-only feature. Works in conjunction with spark.microsoft.delta.stats.injection.enabled."
+  related:
+    - "spark.microsoft.delta.stats.injection.enabled"
+    - "spark.microsoft.delta.parquet.vorder.property.autoset.enabled"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.stats.collect.extended.property.setAtTableCreation', 'true')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "fabric"
+    - "statistics"
+    - "defaults"
+
+spark.microsoft.delta.parquet.vorder.property.autoset.enabled:
+  description: "FABRIC-SPECIFIC DELTA 3.2: Automatically enables V-Order when creating new Delta tables."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  fabric_runtime_1_2: "true"
+  recommendations:
+    all_fabric: "true - ensures optimal Power BI performance"
+  why_this_default: "Enabled in Fabric Runtime 1.2. Ensures all new tables automatically use V-Order for optimal Direct Lake performance."
+  fabric_specific: "Fabric innovation. Automatically sets parquet.vorder=true on new tables without requiring explicit configuration."
+  related:
+    - "spark.sql.parquet.vorder.default"
+    - "spark.sql.parquet.vorder.enabled"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.parquet.vorder.property.autoset.enabled', 'true')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "fabric"
+    - "v-order"
+    - "power-bi"
+    - "defaults"
+
+spark.microsoft.delta.describeHistory.runtimeEnvironmentFields.enabled:
+  description: "FABRIC-SPECIFIC DELTA 3.2: Includes Fabric runtime environment details in DESCRIBE HISTORY output."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  fabric_runtime_1_2: "false"
+  recommendations:
+    audit_heavy: "true - for detailed audit trails"
+    performance: "false - reduces metadata overhead"
+  why_this_default: "Disabled in Fabric Runtime 1.2 to reduce metadata overhead. History still captures essential information."
+  fabric_specific: "Fabric-only feature. When enabled, adds notebook name, workspace ID, capacity ID, etc. to history."
+  related:
+    - "spark.databricks.delta.commitInfo.userMetadata"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.describeHistory.runtimeEnvironmentFields.enabled', 'true')"
+    - "DESCRIBE HISTORY my_table"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "fabric"
+    - "audit"
+    - "history"
+
+spark.delta.logStore.class:
+  description: "DELTA 3.2: Specifies the Delta log store implementation. Fabric uses AzureLogStore for ADLS Gen2 optimization."
+  default: "org.apache.spark.sql.delta.storage.HDFSLogStore"
+  scope: "session"
+  type: "string"
+  fabric_runtime_1_2: "org.apache.spark.sql.delta.storage.AzureLogStore"
+  recommendations:
+    azure_adls: "org.apache.spark.sql.delta.storage.AzureLogStore - for ADLS Gen2"
+    aws_s3: "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore - for S3"
+    hdfs: "org.apache.spark.sql.delta.storage.HDFSLogStore - for HDFS"
+  why_this_default: "Fabric uses AzureLogStore optimized for Azure Data Lake Storage Gen2. Provides atomic operations and better performance."
+  when_to_change: "Do not change in Fabric. Only modify for non-Azure environments."
+  fabric_specific: "Fabric automatically configures AzureLogStore. Leverages ADLS Gen2 atomic rename operations for transaction safety."
+  related:
+    - "spark.databricks.delta.commitValidation.enabled"
+  examples:
+    - "spark.conf.set('spark.delta.logStore.class', 'org.apache.spark.sql.delta.storage.AzureLogStore')"
+  tags:
+    - "delta"
+    - "delta-3.2"
+    - "storage"
+    - "azure"
+    - "fabric"
+
+spark.microsoft.delta.snapshot.driverMode.enabled:
+  description: "FABRIC-SPECIFIC: Enables driver-mode snapshot processing for faster metadata operations. Driver loads Delta snapshots directly instead of distributing to executors."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    metadata_heavy: "true - for workloads with frequent metadata operations"
+    large_tables: "true - faster snapshot loading for tables with many files"
+    small_clusters: "true - reduces executor overhead for metadata"
+  why_this_default: "Driver-mode snapshots centralize metadata processing, reducing executor resource usage and speeding up table metadata queries."
+  fabric_specific: "Fabric optimization for OneLake metadata operations. Particularly effective for large tables with thousands of files."
+  related:
+    - "spark.databricks.delta.snapshotPartitions"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.snapshot.driverMode.enabled', 'true')"
+  tags:
+    - "delta"
+    - "fabric"
+    - "metadata"
+    - "performance"
+
+spark.microsoft.delta.optimize.fast.enabled:
+  description: "FABRIC-SPECIFIC: Enables fast optimize mode which uses more aggressive file compaction strategies. Speeds up OPTIMIZE operations by 2-5x."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    optimize_heavy: "true - for frequent OPTIMIZE operations"
+    large_tables: "true - faster compaction for large datasets"
+    maintenance_windows: "true - during scheduled maintenance"
+  why_this_default: "Fast optimize reduces the time needed for file compaction by using parallel strategies and optimized merge algorithms."
+  fabric_specific: "Fabric enhancement to OPTIMIZE command. Can reduce optimize time by 2-5x compared to standard mode."
+  related:
+    - "spark.databricks.delta.optimize.maxFileSize"
+    - "spark.databricks.delta.optimize.minFileSize"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.optimize.fast.enabled', 'true')"
+    - "OPTIMIZE my_table"
+  tags:
+    - "delta"
+    - "fabric"
+    - "optimize"
+    - "compaction"
+    - "performance"
+
+spark.microsoft.delta.targetFileSize.adaptive.enabled:
+  description: "FABRIC-SPECIFIC: Enables adaptive target file sizing which dynamically adjusts file sizes based on workload patterns and data characteristics."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    mixed_workloads: "true - adapts to varying data volumes"
+    partitioned_tables: "true - optimizes files per partition"
+    streaming: "true - handles variable batch sizes"
+  why_this_default: "Adaptive file sizing automatically tunes file sizes to balance read performance vs file count, adjusting to actual data patterns rather than using fixed thresholds."
+  fabric_specific: "Fabric intelligence for optimal file sizing. Considers partition cardinality, data distribution, and query patterns."
+  related:
+    - "spark.databricks.delta.targetFileSize"
+    - "spark.databricks.delta.tuneFileSizesForRewrites.enabled"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.targetFileSize.adaptive.enabled', 'true')"
+  tags:
+    - "delta"
+    - "fabric"
+    - "file-sizing"
+    - "adaptive"
+    - "optimization"
+
+spark.microsoft.delta.optimize.fileLevelTarget.enabled:
+  description: "FABRIC-SPECIFIC: Enables file-level targeting during OPTIMIZE which allows finer-grained control over which files to compact based on file-level metrics."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    selective_optimize: "true - for targeted file compaction"
+    skewed_tables: "true - handles skewed partition sizes"
+    cost_optimization: "true - reduces unnecessary compaction"
+  why_this_default: "File-level targeting prevents unnecessary compaction of already-optimal files, reducing compute costs and improving optimize efficiency."
+  fabric_specific: "Fabric enhancement for intelligent file selection during OPTIMIZE. Analyzes individual file metrics to determine which files actually need compaction."
+  related:
+    - "spark.microsoft.delta.optimize.fast.enabled"
+    - "spark.databricks.delta.optimize.maxFileSize"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.optimize.fileLevelTarget.enabled', 'true')"
+    - "OPTIMIZE my_table WHERE date >= '2024-01-01'"
+  tags:
+    - "delta"
+    - "fabric"
+    - "optimize"
+    - "selective"
+    - "cost"
+
