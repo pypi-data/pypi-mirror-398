@@ -1,0 +1,261 @@
+Metadata-Version: 2.4
+Name: kite-common-py
+Version: 0.0.1
+Summary: Kite Common Python Package
+Home-page: https://github.com/kite/kite-common-py
+Author: Addy
+Author-email: Addy <adityag7077@gmail.com>
+Project-URL: Homepage, https://github.com/kite/kite-common-py
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Kite Common
+
+A Python package providing common data and utilities for Kite applications. This package contains standardized data for countries, currencies, timezones, languages, and error codes that can be used across different frameworks and applications.
+
+## Features
+
+- **Framework Agnostic**: Works with any Python framework (Django, Flask, FastAPI, etc.)
+- **Standardized Data**: Pre-loaded with comprehensive country, currency, timezone, and language data
+- **Error Code Management**: Centralized error code definitions with HTTP status codes and categories
+- **Easy Integration**: Simple API for accessing and using the data
+- **Memory Efficient**: Lazy loading of data when needed
+
+## Installation
+
+```bash
+pip install kite-common
+```
+
+Or install from source:
+
+```bash
+git clone <repository-url>
+cd kite-common
+pip install -e .
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from kite_common import countries, currencies, timezones, languages, error_codes
+
+# Get all countries
+all_countries = countries.get_all()
+
+# Get country by ID
+us = countries.get_by_id(235)  # United States
+
+# Get countries by ISO code
+us_by_iso2 = countries.get_by_iso2('US')
+us_by_iso3 = countries.get_by_iso3('USA')
+
+# Get all currencies
+all_currencies = currencies.get_all()
+
+# Get currency by code
+usd = currencies.get_by_code('USD')
+
+# Get all timezones
+all_timezones = timezones.get_all()
+
+# Get timezone by IANA name
+est = timezones.get_by_iana_name('America/New_York')
+
+# Get all languages
+all_languages = languages.get_all()
+
+# Get language by code
+english = languages.get_by_code('en')
+
+# Get all error codes
+all_errors = error_codes.get_all()
+
+# Get error code by code
+not_found = error_codes.get_by_code('USER_NOT_FOUND')
+```
+
+### Advanced Usage
+
+```python
+from kite_common import countries, currencies
+
+# Filter countries
+european_countries = countries.get_by_criteria(lambda c: c.get('is_rtl') == False)
+
+# Get countries with their currencies (joined data)
+countries_with_currencies = countries.get_with_currencies()
+
+# Search countries
+search_results = countries.search('United')
+
+# Get error codes by category
+auth_errors = error_codes.get_by_category('AUTHENTICATION')
+validation_errors = error_codes.get_by_category('VALIDATION')
+```
+
+### Integration Examples
+
+#### FastAPI
+
+```python
+from fastapi import FastAPI, HTTPException
+from kite_common import countries, error_codes
+
+app = FastAPI()
+
+@app.get("/countries")
+def get_countries():
+    return {"countries": countries.get_all()}
+
+@app.get("/countries/{country_id}")
+def get_country(country_id: int):
+    country = countries.get_by_id(country_id)
+    if not country:
+        error = error_codes.get_by_code('RESOURCE_NOT_FOUND')
+        raise HTTPException(status_code=error['http_status'], detail=error['message'])
+    return country
+```
+
+#### Django
+
+```python
+from django.http import JsonResponse
+from kite_common import countries
+
+def countries_view(request):
+    countries_data = countries.get_all()
+    return JsonResponse({'countries': countries_data})
+```
+
+#### Flask
+
+```python
+from flask import Flask, jsonify
+from kite_common import countries
+
+app = Flask(__name__)
+
+@app.route('/countries')
+def get_countries():
+    return jsonify(countries.get_all())
+```
+
+## Data Structure
+
+### Countries
+
+Each country object contains:
+- `id`: Internal ID
+- `name`: Country name
+- `iso2`: 2-letter ISO code
+- `iso3`: 3-letter ISO code
+- `phone_code`: International dialing code
+- `capital`: Capital city
+- `flag_url`: Flag image URL
+- `is_rtl`: Right-to-left language flag
+- `currency_id`: Associated currency ID
+
+### Currencies
+
+Each currency object contains:
+- `id`: Internal ID
+- `name`: Currency name
+- `code`: 3-letter ISO code
+- `symbol`: Currency symbol
+
+### Timezones
+
+Each timezone object contains:
+- `id`: Internal ID
+- `iana_name`: IANA timezone identifier
+- `display_name`: Human-readable name
+- `abbreviation`: Short abbreviation
+- `gmt_offset`: GMT offset string
+- `dst_offset`: DST offset (if applicable)
+- `is_dst_active`: DST status
+- `is_active`: Active status
+
+### Languages
+
+Each language object contains:
+- `id`: Internal ID
+- `name`: Language name
+- `code`: ISO 639-1 code
+- `code_3`: ISO 639-3 code
+- `native_name`: Native language name
+- `is_rtl`: Right-to-left flag
+- `script`: Writing system
+
+### Error Codes
+
+Each error code object contains:
+- `code`: Error code string
+- `http_status`: HTTP status code
+- `category`: Error category
+- `message`: Error message
+- `description`: Detailed description
+- `is_retryable`: Retry flag
+- `retry_after_seconds`: Retry delay
+
+## API Reference
+
+### Countries API
+
+- `get_all()`: Get all countries
+- `get_by_id(id)`: Get country by ID
+- `get_by_iso2(iso2)`: Get country by 2-letter ISO code
+- `get_by_iso3(iso3)`: Get country by 3-letter ISO code
+- `get_by_criteria(func)`: Filter countries by custom criteria
+- `search(query)`: Search countries by name
+- `get_with_currencies()`: Get countries with currency information
+
+### Currencies API
+
+- `get_all()`: Get all currencies
+- `get_by_id(id)`: Get currency by ID
+- `get_by_code(code)`: Get currency by ISO code
+- `search(query)`: Search currencies by name or code
+
+### Timezones API
+
+- `get_all()`: Get all timezones
+- `get_by_id(id)`: Get timezone by ID
+- `get_by_iana_name(name)`: Get timezone by IANA name
+- `search(query)`: Search timezones by name
+
+### Languages API
+
+- `get_all()`: Get all languages
+- `get_by_id(id)`: Get language by ID
+- `get_by_code(code)`: Get language by ISO code
+- `search(query)`: Search languages by name
+
+### Error Codes API
+
+- `get_all()`: Get all error codes
+- `get_by_code(code)`: Get error code by code
+- `get_by_category(category)`: Get error codes by category
+- `get_by_http_status(status)`: Get error codes by HTTP status
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details
