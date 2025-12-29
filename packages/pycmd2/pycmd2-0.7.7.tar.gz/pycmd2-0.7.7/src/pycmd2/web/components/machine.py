@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+from datetime import datetime
+from datetime import timezone
+from typing import Any
+
+import psutil
+from nicegui import ui
+
+from pycmd2.web.component import BaseComponent
+from pycmd2.web.component import register_component
+
+
+@register_component("system-monitor")
+class SystemMonitor(BaseComponent):
+    """机器监控器, 用于获取系统资源使用率."""
+
+    COMPONENT_ID = "system-monitor"
+
+    def __init__(self, *args: tuple[Any, ...], **kwargs: dict[str, Any]) -> None:
+        """初始化机器监控器."""
+        super().__init__(*args, **kwargs)
+
+        self.cpu_usage: float = 0.0
+        self.cpu_cores: int = 1
+        self.memory_usage: float = 0.0
+        self.memory_used_gb: float = 0.0
+        self.memory_total_gb: float = 0.0
+        self.uptime: datetime = datetime.now(timezone.utc)
+
+        ui.timer(3.0, self._update_timer)
+
+    def _update_timer(self) -> None:
+        """更新系统资源使用率数据."""
+        # 移除interval参数以避免阻塞
+        self.cpu_usage = psutil.cpu_percent()
+        self.cpu_cores = psutil.cpu_count() or 1
+        mem = psutil.virtual_memory()
+        self.memory_usage = mem.percent
+        self.memory_used_gb = mem.used / (1024**3)
+        self.memory_total_gb = mem.total / (1024**3)
+        self.uptime = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
+
+    def render(self) -> ui.element:
+        """设置用户界面.
+
+        Returns:
+            ui.element: UI元素
+        """
+        element = ui.element().classes(
+            "mx-auto px-4 py-2 items-center flex flex-row "
+            "justify-center gap-1 bg-slate-100 rounded",
+        )
+        with element:
+            with ui.row().classes("w-full gap-2"):
+                ui.label().bind_text_from(
+                    self,
+                    "cpu_usage",
+                    backward=lambda u: f"[cpu: {u:.1f}%]",
+                )
+                ui.label().bind_text_from(
+                    self,
+                    "cpu_cores",
+                    backward=lambda u: f"[核数: {u}]",
+                )
+                ui.linear_progress(show_value=False).bind_value_from(
+                    self,
+                    "cpu_usage",
+                    backward=lambda u: u / 100,
+                )
+
+            with ui.row().classes("w-full gap-2"):
+                ui.label().bind_text_from(
+                    self,
+                    "memory_usage",
+                    backward=lambda u: f"[内存: {u:.1f}%]",
+                )
+                ui.label().bind_text_from(
+                    self,
+                    "memory_used_gb",
+                    backward=lambda u: "[已用/共计: "
+                    f"{u:.1f}/{self.memory_total_gb:.1f} GB]",
+                )
+                ui.linear_progress(show_value=False).bind_value_from(
+                    self,
+                    "memory_usage",
+                    backward=lambda u: u / 100,
+                )
+
+            with ui.column().classes("w-full"):
+                ui.label().bind_text_from(
+                    self,
+                    "uptime",
+                    backward=lambda t: t.strftime("[启动时间: %Y-%m-%d %H:%M:%S]"),
+                )
+        return element

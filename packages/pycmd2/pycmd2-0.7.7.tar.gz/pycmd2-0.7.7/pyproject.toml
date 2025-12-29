@@ -1,0 +1,274 @@
+# -------------------- build-system --------------------- #
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+# 自定义构建钩子
+[tool.hatch.build.hooks.custom]
+path = "hatch_build_hook.py"
+
+[project]
+authors = [{ name = "gooker_young", email = "gooker_young@qq.com" }]
+classifiers = []
+dependencies = [
+  "fastapi-offline>=1.7.5",
+  "fastapi[all]>=0.122.0",
+  "pywebview>=6.1",
+  "rich>=13.9.4",
+  "tomli-w>=1.0.0 ; python_full_version < '3.11'",
+  "tomli>=2.2.1 ; python_full_version < '3.11'",
+  "typer>=0.15.1",
+]
+description = "Command tools build with python."
+license = { text = "MIT license" }
+maintainers = [{ name = "gooker_young", email = "gooker_young@qq.com" }]
+name = "pycmd2"
+readme = "README.rst"
+requires-python = ">=3.8"
+version = "0.7.7"
+
+[project.scripts]
+pycmd2 = "pycmd2.cli:cli.app"
+
+# Commands
+# dev commands
+envt = "pycmd2.commands.dev.envtools.cli:cli.app"
+gitt = "pycmd2.commands.dev.gittools.cli:cli.app"
+mkp = "pycmd2.commands.dev.makepython.cli:cli.app"
+pipt = "pycmd2.commands.dev.piptools:cli.app"
+ssh-copy-id = "pycmd2.commands.dev.ssh_copy_id:cli.app"
+
+# office commands
+docdiff = "pycmd2.commands.office.doc_diff:cli.app"
+img2pdf = "pycmd2.commands.office.image_to_pdf:cli.app"
+imggry = "pycmd2.commands.office.image_gray:cli.app"
+llmcli = "pycmd2.commands.office.llama_client:main"
+llmqnt = "pycmd2.commands.office.llama_quantize:main"
+llmsvr = "pycmd2.commands.office.llama_server:main"
+mindnote = "pycmd2.commands.office.mindnote.cli:main"
+pdfc = "pycmd2.commands.office.pdf_crypt:cli.app"
+pdfmrg = "pycmd2.commands.office.pdf_merge:cli.app"
+pdfspl = "pycmd2.commands.office.pdf_split:cli.app"
+pdft = "pycmd2.commands.office.pdftools.cli:main"
+pdftw = "pycmd2.commands.office.pdftoolweb.cli:main"
+todo = "pycmd2.commands.office.todo.cli:main"
+videoconv = "pycmd2.commands.office.video_converter:main"
+
+# system commands
+alarmclk = "pycmd2.commands.system.alarmclock.cli:main"
+checksum = "pycmd2.commands.system.checksum.checksum:main"
+encz = "pycmd2.commands.system.encrypt_zip:cli.app"
+filedate = "pycmd2.commands.system.file_date:cli.app"
+filelvl = "pycmd2.commands.system.file_level:cli.app"
+folderb = "pycmd2.commands.system.folder_backup:cli.app"
+folderz = "pycmd2.commands.system.folder_zip:cli.app"
+ld = "pycmd2.commands.system.list_dirs:cli.app"
+taskk = "pycmd2.commands.system.task_kill:cli.app"
+wch = "pycmd2.commands.system.which:cli.app"
+
+# web
+websvr = "pycmd2.websvr.cli:app"
+
+[project.urls]
+Documentation = "https://pycmd2.readthedocs.io/zh-cn/stable/"
+Issues = "https://gitee.com/gooker_young/pycmd2/issues"
+Repository = "https://gitee.com/gooker_young/pycmd2"
+
+[project.optional-dependencies]
+all = ["pycmd2[gui,office,simulation]"]
+gui = [
+  "nicegui>=2.24.2",
+  "pyqt5-sip~=12.9.0",
+  "pyqt5-stubs~=5.14.0",
+  "pyqt5~=5.14.0",
+  "qdarkstyle>=3.2.3",
+]
+office = [
+  "httpx>=0.24.0",
+  "numpy>=1.24.4",
+  "pandas>=2.0.3",
+  "pillow>=10",
+  "psutil>=7.1.3",
+  "pymupdf>=1.24.11",
+  "pypdf>=5.9.0",
+  "pywin32>=311; platform_system == 'Windows'",
+  "sqlmodel>=0.0.27",
+]
+simulation = ["matplotlib>=3.7.5", "scipy>=1.10.1", "torch~=2.1.0"]
+
+# ---------------------- coverage ----------------------- #
+[tool.coverage]
+[tool.coverage.report]
+exclude_lines = ["coverage: ignore", "def main", "if __name__ == .__main__.:"]
+
+[tool.coverage.run]
+omit = ["*/examples/*", "*/tests/*"]
+source = ["src/pycmd2"]
+
+# -------------------- hatch-version -------------------- #
+[tool.hatch]
+[tool.hatch.version]
+path = "src/pycmd2/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+exclude = [
+  "src/pycmd2/websvr/frontend/.gitignore",
+  "src/pycmd2/websvr/frontend/.vscode/**/*",
+  "src/pycmd2/websvr/frontend/node_modules/**/*",
+]
+include = [
+  "src/pycmd2/**/*.py",
+  "src/pycmd2/websvr/frontend/**/*",
+  "src/pycmd2/websvr/frontend/output/**/*",
+]
+packages = ["src/pycmd2"]
+
+# 使用 MANIFEST.in
+[tool.hatch.build]
+include = ["src/pycmd2/**/*.py", "src/pycmd2/websvr/frontend/output/**/*"]
+
+# ------------------------ ruff ------------------------- #
+[tool.ruff]
+exclude = ["**/*_rc.py", "**/ui_*.py", "docs/*.py"]
+fix = true
+line-length = 88
+output-format = "full"
+preview = true
+show-fixes = true
+target-version = "py37"
+unsafe-fixes = true
+
+[tool.ruff.lint]
+select = [
+  "A",     # flake8-builtins
+  "ANN",   # flake8-annotations
+  "ARG",   # flake8-arguments
+  "ASYNC", # flake8-async
+  "B",     # flake8-bugbear
+  "BLE",   # flake8-blind-except
+  "C",     # flake8-comprehensions
+  "C4",    # flake8-comprehensions
+  "COM",   # flake8-commas
+  #"CPY",    # flake8-copyright
+  "DJ",  # flake8-django
+  "DTZ", # flake8-datetimez
+  "EM",  # flake8-errmsg
+  "EXE", # flake8-executable
+  "FA",  # flake8-future-annotations
+  "FBT", # flake8-boolean-trap
+  "FIX", # flake8-fixme
+  #"G",      # flake8-logging-format
+  "ICN", # flake8-import-conventions
+  "INP", # flake8-no-pep420
+  "INT", # flake8-gettext
+  "ISC", # flake8-implicit-str-concat
+  "LOG", # flake8-logging
+  "PIE", # flake8-pie
+  "PT",  # flake8-pytest-style
+  "PTH", # flake8-use-pathlib
+  "PYI", # flake8-pyi
+  "Q",   # flake8-quotes
+  "RET", # flake8-return
+  "RSE", # flake8-raise
+  #"S",      # flake8-bandit
+  "SIM",  # flake8-simplify
+  "SLF",  # flake8-self
+  "SLOT", # flake8-slots
+  "T10",  # flake8-debugger
+  "T20",  # flake8-print
+  #"TC",   # flake8-type-checking
+  "TD",  # flake8-todo
+  "TID", # flake8-tidy-imports
+  "YTT", # flake8-2020
+
+  "AIR",  # Airflow
+  "C90",  # mccabe
+  "D",    # pydocstyle (文档字符串)
+  "DOC",  # docstrings
+  "E",    # Pycodestyle 错误
+  "ERA",  # Eradicate
+  "F",    # Pyflakes
+  "FAST", # FastAPI
+  "FLY",  # flynt
+  "FURB", # refurb
+  "I",    # isort (导入排序)
+  "N",    # pep8-naming
+  "NPY",  # numpy-specific
+  "PD",   # pandas-set
+  "PERF", # perflint
+  "PGH",  # pygrep-hooks
+  "PL",   # Pylint
+  "RUF",  # Ruff 特有规则
+  "TRY",  # tryceratops
+  "UP",   # pyupgrade (现代化语法)
+  "W",    # Pycodestyle 警告
+]
+
+# 忽略的规则
+ignore = [
+  "ARG001",
+  "D100",
+  "D103",
+  "D104",
+  "D107",
+  "D203",    # D 规则中与 Black 冲突的部分
+  "DOC201",
+  "DOC501",
+  "FBT003",
+  "N802",
+  "PGH003",
+  "PLC0415",
+  "PLR0904",
+  "PLR0913",
+  "PLR0915",
+  "PLR6301",
+  "RUF002",
+  "RUF003",
+  "UP006",   # pyupgrade
+  "UP045",
+]
+
+# 格式化配置 (Ruff 的格式化器)
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+indent-style = "space"
+line-ending = "auto"
+quote-style = "double"
+
+# 导入排序配置
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = false
+
+[tool.ruff.lint.pydocstyle]
+convention = "google" # 可选: "pep257", "numpy", "google"
+
+# ----------------------- uv-dependencies ------------------------ #
+[tool.uv.sources]
+pycmd2 = { workspace = true }
+
+[dependency-groups]
+build = ["hatch>=1.14.1", "pip>=25.0.1", "wheel>=0.45.1"]
+dev = [
+  "pre-commit>=3.5.0",
+  "pycmd2[all]",
+  { include-group = "build" },
+  { include-group = "doc" },
+  { include-group = "lint" },
+  { include-group = "test" },
+]
+doc = ["sphinx-autobuild>=2021.3.14", "sphinx-rtd-theme>=3.0.2"]
+lint = ["ruff>=0.12.7"]
+test = [
+  "fpdf>=1.7.2",
+  "pytest-benchmark>=4.0.0",
+  "pytest-cov>=5.0.0",
+  "pytest-html>=4.1.1",
+  "pytest-mock>=3.14.1",
+  "pytest-qt>=4.4.0",
+  "pytest-xdist>=3.6.1",
+  "pytest>=8.3.4",
+  "tox-uv>=1.13.1",
+  "tox>=4.25.0",
+]
