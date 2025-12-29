@@ -1,0 +1,120 @@
+# **ankiazvox**
+
+**ankiazvox** is a professional CLI tool designed to synchronize Anki notes with high-quality neural audio powered by Azure Cognitive Services. It automates the process of fetching text, stripping HTML, generating speech, and updating your Anki cards.
+
+## **✨ Features**
+
+* **Neural TTS**: Uses Azure's state-of-the-art Neural voices for natural, human-like speech.  
+* **Batch Voice Sampling**: Generate audio samples for a specific voice or an entire locale (e.g., en-US) to find the perfect voice for your deck.  
+* **Flexible Configuration**: Supports both .env files and azv\_config.yaml for easy credential management.  
+* **HTML Sanitization**: Automatically strips HTML tags (like `<br>, <div>`  
+* **Smart Syncing**:  
+  * **Overwrite Protection**: Skips notes that already have audio to save API quota, with an optional `--overwrite` flag.  
+  * **Safety Confirmation**: Includes a summary and confirmation step before starting large batch jobs.  
+* **Seamless Integration**: Automatically uploads audio to Anki's media folder and updates the `[sound:...]` tags via AnkiConnect.  
+* **Auto-Cleanup**: Automatically removes temporary audio files after synchronization is complete.
+
+## **🚀 Installation**
+
+### **1\. Prerequisites**
+
+* **Anki Desktop** with the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on installed.  
+* An **Azure Speech Service** subscription (Key and Region).
+
+### **2\. Install via pip**
+
+```
+pip install ankiazvox
+```
+
+### **3\. Install from Source**
+
+```
+git clone https://github.com/ericxu131/ankiazvox.git
+cd ankiazvox    
+pip install .
+```
+
+## **⚙️ Configuration**
+
+Create an azv\_config.yaml file (recommended) or a .env file in your working directory:
+
+### **YAML Configuration (azv\_config.yaml)**
+
+```
+AZURE\_SPEECH_KEY: "your_azure_api_key"  
+AZURE_SPEECH_REGION: "westus"  
+DEFAULT_VOICE: "en-US-AvaMultilingualNeural"  
+ANKI_CONNECT_URL: "http://127.0.0.1:8765"
+```
+
+### **Environment Variables (.env)**
+
+
+```
+AZURE_SPEECH_KEY=your_azure_api_key  
+AZURE_SPEECH_REGION=westus  
+DEFAULT_VOICE=en-US-AvaMultilingualNeural
+```
+
+## **🛠 Usage**
+
+You can use the azv alias or the full ankiazvox command.
+
+### **1\. Synchronize Audio (sync)**
+
+Sync notes from a deck. By default, it **skips** fields that already contain audio data.
+
+```
+azv sync --query "deck:English" --source "Front" --target "Audio"
+```
+
+| Option | Short | Description |
+| :---- | :---- | :---- |
+| \--query | \-q | Anki search query (e.g., deck:Default) |
+| \--source | \-s | Field name containing the text to synthesize |
+| \--target | \-t | Field name where the \[sound:...\] tag will be saved |
+| \--voice | \-v | Override the default Azure voice |
+| \--overwrite |  | Force update the target field even if it has a value |
+| \--yes | \-y | Skip the confirmation prompt |
+| \--limit |  | Max number of notes to process |
+| \--config |  | Path to a specific config/env file |
+
+### **2\. Sample Voices (sample)**
+
+Generate audio samples to compare different voices before syncing:
+
+\# Sample all US English voices to the /samples folder  
+```
+azv sample --locale en-US --text "Hello, how are you?"
+```
+
+\# Sample a specific voice and play it immediately  
+```
+azv sample --voice en-US-AndrewNeural --play
+```
+
+### **3\. List Voices (list-voices)**
+
+Explore available neural voices in the terminal:
+
+```
+azv list-voices --locale zh-CN
+```
+
+## **🤝 Contributing**
+
+1. Fork the Project  
+2. Create your Feature Branch (git checkout \-b feature/AmazingFeature)  
+3. Commit your Changes (git commit \-m 'Add some AmazingFeature')  
+4. Push to the Branch (git push origin feature/AmazingFeature)  
+5. Open a Pull Request
+
+## **📄 License**
+
+Distributed under the **MIT License**.
+
+## **👤 Author**
+
+Eric Xu \- xulihua2006@gmail.com  
+Project Link: https://github.com/ericxu131/ankiazvox
