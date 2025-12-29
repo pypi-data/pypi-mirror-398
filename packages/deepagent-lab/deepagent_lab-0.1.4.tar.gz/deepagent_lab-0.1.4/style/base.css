@@ -1,0 +1,963 @@
+/*
+  Styles for the DeepAgents chat interface - Professional Edition
+*/
+
+/* ============================================
+   CSS CUSTOM PROPERTIES - DESIGN TOKENS
+   ============================================ */
+
+.deepagents-chat-widget {
+  /* ===== Colors - Light Theme ===== */
+  --da-background: #fafafa;
+  --da-surface: #ffffff;
+  --da-surface-elevated: #f8f8f8;
+  --da-foreground: #1e293b;
+  --da-foreground-muted: #64748b;
+  --da-foreground-subtle: #94a3b8;
+
+  /* Primary & Status Colors */
+  --da-primary: #2563eb;
+  --da-primary-hover: #1d4ed8;
+  --da-primary-active: #1e40af;
+  --da-success: #10b981;
+  --da-warning: #f59e0b;
+  --da-error: #ef4444;
+  --da-error-bg: #fee2e2;
+
+  /* Borders */
+  --da-border: #e5e7eb;
+  --da-border-strong: #cbd5e1;
+  --da-border-subtle: #e0e0e0;
+
+  /* Shadows */
+  --da-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --da-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --da-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --da-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --da-shadow-primary: 0 2px 8px rgba(37, 99, 235, 0.3);
+  --da-shadow-error: 0 2px 8px rgba(239, 68, 68, 0.15);
+
+  /* Border Radius */
+  --da-radius-sm: 2px;
+  --da-radius-md: 3px;
+  --da-radius-lg: 4px;
+  --da-radius-full: 50%;
+
+  /* Spacing Scale */
+  --da-space-1: 4px;
+  --da-space-2: 8px;
+  --da-space-3: 12px;
+  --da-space-4: 16px;
+  --da-space-5: 20px;
+  --da-space-6: 24px;
+  --da-space-8: 32px;
+
+  /* Typography Scale */
+  --da-text-xs: 10px;
+  --da-text-sm: 11px;
+  --da-text-base: 12px;
+  --da-text-md: 13px;
+  --da-text-normal: 14px;
+  --da-text-lg: 15px;
+
+  /* Font Weights */
+  --da-weight-normal: 400;
+  --da-weight-medium: 500;
+  --da-weight-semibold: 600;
+  --da-weight-bold: 700;
+
+  /* Line Heights */
+  --da-leading-none: 1.0;
+  --da-leading-tight: 1.25;
+  --da-leading-normal: 1.5;
+  --da-leading-relaxed: 1.75;
+
+  /* Font Families */
+  --da-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --da-font-mono: 'Monaco', 'Menlo', 'Consolas', monospace;
+
+  /* Transitions */
+  --da-transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --da-transition-base: 0.2s ease;
+  --da-transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Base Layout */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Widget tab styling - Add spacing between icon and label */
+.deepagents-chat-widget .lm-TabBar-tabIcon {
+  margin-right: 8px;
+}
+
+.deepagents-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: #ffffff;
+  overflow-x: hidden;
+}
+
+/* Header - Enhanced with subtle elevation */
+.deepagents-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--da-space-4) var(--da-space-5);
+  border-bottom: 1px solid var(--da-border-subtle);
+  background: linear-gradient(to bottom, var(--da-surface), var(--da-surface-elevated));
+  box-shadow: var(--da-shadow-sm);
+}
+
+.deepagents-chat-title {
+  margin: 0;
+  font-size: var(--da-text-lg);
+  font-weight: var(--da-weight-semibold);
+  color: var(--da-foreground);
+  letter-spacing: -0.01em;
+  font-family: var(--da-font-sans);
+}
+
+.deepagents-chat-controls {
+  display: flex;
+  gap: var(--da-space-3);
+  align-items: center;
+}
+
+/* Status indicator pulse animation */
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.3);
+  }
+}
+
+.deepagents-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--da-radius-full);
+  display: inline-block;
+  box-shadow: 0 0 0 2px var(--da-surface);
+  position: relative;
+}
+
+.deepagents-status-healthy {
+  background-color: var(--da-success);
+  box-shadow: 0 0 0 2px var(--da-surface), 0 0 8px var(--da-success);
+}
+
+.deepagents-status-healthy::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--da-radius-full);
+  background: var(--da-success);
+  animation: statusPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.deepagents-status-error {
+  background-color: var(--da-error);
+  box-shadow: 0 0 0 2px var(--da-surface), 0 0 8px var(--da-error);
+}
+
+.deepagents-status-unknown {
+  background-color: var(--da-warning);
+  box-shadow: 0 0 0 2px var(--da-surface);
+}
+
+.deepagents-icon-button {
+  background: var(--da-surface);
+  border: 1px solid var(--da-border-strong);
+  border-radius: var(--da-radius-sm);
+  padding: var(--da-space-1) var(--da-space-3);
+  cursor: pointer;
+  color: var(--da-foreground-muted);
+  font-size: var(--da-text-md);
+  font-weight: var(--da-weight-medium);
+  font-family: var(--da-font-sans);
+  transition: all var(--da-transition-base);
+  box-shadow: var(--da-shadow-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--da-space-1);
+}
+
+.deepagents-icon-button:hover:not(:disabled) {
+  background: var(--da-surface-elevated);
+  border-color: var(--da-foreground-subtle);
+  box-shadow: var(--da-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.deepagents-icon-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--da-shadow-xs);
+}
+
+.deepagents-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Messages container - Enhanced spacing */
+.deepagents-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--da-space-6) var(--da-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--da-space-4);
+  background: #ffffff;
+}
+
+.deepagents-chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  text-align: center;
+  padding: 32px;
+}
+
+.deepagents-chat-empty p {
+  margin: 10px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.deepagents-chat-hint {
+  font-size: 12px;
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* Message entrance animation */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Individual message - Professional styling */
+.deepagents-message {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  word-wrap: break-word;
+  max-width: 100%;
+  width: 100%;
+  animation: messageSlideIn var(--da-transition-slow);
+}
+
+.deepagents-message-user {
+  background: #f5f5f5;
+  color: var(--da-foreground);
+  border-radius: var(--da-radius-md);
+  margin-left: 0;
+  margin-right: 0;
+  border: none;
+  padding: 16px 20px;
+  max-width: calc(100% - 40px);
+  width: auto;
+}
+
+.deepagents-message-assistant {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 16px 0;
+  margin-left: 0;
+  margin-right: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.deepagents-message-system {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  font-size: var(--da-text-base);
+  max-width: 100%;
+  width: 100%;
+  text-align: left;
+  opacity: 0.7;
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 0;
+  padding: 8px 0;
+  color: var(--da-foreground-muted);
+}
+
+.deepagents-message-error {
+  background: var(--da-error-bg) !important;
+  border-color: var(--da-error) !important;
+}
+
+.deepagents-message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.deepagents-message-role {
+  font-weight: var(--da-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--da-foreground-muted);
+  font-size: var(--da-text-sm);
+}
+
+.deepagents-message-time {
+  font-size: var(--da-text-xs);
+  color: var(--da-foreground-subtle);
+}
+
+.deepagents-message-content {
+  line-height: var(--da-leading-normal);
+  /* white-space: pre-wrap; */
+  color: var(--da-foreground);
+  font-family: var(--da-font-sans);
+}
+
+/* Readable spacing for markdown paragraphs */
+.deepagents-message-assistant .deepagents-message-content p {
+  margin: 0.3em 0;
+  line-height: var(--da-leading-normal);
+}
+
+.deepagents-message-assistant .deepagents-message-content p:first-child {
+  margin-top: 0;
+}
+
+.deepagents-message-assistant .deepagents-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Eliminate extra spacing around line breaks */
+.deepagents-message-assistant .deepagents-message-content br {
+  content: "";
+  margin: 0;
+  padding: 0;
+  display: none;
+}
+
+/* Remove spacing from all inline elements */
+.deepagents-message-assistant .deepagents-message-content strong,
+.deepagents-message-assistant .deepagents-message-content em,
+.deepagents-message-assistant .deepagents-message-content span {
+  line-height: 1.0;
+}
+
+/* Heading hierarchy with explicit sizes */
+.deepagents-message-assistant .deepagents-message-content h1 {
+  font-size: 1.5em;
+  font-weight: var(--da-weight-bold);
+  color: var(--da-foreground);
+  margin: 1.2em 0 0.3em 0;
+  line-height: var(--da-leading-tight);
+  border-bottom: 2px solid var(--da-border);
+  padding-bottom: 0.3em;
+}
+
+.deepagents-message-assistant .deepagents-message-content h2 {
+  font-size: 1.3em;
+  font-weight: var(--da-weight-semibold);
+  color: var(--da-foreground);
+  margin: 1em 0 0.3em 0;
+  line-height: var(--da-leading-tight);
+}
+
+.deepagents-message-assistant .deepagents-message-content h3 {
+  font-size: 1.15em;
+  font-weight: var(--da-weight-semibold);
+  color: var(--da-foreground);
+  margin: 0.8em 0 0.3em 0;
+  line-height: var(--da-leading-tight);
+}
+
+.deepagents-message-assistant .deepagents-message-content h4 {
+  font-size: 1em;
+  font-weight: var(--da-weight-semibold);
+  color: var(--da-foreground-muted);
+  margin: 0.6em 0 0.2em 0;
+  line-height: var(--da-leading-tight);
+}
+
+.deepagents-message-assistant .deepagents-message-content h5,
+.deepagents-message-assistant .deepagents-message-content h6 {
+  font-size: 0.9em;
+  font-weight: var(--da-weight-medium);
+  color: var(--da-foreground-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0.5em 0 0.2em 0;
+  line-height: var(--da-leading-tight);
+}
+
+.deepagents-message-assistant .deepagents-message-content h1:first-child,
+.deepagents-message-assistant .deepagents-message-content h2:first-child,
+.deepagents-message-assistant .deepagents-message-content h3:first-child,
+.deepagents-message-assistant .deepagents-message-content h4:first-child,
+.deepagents-message-assistant .deepagents-message-content h5:first-child,
+.deepagents-message-assistant .deepagents-message-content h6:first-child {
+  margin-top: 0;
+}
+
+.deepagents-message-assistant .deepagents-message-content ul,
+.deepagents-message-assistant .deepagents-message-content ol {
+  margin: 0.2em 0;
+  padding-left: 2em;
+}
+
+.deepagents-message-assistant .deepagents-message-content li {
+  margin: 0;
+  padding: 0;
+  line-height: var(--da-leading-normal);
+}
+
+.deepagents-message-assistant .deepagents-message-content li p {
+  margin: 0;
+}
+
+/* Nested lists */
+.deepagents-message-assistant .deepagents-message-content ul ul,
+.deepagents-message-assistant .deepagents-message-content ol ol,
+.deepagents-message-assistant .deepagents-message-content ul ol,
+.deepagents-message-assistant .deepagents-message-content ol ul {
+  margin: 0.1em 0;
+}
+
+.deepagents-message-assistant .deepagents-message-content code {
+  background: var(--da-surface-elevated);
+  padding: 0.15em 0.4em;
+  border-radius: var(--da-radius-sm);
+  font-family: var(--da-font-mono);
+  font-size: 0.9em;
+  color: var(--da-foreground-muted);
+  border: 1px solid var(--da-border);
+}
+
+.deepagents-message-assistant .deepagents-message-content pre {
+  margin: 1em 0;
+  padding: var(--da-space-4);
+  background: var(--da-surface-elevated);
+  border: 1px solid var(--da-border);
+  border-left: 3px solid var(--da-primary);
+  border-radius: var(--da-radius-md);
+  overflow-x: auto;
+  box-shadow: var(--da-shadow-sm);
+}
+
+.deepagents-message-assistant .deepagents-message-content pre code {
+  background: none;
+  padding: 0;
+  border: none;
+  color: var(--da-foreground);
+  font-family: var(--da-font-mono);
+  font-size: 0.9em;
+  line-height: var(--da-leading-normal);
+}
+
+/* Links */
+.deepagents-message-assistant .deepagents-message-content a {
+  color: var(--da-primary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--da-transition-fast);
+  font-weight: var(--da-weight-medium);
+}
+
+.deepagents-message-assistant .deepagents-message-content a:hover {
+  border-bottom-color: var(--da-primary);
+}
+
+/* Blockquotes */
+.deepagents-message-assistant .deepagents-message-content blockquote {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border-left: 4px solid var(--da-primary);
+  background: var(--da-surface-elevated);
+  border-radius: 0 var(--da-radius-sm) var(--da-radius-sm) 0;
+  font-style: italic;
+  color: var(--da-foreground-muted);
+}
+
+.deepagents-message-assistant .deepagents-message-content blockquote p {
+  margin: 0.5em 0;
+}
+
+/* Horizontal rules */
+.deepagents-message-assistant .deepagents-message-content hr {
+  margin: 1.5em 0;
+  border: none;
+  border-top: 2px solid var(--da-border);
+  opacity: 0.5;
+}
+
+/* Tables */
+.deepagents-message-assistant .deepagents-message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.9em;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  overflow: hidden;
+}
+
+.deepagents-message-assistant .deepagents-message-content th,
+.deepagents-message-assistant .deepagents-message-content td {
+  padding: 0.6em 0.9em;
+  border: 1px solid var(--da-border);
+  text-align: left;
+}
+
+.deepagents-message-assistant .deepagents-message-content th {
+  background: var(--da-surface-elevated);
+  font-weight: var(--da-weight-semibold);
+  color: var(--da-foreground);
+}
+
+.deepagents-message-assistant .deepagents-message-content tr:nth-child(even) {
+  background: var(--da-surface-elevated);
+}
+
+.deepagents-message-assistant .deepagents-message-content tbody tr:hover {
+  background: var(--da-surface-elevated);
+  opacity: 0.9;
+}
+
+/* Strikethrough */
+.deepagents-message-assistant .deepagents-message-content del {
+  color: var(--da-foreground-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* Task lists */
+.deepagents-message-assistant .deepagents-message-content input[type="checkbox"] {
+  margin-right: 0.5em;
+  cursor: pointer;
+}
+
+/* Intermediate messages styling - Refined */
+.deepagents-message-intermediates {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  opacity: 0.65;
+}
+
+.deepagents-intermediate-message {
+  font-size: 11px;
+  color: #6b7280;
+  padding: 4px 0;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* Tool calls styling - Professional elevation */
+.deepagents-tool-calls {
+  margin: 12px 0;
+  opacity: 0.8;
+}
+
+.deepagents-tool-call {
+  font-size: var(--da-text-sm);
+  color: var(--da-foreground-muted);
+  margin: var(--da-space-2) 0;
+  padding: var(--da-space-2) var(--da-space-3);
+  background: var(--da-surface-elevated);
+  border: 1px solid var(--da-border);
+  border-left: 3px solid var(--da-primary);
+  border-radius: var(--da-radius-md);
+  cursor: pointer;
+  transition: all var(--da-transition-base);
+  box-shadow: var(--da-shadow-sm);
+}
+
+.deepagents-tool-call:hover {
+  border-left-color: var(--da-primary-hover);
+  box-shadow: var(--da-shadow-md);
+  transform: translateX(2px);
+}
+
+.deepagents-tool-call-summary {
+  font-style: normal;
+  font-weight: 500;
+  padding: 2px 0;
+  list-style: none;
+  cursor: pointer;
+  color: #334155;
+}
+
+.deepagents-tool-call-summary::-webkit-details-marker {
+  display: none;
+}
+
+.deepagents-tool-call-summary::before {
+  content: '›';
+  display: inline-block;
+  transition: transform var(--da-transition-base);
+  color: var(--da-foreground-muted);
+  margin-right: var(--da-space-1);
+  font-size: 18px;
+  font-weight: var(--da-weight-bold);
+}
+
+.deepagents-tool-call[open] .deepagents-tool-call-summary::before {
+  transform: rotate(90deg);
+}
+
+.deepagents-tool-call-args {
+  margin: 10px 0 0 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0 0 6px 6px;
+  font-size: 10px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  line-height: 1.4;
+  overflow-x: auto;
+  /* white-space: pre-wrap; */
+  word-wrap: break-word;
+  color: #475569;
+}
+
+.deepagents-tool-call-output {
+  margin: 10px 0 0 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  line-height: 1.4;
+  overflow-x: auto;
+  /* white-space: pre-wrap; */
+  word-wrap: break-word;
+}
+
+/* Todo list styling - Professional refinement */
+.deepagents-todo-list {
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.deepagents-todo-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: opacity 0.2s ease;
+}
+
+.deepagents-todo-item:hover {
+  opacity: 0.8;
+}
+
+.deepagents-todo-marker {
+  margin-right: var(--da-space-2);
+  flex-shrink: 0;
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deepagents-todo-content {
+  flex: 1;
+  color: #374151;
+}
+
+.deepagents-todo-completed .deepagents-todo-marker {
+  color: #10b981;
+}
+
+.deepagents-todo-completed .deepagents-todo-content {
+  opacity: 0.7;
+}
+
+.deepagents-todo-in_progress .deepagents-todo-marker {
+  color: #3b82f6;
+}
+
+.deepagents-todo-in_progress .deepagents-todo-content {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.deepagents-todo-pending .deepagents-todo-marker {
+  color: #9ca3af;
+  opacity: 0.6;
+}
+
+.deepagents-todo-pending .deepagents-todo-content {
+  opacity: 0.6;
+}
+
+/* Typing indicator - Refined animation */
+.deepagents-typing-indicator {
+  display: flex;
+  gap: 5px;
+  padding: 10px 0;
+}
+
+.deepagents-typing-indicator span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.deepagents-typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.deepagents-typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+}
+
+/* Input container - Premium styling */
+.deepagents-chat-input-container {
+  display: flex;
+  gap: var(--da-space-3);
+  padding: var(--da-space-4) var(--da-space-5);
+  border-top: 1px solid var(--da-border);
+  background: linear-gradient(to top, var(--da-surface-elevated), var(--da-surface));
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+  align-items: flex-end;
+}
+
+.deepagents-chat-input {
+  flex: 1;
+  padding: var(--da-space-3) var(--da-space-4);
+  border: 1px solid var(--da-border-strong);
+  border-radius: var(--da-radius-md);
+  background: var(--da-surface);
+  color: var(--da-foreground);
+  font-family: var(--da-font-sans);
+  font-size: var(--da-text-normal);
+  outline: none;
+  transition: all var(--da-transition-base);
+  box-shadow: var(--da-shadow-sm);
+  min-height: 40px;
+  max-height: 200px;
+  resize: vertical;
+  line-height: var(--da-leading-normal);
+}
+
+.deepagents-chat-input:focus {
+  border-color: var(--da-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1), var(--da-shadow-md);
+}
+
+.deepagents-chat-input::placeholder {
+  color: var(--da-foreground-subtle);
+}
+
+.deepagents-chat-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--da-surface-elevated);
+}
+
+.deepagents-send-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: linear-gradient(135deg, var(--da-primary) 0%, var(--da-primary-hover) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--da-radius-full);
+  font-weight: var(--da-weight-bold);
+  cursor: pointer;
+  transition: all var(--da-transition-fast);
+  font-family: var(--da-font-sans);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--da-shadow-primary);
+}
+
+.deepagents-send-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--da-primary-hover) 0%, var(--da-primary-active) 100%);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.deepagents-send-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--da-shadow-primary);
+}
+
+.deepagents-send-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--da-foreground-subtle);
+  box-shadow: none;
+}
+
+.deepagents-stop-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: linear-gradient(135deg, var(--da-error) 0%, #b91c1c 100%);
+  color: white;
+  border: none;
+  border-radius: var(--da-radius-full);
+  font-weight: var(--da-weight-bold);
+  cursor: pointer;
+  transition: all var(--da-transition-fast);
+  font-family: var(--da-font-sans);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+.deepagents-stop-button:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+}
+
+.deepagents-stop-button:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);
+}
+
+/* Scrollbar styling - Refined */
+.deepagents-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.deepagents-chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.deepagents-chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.deepagents-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Interrupt UI - Professional styling */
+.deepagents-interrupt {
+  margin: 16px 0;
+  padding: 16px 18px;
+  background: linear-gradient(to right, #fef3c7, #fef08a);
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.15);
+}
+
+.deepagents-interrupt-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #78350f;
+  margin-bottom: 10px;
+  letter-spacing: 0.3px;
+}
+
+.deepagents-interrupt-description {
+  font-size: 12px;
+  margin: 8px 0 14px 0;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.deepagents-action-decisions {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+}
+
+.deepagents-decision-btn {
+  padding: 8px 18px;
+  border: 1px solid #d97706;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: white;
+  color: #92400e;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.deepagents-decision-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.deepagents-decision-btn:hover:not(:disabled) {
+  background: #fffbeb;
+  border-color: #b45309;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.deepagents-decision-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.deepagents-approve-btn:hover:not(:disabled) {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  color: #166534;
+}
+
+.deepagents-reject-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+.deepagents-edit-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1e40af;
+}
