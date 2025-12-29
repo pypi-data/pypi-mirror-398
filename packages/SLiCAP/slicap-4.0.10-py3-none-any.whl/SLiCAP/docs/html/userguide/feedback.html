@@ -1,0 +1,708 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Work with feedback circuits &mdash; SLiCAP 4.0.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=b8a5ba81"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Work with balanced circuits" href="balanced.html" />
+    <link rel="prev" title="SLiCAP DC and dcvar analysis" href="dcvar.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            SLiCAP
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction/SLiCAPintroduction.html">SLiCAP Version 4.0</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="SLiCAPuserguide.html">SLiCAP User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="install.html">Download, install, configure and test SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit.html">Create a SLiCAP circuit object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schematics.html">Schematic capture for SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specifications.html">Work with specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html">Work with parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Work with models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="subcircuit.html">Work with subcircuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html">Perform analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matrices.html">SLiCAP circuit matrix equation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="laplace.html">SLiCAP Laplace analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pz.html">SLiCAP pole-zero analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="time.html">SLiCAP time-domain analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="noise.html">SLiCAP noise analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dcvar.html">SLiCAP DC and dcvar analysis</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Work with feedback circuits</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#loop-gain-reference-selection">Loop gain reference selection</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#voltage-feedback-opamps">Voltage-feedback opamps</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#current-feedback-opamps">Current-feedback opamps</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#single-transistor-stages">Single-transistor stages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#differential-pair-transistor-stages">Differential-pair transistor stages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#multiple-controller-circuits">Multiple-controller circuits</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#example-with-operational-amplifier">Example with operational amplifier</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#amplifier-feedback-concept">Amplifier feedback concept</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#implementation-with-operational-amplifier">Implementation with operational amplifier</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#example-implementation-with-transistors">Example implementation with transistors</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#stability-and-frequency-charactersitics">Stability and frequency charactersitics</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#pole-zero-analysis">Pole-zero analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#poles-versus-circuit-parameter">Poles versus circuit parameter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#routh-array">Routh array</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nyquist-plot">Nyquist plot</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#related-math-functions">Related math functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#servo-bandwidth">Servo bandwidth</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#coefficients-of-a-laplace-transfer-function">Coefficients of a Laplace transfer function</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#display-equations-and-tables-on-html-pages-and-in-latex-documents">Display equations and tables on HTML pages and in LaTeX documents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="balanced.html">Work with balanced circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="math.html">Work with analysis results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ngspice.html">Interface with NGspice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plots.html">Create plots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reports.html">Create reports</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/SLiCAPtutorials.html">SLiCAP Examples and Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syntax/SLiCAPnetlistSyntax.html">SLiCAP Netlist Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/SLiCAPreference.html">SLiCAP Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">SLiCAP</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="SLiCAPuserguide.html">SLiCAP User Guide</a></li>
+      <li class="breadcrumb-item active">Work with feedback circuits</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/userguide/feedback.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="work-with-feedback-circuits">
+<h1>Work with feedback circuits<a class="headerlink" href="#work-with-feedback-circuits" title="Link to this heading"></a></h1>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+<p>Feedback is a powerful design technique. With the aid of negative feedback (also: <em>corrective feedback</em>), accurate, approximate linear and wideband amplifiers can be designed with passive feedback networks around a controller (also: <em>error amplifier</em>). The controller itself doensn’t need to be accurate, linear, nor does it need to have a large bandwidth. Its only task is to provide a sufficiently large loop gain over the operating range of interest.</p>
+<p>With the aid of positive feedback (also: <em>regenerative feedback</em>) sustainable oscillations can be obtained by compensation losses in resonators. Weak positive feedback is also used for changing impedances or increasing gain.</p>
+<p>SLiCAP has the asymptotic-gain model built in for the analysis and design of negative feedback circuits (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+<p>This model requires the selection of a controlled source as <a class="reference external" href="analysis.html#the-loop-gain-reference">loop gain reference</a>.</p>
+<p>With the aid of the asymptotic-gain model, the transfer of a feeback circuit is written as:</p>
+<div class="math notranslate nohighlight">
+\[A_f=A_{f\infty}\frac{-L}{1-L} + \frac{\rho}{1-L}\]</div>
+<p>where:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(A_f\)</span> is the <strong>gain</strong>, defined as the transfer from the signal source to the detector.</p></li>
+<li><p><span class="math notranslate nohighlight">\(A_{f\infty}\)</span> is the <strong>asymptotic-gain</strong>, defined as the gain with the transfer of the loop gain reference appoaching infinity.</p></li>
+<li><p><span class="math notranslate nohighlight">\(L\)</span> is the <strong>loop gain</strong>, defined as the gain enclosed in the loop around the loop gain reference.</p></li>
+<li><p><span class="math notranslate nohighlight">\(\rho\)</span> is the <strong>direct transfer</strong>, defined as the gain with the transfer of the loop gain reference set to zero.</p></li>
+</ul>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>The gain <span class="math notranslate nohighlight">\(A_f\)</span> found from the asymptotic-gain model always exactly matches the gain found from network analysis; independent of the selected loop gain reference.</p>
+<p>The asymptotic-gain model gives meaningful design information for the loop tarnsfer function (loop gain), if the <em>asymptotic-gain</em> equals the <strong>ideal gain</strong>. The <strong>ideal gain</strong> is defined as the gain with of the feedback amplifier of which the controller (also called: <em>error-amplifier</em>) is replaced with a <strong>nullor</strong>:</p>
+<ol class="arabic simple">
+<li><p>The current in both input terminals of the controller equals zero</p></li>
+<li><p>The voltage across the input port of the controller equals zero</p></li>
+<li><p>The controller is a natural two-port</p></li>
+</ol>
+</div>
+<p>SLiCAP has six built-in <code class="docutils literal notranslate"><span class="pre">transfer</span></code> types for <a class="reference external" href="../reference/SLiCAPshell.html#general-instruction-format">do&lt;Instruction&gt;()</a>:</p>
+<ul>
+<li><p><strong>None</strong>: SLiCAP calulates the detector voltage or current</p></li>
+<li><p><strong>gain</strong>: SLiCAP calulates the transfer from the signal source to the detector.</p></li>
+<li><p><strong>asymptotic</strong>: the asymptotic gain, defined above.</p>
+<p>SLiCAP calculates the asymptotic gain by replacing the loop gain reference with a nullor.</p>
+</li>
+<li><p><strong>direct</strong>: the direct transfer, defined above.</p>
+<p>SLiCAP calculates the direct transfer by setting the gain of the loop gain reference to zero.</p>
+</li>
+<li><p><strong>loopgain</strong>: the loop gain, defined above.</p>
+<p>SLiCAP calculates the loop gain from the return difference with the selected loop gain reference.</p>
+</li>
+<li><p><strong>servo</strong>: the <em>servo function</em>, defined as <span class="math notranslate nohighlight">\(\frac{-L}{1-L}\)</span>.</p>
+<p>SLiCAP calculates the servo function from the return difference with the selected loop gain reference.</p>
+<p>With a proper selection of the loop gain reference, the <em>servo function</em> is a measure for the discrepancy between the <em>ideal-gain</em> and the <em>gain</em>. As such, it contains important design information.</p>
+</li>
+</ul>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>In the asymptotic-gain model, <strong>negative feedback</strong> (also: <em>corrective feedback</em>) corresponds with a negative loop gain! A positive loop gain indicates <strong>positive feeedback</strong> (also: <em>regenerative feedback</em>).</p>
+</div>
+<p>SLiCAP output displayed on this manual page, is generated with the script: <code class="docutils literal notranslate"><span class="pre">feedback.py</span></code>, imported by <code class="docutils literal notranslate"><span class="pre">Manual.py</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="ch">#!/usr/bin/env python3</span>
+<span class="linenos"> 2</span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="linenos"> 3</span>
+<span class="linenos"> 4</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos"> 5</span><span class="sd">balanced.py: SLiCAP scripts for the HTML help file</span>
+<span class="linenos"> 6</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos"> 7</span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+<span class="linenos"> 8</span><span class="kn">import</span><span class="w"> </span><span class="nn">sympy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sp</span>
+<span class="linenos"> 9</span><span class="c1">###############################################################################</span>
+<span class="linenos">10</span><span class="c1"># work with feedback circuits</span>
+<span class="linenos">11</span><span class="c1">###############################################################################</span>
+</pre></div>
+</div>
+<section id="loop-gain-reference-selection">
+<h2>Loop gain reference selection<a class="headerlink" href="#loop-gain-reference-selection" title="Link to this heading"></a></h2>
+<section id="voltage-feedback-opamps">
+<h3>Voltage-feedback opamps<a class="headerlink" href="#voltage-feedback-opamps" title="Link to this heading"></a></h3>
+<p>The voltage-controlled voltage source in the voltage-feedback operational amplifier (<a class="reference external" href="../syntax/devices.html#model-ov">model OV</a>) is a good loop gain reference candidate. However, with a nonzero common-mode input conductance or a nonzero common-mode input capacitance, the SLiCAP built-in voltage feedback operational amplifier model is <strong>NOT</strong> a natural two-port. Hence, in feedback amplifiers with a floating controller input port, the asymptotic-gain generally not equals the ideal gain. In most cases, the common-mode input elements, however, can be absorbed in the external network around the controller, thereby re-establishing the correspondence between the ideal and the asymptotic-gain (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+</section>
+<section id="current-feedback-opamps">
+<h3>Current-feedback opamps<a class="headerlink" href="#current-feedback-opamps" title="Link to this heading"></a></h3>
+<p>The current-controlled voltage source in the current-feedback operational amplifier (<a class="reference external" href="../syntax/devices.html#model-oc">model OC</a>) is the best candidate for the loop gain reference. This is because the voltage-controlled current source is part of a local feedback loop. However, with a nonzero input conductance or a nonzero input capacitance, the SLiCAP built-in current feedback operational amplifier model is <strong>NOT</strong> a natural two-port. Hence, in feedback amplifiers with a floating controller input port, the asymptotic gain will not equal the ideal gain. In most cases, the elements modeling the positive input impedance can be absorbed in the network around the controller, thereby re-establishing the correspondence between the ideal and the asymptotic-gain (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+</section>
+<section id="single-transistor-stages">
+<h3>Single-transistor stages<a class="headerlink" href="#single-transistor-stages" title="Link to this heading"></a></h3>
+<p>The CS-stage and the CE-stage suffer from parasitic feedback through the drain-gate and the collector-base capacitance, respecively. Useful design information about the loop gain and the servo function of multi-stage feedback amplifiers is obtained if this local feedback plays no role in the frequency range of interest, or if it is eliminated in the stage of which the transcondactance is the loop gain reference (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+<p>Common-drain, common-emitter, common-gate and common-base stages are considered negative feedback stages themselves. Selecting the transconductance of such stages as loop gain reference provides useful design information in single-stage feedback amplifiers only (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+</section>
+<section id="differential-pair-transistor-stages">
+<h3>Differential-pair transistor stages<a class="headerlink" href="#differential-pair-transistor-stages" title="Link to this heading"></a></h3>
+<p>SLiCAP provides small-signal models for differential-pair stages. These models have only one voltage-controlled current source that can be selected as loop gain reference. The model results from transforming the anti-series connection of two equal two-ports into one equivalent two-port. Like the CS-stage and the CE-stage, the differential pair suffers from parasitic feedback. Setting the feedback capacitances to zero may be necesseray as discussed above (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+</section>
+<section id="multiple-controller-circuits">
+<h3>Multiple-controller circuits<a class="headerlink" href="#multiple-controller-circuits" title="Link to this heading"></a></h3>
+<p>In the case of balanced amplifiers with paired controllers, differential-mode and common-mode loops can be designed and analyzed as discussed in <a class="reference external" href="balanced.html">Work with balanced circuits</a>,  (see also: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+<p>In other multiple-controller circuits the design of one controller is done using nullors for all other controllers.</p>
+</section>
+</section>
+<section id="example-with-operational-amplifier">
+<h2>Example with operational amplifier<a class="headerlink" href="#example-with-operational-amplifier" title="Link to this heading"></a></h2>
+<section id="amplifier-feedback-concept">
+<h3>Amplifier feedback concept<a class="headerlink" href="#amplifier-feedback-concept" title="Link to this heading"></a></h3>
+<p>The figure below shows the concept of a non-inverting, passive-feedback voltage amplifier. The nullor models the ideal controller (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>).</p>
+<a class="reference internal image-reference" href="../_images/VampIdeal.svg"><img alt="../_images/VampIdeal.svg" src="../_images/VampIdeal.svg" style="width: 350px;" />
+</a>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">13</span><span class="c1"># Circuit for ideal gain</span>
+<span class="linenos">14</span><span class="n">vamp_ideal</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/VampIdeal/VampIdeal.kicad_sch&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="implementation-with-operational-amplifier">
+<h3>Implementation with operational amplifier<a class="headerlink" href="#implementation-with-operational-amplifier" title="Link to this heading"></a></h3>
+<p>The figure below shows the above amplifier in which the controller is implemented with an operational amplifier.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">16</span><span class="c1"># Implementation of the controller with an operational amplifier</span>
+<span class="linenos">17</span><span class="n">vamp_opamp</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/VampOV/VampOV.kicad_sch&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampOV.svg"><img alt="../_images/VampOV.svg" src="../_images/VampOV.svg" style="width: 450px;" />
+</a>
+<section id="ideal-gain">
+<h4>Ideal gain<a class="headerlink" href="#ideal-gain" title="Link to this heading"></a></h4>
+<p>The ideal gain is calculated from the circuit with the nullor:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">19</span><span class="c1"># Ideal gain</span>
+<span class="linenos">20</span><span class="n">ideal_gain_sym</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_ideal</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+<div class="math notranslate nohighlight">
+\[A_{v Ideal} = \frac{R_{a} + R_{b}}{R_{b}}\]</div>
+</section>
+<section id="asymptotic-gain">
+<h4>Asymptotic-gain<a class="headerlink" href="#asymptotic-gain" title="Link to this heading"></a></h4>
+<p>The asymptotic gain is calculated using the circuit with the operational amplifier. The nonzero common-mode input admittance of the operational amplifier destroys the natural two-port character of the controller. Hence, the common-mode input capacitance <span class="math notranslate nohighlight">\(c_c\)</span> is found in the expression for the asymptotic gain:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">22</span><span class="c1"># Asymptotic_gain OpAmp circuit</span>
+<span class="linenos">23</span><span class="n">asympt_gain_OV</span> <span class="o">=</span>  <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;asymptotic&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+<div class="math notranslate nohighlight">
+\[A_{v oo} = \frac{\left(R_{a} + R_{b}\right) \left(\frac{R_{a} R_{b} c_{c} s}{2 R_{a} + 2 R_{b}} + 1\right)}{R_{b} \left(0.5 R_{s} c_{c} s + 1\right)}\]</div>
+<p>Substitution of <span class="math notranslate nohighlight">\(c_c=0\)</span> in the above expression establishes the correspondence between the ideal gain and the asymptotic-gain.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">29</span><span class="c1"># Loop gain OpAmp circuit</span>
+<span class="linenos">30</span><span class="n">loop_gain_OV</span> <span class="o">=</span>  <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;loopgain&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+<div class="math notranslate nohighlight">
+\[A_{vi oo} = \frac{R_{a} + R_{b}}{R_{b}}\]</div>
+</section>
+<section id="loop-gain">
+<h4>Loop gain<a class="headerlink" href="#loop-gain" title="Link to this heading"></a></h4>
+<p>The loop gain is calculated as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">29</span><span class="c1"># Loop gain OpAmp circuit</span>
+<span class="linenos">30</span><span class="n">loop_gain_OV</span> <span class="o">=</span>  <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;loopgain&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+</section>
+<section id="servo-function">
+<h4>Servo function<a class="headerlink" href="#servo-function" title="Link to this heading"></a></h4>
+<p>The servo function is calculated as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">32</span><span class="c1"># Servo function OpAmp circuit</span>
+<span class="linenos">33</span><span class="n">servo_OV</span> <span class="o">=</span>  <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;servo&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+</section>
+<section id="direct-transfer">
+<h4>Direct transfer<a class="headerlink" href="#direct-transfer" title="Link to this heading"></a></h4>
+<p>The direct transfer is calculated as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">35</span><span class="c1"># Direct transfer OpAmp circuit</span>
+<span class="linenos">36</span><span class="n">direct_OV</span> <span class="o">=</span>  <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;direct&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+</section>
+<section id="gain">
+<h4>Gain<a class="headerlink" href="#gain" title="Link to this heading"></a></h4>
+<p>The gain is calculated as:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">38</span><span class="c1"># Gain OpAmp circuit</span>
+<span class="linenos">39</span><span class="n">gain_OV</span> <span class="o">=</span>  <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="comparison-mna-and-asymptotic-gain-model">
+<h4>Comparison MNA and asymptotic-gain model<a class="headerlink" href="#comparison-mna-and-asymptotic-gain-model" title="Link to this heading"></a></h4>
+<p>Below the script that verifies if the gain calculates as <span class="math notranslate nohighlight">\(A_f=A_{f\infty}\frac{-L}{1-L}+\frac{\rho}{1-L}\)</span> equals the gain obtained from MNA analysis:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">41</span><span class="c1"># Show that MNA gives the same result as the asymptotic-gain model</span>
+<span class="linenos">42</span><span class="c1"># Calculate gain according to the symptotic-gain model</span>
+<span class="linenos">43</span><span class="n">gain_fb</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">asympt_gain_OV</span><span class="o">*</span><span class="n">servo_OV</span> <span class="o">+</span> <span class="n">direct_OV</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">loop_gain_OV</span><span class="p">))</span>
+<span class="linenos">44</span><span class="c1"># Take ratio of the two gains (must be unity)</span>
+<span class="linenos">45</span><span class="n">ratio</span> <span class="o">=</span> <span class="n">gain_OV</span><span class="o">/</span><span class="n">gain_fb</span>
+<span class="linenos">46</span><span class="c1"># Calculate difference between expanded numerator and expanded denominator</span>
+<span class="linenos">47</span><span class="c1"># This difference must be zero!</span>
+<span class="linenos">48</span><span class="n">numer</span><span class="p">,</span> <span class="n">denom</span> <span class="o">=</span> <span class="n">ratio</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+<span class="linenos">49</span><span class="n">diff</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">numer</span><span class="p">)</span> <span class="o">-</span> <span class="n">sp</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">denom</span><span class="p">)</span>
+<span class="linenos">50</span>
+<span class="linenos">51</span><span class="k">if</span> <span class="n">diff</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">52</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;PERFECT: The two models give the same source-load transfer!&quot;</span><span class="p">)</span>
+<span class="linenos">53</span><span class="k">else</span><span class="p">:</span>
+<span class="linenos">54</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ERROR: MNA gain result differs from asymptotic-gain model!&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Thie yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PERFECT: The two models give the same source-load transfer!
+</pre></div>
+</div>
+</section>
+<section id="bode-plots-feedback-model">
+<h4>Bode plots feedback model<a class="headerlink" href="#bode-plots-feedback-model" title="Link to this heading"></a></h4>
+<p>Below the script for plotting magnitude and phase characteristics of the transfers from the asymptotic-gain model:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">56</span><span class="c1"># Numeric values for plotting</span>
+<span class="linenos">57</span><span class="n">paramsO</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;A_0&quot;</span><span class="p">:</span> <span class="mf">1e5</span><span class="p">,</span>
+<span class="linenos">58</span>          <span class="s2">&quot;p_1&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mi">100</span><span class="p">,</span>
+<span class="linenos">59</span>          <span class="s2">&quot;R_o&quot;</span><span class="p">:</span> <span class="s2">&quot;5k&quot;</span><span class="p">,</span>
+<span class="linenos">60</span>          <span class="s2">&quot;c_c&quot;</span><span class="p">:</span> <span class="s2">&quot;1p&quot;</span><span class="p">,</span>
+<span class="linenos">61</span>          <span class="s2">&quot;c_d&quot;</span><span class="p">:</span> <span class="s2">&quot;8p&quot;</span><span class="p">,</span>
+<span class="linenos">62</span>          <span class="s2">&quot;R_s&quot;</span><span class="p">:</span> <span class="s2">&quot;100k&quot;</span><span class="p">,</span>
+<span class="linenos">63</span>          <span class="s2">&quot;R_a&quot;</span><span class="p">:</span> <span class="s2">&quot;250k&quot;</span><span class="p">,</span>
+<span class="linenos">64</span>          <span class="s2">&quot;R_b&quot;</span><span class="p">:</span> <span class="s2">&quot;50k&quot;</span><span class="p">,</span>
+<span class="linenos">65</span>          <span class="s2">&quot;R_L&quot;</span><span class="p">:</span> <span class="s2">&quot;1k&quot;</span><span class="p">,</span>
+<span class="linenos">66</span>          <span class="s2">&quot;C_L&quot;</span><span class="p">:</span> <span class="s2">&quot;500p&quot;</span><span class="p">}</span>
+<span class="linenos">67</span>
+<span class="linenos">68</span><span class="n">IO</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_ideal</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;gain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsO</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">69</span><span class="n">IO</span><span class="o">.</span><span class="n">gainType</span> <span class="o">=</span> <span class="s2">&quot;ideal&quot;</span> <span class="c1"># This is to change the color and the name of the trace</span>
+<span class="linenos">70</span><span class="n">GO</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;gain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsO</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">71</span><span class="n">AO</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;asymptotic&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsO</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">72</span><span class="n">LO</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;loopgain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsO</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">73</span><span class="n">SO</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;servo&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsO</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">74</span><span class="n">DO</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_opamp</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;direct&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsO</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">75</span>
+<span class="linenos">76</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;AvOVfb_mag&quot;</span><span class="p">,</span> <span class="s2">&quot;Feedback model dB magnitude transfers&quot;</span><span class="p">,</span> 
+<span class="linenos">77</span>             <span class="p">[</span><span class="n">IO</span><span class="p">,</span> <span class="n">AO</span><span class="p">,</span> <span class="n">LO</span><span class="p">,</span> <span class="n">SO</span><span class="p">,</span> <span class="n">DO</span><span class="p">,</span> <span class="n">GO</span><span class="p">],</span> <span class="mi">50</span><span class="p">,</span> <span class="mf">50e6</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="n">funcType</span><span class="o">=</span><span class="s2">&quot;dBmag&quot;</span><span class="p">)</span>
+<span class="linenos">78</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;AvOVfb_phase&quot;</span><span class="p">,</span> <span class="s2">&quot;Feedback model phase transfers&quot;</span><span class="p">,</span> 
+<span class="linenos">79</span>             <span class="p">[</span><span class="n">IO</span><span class="p">,</span> <span class="n">AO</span><span class="p">,</span> <span class="n">LO</span><span class="p">,</span> <span class="n">SO</span><span class="p">,</span> <span class="n">DO</span><span class="p">,</span> <span class="n">GO</span><span class="p">],</span> <span class="mi">50</span><span class="p">,</span> <span class="mf">50e6</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="n">funcType</span><span class="o">=</span><span class="s2">&quot;phase&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/AvOVfb_mag.svg"><img alt="../_images/AvOVfb_mag.svg" src="../_images/AvOVfb_mag.svg" style="width: 500px;" />
+</a>
+<a class="reference internal image-reference" href="../_images/AvOVfb_phase.svg"><img alt="../_images/AvOVfb_phase.svg" src="../_images/AvOVfb_phase.svg" style="width: 500px;" />
+</a>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<ul class="simple">
+<li><p>In the asymptotic-gain model a negative loop gain indicates negative feedback.</p></li>
+<li><p>With a properly selected loop gain reference, the asymptotic-gain equals the ideal gain over the frequency range of interest.</p></li>
+<li><p>If the ideal gain matches the asymptotic-gain, the servo function is a good measure for the discrepancy between the asymptotic-gain and the gain. In such cases, the loop gain is the design parameter for this discrepancy.</p></li>
+<li><p>The influence of the direct transfer over the frequency range of interest can almost always be neglected.</p></li>
+</ul>
+</div>
+</section>
+</section>
+<section id="example-implementation-with-transistors">
+<h3>Example implementation with transistors<a class="headerlink" href="#example-implementation-with-transistors" title="Link to this heading"></a></h3>
+<p>The voltage amplifier with a two-stage bipolar transistor controller:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">81</span><span class="c1"># Implementation of the controller with bipolar transistors</span>
+<span class="linenos">82</span><span class="n">vamp_bjt</span>   <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/VampQ/VampQ.kicad_sch&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQ.svg"><img alt="../_images/VampQ.svg" src="../_images/VampQ.svg" style="width: 600px;" />
+</a>
+<section id="id8">
+<h4>Asymptotic-gain<a class="headerlink" href="#id8" title="Link to this heading"></a></h4>
+<p>The two-stage controller doesn’t behave as a natural two-port. The nonzero output admittance of the first stage introduces a common-mode to differential-mode conversion. In addition, the collector-base capacitance in the second stage introduces local feedback around the selected loop gain reference. Both effects contribute to a mismatch between the ideal gain and the aymptotic-gain.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">83</span><span class="c1"># Asymptotic_gain transistor circuit</span>
+<span class="linenos">84</span><span class="n">asympt_gain_QV</span> <span class="o">=</span>  <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;asymptotic&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+<span class="linenos">85</span><span class="c1"># Show the coefficients because the expression is too long!</span>
+<span class="linenos">86</span><span class="n">transferCoeffs</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">coeffsTransfer</span><span class="p">(</span><span class="n">asympt_gain_QV</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Gain factor:</strong><span class="math notranslate nohighlight">\(\frac{g_{m 1} \left(- R_{a} R_{b} g_{o 1} + R_{a} \beta_{AC 1} + R_{b} \beta_{AC 1}\right)}{R_{b} \left(R_{s} g_{m 1} g_{o 1} + \beta_{AC 1} g_{m 1} + \beta_{AC 1} g_{o 1}\right)}\)</span></p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Coeff</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(b_{0}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(1\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(b_{1}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{R_{a} R_{b} \beta_{AC 1} c_{\mu 1} g_{m 1} + R_{a} R_{b} \beta_{AC 1} c_{\mu 1} g_{o 1} + R_{a} R_{b} \beta_{AC 1} c_{\pi 1} g_{o 1} + R_{a} R_{b} c_{\mu 1} g_{m 1} + R_{a} \beta_{AC 1} c_{\mu 1} + R_{b} \beta_{AC 1} c_{\mu 1}}{g_{m 1} \left(R_{a} R_{b} g_{o 1} - R_{a} \beta_{AC 1} - R_{b} \beta_{AC 1}\right)}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(b_{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{R_{a} R_{b} \beta_{AC 1} c_{\mu 1} c_{\pi 1}}{g_{m 1} \left(R_{a} R_{b} g_{o 1} - R_{a} \beta_{AC 1} - R_{b} \beta_{AC 1}\right)}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(a_{0}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(a_{1}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{R_{a} R_{b} R_{s} c_{\mu 2} g_{m 1} g_{o 1} + R_{a} R_{b} \beta_{AC 1} c_{\mu 2} g_{m 1} + R_{a} R_{b} \beta_{AC 1} c_{\mu 2} g_{o 1} + R_{a} R_{b} c_{\mu 2} g_{m 1} + R_{a} R_{s} c_{\mu 2} g_{m 1} + R_{a} \beta_{AC 1} c_{\mu 2} + R_{b} R_{s} \beta_{AC 1} c_{\mu 1} g_{m 1} + R_{b} R_{s} \beta_{AC 1} c_{\mu 1} g_{o 1} + R_{b} R_{s} \beta_{AC 1} c_{\pi 1} g_{o 1} + R_{b} R_{s} c_{\mu 1} g_{m 1} + R_{b} R_{s} c_{\mu 2} g_{m 1} + R_{b} \beta_{AC 1} c_{\mu 2}}{R_{b} \left(R_{s} g_{m 1} g_{o 1} + \beta_{AC 1} g_{m 1} + \beta_{AC 1} g_{o 1}\right)}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(a_{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{R_{a} R_{b} R_{s} \beta_{AC 1} c_{\mu 1} c_{\mu 2} g_{m 1} + R_{a} R_{b} R_{s} \beta_{AC 1} c_{\mu 1} c_{\mu 2} g_{o 1} + R_{a} R_{b} R_{s} \beta_{AC 1} c_{\mu 2} c_{\pi 1} g_{o 1} + R_{a} R_{b} R_{s} c_{\mu 1} c_{\mu 2} g_{m 1} + R_{a} R_{b} \beta_{AC 1} c_{\mu 2} c_{\pi 1} + R_{a} R_{s} \beta_{AC 1} c_{\mu 1} c_{\mu 2} + R_{a} R_{s} \beta_{AC 1} c_{\mu 2} c_{\pi 1} + R_{b} R_{s} \beta_{AC 1} c_{\mu 1} c_{\mu 2} + R_{b} R_{s} \beta_{AC 1} c_{\mu 1} c_{\pi 1} + R_{b} R_{s} \beta_{AC 1} c_{\mu 2} c_{\pi 1}}{R_{b} \left(R_{s} g_{m 1} g_{o 1} + \beta_{AC 1} g_{m 1} + \beta_{AC 1} g_{o 1}\right)}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(a_{3}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{R_{a} R_{s} \beta_{AC 1} c_{\mu 1} c_{\mu 2} c_{\pi 1}}{R_{s} g_{m 1} g_{o 1} + \beta_{AC 1} g_{m 1} + \beta_{AC 1} g_{o 1}}\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<p>The asymptotic-gain with the output admittance of the first stage and the feedback capacitance of the second stage set to zero:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">89</span><span class="c1"># Asymptotic-gain == ideal gain:</span>
+<span class="linenos">90</span><span class="n">c_mu_1</span><span class="p">,</span> <span class="n">g_o_1</span><span class="p">,</span> <span class="n">c_mu_2</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;c_mu_1, g_o_1, c_mu_2&#39;</span><span class="p">)</span>
+<span class="linenos">91</span><span class="n">asympt_gain_QV_mod</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">asympt_gain_QV</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">c_mu_1</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="n">g_o_1</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="n">c_mu_2</span><span class="p">:</span> <span class="mi">0</span><span class="p">}))</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="math notranslate nohighlight">
+\[A_{vi oo} = \frac{R_{a} + R_{b}}{R_{b}}\]</div>
+</section>
+<section id="id9">
+<h4>Bode plots feedback model<a class="headerlink" href="#id9" title="Link to this heading"></a></h4>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 93</span><span class="c1"># Numeric values for plotting</span>
+<span class="linenos"> 94</span><span class="n">paramsQ</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;g_m_1&quot;</span><span class="p">:</span> <span class="s2">&quot;4m&quot;</span><span class="p">,</span>
+<span class="linenos"> 95</span>          <span class="s2">&quot;g_m_2&quot;</span><span class="p">:</span> <span class="s2">&quot;10m&quot;</span><span class="p">,</span>
+<span class="linenos"> 96</span>          <span class="s2">&quot;beta_AC_1&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+<span class="linenos"> 97</span>          <span class="s2">&quot;beta_AC_2&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+<span class="linenos"> 98</span>          <span class="s2">&quot;g_o_1&quot;</span><span class="p">:</span> <span class="s2">&quot;2u&quot;</span><span class="p">,</span>
+<span class="linenos"> 99</span>          <span class="s2">&quot;g_o_2&quot;</span><span class="p">:</span> <span class="s2">&quot;10u&quot;</span><span class="p">,</span>
+<span class="linenos">100</span>          <span class="s2">&quot;c_pi_1&quot;</span><span class="p">:</span> <span class="s2">&quot;5p&quot;</span><span class="p">,</span>
+<span class="linenos">101</span>          <span class="s2">&quot;c_pi_2&quot;</span><span class="p">:</span> <span class="s2">&quot;10p&quot;</span><span class="p">,</span>
+<span class="linenos">102</span>          <span class="s2">&quot;c_mu_1&quot;</span><span class="p">:</span> <span class="s2">&quot;1p&quot;</span><span class="p">,</span>
+<span class="linenos">103</span>          <span class="s2">&quot;c_mu_2&quot;</span><span class="p">:</span> <span class="s2">&quot;1p&quot;</span><span class="p">,</span>
+<span class="linenos">104</span>          <span class="s2">&quot;R_s&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+<span class="linenos">105</span>          <span class="s2">&quot;R_a&quot;</span><span class="p">:</span> <span class="mi">950</span><span class="p">,</span>
+<span class="linenos">106</span>          <span class="s2">&quot;R_b&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span>
+<span class="linenos">107</span>          <span class="s2">&quot;R_L&quot;</span><span class="p">:</span> <span class="s2">&quot;1k&quot;</span><span class="p">,</span>
+<span class="linenos">108</span>          <span class="s2">&quot;C_L&quot;</span><span class="p">:</span> <span class="s2">&quot;500p&quot;</span><span class="p">}</span>
+<span class="linenos">109</span>
+<span class="linenos">110</span><span class="n">IQ</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_ideal</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;gain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">111</span><span class="n">IQ</span><span class="o">.</span><span class="n">gainType</span> <span class="o">=</span> <span class="s2">&quot;ideal&quot;</span> <span class="c1"># This is to change the color and the name of the trace</span>
+<span class="linenos">112</span><span class="n">GQ</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;gain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">113</span><span class="n">AQ</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;asymptotic&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">114</span><span class="n">LQ</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;loopgain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">115</span><span class="n">SQ</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;servo&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">116</span><span class="n">DQ</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;direct&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">117</span>
+<span class="linenos">118</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;AvQVfb_mag&quot;</span><span class="p">,</span> <span class="s2">&quot;Feedback model dB magnitude transfers&quot;</span><span class="p">,</span> 
+<span class="linenos">119</span>             <span class="p">[</span><span class="n">IQ</span><span class="p">,</span> <span class="n">AQ</span><span class="p">,</span> <span class="n">LQ</span><span class="p">,</span> <span class="n">SQ</span><span class="p">,</span> <span class="n">DQ</span><span class="p">,</span> <span class="n">GQ</span><span class="p">],</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">5e3</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="n">sweepScale</span><span class="o">=</span><span class="s2">&quot;M&quot;</span><span class="p">,</span>
+<span class="linenos">120</span>             <span class="n">funcType</span><span class="o">=</span><span class="s2">&quot;dBmag&quot;</span><span class="p">)</span>
+<span class="linenos">121</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;AvQVfb_phase&quot;</span><span class="p">,</span> <span class="s2">&quot;Feedback model phase transfers&quot;</span><span class="p">,</span> 
+<span class="linenos">122</span>             <span class="p">[</span><span class="n">IQ</span><span class="p">,</span> <span class="n">AQ</span><span class="p">,</span> <span class="n">LQ</span><span class="p">,</span> <span class="n">SQ</span><span class="p">,</span> <span class="n">DQ</span><span class="p">,</span> <span class="n">GQ</span><span class="p">],</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">5e3</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="n">sweepScale</span><span class="o">=</span><span class="s2">&quot;M&quot;</span><span class="p">,</span> 
+<span class="linenos">123</span>             <span class="n">funcType</span><span class="o">=</span><span class="s2">&quot;phase&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/AvQVfb_mag.svg"><img alt="../_images/AvQVfb_mag.svg" src="../_images/AvQVfb_mag.svg" style="width: 500px;" />
+</a>
+<a class="reference internal image-reference" href="../_images/AvQVfb_phase.svg"><img alt="../_images/AvQVfb_phase.svg" src="../_images/AvQVfb_phase.svg" style="width: 500px;" />
+</a>
+</section>
+</section>
+</section>
+<section id="stability-and-frequency-charactersitics">
+<h2>Stability and frequency charactersitics<a class="headerlink" href="#stability-and-frequency-charactersitics" title="Link to this heading"></a></h2>
+<div class="note admonition">
+<p class="admonition-title">Definition</p>
+<p>A (linear) system is stable if the response to a bounded input is bounded.</p>
+</div>
+<p>The ultimate test for stability is to excite all states and check if the response is bounded. In systems that do not comprise delay lines, all poles should have negative real parts.</p>
+<section id="pole-zero-analysis">
+<h3>Pole-zero analysis<a class="headerlink" href="#pole-zero-analysis" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">125</span><span class="n">pzResult</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doPZ</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">126</span><span class="n">sl</span><span class="o">.</span><span class="n">listPZ</span><span class="p">(</span><span class="n">pzResult</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>DC value of gain: 1.78e+01
+
+Poles of gain:
+
+ n  Real part [Hz]  Imag part [Hz]  Frequency [Hz]     Q [-]
+--  --------------  --------------  --------------  --------
+ 0       -1.09e+06        2.55e+06        2.77e+06   1.27e+0
+ 1       -1.09e+06       -2.55e+06        2.77e+06   1.27e+0
+ 2       -2.40e+08        0.00e+00        2.40e+08
+ 3       -5.95e+09        0.00e+00        5.95e+09
+
+Zeros of gain:
+
+ n  Real part [Hz]  Imag part [Hz]  Frequency [Hz]     Q [-]
+--  --------------  --------------  --------------  --------
+ 0        6.78e+07        6.09e+07        9.12e+07   6.72e-1
+ 1        6.78e+07       -6.09e+07        9.12e+07   6.72e-1
+ 2       -3.30e+08        0.00e+00        3.30e+08
+</pre></div>
+</div>
+</section>
+<section id="poles-versus-circuit-parameter">
+<h3>Poles versus circuit parameter<a class="headerlink" href="#poles-versus-circuit-parameter" title="Link to this heading"></a></h3>
+<p>Parameter stepping can be applied to <em>circuit</em> parameters.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">128</span><span class="c1"># Influence of output-stage current on poles</span>
+<span class="linenos">129</span><span class="n">paramsQ</span><span class="p">[</span><span class="s2">&quot;g_m_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;I_C&quot;</span><span class="p">)</span><span class="o">/</span><span class="mf">26e-3</span>
+<span class="linenos">130</span><span class="n">paramsQ</span><span class="p">[</span><span class="s2">&quot;c_pi_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">sympify</span><span class="p">(</span><span class="s2">&quot;2e-12 + g_m_2*tau_F&quot;</span><span class="p">)</span>
+<span class="linenos">131</span><span class="n">paramsQ</span><span class="p">[</span><span class="s2">&quot;tau_F&quot;</span><span class="p">]</span>  <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="mf">195e6</span><span class="p">)</span>
+<span class="linenos">132</span><span class="n">paramsQ</span><span class="p">[</span><span class="s2">&quot;I_C&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">260e-6</span>
+<span class="linenos">133</span><span class="c1"># Define these parameters as &quot;circuit&quot; parameters (required for stepping)</span>
+<span class="linenos">134</span><span class="n">vamp_bjt</span><span class="o">.</span><span class="n">defPars</span><span class="p">(</span><span class="n">paramsQ</span><span class="p">)</span>
+<span class="linenos">135</span>
+<span class="linenos">136</span><span class="n">stparams</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;0.26m&quot;</span><span class="p">,</span>
+<span class="linenos">137</span>            <span class="s2">&quot;stop&quot;</span> <span class="p">:</span> <span class="s2">&quot;10m&quot;</span><span class="p">,</span>
+<span class="linenos">138</span>            <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;lin&quot;</span><span class="p">,</span>
+<span class="linenos">139</span>            <span class="s2">&quot;params&quot;</span><span class="p">:</span> <span class="s2">&quot;I_C&quot;</span><span class="p">,</span>
+<span class="linenos">140</span>            <span class="s2">&quot;num&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">}</span>
+<span class="linenos">141</span>
+<span class="linenos">142</span><span class="n">polesIC</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doPoles</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s1">&#39;circuit&#39;</span><span class="p">,</span> <span class="n">stepdict</span><span class="o">=</span><span class="n">stparams</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">143</span>
+<span class="linenos">144</span><span class="n">sl</span><span class="o">.</span><span class="n">plotPZ</span><span class="p">(</span><span class="s2">&quot;PZvampbjtIC&quot;</span><span class="p">,</span> <span class="s2">&quot;Poles versus $I_C$&quot;</span><span class="p">,</span> <span class="n">polesIC</span><span class="p">,</span> <span class="n">xmin</span><span class="o">=-</span><span class="mi">7</span><span class="p">,</span> 
+<span class="linenos">145</span>          <span class="n">xmax</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ymin</span><span class="o">=-</span><span class="mf">3.5</span><span class="p">,</span> <span class="n">ymax</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span> <span class="n">xscale</span><span class="o">=</span><span class="s2">&quot;M&quot;</span><span class="p">,</span> <span class="n">yscale</span><span class="o">=</span><span class="s2">&quot;M&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/PZvampbjtIC.svg"><img alt="../_images/PZvampbjtIC.svg" src="../_images/PZvampbjtIC.svg" style="width: 350px;" />
+</a>
+</section>
+<section id="routh-array">
+<h3>Routh array<a class="headerlink" href="#routh-array" title="Link to this heading"></a></h3>
+<p>The number of sign changes in the first column of the Routh Array of a polynomial, equals the number of its solutions in the right-half of the complex plane.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">147</span><span class="n">num</span><span class="p">,</span> <span class="n">den</span>    <span class="o">=</span> <span class="n">GQ</span><span class="o">.</span><span class="n">laplace</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span> <span class="c1"># Extract denominator</span>
+<span class="linenos">148</span><span class="n">RA</span>          <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">routh</span><span class="p">(</span><span class="n">den</span><span class="p">)</span>               <span class="c1"># Create Routh Array of denominator</span>
+<span class="linenos">149</span><span class="n">sign</span>        <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">RA</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>            <span class="c1"># Record sign of RA[0,0]</span>
+<span class="linenos">150</span><span class="n">sgn_changes</span> <span class="o">=</span> <span class="mi">0</span>                           <span class="c1"># Number of sign changes is number of</span>
+<span class="linenos">151</span><span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">RA</span><span class="o">.</span><span class="n">rows</span><span class="p">):</span>               <span class="c1"># right half-plane poles</span>
+<span class="linenos">152</span>    <span class="n">new_sign</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">RA</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="linenos">153</span>    <span class="k">if</span>  <span class="n">new_sign</span> <span class="o">!=</span> <span class="n">sign</span><span class="p">:</span>
+<span class="linenos">154</span>        <span class="n">sgn_changes</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">155</span>        <span class="n">sign</span> <span class="o">=</span> <span class="n">new_sign</span>
+<span class="linenos">156</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Number of poles in right half-plane:&quot;</span><span class="p">,</span> <span class="n">sgn_changes</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Number of poles in right half-plane: 0
+</pre></div>
+</div>
+<p>Typesetted Routh array:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}RA = \left[\begin{matrix}1.881 \cdot 10^{33} &amp; 1.073 \cdot 10^{53} &amp; 3.23 \cdot 10^{67}\\7.321 \cdot 10^{43} &amp; 1.479 \cdot 10^{60} &amp; 0\\1.073 \cdot 10^{53} &amp; 3.23 \cdot 10^{67} &amp; 0\\1.457 \cdot 10^{60} &amp; 0 &amp; 0\\3.23 \cdot 10^{67} &amp; 0 &amp; 0\end{matrix}\right]\end{split}\]</div>
+</section>
+<section id="nyquist-plot">
+<h3>Nyquist plot<a class="headerlink" href="#nyquist-plot" title="Link to this heading"></a></h3>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>A negative value of the loop gain in the asymptotic-gain model, indicates negative feedback. For plotting a traditional “Nyquist Plot”, plot <span class="math notranslate nohighlight">\(-L\)</span> on a polar plot.</p>
+<p>Nyquist plots only give meaningful information about the stability with a meaningful loop gain!</p>
+<p>A <code class="docutils literal notranslate"><span class="pre">Pole-Zero</span> <span class="pre">Plot</span></code>, the <code class="docutils literal notranslate"><span class="pre">Unit</span> <span class="pre">Impulse</span> <span class="pre">Response</span></code>, and the <code class="docutils literal notranslate"><span class="pre">Unit</span> <span class="pre">Step</span> <span class="pre">Response</span></code> always provide useful information about stability!</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">158</span><span class="c1"># Traditional Nyquist Plot: change the sign of the loop gain!</span>
+<span class="linenos">159</span><span class="n">loopGain</span>   <span class="o">=</span> <span class="n">LQ</span><span class="o">.</span><span class="n">laplace</span>
+<span class="linenos">160</span><span class="n">LQ</span><span class="o">.</span><span class="n">laplace</span> <span class="o">=</span> <span class="o">-</span><span class="n">loopGain</span>
+<span class="linenos">161</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;NyquistQamp&quot;</span><span class="p">,</span> <span class="s2">&quot;Nyquist plot loop gain QVamp&quot;</span><span class="p">,</span> <span class="n">LQ</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> 
+<span class="linenos">162</span>             <span class="n">sweepScale</span><span class="o">=</span><span class="s2">&quot;M&quot;</span><span class="p">,</span> <span class="n">funcType</span><span class="o">=</span><span class="s2">&quot;mag&quot;</span><span class="p">,</span> <span class="n">axisType</span><span class="o">=</span><span class="s2">&quot;polar&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/NyquistQamp.svg"><img alt="../_images/NyquistQamp.svg" src="../_images/NyquistQamp.svg" style="width: 500px;" />
+</a>
+</div>
+</section>
+</section>
+<section id="related-math-functions">
+<h2>Related math functions<a class="headerlink" href="#related-math-functions" title="Link to this heading"></a></h2>
+<section id="servo-bandwidth">
+<h3>Servo bandwidth<a class="headerlink" href="#servo-bandwidth" title="Link to this heading"></a></h3>
+<p><a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.findServoBandwidth">findServoBandwidth()</a> takes the (numeric) Laplace transform of the loop gain as input and returns a dictionary with information about the asymptotic approximation of the servo function.
+It evaluates the asymptotes of the magnitude characteristic of the loop gain and accepts maximally one region in which this magnitude exceeds unity.</p>
+<p>The function can be used to separate dominant poles from non-dominant poles thereby simplifying frequency compensation algorithms.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">164</span><span class="c1"># findServoBandwidth</span>
+<span class="linenos">165</span><span class="n">servoInfo</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">findServoBandwidth</span><span class="p">(</span><span class="n">loopGain</span><span class="p">)</span>
+<span class="linenos">166</span><span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">servoInfo</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">167</span>    <span class="nb">print</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">servoInfo</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mbv 8.152406382061248
+mbf 0.0
+lpf 2618650.8800096293
+lpo -2.0
+hpf None
+hpo None
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><strong>lpf</strong>: Low-pass cut-off frequency, this is the frequency at which the asymptotic approach of the loop gain magnitude crosses unity with a negative slope.</p></li>
+<li><p><strong>lpo</strong>: Low-pass order, the order of the slope of the asymptote of the loop gain magnitude at f=lpf</p></li>
+<li><p><strong>hpf</strong>: High-pass cut-off frequency, this is the frequency at which the asymptotic approach of the loop gain magnitude crosses unity with a positive slope.</p></li>
+<li><p><strong>hpo</strong>: High-pass order, the order of the slope of the asymptote of the loop gain magnitude at f=hpf</p></li>
+<li><p><strong>mbv</strong>: Largest absolute value of midband loop gain. In this case there is no high-pass and the midband loop gain is the DC value</p></li>
+<li><p><strong>mbf</strong>: Frequency at which this value occurs</p></li>
+</ul>
+<p>The unit of <code class="docutils literal notranslate"><span class="pre">lpf</span></code> and <code class="docutils literal notranslate"><span class="pre">hpf</span></code> is set by <code class="docutils literal notranslate"><span class="pre">ini.hz</span></code>; default: “Hz”.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">hz</span>
+
+<span class="go">True</span>
+</pre></div>
+</div>
+<section id="remove-non-dominant-poles-and-zeros">
+<h4>Remove non-dominant poles and zeros<a class="headerlink" href="#remove-non-dominant-poles-and-zeros" title="Link to this heading"></a></h4>
+<p>The following script extracts the dominant poles and zeros from all loop gain poles and zeros:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">169</span><span class="c1"># Dominant poles and zeros of the loop gain for low-pass cut-off</span>
+<span class="linenos">170</span><span class="n">pzL</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doPZ</span><span class="p">(</span><span class="n">vamp_bjt</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="s2">&quot;loopgain&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="n">paramsQ</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">171</span><span class="n">dom_poles</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="linenos">172</span><span class="n">dom_zeros</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="linenos">173</span><span class="n">margin</span>    <span class="o">=</span> <span class="mi">2</span>
+<span class="linenos">174</span><span class="k">for</span> <span class="n">pole</span> <span class="ow">in</span> <span class="n">pzL</span><span class="o">.</span><span class="n">poles</span><span class="p">:</span>
+<span class="linenos">175</span>    <span class="n">freq</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Abs</span><span class="p">(</span><span class="n">pole</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+<span class="linenos">176</span>    <span class="k">if</span>  <span class="n">freq</span> <span class="o">&lt;</span> <span class="n">margin</span> <span class="o">*</span> <span class="n">servoInfo</span><span class="p">[</span><span class="s1">&#39;lpf&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">freq</span> <span class="o">&gt;</span> <span class="n">servoInfo</span><span class="p">[</span><span class="s1">&#39;mbf&#39;</span><span class="p">]:</span>
+<span class="linenos">177</span>        <span class="n">dom_poles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pole</span><span class="p">)</span>
+<span class="linenos">178</span><span class="k">for</span> <span class="n">zero</span> <span class="ow">in</span> <span class="n">pzL</span><span class="o">.</span><span class="n">zeros</span><span class="p">:</span>
+<span class="linenos">179</span>    <span class="n">freq</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Abs</span><span class="p">(</span><span class="n">zero</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+<span class="linenos">180</span>    <span class="k">if</span> <span class="n">freq</span> <span class="o">&lt;</span> <span class="n">margin</span> <span class="o">*</span> <span class="n">servoInfo</span><span class="p">[</span><span class="s1">&#39;lpf&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">freq</span> <span class="o">&gt;</span> <span class="n">servoInfo</span><span class="p">[</span><span class="s1">&#39;mbf&#39;</span><span class="p">]:</span>
+<span class="linenos">181</span>        <span class="n">dom_zeros</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">zero</span><span class="p">)</span>
+<span class="linenos">182</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Poles [rad/s]:&quot;</span><span class="p">,</span> <span class="n">dom_poles</span><span class="p">)</span>
+<span class="linenos">183</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Zeros [rad/s]:&quot;</span><span class="p">,</span> <span class="n">dom_zeros</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Poles [rad/s]: [np.float64(-4054666.832864887), np.float64(-8083810.307636836)]
+Zeros [rad/s]: []
+</pre></div>
+</div>
+</section>
+</section>
+<section id="coefficients-of-a-laplace-transfer-function">
+<h3>Coefficients of a Laplace transfer function<a class="headerlink" href="#coefficients-of-a-laplace-transfer-function" title="Link to this heading"></a></h3>
+<p><a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.coeffsTransfer">coeffsTransfer()</a> take a Laplace rational function as argument and returns a gain factor, and the normalized coefficients of the numerator and the denominator polynomials.</p>
+<section id="estimate-mfm-bandwidth">
+<h4>Estimate MFM bandwidth<a class="headerlink" href="#estimate-mfm-bandwidth" title="Link to this heading"></a></h4>
+<p>The MFM bandwidth (after frequency compensation) is found as (see: <a class="reference external" href="https://books.open.tudelft.nl/home/catalog/book/162">Structured Electronics Design</a>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">185</span><span class="n">LoopGain_simplified</span> <span class="o">=</span> <span class="n">servoInfo</span><span class="p">[</span><span class="s1">&#39;mbv&#39;</span><span class="p">]</span>
+<span class="linenos">186</span><span class="k">for</span> <span class="n">zero</span> <span class="ow">in</span> <span class="n">dom_zeros</span><span class="p">:</span>
+<span class="linenos">187</span>    <span class="n">LoopGain_simplified</span> <span class="o">*=</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">laplace</span><span class="o">/</span><span class="n">zero</span><span class="p">)</span>
+<span class="linenos">188</span><span class="k">for</span> <span class="n">pole</span> <span class="ow">in</span> <span class="n">dom_poles</span><span class="p">:</span>
+<span class="linenos">189</span>    <span class="n">LoopGain_simplified</span> <span class="o">/=</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">laplace</span><span class="o">/</span><span class="n">pole</span><span class="p">)</span>
+<span class="linenos">190</span>
+<span class="linenos">191</span><span class="n">gain</span><span class="p">,</span> <span class="n">numerCoeffs</span><span class="p">,</span> <span class="n">denomCoeffs</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">coeffsTransfer</span><span class="p">(</span><span class="n">LoopGain_simplified</span><span class="p">)</span>   
+<span class="linenos">192</span><span class="n">order</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">numerCoeffs</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">denomCoeffs</span><span class="p">)</span> 
+<span class="linenos">193</span><span class="n">MFM</span>   <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span><span class="o">*</span><span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">gain</span><span class="p">)</span><span class="o">*</span><span class="n">numerCoeffs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">denomCoeffs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="n">order</span><span class="p">)</span>
+<span class="linenos">194</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Achievable MFM bandwidth:&quot;</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">N</span><span class="p">(</span><span class="n">MFM</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="s2">&quot;Hz&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Achievable MFM bandwidth: 2.76e+6 Hz
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section id="display-equations-and-tables-on-html-pages-and-in-latex-documents">
+<h2>Display equations and tables on HTML pages and in LaTeX documents<a class="headerlink" href="#display-equations-and-tables-on-html-pages-and-in-latex-documents" title="Link to this heading"></a></h2>
+<p>The report module <a class="reference external" href="reports.html">Create reports</a>, discusses how HTML snippets and LaTeX snippets can be created for variables, expressions, equations and tables.</p>
+<p>As a matter of fact, all equations, tables and figures on this page are created with this module:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">196</span><span class="c1"># Generate RST snippets for the Help file</span>
+<span class="linenos">197</span><span class="n">rst</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">RSTformatter</span><span class="p">()</span>
+<span class="linenos">198</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;A_v_Ideal&quot;</span><span class="p">,</span> <span class="n">ideal_gain_sym</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-A_v_Ideal&quot;</span><span class="p">)</span>
+<span class="linenos">199</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;A_v_oo&quot;</span><span class="p">,</span> <span class="n">asympt_gain_OV</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-OV-A_v_oo&quot;</span><span class="p">)</span>
+<span class="linenos">200</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;A_vi_oo&quot;</span><span class="p">,</span> <span class="n">asympt_gain_OV_mod</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-OV-A_v_oo-mod&quot;</span><span class="p">)</span>
+<span class="linenos">201</span><span class="n">rst</span><span class="o">.</span><span class="n">coeffsTransfer</span><span class="p">(</span><span class="n">transferCoeffs</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;table-coeffsQ-A_v_oo&quot;</span><span class="p">)</span>
+<span class="linenos">202</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;A_vi_oo&quot;</span><span class="p">,</span> <span class="n">asympt_gain_QV_mod</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-QV-A_v_oo-mod&quot;</span><span class="p">)</span>
+<span class="linenos">203</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;RA&quot;</span><span class="p">,</span> <span class="n">RA</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-M_routh&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dcvar.html" class="btn btn-neutral float-left" title="SLiCAP DC and dcvar analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="balanced.html" class="btn btn-neutral float-right" title="Work with balanced circuits" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, SLiCAP development team.
+      <span class="lastupdated">Last updated on 2025, Dec 27.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

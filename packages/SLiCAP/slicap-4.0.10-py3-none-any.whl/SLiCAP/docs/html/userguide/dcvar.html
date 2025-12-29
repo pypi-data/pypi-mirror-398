@@ -1,0 +1,719 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SLiCAP DC and dcvar analysis &mdash; SLiCAP 4.0.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=b8a5ba81"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Work with feedback circuits" href="feedback.html" />
+    <link rel="prev" title="SLiCAP noise analysis" href="noise.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            SLiCAP
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction/SLiCAPintroduction.html">SLiCAP Version 4.0</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="SLiCAPuserguide.html">SLiCAP User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="install.html">Download, install, configure and test SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit.html">Create a SLiCAP circuit object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schematics.html">Schematic capture for SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specifications.html">Work with specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html">Work with parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Work with models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="subcircuit.html">Work with subcircuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html">Perform analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matrices.html">SLiCAP circuit matrix equation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="laplace.html">SLiCAP Laplace analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pz.html">SLiCAP pole-zero analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="time.html">SLiCAP time-domain analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="noise.html">SLiCAP noise analysis</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">SLiCAP DC and dcvar analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dc-and-dcvar-parameters">dc and dcvar parameters</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#voltage-source-dc-variance">Voltage source DC variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#current-source-dc-variance">Current source DC variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#resistor-tolerance-and-matching-tolerance">Resistor tolerance and matching tolerance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#modeling-of-temperature-dependency">Modeling of temperature dependency</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#subcircuits-with-dcvar">Subcircuits with dcvar</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#built-in-subcircuits">Built-in subcircuits</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#create-dcvar-elements">Create dcvar elements</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#dc-variance-analysis">DC variance analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#dc-solution">DC solution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#detector-referred-dc-variance">Detector-referred DC variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#source-referred-dc-variance">Source-referred DC variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#contributions-to-detector-referred-and-source-referred-dc-variance">Contributions to detector-referred and source-referred DC variance</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#tolerances-temperature-drift-matching-and-tracking">Tolerances, temperature drift, matching and tracking</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#no-tolerances-and-no-temperature-coefficients">No tolerances and no temperature coefficients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dc-voltage-soure-with-standard-deviation">DC voltage soure with standard deviation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dc-voltage-soure-with-temperature-coefficient">DC voltage soure with temperature coefficient</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dc-voltage-soure-with-stddev-and-tempco">DC voltage soure with stddev. and tempco.</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rel-stddev-of-resistor-values-perfect-matching">Rel. stddev of resistor values, perfect matching</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rel-stddev-of-resistor-values-perfect-matching-and-tracking">Rel. stddev of resistor values, perfect matching and tracking</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rel-stddev-of-resistor-values-imperfect-matching-and-tracking">Rel. stddev of resistor values, imperfect matching and tracking</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#v-src-stddev-and-tempco-rel-res-stddev-imperf-matching-tracking">V src stddev and tempco, rel. res. stddev. imperf. matching/tracking</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#display-equations-on-html-pages-and-in-latex-documents">Display equations on HTML pages and in LaTeX documents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="feedback.html">Work with feedback circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="balanced.html">Work with balanced circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="math.html">Work with analysis results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ngspice.html">Interface with NGspice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plots.html">Create plots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reports.html">Create reports</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/SLiCAPtutorials.html">SLiCAP Examples and Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syntax/SLiCAPnetlistSyntax.html">SLiCAP Netlist Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/SLiCAPreference.html">SLiCAP Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">SLiCAP</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="SLiCAPuserguide.html">SLiCAP User Guide</a></li>
+      <li class="breadcrumb-item active">SLiCAP DC and dcvar analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/userguide/dcvar.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="slicap-dc-and-dcvar-analysis">
+<h1>SLiCAP DC and dcvar analysis<a class="headerlink" href="#slicap-dc-and-dcvar-analysis" title="Link to this heading"></a></h1>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+<p>SLiCAP dc variance analysis <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDCvar">doDCvar()</a> is intended to set up design equations for offset and bias voltages and currents, and for resistor tolerances. Similar as with noise analysis, SLiCAP can determine the detector-referred and the source-referred variance of a DC voltage or current. To this end, independent sources are assigned a mean DC value and an absolute variance, while resistors can be assigned a relative variance. Resistor temperature tracking and tolerance matching is achieved by assigning resistors to a lot.</p>
+<p>SLiCAP output displayed on this manual page, is generated with the script: <code class="docutils literal notranslate"><span class="pre">dcvar.py</span></code>, imported by <code class="docutils literal notranslate"><span class="pre">Manual.py</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="ch">#!/usr/bin/env python3</span>
+<span class="linenos">2</span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="linenos">3</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">4</span><span class="sd">dcvar.py: SLiCAP scripts for the HTML help file</span>
+<span class="linenos">5</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">6</span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+<span class="linenos">7</span><span class="kn">import</span><span class="w"> </span><span class="nn">sympy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sp</span>
+</pre></div>
+</div>
+<section id="dc-and-dcvar-parameters">
+<h2>dc and dcvar parameters<a class="headerlink" href="#dc-and-dcvar-parameters" title="Link to this heading"></a></h2>
+<p>A <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDCvar">doDCvar()</a> analysis is always preceeded by a <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDC">doDC()</a> analysis. The DC analysis results are used to convert resistor tolerances into resistor error currents.</p>
+<p>SLiCAP uses the <code class="docutils literal notranslate"><span class="pre">dc</span></code> parameter of independent sources during <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDC">doDC()</a> analysis and the <code class="docutils literal notranslate"><span class="pre">dcvar</span></code>, and <code class="docutils literal notranslate"><span class="pre">dcvarlot</span></code> parameters during <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDCvar">doDCvar()</a> analysis.</p>
+<section id="voltage-source-dc-variance">
+<h3>Voltage source DC variance<a class="headerlink" href="#voltage-source-dc-variance" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> parameter of <a class="reference external" href="../syntax/devices.html#v-independent-voltage-source">independent voltage sources</a> must be specified in <span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span>. The variance is the square of the standard deviation.</p>
+<p>The netlist syntax of a voltage source <code class="docutils literal notranslate"><span class="pre">V1</span></code> connected between <code class="docutils literal notranslate"><span class="pre">nodeP</span></code> and <code class="docutils literal notranslate"><span class="pre">nodeN</span></code> with a mean (DC) value of 1 V and a standard deviation of 10 mV is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>V1 nodeP nodeN V value=0 dc=1 dcvar=1e-4 noise=0
+</pre></div>
+</div>
+</section>
+<section id="current-source-dc-variance">
+<h3>Current source DC variance<a class="headerlink" href="#current-source-dc-variance" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> parameter of <a class="reference external" href="../syntax/devices.html#i-independent-current-source">independent current sources</a> must be specified in <span class="math notranslate nohighlight">\(\mathrm{A^2}\)</span></p>
+<p>The netlist syntax of a current source <code class="docutils literal notranslate"><span class="pre">I1</span></code> flowing from <code class="docutils literal notranslate"><span class="pre">nodeP</span></code> to <code class="docutils literal notranslate"><span class="pre">nodeN</span></code> with a mean (DC) value of 1 mA and a standard deviation of 1 uA is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>I1 nodeP nodeN V value=0 dc=1e-3 dcvar=1e-12 noise=0
+</pre></div>
+</div>
+</section>
+<section id="resistor-tolerance-and-matching-tolerance">
+<h3>Resistor tolerance and matching tolerance<a class="headerlink" href="#resistor-tolerance-and-matching-tolerance" title="Link to this heading"></a></h3>
+<p>SLiCAP models resistor tolerances by placing independent error current sources in parallel with the resistor. To this end, it first evaluates the DC current through the resistor and places an independent current source in parallel with this resistor. The <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> parameter of this current source is set to the product of the squared DC resistor current and the relative variance of its resistance.</p>
+<div class="note admonition">
+<p class="admonition-title">dcvar analysis</p>
+<p>SLiCAP adds dc error current sources in parallel with resistors that have a nonzero <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> parameter. These current sources obtain the reference designator <code class="docutils literal notranslate"><span class="pre">I_dcvar_&lt;resID&gt;</span></code>, where <code class="docutils literal notranslate"><span class="pre">resID</span></code> is the reference designator of the resistor. After dcvar analysis, all independent current sources with reference designators starting with <code class="docutils literal notranslate"><span class="pre">I_dcvar_</span></code> will be removed from the circuit.</p>
+</div>
+<p>If the resistor tolerance partly matches with that of resistors belonging to the same lot, the matching error current is derived from a voltage source of which <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> describes the matching part of the variance. The <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> parameters of the individual resistors model the mismatch.</p>
+<div class="note admonition">
+<p class="admonition-title">lot specification</p>
+<p>For each <code class="docutils literal notranslate"><span class="pre">dcvarlot</span></code> specification, SLiCAP adds a grounded independent voltage source that has a nonzero <code class="docutils literal notranslate"><span class="pre">dcvar</span></code> parameter. These voltage sources obtain the reference designator <code class="docutils literal notranslate"><span class="pre">V_dcvar_&lt;dcvarlot_xx&gt;</span></code>, where <code class="docutils literal notranslate"><span class="pre">dcvarlot_xx</span></code> is the value of the <code class="docutils literal notranslate"><span class="pre">dcvarlot</span></code> parameter. A voltage-controlled current source with reference designator <code class="docutils literal notranslate"><span class="pre">G_dcvar_&lt;resID&gt;</span></code> converts the voltage from this voltage source into an error current in parallel with the resistor. The gain of this conversion equals the DC current through the resistor. After dcvar analysis, all independent voltage sources sources with reference designators starting with <code class="docutils literal notranslate"><span class="pre">V_dcvar_</span></code>, and all voltage-controlled current sources starting with reference designator <code class="docutils literal notranslate"><span class="pre">G_dcvar_</span></code> with will be removed from the circuit.</p>
+</div>
+</section>
+<section id="modeling-of-temperature-dependency">
+<h3>Modeling of temperature dependency<a class="headerlink" href="#modeling-of-temperature-dependency" title="Link to this heading"></a></h3>
+<p>Both the mean value (<code class="docutils literal notranslate"><span class="pre">dc</span></code>) and the variance (<code class="docutils literal notranslate"><span class="pre">dcvar</span></code>) of voltage sources, current sources and resistors can be made temperature dependent.</p>
+<p>Below the syntax of a resistor <code class="docutils literal notranslate"><span class="pre">R1</span></code> connected between <code class="docutils literal notranslate"><span class="pre">nodeP</span></code> and <code class="docutils literal notranslate"><span class="pre">nodeN</span></code>, with a temperature coefficient <span class="math notranslate nohighlight">\(\mathrm{TC}\)</span>, a relative tolerance (1-<span class="math notranslate nohighlight">\(\sigma\)</span> value) of 0.5% and a temperature coefficient tolerance of 2%.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>R1 nodeP nodeN R value={1+TC*(T-T_0)} dcvar={0.5^2 + TC*(T-T_0)*0.02^2} noisetemp=0 noiseflow=0
+</pre></div>
+</div>
+<p>Temperature tracking is modeled by using similar temperature dependency expressions for tracking devices.</p>
+</section>
+</section>
+<section id="subcircuits-with-dcvar">
+<h2>Subcircuits with dcvar<a class="headerlink" href="#subcircuits-with-dcvar" title="Link to this heading"></a></h2>
+<section id="built-in-subcircuits">
+<h3>Built-in subcircuits<a class="headerlink" href="#built-in-subcircuits" title="Link to this heading"></a></h3>
+<p>Below an overview of subcircuits and symbols for dcvar analysis. Subcircuits are defined in the library <code class="docutils literal notranslate"><span class="pre">SLiCAP.lib</span></code> in the folder indicated by <code class="docutils literal notranslate"><span class="pre">ini.main_lib_path</span></code>.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>subcircuit name</p></th>
+<th class="head"><p>description</p></th>
+<th class="head"><p>parameters</p></th>
+<th class="head"><p>KiCAD</p></th>
+<th class="head"><p>gschem/Lepton-EDA</p></th>
+<th class="head"><p>LTspice</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>N_dcvar</p></td>
+<td><p>Nullor with equivalent-input bias and offset</p></td>
+<td><p>sib, sio, svo, iib</p></td>
+<td><p>N_dcvar</p></td>
+<td><p>N_dcvar</p></td>
+<td><p>SLN_dcvar</p></td>
+</tr>
+<tr class="row-odd"><td><p>O_dcvar</p></td>
+<td><p>Nullor with equivalent-input bias and offset</p></td>
+<td><p>sib, sio, svo, iib</p></td>
+<td><p>O_dcvar</p></td>
+<td><p>O_dcvar</p></td>
+<td><p>SLO_dcvar</p></td>
+</tr>
+</tbody>
+</table>
+<p>Wide table: slide below the table!</p>
+</section>
+<section id="create-dcvar-elements">
+<h3>Create dcvar elements<a class="headerlink" href="#create-dcvar-elements" title="Link to this heading"></a></h3>
+<p>The user can create circuits for dcvar analysis using independent dcvar sources, resistors and predefined dcvar subcircuits from above.</p>
+</section>
+</section>
+<section id="dc-variance-analysis">
+<h2>DC variance analysis<a class="headerlink" href="#dc-variance-analysis" title="Link to this heading"></a></h2>
+<p>At the beginning of a <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDCvar">doDCvar()</a>, SLiCAP performs a <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDC">doDC()</a> analysis and adds resistor error current sources to the circuit (see above).</p>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>The function <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doDCvar">doDCvar()</a> sets the attributes <code class="docutils literal notranslate"><span class="pre">dcSolve</span></code>, <code class="docutils literal notranslate"><span class="pre">ovar</span></code>, <code class="docutils literal notranslate"><span class="pre">svarTerms</span></code>, and <code class="docutils literal notranslate"><span class="pre">ovarTerms</span></code> of the returned instruction object. The attributes <code class="docutils literal notranslate"><span class="pre">ivar</span></code> and <code class="docutils literal notranslate"><span class="pre">ivarTerms</span></code> are only set if the circuit has a source specification.</p>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 9</span><span class="c1"># Define the circuit</span>
+<span class="linenos">10</span><span class="n">cir</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/dcMatchingTracking/dcMatchingTracking.kicad_sch&quot;</span><span class="p">)</span>
+<span class="linenos">11</span><span class="c1"># Perform dc variance analysis</span>
+<span class="linenos">12</span><span class="n">dcvarResult</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s2">&quot;V1&quot;</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/dcMatchingTracking.svg"><img alt="../_images/dcMatchingTracking.svg" src="../_images/dcMatchingTracking.svg" style="width: 800px;" />
+</a>
+<section id="dc-solution">
+<h3>DC solution<a class="headerlink" href="#dc-solution" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">14</span><span class="n">dcSolve</span>     <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">15</span><span class="n">Iv</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">Dv</span>   <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">Iv</span><span class="p">,</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">M</span><span class="p">,</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">Dv</span>
+<span class="linenos">16</span><span class="nb">print</span><span class="p">(</span><span class="n">dcvarResult</span><span class="o">.</span><span class="n">Dv</span><span class="p">,</span> <span class="s2">&quot;=&quot;</span><span class="p">,</span> <span class="n">dcSolve</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Matrix([[-V_DC_T/(R_a + R_b)], [V_DC_T], [R_b*V_DC_T/(R_a + R_b)]])
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left[\begin{matrix}I_{V1}\\I_{V dcvar lot 1}\\V_{in}\\V_{lot 1}\\V_{out}\end{matrix}\right] = \left[\begin{matrix}\frac{V_{DC} \left(- TC_{V} T_{\Delta} - 1\right)}{A R \left(TC_{R} T_{\Delta} + 1\right)}\\V_{DC} \left(TC_{V} T_{\Delta} + 1\right)\\\frac{V_{DC} \left(TC_{V} T_{\Delta} + 1\right)}{A}\end{matrix}\right]\end{split}\]</div>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">doDCvar()</span></code> returns the matrix equation of the <strong>DC solution</strong>. Hence, dcvar sources of resistors are not shown.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left[\begin{matrix}V_{1}\\V_{dcvar lot 1}\\- I_{dcvar R1}\\0\\I_{dcvar R1} - I_{dcvar R2}\end{matrix}\right]=\left[\begin{matrix}0 &amp; 0 &amp; 1 &amp; 0 &amp; 0\\0 &amp; 0 &amp; 0 &amp; 1 &amp; 0\\1 &amp; 0 &amp; \frac{1}{R \left(A - 1\right) \left(TC_{R} T_{\Delta} + 1\right)} &amp; \frac{V_{DC} \left(TC_{V} T_{\Delta} + 1\right)}{A R \left(TC_{R} T_{\Delta} + 1\right)} &amp; - \frac{1}{R \left(A - 1\right) \left(TC_{R} T_{\Delta} + 1\right)}\\0 &amp; 1 &amp; 0 &amp; 0 &amp; 0\\0 &amp; 0 &amp; - \frac{1}{R \left(A - 1\right) \left(TC_{R} T_{\Delta} + 1\right)} &amp; 0 &amp; \frac{1}{R \left(TC_{R} T_{\Delta} + 1\right)} + \frac{1}{R \left(A - 1\right) \left(TC_{R} T_{\Delta} + 1\right)}\end{matrix}\right]\cdot \left[\begin{matrix}I_{V1}\\I_{V dcvar lot 1}\\V_{in}\\V_{lot 1}\\V_{out}\end{matrix}\right]\end{split}\]</div>
+</div>
+</section>
+<section id="detector-referred-dc-variance">
+<h3>Detector-referred DC variance<a class="headerlink" href="#detector-referred-dc-variance" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">15</span><span class="n">ovar</span>        <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ovar</span>
+<span class="linenos">16</span><span class="nb">print</span><span class="p">(</span><span class="n">ovar</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>2*R_a**2*R_b**2*V_DC_T**2*var_m/(R_a + R_b)**4 + R_b**2*V_DC_T**2*sigma_V**2/(R_a + R_b)**2
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{o}^{2} = \frac{V_{DC}^{2} \sigma_{V}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2}}{A^{2}} + \frac{V_{DC}^{2} \left(A - 1\right)^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right)}{A^{4}}\,\,\left[\mathrm{V^2}\right]\]</div>
+</section>
+<section id="source-referred-dc-variance">
+<h3>Source-referred DC variance<a class="headerlink" href="#source-referred-dc-variance" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">21</span><span class="n">ivar</span>        <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ivar</span>
+<span class="linenos">22</span><span class="nb">print</span><span class="p">(</span><span class="n">ivar</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>2*R_a**2*V_DC_T**2*var_m/(R_a + R_b)**2 + V_DC_T**2*sigma_V**2
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{i}^{2} = V_{DC}^{2} \sigma_{V}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} + \frac{V_{DC}^{2} \left(A - 1\right)^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right)}{A^{2}}\,\,\left[\mathrm{V^2}\right]\]</div>
+</section>
+<section id="contributions-to-detector-referred-and-source-referred-dc-variance">
+<h3>Contributions to detector-referred and source-referred DC variance<a class="headerlink" href="#contributions-to-detector-referred-and-source-referred-dc-variance" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">24</span><span class="n">svarTerms</span> <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">svarTerms</span>
+<span class="linenos">25</span><span class="n">ovarTerms</span> <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ovarTerms</span>
+<span class="linenos">26</span><span class="n">ivarTerms</span> <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ivarTerms</span>
+<span class="linenos">27</span><span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">svarTerms</span><span class="p">:</span>
+<span class="linenos">28</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">= &quot;</span> <span class="o">+</span> <span class="n">term</span> <span class="o">+</span> <span class="s2">&quot; =&quot;</span><span class="p">)</span>
+<span class="linenos">29</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;value        :&quot;</span><span class="p">,</span> <span class="n">svarTerms</span><span class="p">[</span><span class="n">term</span><span class="p">])</span>
+<span class="linenos">30</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;det-referred :&quot;</span><span class="p">,</span> <span class="n">ovarTerms</span><span class="p">[</span><span class="n">term</span><span class="p">])</span>
+<span class="linenos">31</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;src-referred :&quot;</span><span class="p">,</span> <span class="n">ivarTerms</span><span class="p">[</span><span class="n">term</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>= V1 =
+value        : V_DC_T**2*sigma_V**2
+det-referred : R_b**2*V_DC_T**2*sigma_V**2/(R_a + R_b)**2
+src-referred : V_DC_T**2*sigma_V**2
+
+= I_dcvar_R1 =
+value        : V_DC_T**2*var_m/(R_a + R_b)**2
+det-referred : R_a**2*R_b**2*V_DC_T**2*var_m/(R_a + R_b)**4
+src-referred : R_a**2*V_DC_T**2*var_m/(R_a + R_b)**2
+
+= V_dcvar_lot_1 =
+value        : T_Delta**2*sigma_TC_R**2 + sigma_R**2
+det-referred : 0
+src-referred : 0
+
+= I_dcvar_R2 =
+value        : V_DC_T**2*var_m/(R_a + R_b)**2
+det-referred : R_a**2*R_b**2*V_DC_T**2*var_m/(R_a + R_b)**4
+src-referred : R_a**2*V_DC_T**2*var_m/(R_a + R_b)**2
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<table class="docutils align-default" id="dc-variance-contributions">
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Units</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>V1: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(V_{DC}^{2} \sigma_{V}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>V1: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(V_{DC}^{2} \sigma_{V}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>V1: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{V_{DC}^{2} \sigma_{V}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2}}{A^{2}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I_dcvar_R1: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{V_{DC}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(0.5 T_{\Delta}^{2} \sigma_{TC tr R}^{2} + 0.5 \sigma_{m R}^{2}\right)}{A^{2} R^{2} \left(TC_{R} T_{\Delta} + 1\right)^{2}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{A^2}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>I_dcvar_R1: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{0.5 V_{DC}^{2} \left(A - 1\right)^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right)}{A^{2}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I_dcvar_R1: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{0.5 V_{DC}^{2} \left(A - 1\right)^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right)}{A^{4}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>V_dcvar_lot_1: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(T_{\Delta}^{2} \sigma_{TC R}^{2} + \sigma_{R}^{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>V_dcvar_lot_1: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(0\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>V_dcvar_lot_1: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(0\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I_dcvar_R2: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{V_{DC}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(0.5 T_{\Delta}^{2} \sigma_{TC tr R}^{2} + 0.5 \sigma_{m R}^{2}\right)}{A^{2} R^{2} \left(TC_{R} T_{\Delta} + 1\right)^{2}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{A^2}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>I_dcvar_R2: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{0.5 V_{DC}^{2} \left(A - 1\right)^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right)}{A^{2}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I_dcvar_R2: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{0.5 V_{DC}^{2} \left(A - 1\right)^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2} \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right)}{A^{4}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{V^2}\)</span></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="tolerances-temperature-drift-matching-and-tracking">
+<h2>Tolerances, temperature drift, matching and tracking<a class="headerlink" href="#tolerances-temperature-drift-matching-and-tracking" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">11</span><span class="c1"># Perform dc variance analysis</span>
+<span class="linenos">12</span><span class="n">dcvarResult</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s2">&quot;V1&quot;</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">13</span>
+<span class="linenos">14</span><span class="n">dcSolve</span>     <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">15</span><span class="n">Iv</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">Dv</span>   <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">Iv</span><span class="p">,</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">M</span><span class="p">,</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">Dv</span>
+<span class="linenos">16</span><span class="nb">print</span><span class="p">(</span><span class="n">dcvarResult</span><span class="o">.</span><span class="n">Dv</span><span class="p">,</span> <span class="s2">&quot;=&quot;</span><span class="p">,</span> <span class="n">dcSolve</span><span class="p">)</span>
+<span class="linenos">17</span>
+<span class="linenos">18</span><span class="n">ovar</span>        <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ovar</span>
+<span class="linenos">19</span><span class="nb">print</span><span class="p">(</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">20</span>
+<span class="linenos">21</span><span class="n">ivar</span>        <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ivar</span>
+<span class="linenos">22</span><span class="nb">print</span><span class="p">(</span><span class="n">ivar</span><span class="p">)</span>
+<span class="linenos">23</span>
+<span class="linenos">24</span><span class="n">svarTerms</span> <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">svarTerms</span>
+<span class="linenos">25</span><span class="n">ovarTerms</span> <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ovarTerms</span>
+<span class="linenos">26</span><span class="n">ivarTerms</span> <span class="o">=</span> <span class="n">dcvarResult</span><span class="o">.</span><span class="n">ivarTerms</span>
+</pre></div>
+</div>
+<section id="no-tolerances-and-no-temperature-coefficients">
+<h3>No tolerances and no temperature coefficients<a class="headerlink" href="#no-tolerances-and-no-temperature-coefficients" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">49</span><span class="c1">###############################################################################</span>
+<span class="linenos">50</span><span class="c1"># No tolerances and no temperature coefficients</span>
+<span class="linenos">51</span><span class="c1">###############################################################################</span>
+<span class="linenos">52</span><span class="n">dcVarResult_1a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">53</span><span class="n">dcSolve_1</span>      <span class="o">=</span> <span class="n">dcVarResult_1a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">54</span><span class="n">idx_v</span>          <span class="o">=</span> <span class="n">cir</span><span class="o">.</span><span class="n">depVars</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;V_out&#39;</span><span class="p">)</span>
+<span class="linenos">55</span><span class="n">Vout_1</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_1</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">56</span><span class="n">dcVarResult_1b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">57</span><span class="n">idx_i</span>          <span class="o">=</span> <span class="n">cir</span><span class="o">.</span><span class="n">depVars</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;I_V1&#39;</span><span class="p">)</span>
+<span class="linenos">58</span><span class="n">IV1_1</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_1b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">59</span><span class="n">I_ovar_1</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_1b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">60</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 1&quot;</span><span class="p">)</span>
+<span class="linenos">61</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_1</span><span class="p">)</span>     
+<span class="linenos">62</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_1</span><span class="p">)</span>     
+<span class="linenos">63</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_1</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>V_out     : V_DC/A
+I(V1)     : -V_DC/(A*R)
+var{I(V1)}: 0
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = 0\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="dc-voltage-soure-with-standard-deviation">
+<h3>DC voltage soure with standard deviation<a class="headerlink" href="#dc-voltage-soure-with-standard-deviation" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">65</span><span class="c1">###############################################################################</span>
+<span class="linenos">66</span><span class="c1"># Only DC voltage soure with standard deviation</span>
+<span class="linenos">67</span><span class="c1">###############################################################################</span>
+<span class="linenos">68</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_V&quot;</span><span class="p">)</span>
+<span class="linenos">69</span>
+<span class="linenos">70</span><span class="n">dcVarResult_2a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">71</span><span class="n">dcSolve_2</span>      <span class="o">=</span> <span class="n">dcVarResult_2a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">72</span><span class="n">Vout_2</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_2</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">73</span><span class="n">dcVarResult_2b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">74</span><span class="n">IV1_2</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_2b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">75</span><span class="n">I_ovar_2</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_2b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">76</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 2&quot;</span><span class="p">)</span>
+<span class="linenos">77</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_2</span><span class="p">)</span>     
+<span class="linenos">78</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_2</span><span class="p">)</span>     
+<span class="linenos">79</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_2</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 2
+V_out     : V_DC/A
+I(V1)     : -V_DC/(A*R)
+var{I(V1)}: V_DC**2*sigma_V**2/(A**2*R**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = \frac{V_{DC}^{2} \sigma_{V}^{2}}{A^{2} R^{2}}\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="dc-voltage-soure-with-temperature-coefficient">
+<h3>DC voltage soure with temperature coefficient<a class="headerlink" href="#dc-voltage-soure-with-temperature-coefficient" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">81</span><span class="c1">###############################################################################</span>
+<span class="linenos">82</span><span class="c1"># Only DC voltage soure with temperature coefficient</span>
+<span class="linenos">83</span><span class="c1">###############################################################################</span>
+<span class="linenos">84</span><span class="n">cir</span><span class="o">.</span><span class="n">defPar</span><span class="p">(</span><span class="s2">&quot;sigma_V&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="linenos">85</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;TC_V&quot;</span><span class="p">)</span>
+<span class="linenos">86</span>
+<span class="linenos">87</span><span class="n">dcVarResult_3a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">88</span><span class="n">dcSolve_3</span>      <span class="o">=</span> <span class="n">dcVarResult_3a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">89</span><span class="n">Vout_3</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_3</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">90</span><span class="n">dcVarResult_3b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">91</span><span class="n">IV1_3</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_3b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">92</span><span class="n">I_ovar_3</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_3b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">93</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 3&quot;</span><span class="p">)</span>
+<span class="linenos">94</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_3</span><span class="p">)</span>     
+<span class="linenos">95</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_3</span><span class="p">)</span>     
+<span class="linenos">96</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_3</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 3
+V_out     : V_DC*(TC_V*T_Delta + 1)/A
+I(V1)     : -V_DC*(TC_V*T_Delta + 1)/(A*R)
+var{I(V1)}: 0
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = 0\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="dc-voltage-soure-with-stddev-and-tempco">
+<h3>DC voltage soure with stddev. and tempco.<a class="headerlink" href="#dc-voltage-soure-with-stddev-and-tempco" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 98</span><span class="c1">###############################################################################</span>
+<span class="linenos"> 99</span><span class="c1"># Only DC voltage soure with standard deviation and temperature coefficient</span>
+<span class="linenos">100</span><span class="c1">###############################################################################</span>
+<span class="linenos">101</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_V&quot;</span><span class="p">)</span>
+<span class="linenos">102</span>
+<span class="linenos">103</span><span class="n">dcVarResult_4a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">104</span><span class="n">dcSolve_4</span>      <span class="o">=</span> <span class="n">dcVarResult_4a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">105</span><span class="n">Vout_4</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_4</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">106</span><span class="n">dcVarResult_4b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">107</span><span class="n">IV1_4</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_4b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">108</span><span class="n">I_ovar_4</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_4b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">109</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 4&quot;</span><span class="p">)</span>
+<span class="linenos">110</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_4</span><span class="p">)</span>     
+<span class="linenos">111</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_4</span><span class="p">)</span>     
+<span class="linenos">112</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_4</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 4
+V_out     : V_DC*(TC_V*T_Delta + 1)/A
+I(V1)     : -V_DC*(TC_V*T_Delta + 1)/(A*R)
+var{I(V1)}: V_DC**2*sigma_V**2*(TC_V*T_Delta + 1)**2/(A**2*R**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = \frac{V_{DC}^{2} \sigma_{V}^{2} \left(TC_{V} T_{\Delta} + 1\right)^{2}}{A^{2} R^{2}}\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="rel-stddev-of-resistor-values-perfect-matching">
+<h3>Rel. stddev of resistor values, perfect matching<a class="headerlink" href="#rel-stddev-of-resistor-values-perfect-matching" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">114</span><span class="c1">###############################################################################</span>
+<span class="linenos">115</span><span class="c1"># Only (relative) standard deviation of resistor values with perfect matching</span>
+<span class="linenos">116</span><span class="c1">###############################################################################</span>
+<span class="linenos">117</span><span class="n">cir</span><span class="o">.</span><span class="n">defPar</span><span class="p">(</span><span class="s2">&quot;sigma_V&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="c1"># Standard deviation of voltage source [V]</span>
+<span class="linenos">118</span><span class="n">cir</span><span class="o">.</span><span class="n">defPar</span><span class="p">(</span><span class="s2">&quot;TC_V&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>    <span class="c1"># Rel.temperature coefficient of voltage source [1/K]</span>
+<span class="linenos">119</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_R&quot;</span><span class="p">)</span>
+<span class="linenos">120</span>
+<span class="linenos">121</span><span class="n">dcVarResult_5a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">122</span><span class="n">dcSolve_5</span>      <span class="o">=</span> <span class="n">dcVarResult_5a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">123</span><span class="n">Vout_5</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_5</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">124</span><span class="n">dcVarResult_5b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">125</span><span class="n">IV1_5</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_5b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">126</span><span class="n">I_ovar_5</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_5b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">127</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 5&quot;</span><span class="p">)</span>
+<span class="linenos">128</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_5</span><span class="p">)</span>     
+<span class="linenos">129</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_5</span><span class="p">)</span>     
+<span class="linenos">130</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_5</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 5
+V_out     : V_DC/A
+I(V1)     : -V_DC/(A*R)
+var{I(V1)}: V_DC**2*sigma_R**2/(A**2*R**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = \frac{V_{DC}^{2} \sigma_{R}^{2}}{A^{2} R^{2}}\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="rel-stddev-of-resistor-values-perfect-matching-and-tracking">
+<h3>Rel. stddev of resistor values, perfect matching and tracking<a class="headerlink" href="#rel-stddev-of-resistor-values-perfect-matching-and-tracking" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">132</span><span class="c1">###############################################################################</span>
+<span class="linenos">133</span><span class="c1"># Only (relative) standard deviation of resistor values with perfect matching </span>
+<span class="linenos">134</span><span class="c1"># and temperature tracking</span>
+<span class="linenos">135</span><span class="c1">###############################################################################</span>
+<span class="linenos">136</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;TC_R&quot;</span><span class="p">)</span>
+<span class="linenos">137</span>
+<span class="linenos">138</span><span class="n">dcVarResult_6a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">139</span><span class="n">dcSolve_6</span>      <span class="o">=</span> <span class="n">dcVarResult_6a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">140</span><span class="n">Vout_6</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_6</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">141</span><span class="n">dcVarResult_6b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">142</span><span class="n">IV1_6</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_6b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">143</span><span class="n">I_ovar_6</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_6b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">144</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 6&quot;</span><span class="p">)</span>
+<span class="linenos">145</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_6</span><span class="p">)</span>     
+<span class="linenos">146</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_6</span><span class="p">)</span>     
+<span class="linenos">147</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_6</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 6
+V_out     : V_DC/A
+I(V1)     : -V_DC/(A*R*(TC_R*T_Delta + 1))
+var{I(V1)}: V_DC**2*sigma_R**2/(A**2*R**2*(TC_R*T_Delta + 1)**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = \frac{V_{DC}^{2} \sigma_{R}^{2}}{A^{2} R^{2} \left(TC_{R} T_{\Delta} + 1\right)^{2}}\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="rel-stddev-of-resistor-values-imperfect-matching-and-tracking">
+<h3>Rel. stddev of resistor values, imperfect matching and tracking<a class="headerlink" href="#rel-stddev-of-resistor-values-imperfect-matching-and-tracking" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">149</span><span class="c1">###############################################################################</span>
+<span class="linenos">150</span><span class="c1"># Only (relative) standard deviation of resistor values with imperfect </span>
+<span class="linenos">151</span><span class="c1"># matching and temperature tracking</span>
+<span class="linenos">152</span><span class="c1">###############################################################################</span>
+<span class="linenos">153</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_m_R&quot;</span><span class="p">)</span>
+<span class="linenos">154</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_TC_R&quot;</span><span class="p">)</span>
+<span class="linenos">155</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_TC_tr_R&quot;</span><span class="p">)</span>
+<span class="linenos">156</span>
+<span class="linenos">157</span><span class="n">dcVarResult_7a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">158</span><span class="n">dcSolve_7</span>      <span class="o">=</span> <span class="n">dcVarResult_6a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">159</span><span class="n">Vout_7</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_7</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">160</span><span class="n">dcVarResult_7b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">161</span><span class="n">IV1_7</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_7b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">162</span><span class="n">I_ovar_7</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_7b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">163</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 7&quot;</span><span class="p">)</span>
+<span class="linenos">164</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_7</span><span class="p">)</span>     
+<span class="linenos">165</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_7</span><span class="p">)</span>     
+<span class="linenos">166</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_7</span><span class="p">)</span>  
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 7
+V_out     : V_DC/A
+I(V1)     : -V_DC/(A*R*(TC_R*T_Delta + 1))
+var{I(V1)}: V_DC**2*(2*A**2*(T_Delta**2*sigma_TC_R**2 + sigma_R**2) + (T_Delta**2*sigma_TC_tr_R**2 + sigma_m_R**2)*((A - 1)**2 + 1))/(2*A**4*R**2*(TC_R*T_Delta + 1)**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = \frac{0.5 V_{DC}^{2} \left(2 A^{2} \left(T_{\Delta}^{2} \sigma_{TC R}^{2} + \sigma_{R}^{2}\right) + \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right) \left(\left(A - 1\right)^{2} + 1\right)\right)}{A^{4} R^{2} \left(TC_{R} T_{\Delta} + 1\right)^{2}}\,\,\left[\mathrm{A^2}\right]\]</div>
+</section>
+<section id="v-src-stddev-and-tempco-rel-res-stddev-imperf-matching-tracking">
+<h3>V src stddev and tempco, rel. res. stddev. imperf. matching/tracking<a class="headerlink" href="#v-src-stddev-and-tempco-rel-res-stddev-imperf-matching-tracking" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">168</span><span class="c1">###############################################################################</span>
+<span class="linenos">169</span><span class="c1"># DC voltage soure with standard deviation and temperature coefficient and </span>
+<span class="linenos">170</span><span class="c1"># (relative) standard deviation of resistor values with imperfect matching </span>
+<span class="linenos">171</span><span class="c1"># and temperature tracking</span>
+<span class="linenos">172</span><span class="c1">###############################################################################</span>
+<span class="linenos">173</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;TC_V&quot;</span><span class="p">)</span>
+<span class="linenos">174</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_V&quot;</span><span class="p">)</span>
+<span class="linenos">175</span><span class="n">cir</span><span class="o">.</span><span class="n">delPar</span><span class="p">(</span><span class="s2">&quot;sigma_TC_V&quot;</span><span class="p">)</span>
+<span class="linenos">176</span>
+<span class="linenos">177</span><span class="n">dcVarResult_8a</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">178</span><span class="n">dcSolve_8</span>      <span class="o">=</span> <span class="n">dcVarResult_8a</span><span class="o">.</span><span class="n">dcSolve</span>
+<span class="linenos">179</span><span class="n">Vout_8</span>         <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcSolve_8</span><span class="p">[</span><span class="n">idx_v</span><span class="p">])</span>
+<span class="linenos">180</span><span class="n">dcVarResult_8b</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doDCvar</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;I_V1&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">)</span>
+<span class="linenos">181</span><span class="n">IV1_8</span>          <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_8b</span><span class="o">.</span><span class="n">dcSolve</span><span class="p">[</span><span class="n">idx_i</span><span class="p">])</span>
+<span class="linenos">182</span><span class="n">I_ovar_8</span>       <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">dcVarResult_8b</span><span class="o">.</span><span class="n">ovar</span><span class="p">)</span>
+<span class="linenos">183</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Case 8&quot;</span><span class="p">)</span>
+<span class="linenos">184</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;V_out     :&quot;</span><span class="p">,</span> <span class="n">Vout_8</span><span class="p">)</span>     
+<span class="linenos">185</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;I(V1)     :&quot;</span><span class="p">,</span> <span class="n">IV1_8</span><span class="p">)</span>     
+<span class="linenos">186</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;var{I(V1)}:&quot;</span><span class="p">,</span> <span class="n">I_ovar_8</span><span class="p">)</span>   
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Case 8
+V_out     : V_DC*(TC_V*T_Delta + 1)/A
+I(V1)     : -V_DC*(TC_V*T_Delta + 1)/(A*R*(TC_R*T_Delta + 1))
+var{I(V1)}: V_DC**2*(2*A**2*(T_Delta**2*sigma_TC_R**2 + sigma_R**2 + sigma_V**2) + (T_Delta**2*sigma_TC_tr_R**2 + sigma_m_R**2)*((A - 1)**2 + 1))*(TC_V*T_Delta + 1)**2/(2*A**4*R**2*(TC_R*T_Delta + 1)**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{I V1}^{2} = \frac{0.5 V_{DC}^{2} \left(2 A^{2} \left(T_{\Delta}^{2} \sigma_{TC R}^{2} + \sigma_{R}^{2} + \sigma_{V}^{2}\right) + \left(T_{\Delta}^{2} \sigma_{TC tr R}^{2} + \sigma_{m R}^{2}\right) \left(\left(A - 1\right)^{2} + 1\right)\right) \left(TC_{V} T_{\Delta} + 1\right)^{2}}{A^{4} R^{2} \left(TC_{R} T_{\Delta} + 1\right)^{2}}\,\,\left[\mathrm{A^2}\right]\]</div>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+</section>
+</section>
+<section id="display-equations-on-html-pages-and-in-latex-documents">
+<h2>Display equations on HTML pages and in LaTeX documents<a class="headerlink" href="#display-equations-on-html-pages-and-in-latex-documents" title="Link to this heading"></a></h2>
+<p>The report module <a class="reference external" href="reports.html">Create reports</a>, discusses how HTML snippets and LaTeX snippets can be created for variables, expressions, equations and tables.</p>
+<p>As a matter of fact, all equations, tables and figures on this page are created with this module:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">188</span><span class="c1"># Create an RST formatter</span>
+<span class="linenos">189</span><span class="n">rst</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">RSTformatter</span><span class="p">()</span>
+<span class="linenos">190</span><span class="c1"># Save expressions in the sphinx/SLiCAPdata folder of the project directory</span>
+<span class="linenos">191</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="n">dcvarResult</span><span class="o">.</span><span class="n">Dv</span><span class="p">,</span> <span class="n">dcSolve</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-dcSolve&quot;</span><span class="p">)</span>
+<span class="linenos">192</span><span class="n">rst</span><span class="o">.</span><span class="n">matrixEqn</span><span class="p">(</span><span class="n">Iv</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">Dv</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-dcMatrix&quot;</span><span class="p">)</span>
+<span class="linenos">193</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_o)^2&quot;</span><span class="p">,</span> <span class="n">ovar</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-ovar&quot;</span><span class="p">)</span>
+<span class="linenos">194</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_i)^2&quot;</span><span class="p">,</span> <span class="n">ivar</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-ivar&quot;</span><span class="p">)</span>
+<span class="linenos">195</span><span class="n">rst</span><span class="o">.</span><span class="n">dcvarContribs</span><span class="p">(</span><span class="n">dcvarResult</span><span class="p">,</span> <span class="s2">&quot;DC variance contributions&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;table-varContribs&quot;</span><span class="p">)</span>
+<span class="linenos">196</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_1</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_1&quot;</span><span class="p">)</span>
+<span class="linenos">197</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_2</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_2&quot;</span><span class="p">)</span>
+<span class="linenos">198</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_3</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_3&quot;</span><span class="p">)</span>
+<span class="linenos">199</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_4</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_4&quot;</span><span class="p">)</span>
+<span class="linenos">200</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_5</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_5&quot;</span><span class="p">)</span>
+<span class="linenos">201</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_6</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_6&quot;</span><span class="p">)</span>
+<span class="linenos">202</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_7</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_7&quot;</span><span class="p">)</span>
+<span class="linenos">203</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;(sigma_I_V1)^2&quot;</span><span class="p">,</span> <span class="n">I_ovar_8</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;A**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-I_ovar_8&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The typesetted tables and equations are shown on this page.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="noise.html" class="btn btn-neutral float-left" title="SLiCAP noise analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="feedback.html" class="btn btn-neutral float-right" title="Work with feedback circuits" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, SLiCAP development team.
+      <span class="lastupdated">Last updated on 2025, Dec 27.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

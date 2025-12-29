@@ -1,0 +1,497 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SLiCAP Laplace analysis &mdash; SLiCAP 4.0.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=b8a5ba81"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="SLiCAP pole-zero analysis" href="pz.html" />
+    <link rel="prev" title="SLiCAP circuit matrix equation" href="matrices.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            SLiCAP
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction/SLiCAPintroduction.html">SLiCAP Version 4.0</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="SLiCAPuserguide.html">SLiCAP User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="install.html">Download, install, configure and test SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit.html">Create a SLiCAP circuit object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schematics.html">Schematic capture for SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specifications.html">Work with specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html">Work with parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Work with models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="subcircuit.html">Work with subcircuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html">Perform analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matrices.html">SLiCAP circuit matrix equation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">SLiCAP Laplace analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#perform-laplace-analysis">Perform Laplace analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#create-a-circuit-object">Create a circuit object</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-the-laplace-transform-of-the-gain">Obtain the Laplace Transform of the gain</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-the-laplace-transform-of-a-detector-voltage-or-current">Obtain the Laplace Transform of a detector voltage or current</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#return-attributes">Return attributes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#related-math-functions">Related math functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#coefficients-of-a-laplace-rational-function">Coefficients of a Laplace rational function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-circuit-component-values-using-a-prototype-function">Obtain circuit component values using a prototype function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-a-butterworth-polynomial">Obtain a Butterworth polynomial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-a-bessel-polynomial">Obtain a Bessel polynomial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-a-chebyshev-type-1-polynomial">Obtain a Chebyshev type 1 polynomial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-a-filter-prototype-function">Obtain a filter prototype function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#example-3-rd-order-chebyshev-type-1-bandpass-900-hz-1200-hz">Example 3-rd order Chebyshev type 1 bandpass 900 Hz-1200 Hz</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#inverse-laplace-transform">Inverse Laplace Transform</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#display-equations-on-html-pages-and-in-latex-documents">Display equations on HTML pages and in LaTeX documents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#plot-frequency-characteristics">Plot frequency characteristics</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="pz.html">SLiCAP pole-zero analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="time.html">SLiCAP time-domain analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="noise.html">SLiCAP noise analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dcvar.html">SLiCAP DC and dcvar analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="feedback.html">Work with feedback circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="balanced.html">Work with balanced circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="math.html">Work with analysis results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ngspice.html">Interface with NGspice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plots.html">Create plots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reports.html">Create reports</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/SLiCAPtutorials.html">SLiCAP Examples and Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syntax/SLiCAPnetlistSyntax.html">SLiCAP Netlist Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/SLiCAPreference.html">SLiCAP Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">SLiCAP</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="SLiCAPuserguide.html">SLiCAP User Guide</a></li>
+      <li class="breadcrumb-item active">SLiCAP Laplace analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/userguide/laplace.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="slicap-laplace-analysis">
+<h1>SLiCAP Laplace analysis<a class="headerlink" href="#slicap-laplace-analysis" title="Link to this heading"></a></h1>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+<p>Symbolic complex frequency domain analysis provides:</p>
+<ul>
+<li><p>A Laplace transfer function</p>
+<p>This is the Laplace Transform of the unit impulse response from a circuit having the signal source as input signal, and the detector voltage or current as output signal.</p>
+</li>
+<li><p>The Laplace Transform of a detector voltage or current with the voltages and currents of the independent sources as input signals.</p>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">value</span></code> parameter of independent sources must be specified in the Laplace domain:</p>
+<p>Some examples of time functions and their Laplace Transform:</p>
+<ol class="arabic simple">
+<li><p>Impulse: <span class="math notranslate nohighlight">\(a \delta (t) \Leftrightarrow a\)</span></p></li>
+<li><p>Step: <span class="math notranslate nohighlight">\(a \mu (t) \Leftrightarrow \frac{a}{s}\)</span></p></li>
+<li><p>Linear ramp: <span class="math notranslate nohighlight">\(at \Leftrightarrow \frac{a}{s^2}\)</span></p></li>
+<li><p>Sine: <span class="math notranslate nohighlight">\(a\sin{(\omega t)} \Leftrightarrow \frac{a \omega}{s^2+\omega^2}\)</span></p></li>
+<li><p>Cosine: <span class="math notranslate nohighlight">\(a\cos{(\omega t)} \Leftrightarrow \frac{a s}{s^2+\omega^2}\)</span></p></li>
+<li><p>Real exponential: <span class="math notranslate nohighlight">\(a \exp{(-At)} \Leftrightarrow \frac{a}{s+A}\)</span></p></li>
+<li><p>Use Laplace output of other circuits as input</p></li>
+<li><p>Use built-in filter Laplace filter responses as input</p></li>
+</ol>
+</div>
+</li>
+</ul>
+<p>SLiCAP can perform mixed symbolic/numeric Laplace analysis and has a number of supporting functions for processing the results.</p>
+<p>SLiCAP output displayed below, is generated with the script: <code class="docutils literal notranslate"><span class="pre">laplace.py</span></code>, imported by <code class="docutils literal notranslate"><span class="pre">Manual.py</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="ch">#!/usr/bin/env python3</span>
+<span class="linenos">2</span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="linenos">3</span>
+<span class="linenos">4</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">5</span><span class="sd">laplace.py: SLiCAP scripts for the HTML help file</span>
+<span class="linenos">6</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">7</span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+</pre></div>
+</div>
+<section id="perform-laplace-analysis">
+<h2>Perform Laplace analysis<a class="headerlink" href="#perform-laplace-analysis" title="Link to this heading"></a></h2>
+<section id="create-a-circuit-object">
+<h3>Create a circuit object<a class="headerlink" href="#create-a-circuit-object" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">10</span><span class="n">passive_network</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/myPassiveNetwork/myPassiveNetwork.kicad_sch&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/myPassiveNetwork.svg"><img alt="../_images/myPassiveNetwork.svg" src="../_images/myPassiveNetwork.svg" style="width: 700px;" />
+</a>
+</section>
+<section id="obtain-the-laplace-transform-of-the-gain">
+<h3>Obtain the Laplace Transform of the gain<a class="headerlink" href="#obtain-the-laplace-transform-of-the-gain" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doLaplace">doLaplace()</a> returns the Laplace Transform of a transfer, or of a detector voltage or current.</p>
+<p>Below a script for obtaining the Laplace Transform of the source-detector transfer (gain) of the circuit.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">12</span><span class="c1"># Obtain the transfer from source to detector</span>
+<span class="linenos">13</span><span class="n">result</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">passive_network</span><span class="p">)</span>
+<span class="linenos">14</span><span class="n">gain</span>   <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">laplace</span>
+<span class="linenos">15</span><span class="nb">print</span><span class="p">(</span><span class="n">gain</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="note admonition">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>The default value of the <em>keyword argument</em> <code class="docutils literal notranslate"><span class="pre">transfer</span></code> is <code class="docutils literal notranslate"><span class="pre">gain</span></code>, which is the transfer from source to load.</p></li>
+<li><p>By default, the source and the detector as defined in the circuit  will be used.</p></li>
+<li><p>The default value of the <em>keyword argument</em> <code class="docutils literal notranslate"><span class="pre">pardefs</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>. Hence, parameter definitions will not be substituted in element expressions.</p></li>
+<li><p>The default value of the <em>keyword argument</em> <code class="docutils literal notranslate"><span class="pre">numeric</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>. Hence, no numeric evaluation takes place.</p></li>
+<li><p>The default value of the <em>keyword argument</em> <code class="docutils literal notranslate"><span class="pre">convtype</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>. Hence, no differential-mode or common-mode conversion will be applied.</p></li>
+</ul>
+</div>
+<p>The result is shown below.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>R_ell*(C_b*L*s**2 + 1)/((R_ell + R_s)*(C_a*C_b*L*R_ell*R_s*s**3/(R_ell + R_s) + s**2*(C_a*L*R_ell + C_b*L*R_ell + C_b*L*R_s)/(R_ell + R_s) + s*(C_a*R_ell*R_s + L)/(R_ell + R_s) + 1))
+</pre></div>
+</div>
+<p>This can be typesetted using the formatter. The script below shows how to create an RST snippet for the source of this help file.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">70</span><span class="n">filt</span><span class="o">.</span><span class="n">label</span>    <span class="o">=</span> <span class="s2">&quot;gain&quot;</span>
+<span class="linenos">71</span>
+<span class="linenos">72</span><span class="c1"># Create the plot</span>
+<span class="linenos">73</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;BP4&quot;</span><span class="p">,</span> <span class="s2">&quot;3-rd order Chebyshev type 1 band-pass, 1 dB ripple&quot;</span><span class="p">,</span> 
+</pre></div>
+</div>
+<div class="math notranslate nohighlight">
+\[\frac{V_{out}}{V_{V1}} = \frac{R_{\ell} \left(C_{b} L s^{2} + 1\right)}{\left(R_{\ell} + R_{s}\right) \left(\frac{C_{a} C_{b} L R_{\ell} R_{s} s^{3}}{R_{\ell} + R_{s}} + \frac{s^{2} \left(C_{a} L R_{\ell} + C_{b} L R_{\ell} + C_{b} L R_{s}\right)}{R_{\ell} + R_{s}} + \frac{s \left(C_{a} R_{\ell} R_{s} + L\right)}{R_{\ell} + R_{s}} + 1\right)}\]</div>
+<p>Numeric evaluation after subsititution of all the parameters:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">26</span><span class="c1"># Same, but with parameter substitution and conversion to floats</span>
+<span class="linenos">27</span><span class="n">gain_numeric</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">passive_network</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+<span class="linenos">28</span><span class="nb">print</span><span class="p">(</span><span class="n">gain_numeric</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Below the result.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>(455945326390521*s**2/500000000000000000000000000000 + 9/10)/(455945326390521*s**3/400000000000000000000000000000000000 + 1175660591821169*s**2/50000000000000000000000000000 + 1127*s/1000000000 + 1)
+</pre></div>
+</div>
+<p>SLiCAP uses rational numbers. Typsetting functions convert them into float. The number of digits is set with <code class="docutils literal notranslate"><span class="pre">ini.disp</span></code></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">disp</span>
+
+<span class="go">4</span>
+</pre></div>
+</div>
+<p>Below the typesetted numeric transfer:</p>
+<div class="math notranslate nohighlight">
+\[\frac{V_{out}}{V_{V1}} = \frac{9.119 \cdot 10^{-16} s^{2} + 0.9}{1.14 \cdot 10^{-21} s^{3} + 2.351 \cdot 10^{-14} s^{2} + 1.127 \cdot 10^{-6} s + 1}\]</div>
+</section>
+<section id="obtain-the-laplace-transform-of-a-detector-voltage-or-current">
+<h3>Obtain the Laplace Transform of a detector voltage or current<a class="headerlink" href="#obtain-the-laplace-transform-of-a-detector-voltage-or-current" title="Link to this heading"></a></h3>
+<p>With the keyword argument <code class="docutils literal notranslate"><span class="pre">transfer=None</span></code>, SLiCAP evaluates the response at the detector. The vector with independent variables now contains the values of all independent sources defined in the circuit. In this case we have <span class="math notranslate nohighlight">\(V_\mathrm{V1}=\frac{1}{s}\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">28</span><span class="n">vout_laplace</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doLaplace</span><span class="p">(</span><span class="n">passive_network</span><span class="p">,</span> <span class="n">transfer</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+<div class="math notranslate nohighlight">
+\[V_{out} = \frac{R_{\ell} \left(C_{b} L s^{2} + 1\right)}{a \left(R_{\ell} + R_{s}\right) \left(\frac{C_{a} C_{b} L R_{\ell} R_{s} s^{5}}{R_{\ell} a^{2} + R_{s} a^{2}} + \frac{s^{4} \left(C_{a} L R_{\ell} + C_{b} L R_{\ell} + C_{b} L R_{s}\right)}{R_{\ell} a^{2} + R_{s} a^{2}} + \frac{s^{3} \left(C_{a} C_{b} L R_{\ell} R_{s} a^{2} + C_{a} R_{\ell} R_{s} + L\right)}{R_{\ell} a^{2} + R_{s} a^{2}} + \frac{s^{2} \left(C_{a} L R_{\ell} a^{2} + C_{b} L R_{\ell} a^{2} + C_{b} L R_{s} a^{2} + R_{\ell} + R_{s}\right)}{R_{\ell} a^{2} + R_{s} a^{2}} + \frac{s \left(C_{a} R_{\ell} R_{s} + L\right)}{R_{\ell} + R_{s}} + 1\right)}\]</div>
+</section>
+</section>
+<section id="return-attributes">
+<h2>Return attributes<a class="headerlink" href="#return-attributes" title="Link to this heading"></a></h2>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>The evaluation of the Laplace Transform, requires:</p>
+<ol class="arabic simple">
+<li><p>Creation of the matrix equation</p></li>
+<li><p>Evaluation of the denominator <code class="docutils literal notranslate"><span class="pre">doDenom()</span></code></p></li>
+<li><p>Evaluation of the numerator <code class="docutils literal notranslate"><span class="pre">doNumer()</span></code></p></li>
+<li><p>Evaluation of numerator/denominator</p></li>
+</ol>
+<p>This returns the following result attributes:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">17</span><span class="n">M</span>        <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">M</span>
+<span class="linenos">18</span><span class="n">Iv</span>       <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">Iv</span>
+<span class="linenos">19</span><span class="n">Dv</span>       <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">Dv</span>
+<span class="linenos">20</span><span class="n">denom</span>    <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">denom</span>
+<span class="linenos">21</span><span class="n">numer</span>    <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">numer</span>
+<span class="linenos">22</span><span class="n">transfer</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">laplace</span>
+</pre></div>
+</div>
+<p>The matrix equation is for <code class="docutils literal notranslate"><span class="pre">transfer=&quot;gain&quot;</span></code>: the value of the signal source has been set to unity:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left[\begin{matrix}0\\1\\0\\0\\0\end{matrix}\right]=\left[\begin{matrix}- L s &amp; 0 &amp; 1 &amp; 0 &amp; -1\\0 &amp; 0 &amp; 0 &amp; 1 &amp; 0\\1 &amp; 0 &amp; C_{b} s + \frac{1}{R_{s}} &amp; - \frac{1}{R_{s}} &amp; - C_{b} s\\0 &amp; 1 &amp; - \frac{1}{R_{s}} &amp; \frac{1}{R_{s}} &amp; 0\\-1 &amp; 0 &amp; - C_{b} s &amp; 0 &amp; C_{a} s + C_{b} s + \frac{1}{R_{\ell}}\end{matrix}\right]\cdot \left[\begin{matrix}I_{L1}\\I_{V1}\\V_{1}\\V_{in}\\V_{out}\end{matrix}\right]\end{split}\]</div>
+</div>
+</section>
+<section id="related-math-functions">
+<h2>Related math functions<a class="headerlink" href="#related-math-functions" title="Link to this heading"></a></h2>
+<section id="coefficients-of-a-laplace-rational-function">
+<h3>Coefficients of a Laplace rational function<a class="headerlink" href="#coefficients-of-a-laplace-rational-function" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.coeffsTransfer">coeffsTransfer()</a> returns a tupe with:</p>
+<ol class="arabic">
+<li><p>A gain factor = normalization coefficient.</p></li>
+<li><p>A list with normalized numerator coefficients of the Laplace variable <code class="docutils literal notranslate"><span class="pre">ini.laplace=s</span></code> in ascending order.</p>
+<p>Normalization: the lowest order nonzero coefficient is normalized to unity.</p>
+</li>
+<li><p>A list with normalized denominator coefficients of the Laplace variable <code class="docutils literal notranslate"><span class="pre">ini.laplace=s</span></code> in ascending order.</p>
+<p>Normalization: the lowest order nonzero coefficient is normalized to unity.</p>
+</li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">30</span><span class="n">gain_factor</span><span class="p">,</span> <span class="n">numer_coeffs</span><span class="p">,</span> <span class="n">denom_coeffs</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">coeffsTransfer</span><span class="p">(</span><span class="n">gain</span><span class="p">)</span>
+<span class="linenos">31</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Gain factor: &quot;</span><span class="p">,</span> <span class="n">gain_factor</span><span class="p">)</span>
+<span class="linenos">32</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Numerator coefficients of &#39;s&#39;:&quot;</span><span class="p">)</span>
+<span class="linenos">33</span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">numer_coeffs</span><span class="p">)):</span>
+<span class="linenos">34</span>    <span class="nb">print</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">numer_coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+<span class="linenos">35</span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Denominator coefficients of &#39;s&#39;:&quot;</span><span class="p">)</span>
+<span class="linenos">36</span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">denom_coeffs</span><span class="p">)):</span>
+<span class="linenos">37</span>    <span class="nb">print</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">denom_coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Gain factor: R_ell/(R_ell + R_s)
+
+Numerator coefficients of &#39;s&#39;:
+0 1
+1 0
+2 C_b*L
+
+Denominator coefficients of &#39;s&#39;:
+0 1
+1 (C_a*R_ell*R_s + L)/(R_ell + R_s)
+2 L*(C_a*R_ell + C_b*R_ell + C_b*R_s)/(R_ell + R_s)
+3 C_a*C_b*L*R_ell*R_s/(R_ell + R_s)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<p><strong>Gain factor:</strong><span class="math notranslate nohighlight">\(\frac{R_{\ell}}{R_{\ell} + R_{s}}\)</span></p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 13 </span><span class="caption-text">Normalized coefficients of ‘gain’.</span><a class="headerlink" href="#id1" title="Link to this table"></a></caption>
+<thead>
+<tr class="row-odd"><th class="head"><p>Coeff</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(b_{0}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(1\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(b_{1}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(0\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(b_{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(C_{b} L\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(a_{0}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(a_{1}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{C_{a} R_{\ell} R_{s} + L}{R_{\ell} + R_{s}}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(a_{2}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{L \left(C_{a} R_{\ell} + C_{b} R_{\ell} + C_{b} R_{s}\right)}{R_{\ell} + R_{s}}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(a_{3}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{C_{a} C_{b} L R_{\ell} R_{s}}{R_{\ell} + R_{s}}\)</span></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="obtain-circuit-component-values-using-a-prototype-function">
+<h3>Obtain circuit component values using a prototype function<a class="headerlink" href="#obtain-circuit-component-values-using-a-prototype-function" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.equateCoeffs">equateCoeffs()</a> can be used to determine component values of a circuit, such that its transfer equals that of a prototype transfer (rational) function.</p>
+<p>An example that demonstrates the design of a 4-th order Linkwitz-Riley passive loudspeaker cross-over filter can be downloaded from github: <a class="reference external" href="https://github.com/SLiCAP/SLiCAPexamples/tree/main/Examples/FilterDesign">FilterDesign</a>.</p>
+</section>
+<section id="obtain-a-butterworth-polynomial">
+<h3>Obtain a Butterworth polynomial<a class="headerlink" href="#obtain-a-butterworth-polynomial" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.butterworthPoly">butterworthPoly(n)</a> returns a normalized (<span class="math notranslate nohighlight">\(\omega=1\)</span> rad/s) Butterworth polynomial of the n-th order.</p>
+<p>Below the code for obtaining a normalized Butterworth polynomial of the 4-th order.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">39</span><span class="c1"># Obtain a normalized Butterworth polynomial of the 4th order</span>
+<span class="linenos">40</span><span class="n">BuP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">butterworthPoly</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The results are shown below</p>
+<div class="math notranslate nohighlight">
+\[P_{Bu} = \left(s^{2} + 0.7654 s + 1\right) \left(s^{2} + 1.848 s + 1\right)\]</div>
+</section>
+<section id="obtain-a-bessel-polynomial">
+<h3>Obtain a Bessel polynomial<a class="headerlink" href="#obtain-a-bessel-polynomial" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.besselPoly">besselPoly(n)</a> returns a normalized (<span class="math notranslate nohighlight">\(\omega=1\)</span> rad/s) Bessel polynomial of the n-th order.</p>
+<p>Below the code for obtaining a normalized Bessel polynomial of the 4-th order.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">42</span><span class="c1"># Obtain a normalized Bessel polynomial of the 4th order</span>
+<span class="linenos">43</span><span class="n">BeP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">besselPoly</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="math notranslate nohighlight">
+\[P_{Be} = 0.1902 s^{4} + 0.8997 s^{3} + 1.915 s^{2} + 2.114 s + 1\]</div>
+</section>
+<section id="obtain-a-chebyshev-type-1-polynomial">
+<h3>Obtain a Chebyshev type 1 polynomial<a class="headerlink" href="#obtain-a-chebyshev-type-1-polynomial" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.chebyshev1Poly">chebyshev1Poly(n, ripple)</a> returns a normalized (<span class="math notranslate nohighlight">\(\omega=1\)</span> rad/s) Chebyshev polynomial of the n-th order, with <code class="docutils literal notranslate"><span class="pre">ripple</span></code> dB pass-band ripple.</p>
+<p>Below the code for obtaining a normalized Chebyshev polynomial of the 4-th order with 1 dB pass-band.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">45</span><span class="c1"># Obtain a normalized Chebyshev polynomial of the 4th order </span>
+<span class="linenos">46</span><span class="n">ChP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">chebyshev1Poly</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="math notranslate nohighlight">
+\[P_{Ch} = \left(1.17 s^{2} + 0.3039 s + 1\right) \left(4.13 s^{2} + 2.59 s + 1\right)\]</div>
+</section>
+<section id="obtain-a-filter-prototype-function">
+<h3>Obtain a filter prototype function<a class="headerlink" href="#obtain-a-filter-prototype-function" title="Link to this heading"></a></h3>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.filterFunc">filterFunc()</a> returns a prototype filter function.</p>
+<p>The script below returns <em>low-pass, high-pass, band-pass, band-stop, * and *all-pass</em> filter functions of the order 2, based on a <em>Butterworth</em> polynomial (maximally-flat magnitude chraracteristic).</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">49</span><span class="c1"># Obtain filter functions</span>
+<span class="linenos">50</span><span class="n">n</span>   <span class="o">=</span> <span class="mi">2</span>                <span class="c1"># Order of the filter</span>
+<span class="linenos">51</span><span class="n">f_h</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;f_h&quot;</span><span class="p">)</span> <span class="c1"># Low-frequency -3dB</span>
+<span class="linenos">52</span><span class="n">f_l</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;f_l&quot;</span><span class="p">)</span> <span class="c1"># High-frequency -3dB</span>
+<span class="linenos">53</span><span class="n">ftp</span> <span class="o">=</span> <span class="s2">&quot;Butterworth&quot;</span>    <span class="c1"># Fiter characteristic</span>
+<span class="linenos">54</span>
+<span class="linenos">55</span><span class="n">LP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">filterFunc</span><span class="p">(</span><span class="n">ftp</span><span class="p">,</span> <span class="s2">&quot;lp&quot;</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">f_low</span><span class="o">=</span><span class="n">f_l</span><span class="p">,</span> <span class="n">f_high</span><span class="o">=</span><span class="n">f_h</span><span class="p">)</span> <span class="c1"># Low-pass</span>
+<span class="linenos">56</span><span class="n">HP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">filterFunc</span><span class="p">(</span><span class="n">ftp</span><span class="p">,</span> <span class="s2">&quot;hp&quot;</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">f_low</span><span class="o">=</span><span class="n">f_l</span><span class="p">,</span> <span class="n">f_high</span><span class="o">=</span><span class="n">f_h</span><span class="p">)</span> <span class="c1"># High-pass</span>
+<span class="linenos">57</span><span class="n">BP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">filterFunc</span><span class="p">(</span><span class="n">ftp</span><span class="p">,</span> <span class="s2">&quot;bp&quot;</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">f_low</span><span class="o">=</span><span class="n">f_l</span><span class="p">,</span> <span class="n">f_high</span><span class="o">=</span><span class="n">f_h</span><span class="p">)</span> <span class="c1"># Band-pass</span>
+<span class="linenos">58</span><span class="n">BS</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">filterFunc</span><span class="p">(</span><span class="n">ftp</span><span class="p">,</span> <span class="s2">&quot;bs&quot;</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">f_low</span><span class="o">=</span><span class="n">f_l</span><span class="p">,</span> <span class="n">f_high</span><span class="o">=</span><span class="n">f_h</span><span class="p">)</span> <span class="c1"># Band-stop</span>
+<span class="linenos">59</span><span class="n">AP</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">filterFunc</span><span class="p">(</span><span class="n">ftp</span><span class="p">,</span> <span class="s2">&quot;ap&quot;</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">f_low</span><span class="o">=</span><span class="n">f_l</span><span class="p">,</span> <span class="n">f_high</span><span class="o">=</span><span class="n">f_h</span><span class="p">)</span> <span class="c1"># All-pass</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="math notranslate nohighlight">
+\[F_{LP} = \frac{1}{1 + \frac{0.7071 s}{\pi f_{h}} + \frac{0.25 s^{2}}{\pi^{2} f_{h}^{2}}}\]</div>
+<div class="math notranslate nohighlight">
+\[F_{HP} = \frac{0.25 s^{2}}{\pi^{2} f_{l}^{2} \left(1 + \frac{0.7071 s}{\pi f_{l}} + \frac{0.25 s^{2}}{\pi^{2} f_{l}^{2}}\right)}\]</div>
+<div class="math notranslate nohighlight">
+\[F_{BP} = \frac{0.25 s^{2} \left(f_{h}^{2} - 2 f_{h} f_{l} + f_{l}^{2}\right)}{\pi^{2} f_{h}^{2} f_{l}^{2} \left(1 + \frac{0.7071 s \left(f_{h} - f_{l}\right)}{\pi f_{h} f_{l}} + \frac{0.0625 s^{4}}{\pi^{4} f_{h}^{2} f_{l}^{2}} + \frac{0.1768 s^{3} \left(f_{h} - f_{l}\right)}{\pi^{3} f_{h}^{2} f_{l}^{2}} + \frac{0.25 s^{2} \left(f_{h}^{2} + f_{l}^{2}\right)}{\pi^{2} f_{h}^{2} f_{l}^{2}}\right)}\]</div>
+<div class="math notranslate nohighlight">
+\[F_{BS} = \frac{1 + \frac{0.5 s^{2}}{\pi^{2} f_{h} f_{l}} + \frac{0.0625 s^{4}}{\pi^{4} f_{h}^{2} f_{l}^{2}}}{1 + \frac{0.7071 s \left(f_{h} - f_{l}\right)}{\pi f_{h} f_{l}} + \frac{0.0625 s^{4}}{\pi^{4} f_{h}^{2} f_{l}^{2}} + \frac{0.1768 s^{3} \left(f_{h} - f_{l}\right)}{\pi^{3} f_{h}^{2} f_{l}^{2}} + \frac{0.25 s^{2} \left(f_{h}^{2} + f_{l}^{2}\right)}{\pi^{2} f_{h}^{2} f_{l}^{2}}}\]</div>
+<div class="math notranslate nohighlight">
+\[F_{AP} = \frac{1 - \frac{0.7071 s}{\pi f_{h}} + \frac{0.25 s^{2}}{\pi^{2} f_{h}^{2}}}{1 + \frac{0.7071 s}{\pi f_{h}} + \frac{0.25 s^{2}}{\pi^{2} f_{h}^{2}}}\]</div>
+</section>
+<section id="example-3-rd-order-chebyshev-type-1-bandpass-900-hz-1200-hz">
+<h3>Example 3-rd order Chebyshev type 1 bandpass 900 Hz-1200 Hz<a class="headerlink" href="#example-3-rd-order-chebyshev-type-1-bandpass-900-hz-1200-hz" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">61</span><span class="c1"># 3-rd order Chebyshev band-pass 900-1200 Hz</span>
+<span class="linenos">62</span><span class="n">BP_num</span>   <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">N</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">filterFunc</span><span class="p">(</span><span class="s2">&quot;Chebyshev1&quot;</span><span class="p">,</span> <span class="s2">&quot;bp&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">f_low</span><span class="o">=</span><span class="mi">900</span><span class="p">,</span> <span class="n">f_high</span><span class="o">=</span><span class="mi">1200</span><span class="p">,</span>
+<span class="linenos">63</span>                              <span class="n">ripple</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+<span class="linenos">64</span>
+<span class="linenos">65</span><span class="c1"># Plot with an instruction object, this comprises plot settings and results</span>
+<span class="linenos">66</span><span class="n">filt</span>          <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">instruction</span><span class="p">()</span>
+<span class="linenos">67</span><span class="n">filt</span><span class="o">.</span><span class="n">gainType</span> <span class="o">=</span> <span class="s2">&quot;gain&quot;</span>
+<span class="linenos">68</span><span class="n">filt</span><span class="o">.</span><span class="n">dataType</span> <span class="o">=</span> <span class="s2">&quot;laplace&quot;</span>
+<span class="linenos">69</span><span class="n">filt</span><span class="o">.</span><span class="n">laplace</span>  <span class="o">=</span> <span class="n">BP_num</span>
+<span class="linenos">70</span><span class="n">filt</span><span class="o">.</span><span class="n">label</span>    <span class="o">=</span> <span class="s2">&quot;gain&quot;</span>
+<span class="linenos">71</span>
+<span class="linenos">72</span><span class="c1"># Create the plot</span>
+<span class="linenos">73</span><span class="n">sl</span><span class="o">.</span><span class="n">plotSweep</span><span class="p">(</span><span class="s2">&quot;BP4&quot;</span><span class="p">,</span> <span class="s2">&quot;3-rd order Chebyshev type 1 band-pass, 1 dB ripple&quot;</span><span class="p">,</span> 
+<span class="linenos">74</span>             <span class="n">filt</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="n">sweepScale</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">funcType</span><span class="o">=</span><span class="s2">&quot;dBmag&quot;</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/BP4.svg"><img alt="../_images/BP4.svg" src="../_images/BP4.svg" style="width: 500px;" />
+</a>
+<p>The transfer function of this filter:</p>
+<div class="math notranslate nohighlight">
+\[H_{s} = \frac{3.235 \cdot 10^{-14} s^{3}}{1.29 \cdot 10^{-23} s^{6} + 2.195 \cdot 10^{-20} s^{5} + 1.698 \cdot 10^{-15} s^{4} + 1.904 \cdot 10^{-12} s^{3} + 7.238 \cdot 10^{-8} s^{2} + 3.991 \cdot 10^{-5} s + 1}\]</div>
+</section>
+<section id="inverse-laplace-transform">
+<h3>Inverse Laplace Transform<a class="headerlink" href="#inverse-laplace-transform" title="Link to this heading"></a></h3>
+<p>SLiCAP has a built-in symbolic and numeric Inverse Laplace Transform function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.ilt">ilt()</a>. However, it is preferred to use time-domain analysis for this purpose.</p>
+<p>Symbolic Inverse Laplace Transform is implemented for lower order rational functions and functions that are implemented in Sympy.</p>
+<p>Numeric Inverse Laplace Transform is implemented for rational functions of any order.</p>
+</section>
+</section>
+<section id="display-equations-on-html-pages-and-in-latex-documents">
+<h2>Display equations on HTML pages and in LaTeX documents<a class="headerlink" href="#display-equations-on-html-pages-and-in-latex-documents" title="Link to this heading"></a></h2>
+<p>The report module <a class="reference external" href="reports.html">Create reports</a>, discusses how HTML snippets and LaTeX snippets can be created for variables, expressions, equations and tables.</p>
+<p>As a matter of fact, all equations, tables and figures on this page are created with this module:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">76</span><span class="c1"># Generate RST snippets for the Help file</span>
+<span class="linenos">77</span><span class="n">rst</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">RSTformatter</span><span class="p">()</span>
+<span class="linenos">78</span>
+<span class="linenos">79</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;V_out/V_V1&quot;</span><span class="p">,</span> <span class="n">gain</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-laplace-passive&quot;</span><span class="p">)</span>
+<span class="linenos">80</span><span class="n">rst</span><span class="o">.</span><span class="n">matrixEqn</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">Iv</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">M</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">Dv</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-matrix-passive&quot;</span><span class="p">)</span>
+<span class="linenos">81</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;V_out/V_V1&quot;</span><span class="p">,</span> <span class="n">gain_numeric</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-laplace-passive-numeric&quot;</span><span class="p">)</span>
+<span class="linenos">82</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">vout_laplace</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-laplace-passive-vout&quot;</span><span class="p">)</span>
+<span class="linenos">83</span><span class="n">rst</span><span class="o">.</span><span class="n">coeffsTransfer</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">coeffsTransfer</span><span class="p">(</span><span class="n">gain</span><span class="p">),</span> 
+<span class="linenos">84</span>                   <span class="n">caption</span><span class="o">=</span><span class="s2">&quot;Normalized coefficients of &#39;gain&#39;.&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;table-coeffs-gain&quot;</span><span class="p">)</span>
+<span class="linenos">85</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;P_Bu&quot;</span><span class="p">,</span> <span class="n">BuP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-BuP&quot;</span><span class="p">)</span>
+<span class="linenos">86</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;P_Be&quot;</span><span class="p">,</span> <span class="n">BeP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-BeP&quot;</span><span class="p">)</span>
+<span class="linenos">87</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;P_Ch&quot;</span><span class="p">,</span> <span class="n">ChP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-ChP&quot;</span><span class="p">)</span>
+<span class="linenos">88</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;F_LP&quot;</span><span class="p">,</span> <span class="n">LP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-FLP&quot;</span><span class="p">)</span>
+<span class="linenos">89</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;F_HP&quot;</span><span class="p">,</span> <span class="n">HP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-FHP&quot;</span><span class="p">)</span>
+<span class="linenos">90</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;F_BP&quot;</span><span class="p">,</span> <span class="n">BP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-FBP&quot;</span><span class="p">)</span>
+<span class="linenos">91</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;F_BS&quot;</span><span class="p">,</span> <span class="n">BS</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-FBS&quot;</span><span class="p">)</span>
+<span class="linenos">92</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;F_AP&quot;</span><span class="p">,</span> <span class="n">AP</span><span class="p">,)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-FAP&quot;</span><span class="p">)</span>
+<span class="linenos">93</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;H_s&quot;</span><span class="p">,</span> <span class="n">BP_num</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-BP_num&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="plot-frequency-characteristics">
+<h2>Plot frequency characteristics<a class="headerlink" href="#plot-frequency-characteristics" title="Link to this heading"></a></h2>
+<p>SLiCAP plot functions are discussed in <a class="reference external" href="plots.html">Create plots</a></p>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="matrices.html" class="btn btn-neutral float-left" title="SLiCAP circuit matrix equation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pz.html" class="btn btn-neutral float-right" title="SLiCAP pole-zero analysis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, SLiCAP development team.
+      <span class="lastupdated">Last updated on 2025, Dec 27.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
