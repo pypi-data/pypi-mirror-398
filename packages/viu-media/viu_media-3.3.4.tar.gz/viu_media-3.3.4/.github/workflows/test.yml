@@ -1,0 +1,47 @@
+name: Test Workflow
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dbus-python build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libdbus-1-dev libglib2.0-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run linter and formater
+        run: uv run ruff check --output-format=github
+
+      - name: Run type checking
+        run: uv run pyright
+
+      # TODO: write tests
+
+      # - name: Run tests
+      #   run: uv run pytest tests

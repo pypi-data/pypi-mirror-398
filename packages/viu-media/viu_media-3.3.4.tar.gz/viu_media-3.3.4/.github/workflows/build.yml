@@ -1,0 +1,43 @@
+name: build
+on:
+  workflow_run:
+    workflows: ["Test Workflow"]
+    types:
+      - completed
+jobs:
+  build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Build viu
+        run: uv build
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: viu_debug_build
+          path: |
+            dist
+
+      - name: Install nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Use GitHub Action built-in cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Nix Flake check (evaluation + tests)
+        run: nix flake check
+
+      - name: Build the nix derivation
+        run: nix build
