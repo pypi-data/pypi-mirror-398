@@ -1,0 +1,234 @@
+# Copyright (c) 2025 Mathias Ertl
+# Licensed under the MIT License. See LICENSE file for details.
+
+"""Basic tutorial structure."""
+
+import os
+from pathlib import Path
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, NonNegativeInt, Tag, model_validator
+
+from structured_tutorials.models.base import (
+    TEMPLATE_DESCRIPTION,
+    CommandBaseModel,
+    CommandType,
+    ConfigurationMixin,
+    DocumentationConfigurationMixin,
+    FileMixin,
+    template_field_title_generator,
+)
+from structured_tutorials.models.tests import TestCommandModel, TestOutputModel, TestPortModel
+from structured_tutorials.typing import Self
+
+
+def part_discriminator(value: Any) -> str | None:
+    """Discriminator for parts."""
+    if isinstance(value, dict):
+        if typ := value.get("type"):
+            return typ  # type: ignore[no-any-return]
+        if "commands" in value:
+            return "commands"
+        if "destination" in value:
+            return "file"
+        if "prompt" in value:
+            return "prompt"
+        if "alternatives" in value:  # pragma: no branch  # all alternatives covered
+            return "alternatives"
+
+    elif isinstance(value, PartMixin):  # pragma: no cover  # not really sure how to trigger this
+        return value.type
+    return None  # pragma: no cover  # not really sure how to trigger this
+
+
+class PartMixin:
+    """Mixin used by all parts."""
+
+    type: str
+    id: str = Field(default="", description="ID that can be used to reference the specific part.")
+    index: int = Field(default=0, description="Index of the part in the tutorial.")
+    name: str = Field(default="", description="Human-readable name of the part.")
+
+
+class CleanupCommandModel(CommandBaseModel):
+    """Command to clean up artifacts created by the current part."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    command: CommandType = Field(description="Command that cleans up artifacts created by the main command.")
+
+
+class StdinCommandModel(FileMixin, BaseModel):
+    """Standard input for a command."""
+
+
+class CommandRuntimeConfigurationModel(ConfigurationMixin, CommandBaseModel):
+    """Runtime configuration for a single command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chdir: Path | None = Field(
+        default=None,
+        description=f"Change working directory to this path. This change affects all subsequent commands."
+        f" {TEMPLATE_DESCRIPTION}",
+    )
+    cleanup: tuple[CleanupCommandModel, ...] = tuple()
+    test: tuple[TestCommandModel | TestPortModel | TestOutputModel, ...] = tuple()
+    stdin: StdinCommandModel | None = None
+
+
+class CommandDocumentationConfigurationModel(ConfigurationMixin, BaseModel):
+    """Documentation configuration for a single command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    output: str = Field(default="", description="The output to show when rendering the command.")
+
+
+class CommandModel(BaseModel):
+    """A single command to run in this part."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    command: CommandType = Field(description="The command to run.")
+    run: CommandRuntimeConfigurationModel = Field(
+        default=CommandRuntimeConfigurationModel(), description="The runtime configuration."
+    )
+    doc: CommandDocumentationConfigurationModel = Field(
+        default=CommandDocumentationConfigurationModel(), description="The documentation configuration."
+    )
+
+
+class CommandsRuntimeConfigurationModel(ConfigurationMixin, BaseModel):
+    """Runtime configuration for an entire commands part."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CommandsDocumentationConfigurationModel(ConfigurationMixin, DocumentationConfigurationMixin, BaseModel):
+    """Documentation configuration for an entire commands part."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CommandsPartModel(PartMixin, BaseModel):
+    """A tutorial part consisting of one or more commands."""
+
+    model_config = ConfigDict(extra="forbid", title="Command part")
+
+    type: Literal["commands"] = "commands"
+    commands: tuple[CommandModel, ...]
+
+    run: CommandsRuntimeConfigurationModel = CommandsRuntimeConfigurationModel()
+    doc: CommandsDocumentationConfigurationModel = CommandsDocumentationConfigurationModel()
+
+
+class FileRuntimeConfigurationModel(ConfigurationMixin, BaseModel):
+    """Configure a file part when running the tutorial."""
+
+    model_config = ConfigDict(extra="forbid", title="File part runtime configuration")
+
+
+class FileDocumentationConfigurationModel(ConfigurationMixin, DocumentationConfigurationMixin, BaseModel):
+    """Configure a file part when rendering it as documentation.
+
+    For the `language`, `caption`, `linenos`, `lineno_start`, `emphasize_lines` and `name` options, please
+    consult the [sphinx documentation](https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-code-block).
+    """
+
+    model_config = ConfigDict(extra="forbid", title="File part documentation configuration")
+
+    # sphinx options:
+    language: str = Field(default="", description="The language used for the code block directive.")
+    caption: str | Literal[False] = Field(
+        default="",
+        description=f"The caption. Defaults to the `destination` of this part. {TEMPLATE_DESCRIPTION}",
+    )
+    linenos: bool = False
+    lineno_start: NonNegativeInt | Literal[False] = False
+    emphasize_lines: str = ""
+    name: str = ""
+    ignore_spelling: bool = Field(
+        default=False,
+        description="If true, wrap the caption in `:spelling:ignore:` (see"
+        " [sphinxcontrib.spelling](https://sphinxcontrib-spelling.readthedocs.io/en/latest/)).",
+    )
+
+
+class FilePartModel(PartMixin, FileMixin, BaseModel):
+    """A tutorial part for creating a file.
+
+    Note that exactly one of `contents` or `source` is required.
+    """
+
+    model_config = ConfigDict(extra="forbid", title="File part")
+
+    type: Literal["file"] = "file"
+
+    destination: str = Field(
+        field_title_generator=template_field_title_generator,
+        description=f"The destination path of the file. {TEMPLATE_DESCRIPTION}",
+    )
+
+    doc: FileDocumentationConfigurationModel = FileDocumentationConfigurationModel()
+    run: FileRuntimeConfigurationModel = FileRuntimeConfigurationModel()
+
+    @model_validator(mode="after")
+    def validate_destination(self) -> Self:
+        if not self.source and self.destination.endswith(os.sep):
+            raise ValueError(f"{self.destination}: Destination must not be a directory if contents is given.")
+        return self
+
+
+class PromptModel(PartMixin, BaseModel):
+    """Allows you to inspect the current state of the tutorial manually."""
+
+    model_config = ConfigDict(extra="forbid", title="Prompt Configuration")
+
+    type: Literal["prompt"] = "prompt"
+    prompt: str = Field(description=f"The prompt text. {TEMPLATE_DESCRIPTION}")
+    response: Literal["enter", "confirm"] = "enter"
+    default: bool = Field(
+        default=True, description="For type=`confirm`, the default if the user just presses enter."
+    )
+    error: str = Field(
+        default="State was not confirmed.",
+        description="For `type=confirm`, the error message if the user does not confirm the current state. "
+        "{TEMPLATE_DESCRIPTION} The context will also include the `response` variable, representing the user "
+        "response.",
+    )
+
+
+PartModels = Annotated[CommandsPartModel, Tag("commands")] | Annotated[FilePartModel, Tag("file")]
+
+
+class AlternativeRuntimeConfigurationModel(ConfigurationMixin, BaseModel):
+    """Configure an alternative part when running the tutorial."""
+
+    model_config = ConfigDict(extra="forbid", title="File part runtime configuration")
+
+
+class AlternativeDocumentationConfigurationModel(
+    ConfigurationMixin, DocumentationConfigurationMixin, BaseModel
+):
+    """Configure an alternative part when documenting the tutorial."""
+
+    model_config = ConfigDict(extra="forbid", title="File part runtime configuration")
+
+
+class AlternativeModel(PartMixin, BaseModel):
+    """A tutorial part that has several different alternatives.
+
+    When rendering documentation, alternatives are rendered in tabs. When running a tutorial, the runner has
+    to specify exactly one (or at most one, if `required=False`) of the alternatives that should be run.
+
+    An alternative can contain parts for files or commands.
+    """
+
+    model_config = ConfigDict(extra="forbid", title="Alternatives")
+
+    type: Literal["alternatives"] = "alternatives"
+    alternatives: dict[str, Annotated[PartModels, Discriminator(part_discriminator)]]
+    required: bool = Field(default=True, description="Whether one of the alternatives is required.")
+    doc: AlternativeDocumentationConfigurationModel = AlternativeDocumentationConfigurationModel()
+    run: AlternativeRuntimeConfigurationModel = AlternativeRuntimeConfigurationModel()
