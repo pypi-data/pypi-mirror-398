@@ -1,0 +1,151 @@
+[project]
+name = "pytnl"
+version = "0.0.8"
+description = "Python bindings for the Template Numerical Library"
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: C++",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "numpy>=2.2.5", # older versions never set the writeable flag in np.from_dlpack()
+]
+
+[project.urls]
+Homepage = "https://gitlab.com/tnl-project/pytnl"
+Issues = "https://gitlab.com/tnl-project/pytnl/-/issues"
+
+[project.optional-dependencies]
+dev = [
+    "hypothesis",
+    "pytest",
+    "pytest-xdist[psutil]",
+    "ruff",
+    "mpi4py",
+    "basedmypy",
+    "basedpyright",
+]
+docs = ["mkdocs", "mkdocs-material"]
+dev-cuda = ["cupy-cuda13x"]
+
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+# Reference: https://scikit-build-core.readthedocs.io/en/latest/configuration/index.html
+[tool.scikit-build]
+# all files are installed by CMake
+wheel.packages = []
+# specifying build-dir breaks build isolation, but enables incremental and editable builds
+build-dir = "build"
+# CMAKE_BUILD_TYPE (can be overridden with the SKBUILD_CMAKE_BUILD_TYPE environment variable)
+cmake.build-type = "Release"
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers -n auto -m 'not cuda'"
+markers = [
+    "cuda: marks tests that require execution with CUDA",
+    "mpi: marks tests that require the mpi4py package and execution through mpirun",
+]
+log_level = "INFO"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+builtins = ["_"]
+line-length = 160
+
+[tool.ruff.lint]
+select = [
+    "ANN",   # flake8-annotations
+    "ASYNC", # flake8-async
+    "C90",   # mccabe
+    "DTZ",   # flake8-datetimez
+    "E",     # pycodestyle errors
+    "EXE",   # flake8-executable
+    "F",     # Pyflakes
+    "FA",    # flake8-future-annotations
+    "FLY",   # flynt
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "ICN",   # flake8-import-conventions
+    "ISC",   # flake8-implicit-str-concat
+    "LOG",   # flake8-logging
+    "PIE",   # flake8-pie
+    "PLC",   # Pylint conventions
+    "PLE",   # Pylint errors
+    "PLW",   # Pylint warnings
+    "RSE",   # flake8-raise
+    "RUF",   # Ruff-specific rules
+    "SLOT",  # flake8-slot
+    "T10",   # flake8-debugger
+    "UP",    # pyupgrade
+    "W",     # pycodestyle warnings
+    "YTT",   # flake8-2020
+]
+ignore = [
+    "UP047", # non-pep695-generic-function - we often need reusable TypeVars with constraints/bounds
+]
+
+[tool.ruff.lint.isort]
+# Do not categorize imports of our binary modules as third-party
+# https://docs.astral.sh/ruff/faq/#how-does-ruff-determine-which-of-my-imports-are-first-party-third-party-etc
+known-first-party = ["pytnl"]
+
+# Configuration for mypy / basedmypy
+# https://kotlinisland.github.io/basedmypy/config_file.html
+# https://kotlinisland.github.io/basedmypy/config_file.html#example-pyproject-toml
+[tool.mypy]
+python_version = "3.12"
+packages = ["examples", "src", "tests"]
+check_untyped_defs = true
+disallow_any_decorated = false     # basedmypy
+disallow_any_explicit = false
+disallow_any_expr = false
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+extra_checks = true
+strict = false
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+# Configuration for pyright
+# https://github.com/microsoft/pyright/blob/main/docs/configuration.md
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["examples", "src", "tests"]
+exclude = ["build", ".venv"]
+
+# Using a "type: ignore[...]" comment causes pyright to ignore any diagnostics,
+# not just what is specified in the brackets (which are mypy names).
+# We also cannot use both "type:" and "pyright:" comments on the same line 🙃
+#enableTypeIgnoreComments = false
+
+# Enable all/most diagnostics with "error" level
+typeCheckingMode = "strict"
+
+# Suppress diagnostics for imports that have no corresponding source file
+# (we have binary modules containing multiple submodules)
+reportMissingModuleSource = "none"
+
+# Disable errors for non-typing diagnostics
+reportUnusedClass = "information"
+reportUnusedFunction = "information"
+reportUnusedVariable = "information"
+reportUnusedExpression = "information"

@@ -1,0 +1,271 @@
+default:
+  interruptible: true
+
+stages:
+  - lint
+  - build
+  - deploy
+
+# https://docs.gitlab.com/ee/ci/yaml/workflow.html
+workflow:
+  rules:
+    # run a pipeline in the merge request context
+    # https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # don't run a branch pipeline on push when there is an open merge request
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    # otherwise run a branch pipeline, but only if the project is in the tnl-project group
+    - if: $CI_COMMIT_BRANCH && $CI_PROJECT_ROOT_NAMESPACE == "tnl-project"
+
+.env_setup: &env_setup
+  #
+  # make sure that $PATH and other essential variables are set correctly (needed for cuda)
+  - source /etc/profile
+  # do not use all cores for OpenMP
+  - export OMP_NUM_THREADS=4
+  # running as root does not matter inside Docker containers
+  - export OMPI_ALLOW_RUN_AS_ROOT=1
+  - export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+ruff format:
+  stage: lint
+  image: "quay.io/archlinux/archlinux:base"
+  before_script:
+    - pacman -Syu --needed --noconfirm ruff
+  script:
+    - ruff format --diff
+  variables:
+    FORCE_COLOR: 1
+
+ruff check:
+  stage: lint
+  image: "quay.io/archlinux/archlinux:base"
+  before_script:
+    - pacman -Syu --needed --noconfirm ruff
+  script:
+    - ruff check --exit-zero
+    - ruff check --output-format=gitlab > code-quality-report.json
+  variables:
+    FORCE_COLOR: 1
+  artifacts:
+    reports:
+      codequality: $CI_PROJECT_DIR/code-quality-report.json
+
+typos:
+  stage: lint
+  image: "quay.io/archlinux/archlinux:base"
+  before_script:
+    - pacman -Syu --needed --noconfirm typos
+  script:
+    - typos --color always --sort
+
+Arch_cmake:
+  stage: build
+  image: "quay.io/archlinux/archlinux:base-devel"
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - pacman -Suy --needed --noconfirm git cmake ninja python openmpi
+    - pacman -Suy --needed --noconfirm python-numpy python-mpi4py
+    - pacman -Suy --needed --noconfirm python-pytest python-pytest-xdist python-psutil python-hypothesis
+  script:
+    - *env_setup
+    - cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+    - cmake --build build
+    - cmake --install build
+    - pytest
+  parallel:
+    matrix:
+      - BUILD_TYPE:
+          - Debug
+          - Release
+
+Arch_cmake_cuda:
+  stage: build
+  image: "jlk.fjfi.cvut.cz:5000/fjfi-mmg/archlinux-cuda:latest"
+  tags:
+    - nvidia
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - pacman -Suy --needed --noconfirm git cmake ninja python openmpi
+    - pacman -Suy --needed --noconfirm python-numpy python-mpi4py python-cupy
+    - pacman -Suy --needed --noconfirm python-pytest python-pytest-xdist python-psutil python-hypothesis
+  script:
+    - *env_setup
+    - cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+    - cmake --build build
+    - cmake --install build
+    - pytest -m cuda -n 0
+  parallel:
+    matrix:
+      - BUILD_TYPE:
+          - Debug
+          - Release
+
+Arch_python_build:
+  stage: build
+  image: "quay.io/archlinux/archlinux:base-devel"
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - pacman -Suy --needed --noconfirm git cmake ninja python openmpi
+    - pacman -Suy --needed --noconfirm python-numpy python-mpi4py
+    - pacman -Suy --needed --noconfirm python-build python-installer python-scikit-build-core
+    - pacman -Suy --needed --noconfirm python-pytest python-pytest-xdist python-psutil python-hypothesis
+  script:
+    - *env_setup
+    - python -m build --no-isolation
+    - python -m venv --system-site-packages .venv
+    - source .venv/bin/activate
+    - python -m installer dist/*.whl
+    - python -m pytest
+
+Arch_pip:
+  stage: build
+  image: "quay.io/archlinux/archlinux:base-devel"
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - pacman -Suy --needed --noconfirm git cmake ninja python openmpi
+  script:
+    - *env_setup
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - python -m pip install .[dev]
+    - pytest
+    - mypy
+    - basedpyright
+
+Arch_pip_cuda:
+  stage: build
+  image: "jlk.fjfi.cvut.cz:5000/fjfi-mmg/archlinux-cuda:latest"
+  tags:
+    - nvidia
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - pacman -Suy --needed --noconfirm git cmake ninja python openmpi
+  script:
+    - *env_setup
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - python -m pip install .[dev,dev-cuda] -v
+    - pytest -m cuda -n 0
+    - mypy
+    - basedpyright
+
+Python_build:
+  stage: build
+  image: "docker.io/library/python:${IMAGE_TAG}"
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - if [[ ${DISTRO} == "Alpine" ]]; then
+      apk add build-base git cmake ninja openmpi-dev zlib-dev;
+      export OMPI_MCA_plm_rsh_agent=sh;
+      fi
+    - if [[ ${DISTRO} == "Debian" ]]; then
+      apt update;
+      apt -y install git cmake ninja-build libopenmpi-dev;
+      fi
+  script:
+    - *env_setup
+    - python -m pip install build installer pytest pytest-xdist hypothesis numpy mpi4py basedmypy basedpyright
+    - python -m build --config-setting=cmake.define.PyTNL_ENABLE_INTERPROCEDURAL_OPTIMIZATION=${PyTNL_ENABLE_INTERPROCEDURAL_OPTIMIZATION}
+    - python -m installer dist/*.whl
+    - python -m pytest
+    - mypy
+    - basedpyright
+  parallel:
+    matrix:
+      - DISTRO: "Alpine"
+        IMAGE_TAG:
+          - "3.12-alpine"
+          - "3.13-alpine"
+        # IPO/LTO does not work on Alpine:
+        # error: inlining failed in call to 'always_inline' 'vsnprintf': function body can be overwritten at link time
+        PyTNL_ENABLE_INTERPROCEDURAL_OPTIMIZATION: "OFF"
+      - DISTRO: "Debian"
+        IMAGE_TAG:
+          - "3.12"
+          - "3.13"
+        PyTNL_ENABLE_INTERPROCEDURAL_OPTIMIZATION: "ON"
+
+Ubuntu_cmake:
+  stage: build
+  image: "docker.io/library/ubuntu:rolling"
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - apt update
+    - apt -y install build-essential git cmake ninja-build
+    - apt -y install python3-dev libopenmpi-dev
+    #- apt -y install python3-numpy python3-mpi4py
+    - apt -y install python3-pytest python3-pytest-xdist python3-psutil python3-hypothesis
+    - apt -y install python3-venv
+  script:
+    - *env_setup
+    - cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+    - cmake --build build
+    - cmake --install build
+    # FIXME: hack because docker.io/library/ubuntu:rolling has old numpy version (2.2.4)
+    - python3 -m venv --system-site-packages .venv
+    - source .venv/bin/activate
+    - python3 -m pip install numpy>=2.2.5 mpi4py
+    - python3 -m pytest
+  parallel:
+    matrix:
+      - BUILD_TYPE:
+          - Debug
+          - Release
+
+Ubuntu_pip:
+  stage: build
+  image: "docker.io/library/ubuntu:latest"
+  # don't wait for jobs in previous stages to complete before starting this job
+  needs: []
+  before_script:
+    - apt update
+    - apt -y install build-essential git
+    - apt -y install python3-dev libopenmpi-dev
+    - apt -y install python3-venv
+  script:
+    - *env_setup
+    - python3 -m venv .venv
+    - source .venv/bin/activate
+    - python3 -m pip install .[dev]
+    - pytest
+    - mypy
+    - basedpyright
+
+documentation:
+  stage: build
+  image: "quay.io/archlinux/archlinux:base"
+  rules:
+    - changes:
+        - docs/**/*
+        - .gitlab-ci.yml
+        - examples/**/*
+  before_script:
+    - pacman -Syu --needed --noconfirm mkdocs mkdocs-material python-pymdown-extensions
+  script: mkdocs build
+  artifacts:
+    paths:
+      - "public"
+    expire_in: "7 days"
+  needs: []
+
+deploy documentation:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - docs/**/*
+        - .gitlab-ci.yml
+        - examples/**/*
+  dependencies:
+    - documentation
+  pages: true
+  script: "true"
