@@ -1,0 +1,2 @@
+export const __webpack_id__="74994";export const __webpack_ids__=["74994"];export const __webpack_modules__={56009:function(t,e,a){a.r(e),a.d(e,{MapDashboardStrategy:()=>o});var _=a(62826),r=a(96196),s=a(44457);class o extends r.mN{static async generate(t){return{views:[{strategy:t}]}}}o.noEditor=!0,o=(0,_.__decorate)([(0,s.EM)("map-dashboard-strategy")],o)}};
+//# sourceMappingURL=74994.76532565dd01c7d1.js.map
