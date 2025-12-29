@@ -1,0 +1,311 @@
+"""Claude Agent SDK to native event converters.
+
+This module provides conversion from Claude Agent SDK message types to native
+agentpool streaming events, enabling ClaudeCodeAgent to yield the same
+event types as native agents.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, cast
+
+from pydantic_ai import PartDeltaEvent, TextPartDelta, ThinkingPartDelta
+
+from agentpool.agents.events import (
+    DiffContentItem,
+    LocationContentItem,
+    ToolCallCompleteEvent,
+    ToolCallStartEvent,
+)
+
+
+if TYPE_CHECKING:
+    from claude_agent_sdk import ContentBlock, McpServerConfig, Message, ToolUseBlock
+
+    from agentpool.agents.events import RichAgentStreamEvent, ToolCallContentItem
+    from agentpool.tools.base import ToolKind
+    from agentpool_config.mcp_server import MCPServerConfig as NativeMCPServerConfig
+
+
+@dataclass
+class RichToolInfo:
+    """Rich display information derived from tool name and input."""
+
+    title: str
+    """Human-readable title for the tool call."""
+    kind: ToolKind = "other"
+    """Category of tool operation."""
+    locations: list[LocationContentItem] = field(default_factory=list)
+    """File locations involved in the operation."""
+    content: list[ToolCallContentItem] = field(default_factory=list)
+    """Rich content items (diffs, text, etc.)."""
+
+
+def derive_rich_tool_info(name: str, input_data: dict[str, Any]) -> RichToolInfo:  # noqa: PLR0911, PLR0915
+    """Derive rich display info from tool name and input arguments.
+
+    Maps MCP tool names and their inputs to human-readable titles, kinds,
+    and location information for rich UI display. Handles both Claude Code
+    built-in tools and MCP bridge tools.
+
+    Args:
+        name: The tool name (e.g., "Read", "mcp__server__read_file")
+        input_data: The tool input arguments
+
+    Returns:
+        RichToolInfo with derived display information
+    """
+    # Extract the actual tool name if it's an MCP bridge tool
+    # Format: mcp__{server_name}__{tool_name}
+    actual_name = name
+    if name.startswith("mcp__") and "__" in name[5:]:
+        parts = name.split("__")
+        if len(parts) >= 3:  # noqa: PLR2004
+            actual_name = parts[-1]  # Get the last part (actual tool name)
+
+    # Normalize to lowercase for matching
+    tool_lower = actual_name.lower()
+    # Read operations
+    if tool_lower in ("read", "read_file"):
+        path = input_data.get("file_path") or input_data.get("path", "")
+        offset = input_data.get("offset") or input_data.get("line")
+        limit = input_data.get("limit")
+
+        suffix = ""
+        if limit:
+            start = (offset or 0) + 1
+            end = (offset or 0) + limit
+            suffix = f" ({start}-{end})"
+        elif offset:
+            suffix = f" (from line {offset + 1})"
+        title = f"Read {path}{suffix}" if path else "Read File"
+        locations = [LocationContentItem(path=path, line=offset or 0)] if path else []
+        return RichToolInfo(title=title, kind="read", locations=locations)
+
+    # Write operations
+    if tool_lower in ("write", "write_file"):
+        path = input_data.get("file_path") or input_data.get("path", "")
+        content = input_data.get("content", "")
+        return RichToolInfo(
+            title=f"Write {path}" if path else "Write File",
+            kind="edit",
+            locations=[LocationContentItem(path=path)] if path else [],
+            content=[DiffContentItem(path=path, old_text=None, new_text=content)] if path else [],
+        )
+    # Edit operations
+    if tool_lower in ("edit", "edit_file"):
+        path = input_data.get("file_path") or input_data.get("path", "")
+        old_string = input_data.get("old_string") or input_data.get("old_text", "")
+        new_string = input_data.get("new_string") or input_data.get("new_text", "")
+        return RichToolInfo(
+            title=f"Edit {path}" if path else "Edit File",
+            kind="edit",
+            locations=[LocationContentItem(path=path)] if path else [],
+            content=[DiffContentItem(path=path, old_text=old_string, new_text=new_string)]
+            if path
+            else [],
+        )
+    # Delete operations
+    if tool_lower in ("delete", "delete_path", "delete_file"):
+        path = input_data.get("file_path") or input_data.get("path", "")
+        locations = [LocationContentItem(path=path)] if path else []
+        title = f"Delete {path}" if path else "Delete"
+        return RichToolInfo(title=title, kind="delete", locations=locations)
+    # Bash/terminal operations
+    if tool_lower in ("bash", "execute", "run_command", "execute_command", "execute_code"):
+        command = input_data.get("command") or input_data.get("code", "")
+        # Escape backticks in command
+        escaped_cmd = command.replace("`", "\\`") if command else ""
+        title = f"`{escaped_cmd}`" if escaped_cmd else "Terminal"
+        return RichToolInfo(title=title, kind="execute")
+    # Search operations
+    if tool_lower in ("grep", "search", "glob", "find"):
+        pattern = input_data.get("pattern") or input_data.get("query", "")
+        path = input_data.get("path", "")
+        title = f"Search for '{pattern}'" if pattern else "Search"
+        if path:
+            title += f" in {path}"
+        locations = [LocationContentItem(path=path)] if path else []
+        return RichToolInfo(title=title, kind="search", locations=locations)
+    # List directory
+    if tool_lower in ("ls", "list", "list_directory"):
+        path = input_data.get("path", ".")
+        title = f"List {path}" if path != "." else "List current directory"
+        locations = [LocationContentItem(path=path)] if path else []
+        return RichToolInfo(title=title, kind="search", locations=locations)
+    # Web operations
+    if tool_lower in ("webfetch", "web_fetch", "fetch"):
+        url = input_data.get("url", "")
+        return RichToolInfo(title=f"Fetch {url}" if url else "Web Fetch", kind="fetch")
+    if tool_lower in ("websearch", "web_search", "search_web"):
+        query = input_data.get("query", "")
+        return RichToolInfo(title=f"Search: {query}" if query else "Web Search", kind="fetch")
+    # Task/subagent operations
+    if tool_lower == "task":
+        description = input_data.get("description", "")
+        return RichToolInfo(title=description if description else "Task", kind="think")
+    # Notebook operations
+    if tool_lower in ("notebookread", "notebook_read"):
+        path = input_data.get("notebook_path", "")
+        title = f"Read Notebook {path}" if path else "Read Notebook"
+        locations = [LocationContentItem(path=path)] if path else []
+        return RichToolInfo(title=title, kind="read", locations=locations)
+    if tool_lower in ("notebookedit", "notebook_edit"):
+        path = input_data.get("notebook_path", "")
+        title = f"Edit Notebook {path}" if path else "Edit Notebook"
+        locations = [LocationContentItem(path=path)] if path else []
+        return RichToolInfo(title=title, kind="edit", locations=locations)
+    # Default: use the tool name as title
+    return RichToolInfo(title=actual_name, kind="other")
+
+
+def content_block_to_event(block: ContentBlock, index: int = 0) -> RichAgentStreamEvent[Any] | None:
+    """Convert a Claude SDK ContentBlock to a streaming event.
+
+    Args:
+        block: Claude SDK content block
+        index: Part index for the event
+
+    Returns:
+        Corresponding streaming event, or None if not mappable
+    """
+    from claude_agent_sdk import TextBlock, ThinkingBlock, ToolUseBlock
+
+    match block:
+        case TextBlock(text=text):
+            return PartDeltaEvent(index=index, delta=TextPartDelta(content_delta=text))
+        case ThinkingBlock(thinking=thinking):
+            return PartDeltaEvent(index=index, delta=ThinkingPartDelta(content_delta=thinking))
+        case ToolUseBlock(id=tool_id, name=name, input=input_data):
+            rich_info = derive_rich_tool_info(name, input_data)
+            return ToolCallStartEvent(
+                tool_call_id=tool_id,
+                tool_name=name,
+                title=rich_info.title,
+                kind=rich_info.kind,
+                locations=rich_info.locations,
+                content=rich_info.content,
+                raw_input=input_data,
+            )
+        case _:
+            return None
+
+
+def claude_message_to_events(
+    message: Message,
+    agent_name: str = "",
+    pending_tool_calls: dict[str, ToolUseBlock] | None = None,
+) -> list[RichAgentStreamEvent[Any]]:
+    """Convert a Claude SDK Message to a list of streaming events.
+
+    Args:
+        message: Claude SDK message (UserMessage, AssistantMessage, etc.)
+        agent_name: Name of the agent for event attribution
+        pending_tool_calls: Dict to track tool calls awaiting results
+
+    Returns:
+        List of corresponding streaming events
+    """
+    from claude_agent_sdk import AssistantMessage, ToolResultBlock, ToolUseBlock
+
+    events: list[RichAgentStreamEvent[Any]] = []
+
+    match message:
+        case AssistantMessage(content=content):
+            for idx, block in enumerate(content):
+                # Track tool use blocks for later pairing with results
+                if isinstance(block, ToolUseBlock) and pending_tool_calls is not None:
+                    pending_tool_calls[block.id] = block
+
+                # Handle tool results - pair with pending tool call
+                if isinstance(block, ToolResultBlock) and pending_tool_calls is not None:
+                    tool_use = pending_tool_calls.pop(block.tool_use_id, None)
+                    if tool_use:
+                        complete_event = ToolCallCompleteEvent(
+                            tool_name=tool_use.name,
+                            tool_call_id=block.tool_use_id,
+                            tool_input=tool_use.input,
+                            tool_result=block.content,
+                            agent_name=agent_name,
+                            message_id="",
+                        )
+                        events.append(complete_event)
+                    continue
+
+                # Convert other blocks to events
+                if event := content_block_to_event(block, index=idx):
+                    events.append(event)
+
+        case _:
+            # UserMessage, SystemMessage, ResultMessage - no events to emit
+            pass
+
+    return events
+
+
+def convert_mcp_servers_to_sdk_format(
+    mcp_servers: list[NativeMCPServerConfig],
+) -> dict[str, McpServerConfig]:
+    """Convert internal MCPServerConfig to Claude SDK format.
+
+    Returns:
+        Dict mapping server names to SDK-compatible config dicts
+    """
+    from claude_agent_sdk import McpServerConfig
+
+    from agentpool_config.mcp_server import (
+        SSEMCPServerConfig,
+        StdioMCPServerConfig,
+        StreamableHTTPMCPServerConfig,
+    )
+
+    result: dict[str, McpServerConfig] = {}
+
+    for idx, server in enumerate(mcp_servers):
+        # Determine server name
+        if server.name:
+            name = server.name
+        elif isinstance(server, StdioMCPServerConfig) and server.args:
+            name = server.args[-1].split("/")[-1].split("@")[0]
+        elif isinstance(server, StdioMCPServerConfig):
+            name = server.command
+        elif isinstance(server, SSEMCPServerConfig | StreamableHTTPMCPServerConfig):
+            from urllib.parse import urlparse
+
+            name = urlparse(str(server.url)).hostname or f"server_{idx}"
+        else:
+            name = f"server_{idx}"
+
+        # Build SDK-compatible config
+        config: dict[str, Any]
+        match server:
+            case StdioMCPServerConfig(command=command, args=args):
+                config = {"type": "stdio", "command": command, "args": args}
+                if server.env:
+                    config["env"] = server.get_env_vars()
+            case SSEMCPServerConfig(url=url):
+                config = {"type": "sse", "url": str(url)}
+                if server.headers:
+                    config["headers"] = server.headers
+            case StreamableHTTPMCPServerConfig(url=url):
+                config = {"type": "http", "url": str(url)}
+                if server.headers:
+                    config["headers"] = server.headers
+
+        result[name] = cast(McpServerConfig, config)
+
+    return result
+
+
+def to_output_format(output_type: type) -> dict[str, Any] | None:
+    """Convert to SDK output format dict."""
+    from pydantic import TypeAdapter
+
+    # Build structured output format if needed
+    output_format: dict[str, Any] | None = None
+    if output_type is not str:
+        adapter = TypeAdapter[Any](output_type)
+        schema = adapter.json_schema()
+        output_format = {"type": "json_schema", "schema": schema}
+    return output_format
