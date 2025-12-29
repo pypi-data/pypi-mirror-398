@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Stats + Likes</h1>
+
+<div class="panel" data-stats>
+  <section class="current-video-section">
+    <h2>Now Playing</h2>
+    <div data-current-video>
+      <p class="muted">Loading...</p>
+    </div>
+    <button type="button" class="primary" data-like>👍 Like Current</button>
+    <p class="small" data-status></p>
+  </section>
+
+  <div class="stats-columns">
+    <section class="stats-column">
+      <h2>Top Played</h2>
+      <ol data-top-played class="stats-list">
+        <li class="muted">Loading...</li>
+      </ol>
+    </section>
+
+    <section class="stats-column">
+      <h2>Top Liked</h2>
+      <ol data-top-liked class="stats-list">
+        <li class="muted">Loading...</li>
+      </ol>
+    </section>
+  </div>
+</div>
+
+<style>
+.current-video-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+.current-video-section h2 {
+  margin-bottom: 0.5rem;
+}
+.stats-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+@media (max-width: 600px) {
+  .stats-columns {
+    grid-template-columns: 1fr;
+  }
+}
+.stats-column h2 {
+  margin-bottom: 0.75rem;
+}
+.stats-list {
+  list-style: decimal inside;
+  padding: 0;
+  margin: 0;
+}
+.stats-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color, #222);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.stats-list li:last-child {
+  border-bottom: none;
+}
+.stats-list .title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stats-list .count {
+  margin-left: 1rem;
+  font-weight: bold;
+  color: var(--accent-color, #0af);
+}
+.muted {
+  color: #888;
+  font-style: italic;
+}
+[data-status].success {
+  color: #0c0;
+}
+[data-status].error {
+  color: #f44;
+}
+[data-status].duplicate {
+  color: #fa0;
+}
+</style>
+
+<script>
+(function() {
+  const api = async (method, path, body) => {
+    const opts = { method, headers: {} };
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(path, opts);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.error?.message || res.statusText);
+    }
+    return res.json();
+  };
+
+  const currentVideoEl = document.querySelector('[data-current-video]');
+  const likeBtn = document.querySelector('[data-like]');
+  const statusEl = document.querySelector('[data-status]');
+  const topPlayedEl = document.querySelector('[data-top-played]');
+  const topLikedEl = document.querySelector('[data-top-liked]');
+
+  async function loadCurrentVideo() {
+    try {
+      const data = await api('GET', '/api/v1/stats/current');
+      if (data.playing && data.title) {
+        currentVideoEl.innerHTML = `<p><strong>${escapeHtml(data.title)}</strong></p>`;
+      } else {
+        currentVideoEl.innerHTML = `<p class="muted">Nothing playing</p>`;
+      }
+    } catch (e) {
+      currentVideoEl.innerHTML = `<p class="muted">Unable to load</p>`;
+    }
+  }
+
+  async function loadTopPlayed() {
+    try {
+      const data = await api('GET', '/api/v1/stats/top-played?limit=10');
+      if (data.items && data.items.length > 0) {
+        topPlayedEl.innerHTML = data.items.map((item, i) => `
+          <li>
+            <span class="title">${escapeHtml(item.title)}</span>
+            <span class="count">${item.count}</span>
+          </li>
+        `).join('');
+      } else {
+        topPlayedEl.innerHTML = `<li class="muted">No data yet</li>`;
+      }
+    } catch (e) {
+      topPlayedEl.innerHTML = `<li class="muted">Unable to load</li>`;
+    }
+  }
+
+  async function loadTopLiked() {
+    try {
+      const data = await api('GET', '/api/v1/stats/top-liked?limit=10');
+      if (data.items && data.items.length > 0) {
+        topLikedEl.innerHTML = data.items.map((item, i) => `
+          <li>
+            <span class="title">${escapeHtml(item.title)}</span>
+            <span class="count">${item.count}</span>
+          </li>
+        `).join('');
+      } else {
+        topLikedEl.innerHTML = `<li class="muted">No data yet</li>`;
+      }
+    } catch (e) {
+      topLikedEl.innerHTML = `<li class="muted">Unable to load</li>`;
+    }
+  }
+
+  likeBtn.addEventListener('click', async () => {
+    likeBtn.disabled = true;
+    statusEl.textContent = '';
+    statusEl.className = 'small';
+    try {
+      const data = await api('POST', '/api/v1/stats/like');
+      if (data.status === 'ok') {
+        statusEl.textContent = `Liked! Total likes: ${data.like_count}`;
+        statusEl.classList.add('success');
+        loadTopLiked();
+      } else if (data.status === 'duplicate') {
+        statusEl.textContent = `Already liked (${data.like_count} total)`;
+        statusEl.classList.add('duplicate');
+      } else {
+        statusEl.textContent = data.error || 'Unknown error';
+        statusEl.classList.add('error');
+      }
+    } catch (e) {
+      statusEl.textContent = e.message || 'Failed to like';
+      statusEl.classList.add('error');
+    } finally {
+      likeBtn.disabled = false;
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Initial load
+  loadCurrentVideo();
+  loadTopPlayed();
+  loadTopLiked();
+
+  // Refresh current video periodically
+  setInterval(loadCurrentVideo, 30000);
+})();
+</script>
+{% endblock %}
