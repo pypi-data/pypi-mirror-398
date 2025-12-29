@@ -1,0 +1,64 @@
+# Copyright (c) 2025, UChicago Argonne, LLC
+# BSD OPEN SOURCE LICENSE. Full license can be found in LICENSE.md
+from enum import Enum
+
+
+class PersonType(Enum):
+    PRESCHOOL = "PRESCHOOL"
+    SCHOOL_CHILD = "SCHOOL_CHILD"
+    FULLTIME_WORKER = "FULLTIME_WORKER"
+    PARTTIME_WORKER = "PARTTIME_WORKER"
+    ADULT_STUDENT = "ADULT_STUDENT"
+    STUDENT_DRIVER = "STUDENT_DRIVER"
+    SENIOR = "SENIOR"
+    NONWORKER = "NONWORKER"
+
+    IGNORE = "IGNORE"
+
+
+class ActivityType(Enum):
+    HOME = "HOME"
+    WORK = "WORK"
+    PART_WORK = "PART_WORK"
+    WORK_AT_HOME = "WORK AT HOME"
+    SCHOOL = "SCHOOL"
+    EAT_OUT = "EAT OUT"
+    SHOP_MAJOR = "SHOP-MAJOR"
+    SHOP_OTHER = "SHOP-OTHER"
+    SOCIAL = "SOCIAL"
+    LEISURE = "LEISURE"
+    PERSONAL = "PERSONAL"
+    HEALTHCARE = "HEALTHCARE"
+    ERRANDS = "ERRANDS"
+    PICKUP_DROPOFF = "PICKUP-DROPOFF"
+    SERVICE = "SERVICE"
+    RELIGIOUS_CIVIC = "RELIGIOUS-CIVIC"
+    OTHER = "OTHER"
+    EDUCATION_PREK = "EDUCATION_PREK"
+    EDUCATION_K_8 = "EDUCATION_K_8"
+    EDUCATION_9_12 = "EDUCATION_9_12"
+    EDUCATION_POSTSEC = "EDUCATION_POSTSEC"
+
+    IGNORE = "IGNORE"
+
+
+class ModeType(Enum):
+    AUTO = "AUTO"
+    AUTO_PASS = "AUTO-PASS"  # Only the passenger and not the driver of HOV
+    WALK = "WALK"
+    BIKE = "BIKE"
+    TAXI = "TAXI"
+    TRANSIT = "TRANSIT"
+
+    IGNORE = "IGNORE"
+
+
+class DeparturePeriod(Enum):
+    NIGHT = "NIGHT"
+    AMPEAK = "AMPEAK"
+    AMOFFPEAK = "AMOFFPEAK"
+    PMOFFPEAK = "PMOFFPEAK"
+    PMPEAK = "PMPEAK"
+    EVENING = "EVENING"
+
+    IGNORE = "IGNORE"
