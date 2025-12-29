@@ -1,0 +1,40 @@
+{# src/devbooster/templates/egov/oracle/vo.java.j2 #}
+
+package egovframework.{{ module }}.service;
+
+import java.io.Serializable;
+{% if columns | selectattr('java_type','equalto', 'Date') | list | length > 0 %}
+import java.util.Date;
+{% endif %}
+
+public class {{ class_name }}VO implements Serializable{
+
+    private static final long serialVersionUID = 1L;
+
+    {% for col in columns %}
+    /** {{ col.comment }}*/
+    private {{ col.java_type }} {{ col.name | camel }};
+    {% endfor %}
+
+
+    {% for col in columns %}
+    public {{ col.java_type }} get{{ col.name | pascal }}() {{ '{' }}
+        return this.{{ col.name | camel }};
+    {{ '}' }}
+    {% endfor %}
+
+    {% for col in columns %}
+    public void set{{ col.name | pascal }}({{ col.java_type }} {{ col.name | camel }}) {{ '{' }}
+        this.{{ col.name | camel }} = {{ col.name | camel }};
+    {{ '}' }}
+    {% endfor %}
+
+    @Override
+    public String toString() {
+        return "{{ class_name }}VO{"+
+            {%- for col in columns -%}
+            "{{ col.name | camel }}=" + {{ col.name | camel }}{%- if not loop.last %} + "," + {% endif -%}
+            {%- endfor -%}
+        "}";
+    }
+}

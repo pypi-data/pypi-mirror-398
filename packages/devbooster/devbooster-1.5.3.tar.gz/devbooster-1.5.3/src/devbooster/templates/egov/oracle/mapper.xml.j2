@@ -1,0 +1,113 @@
+{# src/devbooster/templates/egov/oracle/mapper.xml.j2 #}
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- TODO:
+- [ ] 동적 검색 쿼리 (<if> 조건)
+- [ ] 페이징 처리 (LIMIT/OFFSET)
+- [ ] 정렬 옵션
+- [ ] 조인 쿼리
+-->
+
+<mapper namespace="egovframework.{{ module }}.service.impl.{{ class_name }}Mapper">
+
+    <!-- ResultMap: {{ table_name }}-->
+    <resultMap id="{{ class_name }}Result" type="egovframework.{{ module }}.service.{{ class_name }}VO">
+        {% for col in columns %}
+        <result property="{{ col.name | camel }}" column="{{ col.name }}"/>
+        {% endfor %}
+    </resultMap>
+
+    <!-- 목록 조회 -->
+    <select id="select{{ class_name }}List" resultMap="{{ class_name }}Result">
+        SELECT /*+ INDEX_DESC({{ table_name }} PK_{{ table_name }}) */
+            {% for col in columns %}
+            {{ col.name }}{% if not loop.last %},{% endif %}{{ "\n" -}}
+            {% endfor %}
+        FROM {{ table_name }}
+        <where>
+            {% if has_use_yn %}
+            AND USE_YN = 'Y'
+            {% endif %}
+            {% if has_del_yn %}
+            AND DEL_YN = 'N'
+            {% endif %}
+        </where>
+        ORDER BY {% for id_col in identifier %}{{ id_col }}{% if not loop.last %}, {% endif %}{% endfor %} DESC
+    </select>
+
+    <!-- 상세 조회 -->
+    <select id="select{{ class_name }}" resultMap="{{ class_name }}Result">
+        SELECT
+            {% for col in columns %}
+            {{ col.name }}{% if not loop.last %},{% endif %}{{ "\n" -}}
+            {% endfor %}
+        FROM {{ table_name }}
+        <where>
+            {% for id_col in identifier %}
+            AND {{ id_col }} = #{{ '{' }}{{ id_col | camel }}{{ '}' }}
+            {% endfor %}
+            {% if has_use_yn %}
+            AND USE_YN = 'Y'
+            {% endif %}
+        </where>
+    </select>
+
+    <!-- 등록 -->
+    <insert id="insert{{ class_name }}" parameterType="egovframework.{{ module }}.service.{{ class_name }}VO">
+        INSERT INTO {{ table_name }} (
+            {% for col in columns %}
+            {{ col.name }}{% if not loop.last %},{% endif %}{{ "\n" -}}
+            {% endfor %}
+        ) VALUES (
+            {% for col in columns %}
+            #{{ '{' }}{{ col.name | camel }}{{ '}' }}{%  if not loop.last %},{% endif %}{{ "\n" -}}
+            {% endfor %}
+        )
+    </insert>
+
+    <!-- 수정 -->
+    <update id="update{{ class_name }}" parameterType="egovframework.{{ module }}.service.{{ class_name }}VO">
+        UPDATE {{ table_name }}
+        <set>
+            {% for col in columns if col.name not in identifier %}
+            {{ col.name }} = #{{ '{' }}{{ col.name | camel }}{{ '}' }},{{ "\n" -}}
+            {% endfor %}
+        </set>
+        <where>
+            {% for id_col in identifier %}
+             AND {{ id_col }} = #{{ '{' }}{{ id_col | camel }}{{ '}' }}
+            {% endfor %}
+        </where>
+    </update>
+
+    <!-- 삭제 -->
+    {% if logical_delete %}
+    <update id="delete{{ class_name }}" parameterType="egovframework.{{ module }}.service.{{ class_name }}VO">
+        UPDATE {{ table_name }}
+        <set>
+            {% if has_use_yn %}
+            USE_YN = 'N'
+            {% elif has_del_yn %}
+            DEL_YN = 'Y'
+            {% endif %}
+        </set>
+        <where>
+            {% for id_col in identifier %}
+            AND {{ id_col }} = #{{ '{' }}{{ id_col | camel }}{{ '}' }}
+            {% endfor %}
+        </where>
+    </update>
+    {% else %}
+    <delete id="delete{{ class_name }}" parameterType="egovframework.{{ module }}.service.{{ class_name }}VO">
+        DELETE FROM {{ table_name }}
+        <where>
+            {% for id_col in identifier %}
+            AND {{ id_col }} = #{{ '{' }}{{ id_col | camel }}{{ '}' }}
+            {% endfor %}
+        </where>
+    </delete>
+    {% endif %}
+</mapper>

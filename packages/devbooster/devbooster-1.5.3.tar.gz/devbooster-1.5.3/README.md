@@ -1,0 +1,403 @@
+# DevBooster
+
+> 전자정부프레임워크 CRUD 코드 자동 생성기
+
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![AI Powered](https://img.shields.io/badge/AI-Ollama-orange.svg)](https://ollama.ai)
+
+## 특징
+
+- 📊 **Excel 명세서 기반**: 테이블 정의서(Excel)만 있으면 CRUD 코드 자동 생성
+- 🤖 **AI 기반 분석**: Ollama를 활용한 지능형 PK 컬럼 분석 (v1.5 NEW!)
+- 🔍 **3단계 분석**: 명시적 PK → AI 분석 → 규칙 기반 폴백
+- 🎯 **전정프 표준**: 전자정부프레임워크 4.x 기준 완벽 준수
+- 📦 **즉시 사용**: Mapper.xml, VO, Service, Controller 한 번에 생성
+- ⚙️ **설정 기반**: TXT 파일로 필터링 규칙 관리 (v1.5 NEW!)
+- 🐳 **컨테이너 지원**: Docker + Kubernetes 배포 가능
+- 🚀 **FastAPI 서버**: REST API로 코드 생성 서비스 제공
+- 🔒 **폐쇄망 지원**: 오프라인 설치 가능
+
+## 📦 설치
+
+### CLI 버전 (권장)
+
+```bash
+git clone https://github.com/your-username/devbooster.git
+cd devbooster
+pip install -e .
+```
+
+**의존성** (자동 설치):
+- click>=8.1.0
+- pandas>=2.0.0
+- openpyxl>=3.1.0
+- jinja2>=3.1.0
+- fastapi>=0.104.0 (API 서버용)
+- requests>=2.31.0 (AI 연동용)
+
+### Docker 버전
+```bash
+# Docker 이미지 빌드
+docker build -t devbooster:latest .
+
+# 실행
+docker run -p 5000:5000 devbooster:latest
+```
+
+### Kubernetes 배포
+```bash
+# Kind 클러스터에 배포
+kind load docker-image devbooster:latest --name devbooster-ai
+kubectl apply -f devbooster-k8s.yaml
+kubectl apply -f service-ai.yaml
+
+# 접속
+kubectl port-forward service/devbooster-svc 8080:80
+# http://localhost:8080/docs
+```
+
+### 빠른 시작
+```bash
+# Excel 파일로 CRUD 생성
+devbooster generate -i tables.xlsx
+
+# 결과: generated/generated.zip
+```
+
+### API 서버 모드
+```bash
+# FastAPI 서버 실행
+uvicorn devbooster.api.main:app --host 0.0.0.0 --port 5000
+
+# Swagger UI: http://localhost:5000/docs
+```
+
+## 🤖 AI 기능 (v1.5)
+
+### AI 기반 PK 분석
+
+Ollama를 활용하여 테이블 구조를 분석하고 PK 컬럼을 자동으로 추론합니다.
+
+**3단계 분석 프로세스:**
+```
+1단계: 명시적 PK 체크
+└─ Excel의 PK 컬럼 확인
+
+2단계: AI 분석 (Ollama)
+└─ Qwen 2.5 Coder 7B 모델
+   컬럼명, 타입, 설명 분석
+   → PK 추론
+
+3단계: 규칙 기반 폴백
+└─ _ID, _NO, _SEQ 패턴 매칭
+```
+
+**설정:**
+```bash
+# Ollama 설치 (https://ollama.ai)
+ollama pull qwen2.5-coder:7b
+
+# 환경 변수 (선택)
+export OLLAMA_HOST=http://localhost:11434
+```
+
+**예시:**
+```bash
+$ devbooster generate -i tables.xlsx
+
+📋 분석 중: TB_NOTICE
+  1단계: 명시적 PK 없음
+  2단계: AI 분석...
+    → NOTICE_ID (신뢰도: 95%)
+  ✅ PK 컬럼: NOTICE_ID
+```
+
+## ⚙️ 설정 시스템 (v1.5)
+
+### config/ 폴더 구조
+```
+config/
+├─ table_rules.txt          # 테이블 제외 패턴
+├─ table_whitelist.txt      # 테이블 화이트리스트
+├─ pk_rules.txt             # PK 명명 규칙
+├─ prefix_rules.txt         # 접두사 제거 규칙
+└─ column_rules.txt         # 컬럼 타입 매핑
+```
+
+### 테이블 필터링
+
+**자동 제외되는 테이블:**
+```txt
+# config/table_rules.txt
+
+# 백업 테이블
+_(BAK|BACKUP)$
+
+# 임시 테이블
+_(TEMP|TMP)$
+^(TEMP|TMP)_
+
+# 날짜 패턴
+_\d{6,8}$        # TB_USERS_20241225
+^\d{6,8}_        # 20241225_USERS
+```
+
+**화이트리스트 (예외 처리):**
+```txt
+# config/table_whitelist.txt
+
+# 정식 테이블인데 제외 패턴에 걸리는 경우
+USER_TEMP_SETTINGS
+PRODUCT_TEST_CONFIG
+```
+
+**장점:**
+- ✅ 코드 수정 없이 규칙 변경 가능
+- ✅ 회사별 커스터마이징 용이
+- ✅ 유지보수성 향상
+
+
+## 📊 입력 형식 (Excel)
+
+### 시트 구조
+
+시트명이 테이블명이 됩니다 (예: `TB_NOTICE`)
+
+| 컬럼명     | 데이터타입 | 길이| PK | NULL | 기본값| 설명      | 
+|-----------|----------|-----|----|------|------|----------|
+| NOTICE_ID | NUMBER   | 10  | Y  | N    |      | 공지사항ID |  
+| TITLE     | VARCHAR2 | 200 | N  | N    |      | 제목      | 
+| CONTENT   | CLOB     |     | N  | Y    |      | 내용      | 
+| USE_YN    | CHAR     | 1   | N  | N    |      | 사용여부   |  
+
+**지원 기능:**
+- ✅ PK 명시 (Y/N)
+- ✅ PK 없는 테이블 지원 (AI가 추천)
+- ✅ 복합키 지원
+- ✅ 임시 테이블 자동 필터링
+- ✅ 논리삭제 (USE_YN, DEL_YN) 자동 처리
+
+
+### 예제 파일
+```bash
+# 샘플 Excel 생성
+python -m devbooster.examples.create_sample
+```
+
+## 📦 생성 결과
+```
+generated/
+├─ notice/
+│  ├─ NoticeMapper.xml      # MyBatis Mapper
+│  ├─ NoticeMapper.java     # Mapper Interface
+│  ├─ NoticeVO.java         # Value Object
+│  ├─ NoticeService.java    # Service Interface
+│  ├─ NoticeServiceImpl.java # Service 구현체
+│  └─ EgovNoticeController.java # Controller
+└─ generated.zip            # 전체 압축파일
+```
+
+
+## 🎨 주요 기능
+
+### 1. 테이블 진단
+```bash
+$ devbooster generate -i tables.xlsx
+
+📋 처리 중: TB_NOTICE
+  PK: NOTICE_ID (AI 분석)
+  품질: good
+  파일: 6개 생성 완료 ✅
+```
+
+### 2. PK 없는 테이블 지원
+```bash
+📋 처리 중: TB_ATTACH
+  ⚠️  PK 없음 - Identifier 지정 필요
+  
+💡 AI 추천 Identifier:
+  1. BOARD_ID + FILE_SEQ (복합키, 신뢰도: 92%)
+  2. FILE_SEQ (단일키, 신뢰도: 78%)
+```
+
+### 3. 논리삭제 자동 처리
+
+USE_YN 또는 DEL_YN 컬럼이 있으면:
+- DELETE 쿼리 → UPDATE로 자동 변경
+- 목록 조회 시 자동 필터링
+
+### 4. 임시 테이블 자동 필터링
+```bash
+📋 Excel 파싱 중...
+  ✅ TB_USERS (처리)
+  ⚠️  TB_USERS_BAK (제외: 백업 테이블)
+  ⚠️  TEMP_ORDER (제외: 임시 테이블)
+  ⚠️  TB_TEST_20241225 (제외: 날짜 패턴)
+```
+
+## 🛠️ 고급 사용
+
+### CLI 옵션
+```bash
+# 프레임워크 선택
+devbooster generate -i tables.xlsx -f egov  # 전정프 (기본)
+devbooster generate -i tables.xlsx -f boot  # Spring Boot
+
+# 데이터베이스 선택
+devbooster generate -i tables.xlsx -d oracle  # Oracle (기본)
+devbooster generate -i tables.xlsx -d mysql   # MySQL
+
+# 출력 디렉토리 지정
+devbooster generate -i tables.xlsx -o output/
+
+# AI 분석 비활성화
+devbooster generate -i tables.xlsx --no-ai
+```
+
+### Python API
+```python
+from devbooster.core.parser import parse_excel
+from devbooster.core.analyzer import TableAnalyzer
+from devbooster.core.renderer import TemplateRenderer
+from devbooster.core.writer import FileWriter
+
+# Excel 파싱
+tables = parse_excel("tables.xlsx")
+
+# 분석
+analyzer = TableAnalyzer()
+diagnosis = analyzer.analyze(tables[0])
+
+# 코드 생성
+renderer = TemplateRenderer()
+outputs = renderer.render_all(tables[0])
+
+# 파일 저장
+writer = FileWriter()
+writer.write_files(outputs, tables[0].module)
+writer.create_zip()
+```
+
+### REST API
+```bash
+# 서버 실행
+uvicorn devbooster.api.main:app --host 0.0.0.0 --port 5000
+```
+
+**엔드포인트:**
+```python
+POST /generate
+Content-Type: multipart/form-data
+
+{
+  "file": ,
+  "framework": "egov",
+  "database": "oracle"
+}
+
+Response:
+{
+  "status": "success",
+  "tables_processed": 5,
+  "files_generated": 30,
+  "download_url": "/download/generated.zip"
+}
+```
+
+## 📋 지원 환경
+
+- **전자정부프레임워크**: 4.x 이상
+- **Spring Framework**: 5.x 이상
+- **Java**: 8 이상
+- **Python**: 3.10 이상
+
+### DevBooster 실행 환경
+- **Python**: 3.10 이상
+- **OS**: Windows, Linux, macOS
+- **AI (선택)**: Ollama + Qwen 2.5 Coder 7B
+
+### 배포 환경 (선택)
+- **Docker**: 20.x 이상
+- **Kubernetes**: 1.24 이상
+- **Kind**: 로컬 테스트용
+
+## 🔒 폐쇄망 설치
+
+### Wheels 방식
+```bash
+# 외부망에서 
+pip download devbooster -d wheels/
+
+# 폐쇄망에서
+pip install --no-index --find-links=wheels/ devbooster
+```
+
+### Docker 이미지 방식
+```bash
+# 외부망에서
+docker save devbooster:latest -o devbooster.tar
+
+# 폐쇄망에서
+docker load -i devbooster.tar
+```
+
+### 실행파일 방식 (추천, v1.0 릴리즈 후)
+```bash
+# 1. Releases에서 devbooster.exe 다운로드
+# 2. 폐쇄망에 복사
+# 3. 즉시 실행
+devbooster.exe generate -i tables.xlsx
+```
+
+## 🎯 로드맵
+
+### 완료된 기능
+- [x] v1.0: 전정프 CRUD 생성
+- [x] v1.5: AI 기반 PK 분석 (Ollama)
+- [x] v1.5: 설정 파일 시스템
+- [x] v1.5: FastAPI 서버 모드
+- [x] v1.5: Docker + Kubernetes 지원
+
+### 예정된 기능
+- [ ] v1.6: PyPI 배포 (2025년 1월)
+- [ ] v1.7: Spring Boot 완전 지원
+- [ ] v1.8: GUI 버전
+- [ ] v2.0: 다국어 지원 (영어, 일본어)
+- [ ] v2.1: 코드 품질 분석 (SonarQube 연동)
+
+## 🤝 기여
+
+이슈와 PR은 언제나 환영합니다!
+
+### 개발 환경 설정
+```bash
+git clone https://github.com/KTC-GIT/devbooster.git
+cd devbooster
+pip install -e ".[dev]"
+
+# 테스트 실행
+pytest
+
+# 코드 스타일 검사
+flake8 src/
+black src/
+```
+
+## 📝 라이선스
+
+MIT License - 상업적 사용 가능
+
+## 🔗 링크
+
+- **GitHub**: https://github.com/KTC-GIT/devbooster
+- **Issues**: https://github.com/KTC-GIT/devbooster/issues
+- **Discussions**: https://github.com/KTC-GIT/devbooster/discussions
+
+## 🙏 감사의 말
+
+- **Ollama**: AI 분석 엔진 제공
+- **Qwen Team**: Qwen 2.5 Coder 모델
+- **전자정부프레임워크 센터**: 표준 가이드
+
+---
