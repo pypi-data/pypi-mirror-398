@@ -1,0 +1,958 @@
+#!/usr/bin/env python3
+"""
+Conversation compaction module for silica Developer.
+
+This module provides functionality to compact long conversations by summarizing them
+and starting a new conversation when they exceed certain token limits.
+"""
+
+import os
+import json
+from typing import List
+from dataclasses import dataclass
+import anthropic
+from anthropic.types import MessageParam
+
+from silica.developer.context import AgentContext
+from silica.developer.models import model_names, get_model
+
+# Default threshold ratio of model's context window to trigger compaction
+DEFAULT_COMPACTION_THRESHOLD_RATIO = 0.80  # Trigger compaction at 80% of context window
+
+# Default minimum token reduction ratio to achieve during compaction
+DEFAULT_MIN_REDUCTION_RATIO = 0.30  # Compact enough to remove at least 30% of tokens
+
+
+@dataclass
+class CompactionSummary:
+    """Summary of a compacted conversation."""
+
+    original_message_count: int
+    original_token_count: int
+    summary_token_count: int
+    compaction_ratio: float
+    summary: str
+
+
+@dataclass
+class CompactionMetadata:
+    """Metadata about a compaction operation."""
+
+    archive_name: str
+    original_message_count: int
+    compacted_message_count: int
+    original_token_count: int
+    summary_token_count: int
+    compaction_ratio: float
+
+
+class ConversationCompacter:
+    """Handles the compaction of long conversations into summaries."""
+
+    def __init__(
+        self,
+        client: anthropic.Client,
+        threshold_ratio: float = DEFAULT_COMPACTION_THRESHOLD_RATIO,
+        min_reduction_ratio: float = DEFAULT_MIN_REDUCTION_RATIO,
+        logger=None,
+    ):
+        """Initialize the conversation compacter.
+
+        Args:
+            client: Anthropic client instance (required)
+            threshold_ratio: Ratio of model's context window to trigger compaction
+            min_reduction_ratio: Minimum token reduction to achieve (default 30%)
+            logger: RequestResponseLogger instance (optional, for logging API calls)
+        """
+        # Allow threshold to be configured via environment variable
+        env_threshold = os.getenv("SILICA_COMPACTION_THRESHOLD")
+        if env_threshold:
+            try:
+                threshold_ratio = float(env_threshold)
+                if not 0.0 < threshold_ratio < 1.0:
+                    print(
+                        f"Warning: SILICA_COMPACTION_THRESHOLD must be between 0 and 1, "
+                        f"got {threshold_ratio}. Using default {DEFAULT_COMPACTION_THRESHOLD_RATIO}"
+                    )
+                    threshold_ratio = DEFAULT_COMPACTION_THRESHOLD_RATIO
+            except ValueError:
+                print(
+                    f"Warning: Invalid SILICA_COMPACTION_THRESHOLD value '{env_threshold}'. "
+                    f"Using default {DEFAULT_COMPACTION_THRESHOLD_RATIO}"
+                )
+                threshold_ratio = DEFAULT_COMPACTION_THRESHOLD_RATIO
+
+        # Allow min reduction to be configured via environment variable
+        env_min_reduction = os.getenv("SILICA_COMPACTION_MIN_REDUCTION")
+        if env_min_reduction:
+            try:
+                min_reduction_ratio = float(env_min_reduction)
+                if not 0.0 < min_reduction_ratio < 1.0:
+                    print(
+                        f"Warning: SILICA_COMPACTION_MIN_REDUCTION must be between 0 and 1, "
+                        f"got {min_reduction_ratio}. Using default {DEFAULT_MIN_REDUCTION_RATIO}"
+                    )
+                    min_reduction_ratio = DEFAULT_MIN_REDUCTION_RATIO
+            except ValueError:
+                print(
+                    f"Warning: Invalid SILICA_COMPACTION_MIN_REDUCTION value '{env_min_reduction}'. "
+                    f"Using default {DEFAULT_MIN_REDUCTION_RATIO}"
+                )
+                min_reduction_ratio = DEFAULT_MIN_REDUCTION_RATIO
+
+        self.threshold_ratio = threshold_ratio
+        self.min_reduction_ratio = min_reduction_ratio
+        self.logger = logger
+        self.client = client
+
+        # Get model context window information
+        self.model_context_windows = {
+            model_data["title"]: model_data.get("context_window", 100000)
+            for model_data in [get_model(ms) for ms in model_names()]
+        }
+
+    def count_tokens(self, agent_context, model: str) -> int:
+        """Count tokens for the complete context sent to the API.
+
+        This method accurately counts tokens for the complete API call including
+        system prompt, tools, and messages - fixing HDEV-61.
+
+        Args:
+            agent_context: AgentContext instance to get full API context from
+            model: Model name or alias to use for token counting
+
+        Returns:
+            int: Number of tokens for the complete context
+        """
+        # Resolve model alias to full model name for the API
+        model_spec = get_model(model)
+        model = model_spec["title"]
+
+        try:
+            # Get the full context that would be sent to the API
+            context_dict = agent_context.get_api_context()
+
+            # Check if conversation has incomplete tool_use without tool_result
+            # This would cause an API error, so use estimation instead
+            if self._has_incomplete_tool_use(context_dict["messages"]):
+                return self._estimate_full_context_tokens(context_dict)
+
+            # Strip thinking blocks to avoid API complexity
+            # Thinking blocks have complicated validation rules, so just remove them for counting
+            messages_for_counting = self._strip_all_thinking_blocks(
+                context_dict["messages"]
+            )
+
+            # Use the Anthropic API's count_tokens method
+            count_kwargs = {
+                "model": model,
+                "system": context_dict["system"],
+                "messages": messages_for_counting,
+                "tools": context_dict["tools"] if context_dict["tools"] else None,
+            }
+
+            # Log the request if logger is available
+            if self.logger:
+                self.logger.log_request(
+                    messages=messages_for_counting,
+                    system_message=context_dict["system"],
+                    model=model,
+                    max_tokens=0,  # count_tokens doesn't use max_tokens
+                    tools=context_dict["tools"] if context_dict["tools"] else [],
+                    thinking_config=None,
+                )
+
+            response = self.client.messages.count_tokens(**count_kwargs)
+
+            # Log the response if logger is available
+            if self.logger:
+                # count_tokens doesn't return a full message, so log what we have
+                if hasattr(response, "token_count"):
+                    token_count = response.token_count
+                elif hasattr(response, "tokens"):
+                    token_count = response.tokens
+                elif isinstance(response, dict):
+                    token_count = response.get("token_count", 0)
+                else:
+                    token_count = 0
+                # Create a simplified response log entry
+                from datetime import datetime
+                import time
+
+                log_entry = {
+                    "type": "response",
+                    "timestamp": datetime.now().isoformat(),
+                    "unix_timestamp": time.time(),
+                    "message_id": "count_tokens_response",
+                    "stop_reason": "count_tokens",
+                    "content": [
+                        {"type": "text", "text": f"Token count: {token_count}"}
+                    ],
+                    "usage": {
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                }
+                # Write directly to avoid needing the Message object
+                self.logger._write_log_entry(log_entry)
+
+            # Extract token count from response
+            if hasattr(response, "token_count"):
+                return response.token_count
+            elif hasattr(response, "tokens"):
+                return response.tokens
+            else:
+                # Handle dictionary response
+                response_dict = (
+                    response if isinstance(response, dict) else response.__dict__
+                )
+                if "token_count" in response_dict:
+                    return response_dict["token_count"]
+                elif "tokens" in response_dict:
+                    return response_dict["tokens"]
+                elif "input_tokens" in response_dict:
+                    return response_dict["input_tokens"]
+                else:
+                    print(f"Token count not found in response: {response}")
+                    return self._estimate_full_context_tokens(context_dict)
+
+        except Exception as e:
+            print(f"Error counting tokens for full context: {e}")
+            # Fallback to estimation
+            context_dict = agent_context.get_api_context()
+            return self._estimate_full_context_tokens(context_dict)
+
+    def _has_incomplete_tool_use(self, messages: list) -> bool:
+        """Check if messages have tool_use without corresponding tool_result.
+
+        Args:
+            messages: List of messages to check
+
+        Returns:
+            bool: True if there are incomplete tool_use blocks
+        """
+        if not messages:
+            return False
+
+        last_message = messages[-1]
+        if last_message.get("role") != "assistant":
+            return False
+
+        content = last_message.get("content", [])
+        if not isinstance(content, list):
+            return False
+
+        # Check if last assistant message has tool_use
+        return any(
+            isinstance(block, dict) and block.get("type") == "tool_use"
+            for block in content
+        )
+
+    def _strip_all_thinking_blocks(self, messages: list) -> list:
+        """Strip ALL thinking blocks from ALL messages.
+
+        This is used when the last assistant message doesn't start with thinking,
+        but earlier messages have thinking blocks. The API requires that if ANY
+        message has thinking, the thinking parameter must be enabled. But if
+        thinking is enabled, the LAST message must start with thinking. So when
+        the last message doesn't have thinking, we must strip ALL thinking blocks.
+
+        Args:
+            messages: List of messages that may contain thinking blocks
+
+        Returns:
+            Deep copy of messages with all thinking blocks stripped out
+        """
+        import copy
+
+        # Deep copy to avoid modifying the original
+        cleaned_messages = copy.deepcopy(messages)
+
+        for message in cleaned_messages:
+            if message.get("role") != "assistant":
+                continue
+
+            content = message.get("content", [])
+            if not isinstance(content, list):
+                continue
+
+            # Filter out thinking blocks
+            filtered_content = []
+            for block in content:
+                # Check both dict and object representations
+                block_type = None
+                if isinstance(block, dict):
+                    block_type = block.get("type")
+                elif hasattr(block, "type"):
+                    block_type = block.type
+
+                # Skip thinking and redacted_thinking blocks
+                if block_type not in ["thinking", "redacted_thinking"]:
+                    filtered_content.append(block)
+
+            message["content"] = filtered_content
+
+        return cleaned_messages
+
+    def _estimate_full_context_tokens(self, context_dict: dict) -> int:
+        """Estimate token count for full context as a fallback.
+
+        Args:
+            context_dict: Dict with 'system', 'tools', and 'messages' keys
+
+        Returns:
+            int: Estimated token count
+        """
+        total_chars = 0
+
+        # Count system message characters
+        if context_dict.get("system"):
+            for block in context_dict["system"]:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    total_chars += len(block.get("text", ""))
+
+        # Count tools characters
+        if context_dict.get("tools"):
+            import json
+
+            total_chars += len(json.dumps(context_dict["tools"]))
+
+        # Count messages characters
+        if context_dict.get("messages"):
+            messages_str = self._messages_to_string(
+                context_dict["messages"], for_summary=False
+            )
+            total_chars += len(messages_str)
+
+        # Rough estimate: 1 token per 3-4 characters for English text
+        return int(total_chars / 3.5)
+
+    def _estimate_message_tokens(self, message: dict) -> int:
+        """Estimate token count for a single message.
+
+        Args:
+            message: A single message dict with 'role' and 'content'
+
+        Returns:
+            int: Estimated token count for the message
+        """
+        total_chars = 0
+
+        # Count role overhead (roughly 4 tokens for role markers)
+        total_chars += 15
+
+        content = message.get("content", "")
+        if isinstance(content, str):
+            total_chars += len(content)
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    if "text" in item:
+                        total_chars += len(item["text"])
+                    elif item.get("type") == "tool_use":
+                        total_chars += len(item.get("name", ""))
+                        total_chars += len(json.dumps(item.get("input", {})))
+                    elif item.get("type") == "tool_result":
+                        result_content = item.get("content", "")
+                        if isinstance(result_content, str):
+                            total_chars += len(result_content)
+                        elif isinstance(result_content, list):
+                            for block in result_content:
+                                if isinstance(block, dict) and "text" in block:
+                                    total_chars += len(block["text"])
+
+        # Rough estimate: 1 token per 3.5 characters
+        return int(total_chars / 3.5)
+
+    def _messages_to_string(
+        self, messages: List[MessageParam], for_summary: bool = False
+    ) -> str:
+        """Convert message objects to a string representation.
+
+        Args:
+            messages: List of messages in the conversation
+            for_summary: If True, filter out content elements containing mentioned_file blocks
+
+        Returns:
+            str: String representation of the messages
+        """
+        conversation_str = ""
+
+        for message in messages:
+            role = message.get("role", "unknown")
+
+            # Process content based on its type
+            content = message.get("content", "")
+            if isinstance(content, str):
+                content_str = content
+            elif isinstance(content, list):
+                # Extract text from content blocks
+                content_parts = []
+                for item in content:
+                    if isinstance(item, dict):
+                        if "text" in item:
+                            text = item["text"]
+                            # If processing for summary, skip content blocks containing mentioned_file
+                            if for_summary and "<mentioned_file" in text:
+                                try:
+                                    # Extract the path attribute from the mentioned_file tag
+                                    import re
+
+                                    match = re.search(
+                                        r"<mentioned_file path=([^ >]+)", text
+                                    )
+                                    if match:
+                                        file_path = match.group(1)
+                                        content_parts.append(
+                                            f"[Referenced file: {file_path}]"
+                                        )
+                                    else:
+                                        content_parts.append("[Referenced file]")
+                                except Exception:
+                                    content_parts.append("[Referenced file]")
+                            else:
+                                content_parts.append(text)
+                        elif item.get("type") == "tool_use":
+                            tool_name = item.get("name", "unnamed_tool")
+                            input_str = json.dumps(item.get("input", {}))
+                            content_parts.append(
+                                f"[Tool Use: {tool_name}]\n{input_str}"
+                            )
+                        elif item.get("type") == "tool_result":
+                            content_parts.append(
+                                f"[Tool Result]\n{item.get('content', '')}"
+                            )
+                content_str = "\n".join(content_parts)
+            else:
+                content_str = str(content)
+
+            conversation_str += f"{role}: {content_str}\n\n"
+
+        return conversation_str
+
+    def _estimate_token_count(self, text: str) -> int:
+        """Estimate token count as a fallback when API call fails.
+
+        This is a very rough estimate and should only be used as a fallback.
+
+        Args:
+            text: Text to estimate token count for
+
+        Returns:
+            int: Estimated token count
+        """
+        # A rough estimate based on GPT tokenization (words / 0.75)
+        words = len(text.split())
+        return int(words / 0.75)
+
+    def should_compact(self, agent_context, model: str, debug: bool = False) -> bool:
+        """Check if a conversation should be compacted.
+
+        Args:
+            agent_context: AgentContext instance to get full API context from
+            model: Model name or alias to use for token counting
+            debug: If True, print debug information about the compaction check
+
+        Returns:
+            bool: True if the conversation should be compacted
+        """
+        # Resolve model alias to full model name
+        model_spec = get_model(model)
+        model = model_spec["title"]
+
+        # Use accurate token counting method
+        token_count = self.count_tokens(agent_context, model)
+
+        # Get context window size for this model, default to 100k if not found
+        context_window = self.model_context_windows.get(model, 100000)
+
+        # Calculate threshold based on context window and threshold ratio
+        token_threshold = int(context_window * self.threshold_ratio)
+
+        should_compact = token_count > token_threshold
+
+        # Print debug information if requested
+        if debug:
+            print("\n[Compaction Check]")
+            print(f"  Model: {model}")
+            print(f"  Context window: {context_window:,}")
+            print(f"  Threshold ratio: {self.threshold_ratio:.0%}")
+            print(f"  Token threshold: {token_threshold:,}")
+            print(f"  Current tokens: {token_count:,}")
+            print(f"  Usage: {token_count / context_window:.1%}")
+            print(f"  Should compact: {should_compact}")
+
+        return should_compact
+
+    def generate_summary(self, agent_context, model: str) -> CompactionSummary:
+        """Generate a summary of the conversation.
+
+        Args:
+            agent_context: AgentContext instance to get full API context from
+            model: Model name or alias to use for summarization
+
+        Returns:
+            CompactionSummary: Summary of the compacted conversation
+        """
+        # Resolve model alias to full model name for the API
+        model_spec = get_model(model)
+        model = model_spec["title"]
+
+        # Get original token count using accurate method
+        original_token_count = self.count_tokens(agent_context, model)
+
+        # Get the API context to access processed messages
+        context_dict = agent_context.get_api_context()
+        messages_for_summary = context_dict["messages"]
+        original_message_count = len(messages_for_summary)
+
+        # Convert messages to a string for the summarization prompt
+        # This will exclude file content blocks from the summary
+        conversation_str = self._messages_to_string(
+            messages_for_summary, for_summary=True
+        )
+
+        # Create summarization prompt
+        system_prompt = """
+        Summarize the following conversation for continuity.
+        Include:
+        1. Key points and decisions
+        2. Current state of development/discussion
+        3. Any outstanding questions or tasks
+        4. The most recent context that future messages will reference
+        
+        Note: File references like [Referenced file: path] indicate files that were mentioned in the conversation.
+        Acknowledge these references where relevant but don't spend time describing file contents.
+        
+        Be comprehensive yet concise. The summary will be used to start a new conversation 
+        that continues where this one left off.
+        """
+
+        # Generate summary using Claude
+        summary_messages = [{"role": "user", "content": conversation_str}]
+
+        # Log the request if logger is available
+        if self.logger:
+            self.logger.log_request(
+                messages=summary_messages,
+                system_message=[{"type": "text", "text": system_prompt}],
+                model=model,
+                max_tokens=4000,
+                tools=[],
+                thinking_config=None,
+            )
+
+        response = self.client.messages.create(
+            model=model,
+            system=system_prompt,
+            messages=summary_messages,
+            max_tokens=4000,
+        )
+
+        # Log the response if logger is available
+        if self.logger:
+            self.logger.log_response(
+                message=response,
+                usage=response.usage,
+                stop_reason=response.stop_reason,
+                thinking_content=None,
+            )
+
+        summary = response.content[0].text
+        # For summary token counting, estimate tokens since it's just the summary text
+        summary_token_count = self._estimate_token_count(summary)
+        compaction_ratio = float(summary_token_count) / float(original_token_count)
+
+        return CompactionSummary(
+            original_message_count=original_message_count,
+            original_token_count=original_token_count,
+            summary_token_count=summary_token_count,
+            compaction_ratio=compaction_ratio,
+            summary=summary,
+        )
+
+    def _archive_and_rotate(
+        self,
+        agent_context: AgentContext,
+        new_messages: List[MessageParam],
+        metadata: CompactionMetadata,
+    ) -> str:
+        """Archive the current conversation and update the context with new messages.
+
+        Uses AgentContext.rotate() to maintain consistent file path conventions.
+        This mutates the agent_context in place, including setting compaction metadata.
+
+        Args:
+            agent_context: AgentContext to archive and update (mutated in place)
+            new_messages: New messages for the rotated context
+            metadata: Compaction metadata to store in the context
+
+        Returns:
+            str: Archive filename
+        """
+        from datetime import datetime, timezone
+
+        # Generate timestamp-based archive name
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        archive_suffix = f"pre-compaction-{timestamp}"
+
+        # Use AgentContext.rotate() to handle archiving, update context, and store metadata
+        archive_name = agent_context.rotate(archive_suffix, new_messages, metadata)
+        return archive_name
+
+    def calculate_turns_for_target_reduction(
+        self,
+        agent_context,
+        model: str,
+        target_reduction_ratio: float = None,
+        debug: bool = False,
+    ) -> int:
+        """Calculate the number of turns to compact to achieve target token reduction.
+
+        This method estimates tokens per turn and finds the minimum number of turns
+        to compact that will achieve at least the target reduction ratio.
+
+        The goal is to compact enough content to "buy" several turns of headroom,
+        rather than compacting just a tiny bit and needing to compact again soon.
+
+        Args:
+            agent_context: AgentContext instance to analyze
+            model: Model name for token counting
+            target_reduction_ratio: Minimum reduction to achieve (default: self.min_reduction_ratio)
+            debug: If True, print debug information
+
+        Returns:
+            int: Number of turns to compact (minimum 1)
+        """
+        if target_reduction_ratio is None:
+            target_reduction_ratio = self.min_reduction_ratio
+
+        messages = agent_context.chat_history
+        if len(messages) < 3:
+            return 1  # Can't really compact less than 1 turn
+
+        # Get total token count for context
+        total_tokens = self.count_tokens(agent_context, model)
+
+        # Estimate the "base" tokens (system prompt + tools) that won't be reduced
+        # These stay constant regardless of how many messages we compact
+        context_dict = agent_context.get_api_context()
+        base_tokens = 0
+        if context_dict.get("system"):
+            for block in context_dict["system"]:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    base_tokens += int(len(block.get("text", "")) / 3.5)
+        if context_dict.get("tools"):
+            base_tokens += int(len(json.dumps(context_dict["tools"])) / 3.5)
+
+        # Estimate message tokens (total - base)
+        message_tokens = total_tokens - base_tokens
+
+        # Calculate tokens to remove for target reduction
+        # We want: (total - removed_tokens) / total <= (1 - target_reduction_ratio)
+        # So: removed_tokens >= total * target_reduction_ratio
+        tokens_to_remove = int(total_tokens * target_reduction_ratio)
+
+        if debug:
+            print("\n[Smart Compaction Calculation]")
+            print(f"  Total tokens: {total_tokens:,}")
+            print(f"  Base tokens (system+tools): {base_tokens:,}")
+            print(f"  Message tokens: {message_tokens:,}")
+            print(f"  Target reduction: {target_reduction_ratio:.0%}")
+            print(f"  Tokens to remove: {tokens_to_remove:,}")
+
+        # Estimate tokens per message by sampling
+        # A "turn" is user+assistant, so we estimate pairs
+        cumulative_tokens = 0
+        turns_needed = 0
+        messages_counted = 0
+
+        # Iterate through messages, accumulating token estimates
+        # until we reach our target
+        for i, message in enumerate(messages):
+            msg_tokens = self._estimate_message_tokens(message)
+            cumulative_tokens += msg_tokens
+            messages_counted += 1
+
+            # Check if this completes a turn (user+assistant pair)
+            # We need to keep at least 1 message (the current user query context)
+            if i > 0 and messages_counted >= 2:
+                # Calculate turns: ceil(messages / 2) roughly
+                # Turn 1 = 1 msg (user), Turn 2 = 3 msgs (u,a,u), etc.
+                # So messages_counted maps to turns as: (messages_counted + 1) / 2
+                potential_turns = (messages_counted + 1) // 2
+
+                if debug and i < 10:  # Only print first few for brevity
+                    print(
+                        f"  Message {i}: +{msg_tokens:,} tokens, "
+                        f"cumulative: {cumulative_tokens:,}, turns: {potential_turns}"
+                    )
+
+                # Check if we've accumulated enough tokens
+                if cumulative_tokens >= tokens_to_remove:
+                    turns_needed = potential_turns
+                    break
+
+        # If we went through all messages without hitting target,
+        # compact as much as possible (leave 1 message)
+        if turns_needed == 0:
+            # Calculate max turns we can compact (leave at least 1 message)
+            max_messages_to_compact = len(messages) - 1
+            turns_needed = max((max_messages_to_compact + 1) // 2, 1)
+
+        # Ensure minimum of 1 turn
+        turns_needed = max(turns_needed, 1)
+
+        # Cap at a reasonable maximum (don't compact everything)
+        # Leave at least 2 messages (1 turn of context)
+        max_turns = max((len(messages) - 2 + 1) // 2, 1)
+        turns_needed = min(turns_needed, max_turns)
+
+        if debug:
+            print(f"  Final turns to compact: {turns_needed}")
+            expected_reduction = cumulative_tokens / total_tokens if total_tokens else 0
+            print(f"  Expected reduction: {expected_reduction:.0%}")
+
+        return turns_needed
+
+    def compact_conversation(
+        self, agent_context, model: str, turns: int = None, force: bool = False
+    ) -> CompactionMetadata | None:
+        """Compact a conversation by summarizing first N turns and keeping the rest.
+
+        This is a micro-compaction approach that:
+        - Summarizes only the first N conversation turns
+        - If turns is None, automatically calculates turns to achieve 30% reduction
+        - Keeps all remaining messages unchanged
+        - Uses haiku model for cost-effectiveness
+        - Better preserves recent context than full compaction
+
+        Args:
+            agent_context: AgentContext instance (mutated in place if compaction occurs)
+            model: Model name to use for summarization (typically "haiku")
+            turns: Number of turns to compact (if None, auto-calculate for 30% reduction)
+            force: If True, force compaction even if under threshold
+
+        Returns:
+            CompactionMetadata if compaction occurred, None otherwise
+        """
+        # Check if compaction should proceed
+        if not force and not self.should_compact(agent_context, model):
+            return None
+
+        # Check if debug mode is enabled
+        debug_compaction = os.getenv("SILICA_DEBUG_COMPACTION", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        # Auto-calculate turns if not specified
+        if turns is None:
+            turns = self.calculate_turns_for_target_reduction(
+                agent_context, model, debug=debug_compaction
+            )
+
+        # Calculate number of messages for N turns
+        # Turn structure: must start with user and end with user
+        # Turn 1: 1 message (user)
+        # Turn 2: 3 messages (user, assistant, user)
+        # Turn 3: 5 messages (user, assistant, user, assistant, user)
+        # Turn N: (2N - 1) messages
+        messages_to_compact = (turns * 2) - 1
+
+        # Check if there's enough conversation to compact with the requested turns
+        # If not enough messages, adjust turns to compact all but the last message
+        if len(agent_context.chat_history) <= messages_to_compact:
+            if len(agent_context.chat_history) <= 2:
+                # Not enough to compact at all
+                return None
+            # Adjust to compact all messages except the last one
+            messages_to_compact = len(agent_context.chat_history) - 1
+            adjusted_turns = (messages_to_compact + 1) // 2
+            print(
+                f"Initiating compaction of {messages_to_compact} messages "
+                f"({adjusted_turns} turns, adjusted from {turns})..."
+            )
+            turns = adjusted_turns
+        else:
+            print(
+                f"Initiating compaction of first {turns} turns ({messages_to_compact} messages)..."
+            )
+
+        # Separate messages to compact from messages to keep
+        messages_to_summarize = agent_context.chat_history[:messages_to_compact]
+        messages_to_keep = agent_context.chat_history[messages_to_compact:]
+
+        # Create a temporary context with just the messages to summarize
+        from silica.developer.context import AgentContext
+
+        temp_context = AgentContext(
+            parent_session_id=agent_context.parent_session_id,
+            session_id=agent_context.session_id,
+            model_spec=agent_context.model_spec,
+            sandbox=agent_context.sandbox,
+            user_interface=agent_context.user_interface,
+            usage=agent_context.usage,
+            memory_manager=agent_context.memory_manager,
+            history_base_dir=agent_context.history_base_dir,
+        )
+        temp_context._chat_history = messages_to_summarize
+
+        # Use the existing generate_summary method
+        summary_obj = self.generate_summary(temp_context, model)
+        summary = summary_obj.summary
+
+        # Create new message history with summary + kept messages
+        new_messages = [
+            {
+                "role": "user",
+                "content": f"### Compacted Summary (first {turns} turns)\n\n{summary}\n\n---\n\nContinuing with remaining conversation...",
+            }
+        ]
+        new_messages.extend(messages_to_keep)
+
+        # Strip all thinking blocks from compacted messages
+        new_messages = self._strip_all_thinking_blocks(new_messages)
+
+        # Remove orphaned tool blocks (tool_use without tool_result OR tool_result without tool_use)
+        # This can happen when compaction splits a tool use/result pair
+        from silica.developer.compaction_validation import strip_orphaned_tool_blocks
+
+        new_messages = strip_orphaned_tool_blocks(new_messages)
+
+        # Disable thinking mode after stripping thinking blocks
+        if agent_context.thinking_mode != "off":
+            agent_context.thinking_mode = "off"
+
+        # Create metadata for the compaction
+        metadata = CompactionMetadata(
+            archive_name="",  # Will be updated by _archive_and_rotate
+            original_message_count=len(agent_context.chat_history),
+            compacted_message_count=len(new_messages),
+            original_token_count=summary_obj.original_token_count,
+            summary_token_count=summary_obj.summary_token_count,
+            compaction_ratio=summary_obj.compaction_ratio,
+        )
+
+        # Archive the original conversation, update context in place, and store metadata
+        archive_name = self._archive_and_rotate(agent_context, new_messages, metadata)
+
+        # Update metadata with the actual archive name
+        metadata.archive_name = archive_name
+
+        return metadata
+
+    def check_and_apply_compaction(
+        self, agent_context, model: str, user_interface, enable_compaction: bool = True
+    ) -> tuple:
+        """Check if compaction is needed and apply it if necessary.
+
+        Uses smart compaction to automatically determine how many turns to compact
+        based on achieving at least 30% token reduction. This ensures that when we
+        compact, we remove enough content to provide headroom for several more turns
+        before needing to compact again.
+
+        Args:
+            agent_context: The agent context to check (mutated in place if compaction occurs)
+            model: Model name (string, not ModelSpec dict) - used for token counting only
+            user_interface: User interface for notifications
+            enable_compaction: Whether compaction is enabled
+
+        Returns:
+            Tuple of (agent_context, True if compaction was applied)
+        """
+        import os
+
+        # Check if debug mode is enabled
+        debug_compaction = os.getenv("SILICA_DEBUG_COMPACTION", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        if not enable_compaction:
+            if debug_compaction:
+                print("[Compaction] Disabled via enable_compaction=False")
+            return agent_context, False
+
+        # Only check compaction when conversation state is complete
+        # (no pending tool results and conversation has actual content)
+        if agent_context.tool_result_buffer:
+            if debug_compaction:
+                print("[Compaction] Skipped: pending tool results")
+            return agent_context, False
+
+        if not agent_context.chat_history:
+            if debug_compaction:
+                print("[Compaction] Skipped: no chat history")
+            return agent_context, False
+
+        if len(agent_context.chat_history) <= 2:
+            if debug_compaction:
+                print(
+                    f"[Compaction] Skipped: only {len(agent_context.chat_history)} messages"
+                )
+            return agent_context, False
+
+        try:
+            if debug_compaction:
+                print("[Compaction] Checking if compaction needed...")
+                # Call should_compact with debug flag to see detailed info
+                should_compact = self.should_compact(agent_context, model, debug=True)
+                if not should_compact:
+                    print("[Compaction] Not needed yet")
+                    return agent_context, False
+
+            # Use smart compaction: auto-calculate turns for 30% reduction
+            # Uses haiku model for cost-effectiveness
+            metadata = self.compact_conversation(
+                agent_context, "haiku", turns=None, force=False
+            )
+
+            if metadata:
+                # Calculate actual reduction for user feedback
+                if metadata.original_token_count > 0:
+                    reduction_pct = (
+                        1
+                        - metadata.compacted_message_count
+                        / metadata.original_message_count
+                    ) * 100
+                else:
+                    reduction_pct = 0
+
+                # Notify user about the compaction
+                user_interface.handle_system_message(
+                    f"[bold green]Conversation compacted: "
+                    f"{metadata.original_message_count} messages → "
+                    f"{metadata.compacted_message_count} messages "
+                    f"({reduction_pct:.0f}% reduction, "
+                    f"archived to {metadata.archive_name})[/bold green]",
+                    markdown=False,
+                )
+
+                # Save the compacted session
+                # Metadata was already set by rotate(), flush() will use it
+                agent_context.flush(agent_context.chat_history, compact=False)
+                return agent_context, True
+
+        except Exception as e:
+            # Log compaction errors but continue normally
+            import traceback
+            import sys
+
+            error_details = traceback.format_exc()
+
+            # Show user-friendly error message
+            user_interface.handle_system_message(
+                f"[yellow]Compaction check failed: {e}[/yellow]",
+                markdown=False,
+            )
+
+            # Print detailed error to stderr for debugging
+            print("\n[Compaction Error Details]", file=sys.stderr)
+            print(error_details, file=sys.stderr)
+
+        return agent_context, False
