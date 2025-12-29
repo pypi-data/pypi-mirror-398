@@ -1,0 +1,68 @@
+scheduling:
+  kyma:
+    expiring_threshold_days: 2
+    memory_limit_config_mb: 8192
+  cf:
+    active_pattern: "7-5"
+    memory_quota_default_mb: 4096
+
+deployment:
+  mock: false               # Set to true for mock deployment
+  use_multi_node: false     # Set to true to use multi-node API
+  delay:
+    single_min: 5
+    single_max: 30
+  retry:
+    max_attempts: 3
+  defaults:
+    memory_mb: 4096
+    env_type: kyma
+
+# Kyma 冷却期配置
+cooling:
+  duration_hours: 168  # 7天 (168小时)，避免频繁创建删除被检测
+  # 建议值:
+  # - 24h: 测试环境
+  # - 168h (7天): 生产环境，降低风控风险
+  # - 336h (14天): 最保守，等待一个完整周期
+
+scheduled_jobs:
+  cf_daily_check:
+    time: "08:30"
+    timezone: "Asia/Shanghai"
+  cleanup:
+    time: "01:00"
+    timezone: "Asia/Shanghai"
+
+# Multi-node API for distributed execution
+multi_node:
+  enabled: false
+  url: "${MULTI_NODE_API_URL}"
+  token: "${MULTI_NODE_API_TOKEN}"
+  timeout: 300
+  # Node selection by region tags
+  regions:
+    - us
+    - eu
+    - asia
+  # Account-node affinity
+  affinity:
+    enabled: true  # Prefer same node for same account
+
+# Proxy pool (for single-node deployment)
+proxy_pool:
+  enabled: false
+  proxies:
+    - url: "http://user:pass@proxy1.example.com:8080"
+      tags: ["us"]
+    - url: "socks5://proxy2.example.com:1080"
+      tags: ["eu"]
+    - url: "http://proxy3.example.com:3128"
+      tags: ["asia"]
+  # Account-proxy affinity
+  affinity:
+    enabled: true  # Prefer same proxy for same account
+
+api:
+  host: "0.0.0.0"
+  port: 8000
