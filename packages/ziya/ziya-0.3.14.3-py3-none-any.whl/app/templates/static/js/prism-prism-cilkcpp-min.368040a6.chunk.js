@@ -1,0 +1,2 @@
+(self.webpackChunkfrontend=self.webpackChunkfrontend||[]).push([[40084],{81387:()=>{Prism.languages.cilkcpp=Prism.languages.insertBefore("cpp","function",{"parallel-keyword":{pattern:/\bcilk_(?:for|reducer|s(?:cope|pawn|ync))\b/,alias:"keyword"}}),Prism.languages["cilk-cpp"]=Prism.languages.cilkcpp,Prism.languages.cilk=Prism.languages.cilkcpp}}]);
+//# sourceMappingURL=prism-prism-cilkcpp-min.368040a6.chunk.js.map
