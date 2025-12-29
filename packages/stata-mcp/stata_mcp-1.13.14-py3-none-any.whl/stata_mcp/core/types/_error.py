@@ -1,0 +1,2 @@
+class StataMCPError(Exception):
+    pass
