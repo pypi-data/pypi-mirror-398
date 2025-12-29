@@ -1,0 +1,137 @@
+[build-system]
+requires = ["hatchling>=1.24.2", "hatch-vcs>=0.3.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloudru-ml-cli" # cloudru-ml-cli
+dynamic = ["version"]
+
+requires-python = ">=3.10,<4"
+dependencies = [
+    "click (==8.1.8)",
+    "keyrings-alt (>=5.0.2,<6.0.0)",
+    "types-requests (>=2.32.0.20241016,<3.0.0.0)",
+    "responses (>=0.25.6,<0.26.0)",
+    "types-pyyaml (>=6.0.12.20241230,<7.0.0.0)",
+    "pycryptodome (>=3.21.0,<4.0.0)",
+    "tabulate (>=0.9.0,<0.10.0)",
+    "types-tabulate (>=0.9.0.20241207,<0.10.0.0)",
+    "h11 (==0.16.0)",
+]
+
+description = "Библиотека для работы с api Cloud.ru MLSpace"
+authors = [
+    {name = "Максим Налимов",email = "msnalimov@cloud.ru"}
+]
+readme = "README.md"
+keywords = ["cloud.ru"]
+classifiers = [
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent"
+]
+
+[project.optional-dependencies]
+dev = [
+  "check-manifest",
+  "types-requests",
+]
+test = [
+    "coverage",
+    "pytest",
+    "pytest-cov"
+]
+lint = [
+  "pre-commit"
+]
+release = [
+    "hatch",
+    "hatchling",
+    "python-semantic-release"
+]
+
+# Заглушка для разработчиков
+[tool.poetry]
+version = "0.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pre-commit = "^4.1.0"
+pytest-cov = "^6.0.0"
+hatch = "^1.14.0"
+tomli = "^2.2.1"
+mypy = "^1.14.1"
+pylint = "^3.3.8"
+
+[tool.poetry.dependencies]
+click = "8.1.8"
+
+[project.scripts]
+mls = "mls.cli:entry_point"
+autocomplete = "mls.cli:autocomplete"
+
+[tool.hatch.version.raw-options]
+version_scheme = "python-simplified-semver"
+local_scheme = "no-local-version"
+parentdir_prefix_version = "hatch-"
+git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "hatch-v*"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "mls/__about__.py"
+validate-bump = false
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "mls", "mls_core"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["mls", "mls_core"]
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 3
+use_parentheses = true
+line_length = 79
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests"
+]
+
+[tool.semantic_release]
+version_variables = ["mls/__about__.py:__version__"]
+upload_to_repository = false
+upload_to_release = false
+tag_commit = false
+
+[tool.semantic_release.branches.master]
+match = "master"
+prerelease_token = "rc"
+prerelease = false
+
+[tool.semantic_release.remote]
+type = "gitlab"
+domain = "https://git.sbercloud.tech"
+token = { env = "GITLAB_REPO_TOKEN" }
+
+
+[tool.semantic_release.commit_parser_options]
+message_format = "^(feat|fix)"
+
+[mypy]
+ignore_missing_imports = true
+
+
+[tool.hatch.publish.pypi]
+repository = "https://upload.pypi.org/legacy/"
+username = { env = "PYPI_USER" }
+auth = { env = "PYPI_TOKEN" }
