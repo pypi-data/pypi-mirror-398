@@ -1,0 +1,206 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  installation-test:
+    name: Installation Test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Verify Python version
+      run: |
+        python --version
+        python -c "import sys; assert sys.version_info >= (3, 12), f'Python 3.12+ required, got {sys.version}'"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+    
+    - name: Build package
+      run: |
+        uv build
+    
+    - name: Install package from wheel
+      run: |
+        uv pip install dist/*.whl
+    
+    - name: Run critical packaging test
+      run: |
+        python -c "import ungraph; print('configure:', ungraph.configure)"
+    
+    - name: Run installation smoke test
+      run: |
+        python scripts/smoke_test_installation.py
+    
+    - name: Run installation unit tests
+      run: |
+        uv pip install pytest
+        pytest tests/test_installation.py -v
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Verify Python version
+      run: |
+        python --version
+        python -c "import sys; assert sys.version_info >= (3, 12), f'Python 3.12+ required, got {sys.version}'"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+    
+    - name: Install dependencies
+      run: |
+        uv pip install pytest pytest-cov pytest-mock
+        uv pip install -e .
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v -m "not integration and not e2e" --cov=ungraph --cov-report=term-missing
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unit
+        name: unit-tests-${{ matrix.python-version }}
+
+  integration-tests:
+    name: Integration Tests (E2E)
+    runs-on: ubuntu-latest
+    
+    services:
+      neo4j:
+        image: neo4j:5.15-community
+        env:
+          NEO4J_AUTH: neo4j/testpassword123
+          NEO4J_PLUGINS: '["apoc"]'
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p testpassword123 -a bolt://localhost:7687 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    
+    - name: Verify Python version
+      run: |
+        python --version
+        python -c "import sys; assert sys.version_info >= (3, 12), f'Python 3.12+ required, got {sys.version}'"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+    
+    - name: Install dependencies
+      run: |
+        uv pip install pytest pytest-cov pytest-mock pytest-timeout
+        uv pip install -e .
+
+    - name: Wait for Neo4j to be ready
+      run: |
+        python scripts/wait_for_neo4j.py --uri bolt://localhost:7687 --user neo4j --password testpassword123 --timeout 120
+    
+    - name: Run integration tests
+      env:
+        NEO4J_URI: bolt://localhost:7687
+        NEO4J_USER: neo4j
+        NEO4J_PASSWORD: testpassword123
+        NEO4J_TEST_DATABASE: test_ungraph
+      run: |
+        pytest tests/test_e2e_complete.py -v -m integration --tb=short --timeout=300 --timeout-method=thread
+    
+    - name: Run E2E tests
+      env:
+        NEO4J_URI: bolt://localhost:7687
+        NEO4J_USER: neo4j
+        NEO4J_PASSWORD: testpassword123
+        NEO4J_TEST_DATABASE: test_ungraph
+      run: |
+        pytest tests/test_e2e_complete.py -v -m e2e --tb=short --timeout=300 --timeout-method=thread
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    
+    - name: Verify Python version
+      run: |
+        python --version
+        python -c "import sys; assert sys.version_info >= (3, 12), f'Python 3.12+ required, got {sys.version}'"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+    
+    - name: Install linting tools
+      run: |
+        uv pip install flake8 black isort mypy
+    
+    - name: Run flake8
+      run: |
+        # Check critical errors first (these will fail the build)
+        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        [ -d "tests" ] && flake8 tests/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+        # Then check style issues (these won't fail the build due to --exit-zero)
+        flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        [ -d "tests" ] && flake8 tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+    
+    - name: Check formatting with black
+      run: |
+        black --check src/ tests/
+    
+    - name: Check imports with isort
+      run: |
+        isort --check-only src/ tests/
+
