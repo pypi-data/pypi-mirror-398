@@ -1,0 +1,46 @@
+# atmos_toolbox
+A python toolbox for data analysis in meteorology & atmospheric sciences.  
+
+## Author
+Mingxi Zhang  
+<zhang.mingxi@outlook.com>
+
+## License
+MIT liecnse
+
+## Release notes
+### v1.2.0
+add function **ttest_3d** in module **stats_func**.
+### v2.0.0
+add module **lgr_mois_diag**.
+### v3.0.0
+add module **download**.
+### v3.0.1 
+In module **stats_func**, change **bool_loc_1d** into **bool_1d**,
+correct an error in **ttest_3d**.
+### v3.1.0
+add module **fig_func**.  
+### v3.2.0
+add module **epe_detect**.
+### v3.3.0
+add function **fisher_exact_3d** in module **stats_func**.
+### v3.4.0
+add module **sph_harm** (spherical harmonics).  
+### v3.4.1
+update function **sh_smooth_xr** in module **sph_harm**.  
+### v3.4.2
+update function **days2events** in module **time_func**. 
+### v3.4.3
+add function **bootstrap_mean_test** in module **stats_func**. 
+### v3.4.4
+add function **extract_boundary** in module **fig_func**. 
+### v3.5.0
+add module **std_index**.
+### v3.5.1
+add function **rednoise_sig** in module **stats_func**. 
+### v3.5.2
+add function **noise_sig_fft** in module **stats_func**. 
+### v3.5.3
+add function **expand_mask_mh** in module **epe_detect**. 
+### v3.5.4 
+add function **cal_pearson_corr** in module **stats_func**. 
