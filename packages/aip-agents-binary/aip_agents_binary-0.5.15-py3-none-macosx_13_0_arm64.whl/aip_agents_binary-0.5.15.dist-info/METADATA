@@ -1,0 +1,691 @@
+Metadata-Version: 2.4
+Name: aip-agents-binary
+Version: 0.5.15
+Summary: A library for managing agents in Gen AI applications.
+Author-email: Raymond Christopher <raymond.christopher@gdplabs.id>
+Requires-Python: <3.13,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: a2a-sdk<0.3.0,>=0.2.4
+Requires-Dist: aiostream<0.7.0,>=0.6.0
+Requires-Dist: authlib<2.0.0,>=1.6.4
+Requires-Dist: bosa-connectors-binary<0.4.0,>=0.3.1
+Requires-Dist: bosa-core-binary[logger,telemetry]<0.10.0,>=0.9.6
+Requires-Dist: colorama<0.5.0,>=0.4.6
+Requires-Dist: deprecated<2.0.0,>=1.2.18
+Requires-Dist: fastapi<0.121.0,>=0.120.0
+Requires-Dist: gllm-core-binary<0.4.0,>=0.3.18
+Requires-Dist: gllm-inference-binary[anthropic,bedrock,google-genai,google-vertexai,openai]<0.6.0,>=0.5.90
+Requires-Dist: gllm-tools-binary<0.2.0,>=0.1.3
+Requires-Dist: google-adk<0.6.0,>=0.5.0
+Requires-Dist: langchain<0.4.0,>=0.3.0
+Requires-Dist: langchain-openai<0.4.0,>=0.3.17
+Requires-Dist: langchain-mcp-adapters<0.1.0,>=0.0.10
+Requires-Dist: langchain-experimental<0.4.0,>=0.3.4
+Requires-Dist: langgraph<0.3.0,>=0.2.16
+Requires-Dist: minio<8.0.0,>=7.2.20
+Requires-Dist: pydantic<3.0.0,>=2.11.7
+Requires-Dist: python-dotenv<2.0.0,>=1.1.0
+Requires-Dist: requests<3.0.0,>=2.32.4
+Requires-Dist: uvicorn<0.35.0,>=0.34.3
+Provides-Extra: memory
+Requires-Dist: gllm-memory-binary[mem0ai]<0.2.0,>=0.1.1; extra == "memory"
+Provides-Extra: privacy
+Requires-Dist: gllm-privacy-binary<0.5.0,>=0.4.7; extra == "privacy"
+Provides-Extra: code-sandbox
+Requires-Dist: e2b<2.0.0,>=1.5.4; extra == "code-sandbox"
+Provides-Extra: browser-use-tool
+Requires-Dist: browser-use==0.5.9; extra == "browser-use-tool"
+Requires-Dist: steel-sdk>=0.7.0; extra == "browser-use-tool"
+Requires-Dist: json-repair>=0.52.3; extra == "browser-use-tool"
+Provides-Extra: document-loader
+Requires-Dist: gllm-docproc-binary[docx,pdf,xlsx]<0.8.0,>=0.7.20; extra == "document-loader"
+Requires-Dist: PyPDF2<4.0.0,>=3.0.0; extra == "document-loader"
+Requires-Dist: unidecode<2.0.0,>=1.3.0; extra == "document-loader"
+Provides-Extra: gl-connector
+Requires-Dist: bosa-connectors-binary<0.4.0,>=0.3.1; extra == "gl-connector"
+Provides-Extra: local
+Requires-Dist: e2b<2.0.0,>=1.5.4; extra == "local"
+Requires-Dist: browser-use==0.5.9; extra == "local"
+Requires-Dist: steel-sdk>=0.7.0; extra == "local"
+Requires-Dist: json-repair>=0.52.3; extra == "local"
+Requires-Dist: PyPDF2<4.0.0,>=3.0.0; extra == "local"
+Requires-Dist: unidecode<2.0.0,>=1.3.0; extra == "local"
+Requires-Dist: bosa-connectors-binary<0.4.0,>=0.3.1; extra == "local"
+Requires-Dist: gllm-docproc-binary[docx,pdf,xlsx]<0.8.0,>=0.7.20; extra == "local"
+Requires-Dist: gllm-datastore-binary[chroma,elasticsearch]==0.5.40; extra == "local"
+Provides-Extra: dev
+Requires-Dist: coverage<8.0.0,>=7.4.4; extra == "dev"
+Requires-Dist: mypy<2.0.0,>=1.15.0; extra == "dev"
+Requires-Dist: pre-commit<4.0.0,>=3.7.0; extra == "dev"
+Requires-Dist: pytest<9.0.0,>=8.1.1; extra == "dev"
+Requires-Dist: pytest-asyncio<0.24.0,>=0.23.6; extra == "dev"
+Requires-Dist: pytest-cov<6.0.0,>=5.0.0; extra == "dev"
+Requires-Dist: pytest-xdist>=3.8.0; extra == "dev"
+Requires-Dist: ruff<0.7.0,>=0.6.7; extra == "dev"
+Requires-Dist: pillow<12.0.0,>=11.3.0; extra == "dev"
+
+# AIP Agents
+
+## Description
+
+The core agent library for **local execution** in GL AIP (GDP Labs AI Agents Package). `aip-agents` is part of the GL AIP ecosystem:
+
+- **`aip-agents`** (this library) — The underlying agent library for local execution
+- **[`ai-agent-platform`](https://github.com/GDP-ADMIN/ai-agent-platform)** — The platform that provides remote server/run capabilities (uses `aip-agents` internally)
+- **[`glaip-sdk`](https://github.com/GDP-ADMIN/glaip-sdk/tree/main/python/glaip-sdk)** — The SDK that end users use to run agents either locally (directly via `aip-agents`) or on the remote server (via `ai-agent-platform`)
+
+You can use `aip-agents` directly for local execution, or let `glaip-sdk` manage local vs remote mode for you. See the [GL AIP overview](../glaip-sdk/docs/overview.md) for the full architecture.
+
+## Installation
+
+### Prerequisites
+- Python 3.11 - 3.12 - [Install here](https://www.python.org/downloads/)
+- Pip (if using Pip) - [Install here](https://pip.pypa.io/en/stable/installation/)
+- Poetry 1.8.1+ (if using Poetry) - [Install here](https://python-poetry.org/docs/#installation)
+- Git (if using Git) - [Install here](https://git-scm.com/downloads)
+- For git installation:
+  - Access to the [GDP Labs SDK repository](https://github.com/GDP-ADMIN/glaip-sdk)
+
+### 1. Installation from the GDP Labs registry
+This package is published to the internal GDP Labs registry. Ensure your pip/Poetry config includes the registry:
+`https://glsdk.gdplabs.id/gen-ai-internal/simple/`.
+
+#### Using pip
+```bash
+pip install aip-agents
+```
+
+#### Using Poetry
+```bash
+poetry add aip-agents
+```
+
+### 2. Development Installation (Git)
+For development purposes, you can install directly from the Git repository:
+```bash
+poetry add "git+ssh://git@github.com/GDP-ADMIN/glaip-sdk.git#subdirectory=python/aip-agents"
+```
+
+### 3. Recommended: install via glaip-sdk for local mode
+If you want local + remote compatibility, install the SDK's local extra instead:
+```bash
+pip install "glaip-sdk[local]"
+```
+
+### Optional Extras
+```bash
+pip install "aip-agents[memory]"
+pip install "aip-agents[privacy]"
+```
+
+## Managing Dependencies
+1. Go to the `aip-agents` module root, e.g. `cd python/aip-agents`.
+2. Run `poetry shell` to create a virtual environment.
+3. Run `poetry install` to install the `aip-agents` requirements (Poetry will generate a local lock file for you if needed; the repository ignores it).
+4. Run `poetry update` if you change any dependency versions in `pyproject.toml`.
+
+## Contributing
+Please refer to this [Python Style Guide](https://docs.google.com/document/d/1uRggCrHnVfDPBnG641FyQBwUwLoFw0kTzNqRm92vUwM/edit?usp=sharing)
+to get information about code style, documentation standard, and SCA that you need to use when contributing to this project
+
+1. Activate `pre-commit` hooks using `pre-commit install`
+2. Run `poetry shell` to create a virtual environment.
+3. Run `poetry install` to install the `aip-agents` requirements (this will also create a local lock file that stays local).
+4. Run `which python` to get the path to be referenced at Visual Studio Code interpreter path (`Ctrl`+`Shift`+`P` or `Cmd`+`Shift`+`P`)
+5. Try running the unit test to see if it's working:
+```bash
+poetry run pytest -s tests/unit_tests/
+```
+
+## Hello World Examples
+
+### Prerequisites
+- Python 3.11 - 3.12
+- Install the package:
+
+```bash
+pip install aip-agents
+```
+
+- For OpenAI: Set your API key in the environment:
+```bash
+export OPENAI_API_KEY=your-openai-key
+```
+- For Google ADK: Set your API key in the environment:
+```bash
+export GOOGLE_API_KEY=your-google-api-key
+```
+
+### Run the Hello World Examples
+
+The example scripts are located in `aip_agents/examples` in the source repo. You can run them individually or use the `run_all_examples.py` script.
+
+**1. Running Individual Examples:**
+
+Navigate to the library's root directory (e.g., `python/aip-agents` if you cloned the repository).
+
+**LangGraph (OpenAI):**
+```bash
+python aip_agents/examples/hello_world_langgraph.py
+```
+
+**LangGraph with BOSA Connector (OpenAI):**
+```bash
+python aip_agents/examples/hello_world_langgraph_bosa_twitter.py
+```
+
+**LangGraph Streaming (OpenAI):**
+```bash
+python aip_agents/examples/hello_world_langgraph_stream.py
+```
+
+**LangGraph Multi-Agent Coordinator (OpenAI):**
+```bash
+python aip_agents/examples/hello_world_a2a_multi_agent_coordinator_server.py
+```
+
+**Google ADK:**
+```bash
+python aip_agents/examples/hello_world_google_adk.py
+```
+
+**Google ADK Streaming:**
+```bash
+python aip_agents/examples/hello_world_google_adk_stream.py
+```
+
+**LangChain (OpenAI):**
+```bash
+python aip_agents/examples/hello_world_langchain.py
+```
+
+**LangChain Streaming (OpenAI):**
+```bash
+python aip_agents/examples/hello_world_langchain_stream.py
+```
+
+**HITL (Human-in-the-Loop) Approval Demo:**
+```bash
+python aip_agents/examples/hitl_demo.py
+```
+
+**2. Running MCP Examples**
+
+### Prerequisites
+
+Ensure you have set the environment variables for API keys:
+
+```bash
+export OPENAI_API_KEY="your-openai-key"
+export GOOGLE_API_KEY="your-google-api-key"
+```
+
+For examples that use stateful MCP tools like browser automation, start the Playwright MCP server in a separate terminal:
+
+```bash
+npx @playwright/mcp@latest --headless --port 8931
+```
+
+**Note:** Use the `--headless` flag to run the server without a visible browser window, which is recommended if the browser is not installed yet to avoid failures. For using an actual (non-headless) browser, refer to the [Playwright MCP documentation](https://github.com/microsoft/playwright-mcp).
+
+### Local MCP Servers
+
+For STDIO, SSE, and HTTP transports using local servers, open a terminal in the library root (`python/aip-agents`) and run:
+
+- For STDIO:
+
+```bash
+poetry run python aip_agents/examples/mcp_servers/mcp_server_stdio.py
+```
+
+- For SSE:
+
+```bash
+poetry run python aip_agents/examples/mcp_servers/mcp_server_sse.py
+```
+
+- For HTTP:
+
+```bash
+poetry run python aip_agents/examples/mcp_servers/mcp_server_http.py
+```
+
+Note: Start the appropriate server before running the client examples for that transport.
+
+### Running Examples
+
+All examples are run from the library root using `poetry run python aip_agents/examples/<file>.py`. Examples support OpenAI for LangGraph/LangChain and Google ADK where specified.
+
+#### LangChain Examples
+
+##### STDIO Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_stdio.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_stdio_stream.py
+```
+
+##### SSE Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_sse.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_sse_stream.py
+```
+
+##### HTTP Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_http.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_http_stream.py
+```
+
+#### Google ADK Examples
+
+##### STDIO Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_google_adk_mcp_stdio.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_google_adk_mcp_stdio_stream.py
+```
+
+##### SSE Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_google_adk_mcp_sse.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_google_adk_mcp_sse_stream.py
+```
+
+##### HTTP Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_google_adk_mcp_http.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_google_adk_mcp_http_stream.py
+```
+
+#### LangGraph Examples (OpenAI)
+
+##### STDIO Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langgraph_mcp_stdio.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langgraph_mcp_stdio_stream.py
+```
+
+##### SSE Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langgraph_mcp_sse.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langgraph_mcp_sse_stream.py
+```
+
+##### HTTP Transport
+- Non-Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langgraph_mcp_http.py
+```
+- Streaming:
+```bash
+poetry run python aip_agents/examples/hello_world_langgraph_mcp_http_stream.py
+```
+
+### Multi-Server Example
+
+This LangChain example uses multiple MCP servers: Playwright (for browser actions) and a random name generator (SSE transport) with persistent sessions across multiple `arun` calls.
+
+1. Start the Playwright server:
+
+```bash
+npx @playwright/mcp@latest --headless --port 8931
+```
+
+2. In another terminal, start the Name Generator SSE server:
+
+```bash
+poetry run python aip_agents/examples/mcp_servers/mcp_name.py
+```
+
+3. Run the multi-server client example:
+
+```bash
+poetry run python aip_agents/examples/hello_world_langchain_mcp_multi_server.py
+```
+**3. Running Individual A2A Examples:**
+
+* Navigate to the library's root directory (e.g., `libs/aip-agents` if you cloned the repository).
+* Open a new terminal and navigate to the `aip_agents/examples` directory to run the A2A server.
+
+**LangChain Server:**
+```bash
+python hello_world_a2a_langchain_server.py
+```
+
+* Open a new terminal and navigate to the `aip_agents/examples` directory to run the A2A client.
+
+**LangChain Client:**
+```bash
+python hello_world_a2a_langchain_client.py
+```
+
+**LangChain Client Integrated with Agent Workflow:**
+```bash
+python hello_world_a2a_langchain_client_agent.py
+```
+
+**LangChain Client Streaming:**
+```bash
+python hello_world_a2a_langchain_client_stream.py
+```
+
+
+## Human-in-the-Loop (HITL) Approval
+
+AIP Agents supports Human-in-the-Loop approval for tool execution, allowing human operators to review and approve high-risk tool calls before they execute.
+
+### Features
+
+- **Configurable Approval Policies**: Set approval requirements per tool with customizable timeouts and behaviors
+- **Interactive CLI Prompts**: Clear, structured prompts showing tool details and context
+- **Structured Logging**: All approval decisions are logged with full metadata
+- **Timeout Handling**: Configurable behavior when approval requests time out
+- **Non-blocking**: Tools without HITL configuration execute normally
+
+### Quick Start
+
+Configure HITL for specific tools in your agent:
+
+```python
+from aip_agents.agent import LangGraphReactAgent
+from aip_agents.agent.hitl.config import ToolApprovalConfig
+
+# Create agent with tools
+agent = LangGraphReactAgent(
+    name="My Agent",
+    tools=[send_email_tool, search_tool],
+)
+
+# Configure HITL via tool_configs
+agent.tool_configs = {
+    "tool_configs": {
+        "send_email": {"hitl": {"timeout_seconds": 300}}
+    }
+}
+```
+
+When the agent attempts to use the `send_email` tool, it will:
+
+1. Emit a pending approval event via `DeferredPromptHandler`
+2. Wait for `ApprovalManager.resolve_pending_request()` to be called
+3. Execute the tool only if approved
+4. Log the decision for audit purposes
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `timeout_seconds` | int | 300 | Seconds to wait for operator input |
+
+### Logging
+
+All HITL decisions are logged with structured data:
+
+```json
+{
+  "event": "hitl_decision",
+  "tool": "send_email",
+  "decision": "approved",
+  "operator_input": "A",
+  "latency_ms": 2500,
+  "timestamp": "2025-09-25T10:15:00Z"
+}
+```
+
+### Demo
+
+Run the interactive demo to see HITL in action:
+
+```bash
+python aip_agents/examples/hitl_demo.py
+```
+
+## Architectural Notes
+
+### Memory Features
+
+The library supports Mem0 as a memory backend for long-term conversation recall. Key features:
+- Automatic persistence of user-agent interactions via `memory_backend="mem0"`.
+- Semantic search for relevant past conversations.
+- New `built_in_mem0_search` tool for explicit recall by time period (e.g., "yesterday", "last week", "July 2025").
+- Date range parsing for natural language time filters using `dateparser`.
+- Conditional auto-augmentation (disabled by default to reduce noise; enable with `memory_auto_augment=True`).
+
+#### Mem0 Date Recall Example
+
+Use the coordinator example with memory enabled:
+
+```bash
+poetry run python aip_agents/examples/hello_world_a2a_mem0_coordinator_server.py
+```
+
+In client:
+```python
+agent = LangGraphAgent(
+    name="client",
+    instruction="...",
+    model="gpt-4o-mini",
+    memory_backend="mem0",
+)
+```
+
+Test recall: After some interactions, query "What did we discuss yesterday?" – agent uses tool to filter by created_at.
+
+## Deep Agents Middleware
+
+The Deep Agents Middleware system provides composable components for enhancing agent capabilities with planning, context management, and custom lifecycle hooks.
+
+### Quick Start
+
+Enable deep agent capabilities with a single parameter:
+
+```python
+from aip_agents.agent.langgraph_react_agent import LangGraphReactAgent
+
+# Enable planning + filesystem for complex multi-step tasks
+agent = LangGraphReactAgent(
+    name="research_agent",
+    model="gpt-4",
+    planning=True,  # Enables TodoListMiddleware for task decomposition
+    tools=[search_tool, calculator_tool],
+)
+```
+
+### Understanding Planning vs Filesystem
+
+**Important**: `planning` and `filesystem` are **completely independent** features:
+
+- **`planning=True`**
+  - Adds `write_todos` tool for task decomposition
+  - Stores todos in **in-memory dictionary** (per thread_id)
+  - Does NOT use or require filesystem
+  - Perfect for breaking down complex tasks into steps
+  - Example: "Research quantum computing" → agent creates 5 subtasks
+
+- **`filesystem=True`**
+  - Adds file operation tools: `ls`, `read_file`, `write_file`, `edit_file`, `grep`
+  - Stores data in **pluggable backend** (default: InMemoryBackend)
+  - Does NOT interact with planning/todos
+  - Perfect for offloading large tool results to prevent context overflow
+  - Example: Web search returns 50KB → agent writes to `/research/results.txt`
+
+- **Both together** (`planning=True, filesystem=True`)
+  - Agent can plan tasks AND manage large data
+  - Todos stored separately in memory, files in backend
+  - Most powerful combination for complex research/analysis tasks
+
+### Planning Only
+
+For task decomposition without filesystem:
+
+```python
+agent = LangGraphReactAgent(
+    name="planner_agent",
+    model="gpt-4",
+    planning=True,
+    tools=[...],
+)
+```
+
+### Filesystem Only
+
+For context offloading without planning:
+
+```python
+agent = LangGraphReactAgent(
+    name="data_processor",
+    model="gpt-4",
+    filesystem=True,  # Enables FilesystemMiddleware
+    tools=[...],
+)
+```
+
+### Custom Middleware
+
+Create domain-specific middleware by implementing the `AgentMiddleware` protocol:
+
+```python
+from aip_agents.middleware.base import AgentMiddleware, ModelRequest
+
+class CustomMiddleware:
+    def __init__(self):
+        self.tools = []  # Add custom tools here
+        self.system_prompt_additions = "Custom instructions..."
+
+    def before_model(self, state: dict) -> dict:
+        # Hook executed before model invocation
+        return {}
+
+    def modify_model_request(self, request: ModelRequest, state: dict) -> ModelRequest:
+        # Modify the model request (add tools, adjust params, etc.)
+        return request
+
+    def after_model(self, state: dict) -> dict:
+        # Hook executed after model invocation
+        return {}
+
+# COMPOSITION (not override): Custom middlewares EXTEND built-in middleware
+agent = LangGraphReactAgent(
+    name="custom_agent",
+    model="gpt-4",
+    planning=True,        # Adds TodoListMiddleware
+    filesystem=True,      # Adds FilesystemMiddleware
+    middlewares=[CustomMiddleware()],  # EXTENDS (doesn't replace) the above
+    tools=[...],
+)
+# Result: Agent has ALL THREE middleware active:
+#   1. TodoListMiddleware (from planning=True)
+#   2. FilesystemMiddleware (from filesystem=True)
+#   3. CustomMiddleware (from middlewares parameter)
+```
+
+**Key Points:**
+- ✅ `middlewares` parameter **extends** (never replaces) auto-configured middleware
+- ✅ `planning` and `filesystem` are **independent** - use either, both, or neither
+- ✅ `planning=True` stores todos in **memory** (does NOT require filesystem)
+- ✅ Execution order: built-in middleware (planning, filesystem) → custom middlewares
+- ✅ All hooks from all middleware execute in sequence
+
+**Common Combinations:**
+```python
+# Planning only (no filesystem)
+# → Todos stored in memory, no file operations available
+agent = LangGraphReactAgent(planning=True)
+# → [TodoListMiddleware]
+
+# Filesystem only (no planning)
+# → File operations available, no todo planning
+agent = LangGraphReactAgent(filesystem=True)
+# → [FilesystemMiddleware]
+
+# Both planning and filesystem
+# → Todos in memory + file operations (most powerful combination)
+agent = LangGraphReactAgent(planning=True, filesystem=True)
+# → [TodoListMiddleware, FilesystemMiddleware]
+
+# Custom only (no auto-configuration)
+agent = LangGraphReactAgent(middlewares=[CustomMiddleware()])
+# → [CustomMiddleware]
+
+# All together (composition)
+agent = LangGraphReactAgent(
+    planning=True,
+    filesystem=True,
+    middlewares=[CustomMiddleware()]
+)
+# → [TodoListMiddleware, FilesystemMiddleware, CustomMiddleware]
+```
+
+### Advanced: Custom Storage Backend
+
+Provide your own storage backend for filesystem operations:
+
+```python
+from aip_agents.middleware.backends.protocol import BackendProtocol
+from aip_agents.middleware.backends.memory import InMemoryBackend
+
+# Use custom backend (e.g., PostgreSQL, S3, Redis)
+custom_backend = MyCustomBackend()
+
+agent = LangGraphReactAgent(
+    name="agent",
+    model="gpt-4",
+    filesystem=custom_backend,  # Pass BackendProtocol instance
+    tools=[...],
+)
+```
+
+### Benefits
+
+- **Context Window Management**: Automatically offload large tool results to files
+- **Task Decomposition**: Break down complex multi-step tasks into trackable todos
+- **Incremental Development**: Add capabilities gradually (filesystem first, then planning)
+- **Zero Breaking Changes**: Existing agents work unchanged (backward compatible)
+- **Extensible**: Compose custom middleware with built-in components
+
+For detailed documentation, see `docs/deep_agents_guide.md` (coming soon).
+
+### Agent Interface (`AgentInterface`)
+
+The `aip_agents.agent.interface.AgentInterface` class defines a standardized contract for all agent implementations within the AIP Agents ecosystem. It ensures that different agent types (e.g., LangGraph-based, Google ADK-based) expose a consistent set of methods for core operations.
+
+Key methods defined by `AgentInterface` typically include:
+- `arun()`: For asynchronous execution of the agent that returns a final consolidated response.
+- `arun_stream()`: For asynchronous execution that streams back partial responses or events from the agent.
+
+By adhering to this interface, users can interact with various agents in a uniform way, making it easier to switch between or combine different agent technologies.
+
+### Inversion of Control (IoC) / Dependency Injection (DI)
+
+The agent implementations (e.g., `LangGraphAgent`, `GoogleADKAgent`) utilize Dependency Injection. For instance, `LangGraphAgent` accepts an `agent_executor` (like one created by LangGraph's `create_react_agent`) in its constructor. Similarly, `GoogleADKAgent` accepts a native `adk_native_agent`. This allows the core execution logic to be provided externally, promoting flexibility and decoupling the agent wrapper from the specific instantiation details of its underlying engine.
