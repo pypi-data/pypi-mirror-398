@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: 'patch'
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install semver
+      run: |
+        pip install semver
+
+    - name: Bump version
+      id: bump
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Create version file if it doesn't exist
+        if [ ! -f "version.txt" ]; then
+          echo "0.1.0" > version.txt
+        fi
+        
+        # Calculate new version with Python
+        CURRENT_VERSION=$(cat version.txt)
+        NEW_VERSION=$(python -c "import semver; v=semver.VersionInfo.parse('${CURRENT_VERSION}'); print(v.bump_${{ github.event.inputs.release_type }}())")
+        
+        echo "Current version: ${CURRENT_VERSION}"
+        echo "New version: ${NEW_VERSION}"
+        
+        # Update version file
+        echo "${NEW_VERSION}" > version.txt
+        
+        # Update setup.py
+        sed -i "s/version=\".*\"/version=\"${NEW_VERSION}\"/" setup.py
+        
+        # Update pyproject.toml
+        sed -i "s/version = \".*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
+        
+        # Update __init__.py
+        sed -i "s/__version__ = \".*\"/__version__ = \"${NEW_VERSION}\"/" sft/__init__.py
+        
+        # Commit changes
+        git add version.txt setup.py pyproject.toml sft/__init__.py
+        git commit -m "Bump version to ${NEW_VERSION}"
+        git tag "v${NEW_VERSION}"
+        git push origin main
+        git push origin "v${NEW_VERSION}"
+        
+        echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+  build-and-publish:
+    needs: bump-version
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: main
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Check package
+      run: |
+        twine check dist/*
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload dist/*
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ needs.bump-version.outputs.new_version }}
+        name: Release v${{ needs.bump-version.outputs.new_version }}
+        body: |
+          Release version ${{ needs.bump-version.outputs.new_version }}
+          
+          ## Installation
+          ```bash
+          pip install simple-file-transfer==${{ needs.bump-version.outputs.new_version }}
+          ```
+          
+          ## Changes
+          See [CHANGELOG.md](CHANGELOG.md) for details.
+        draft: false
+        prerelease: false
+        files: |
+          dist/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
