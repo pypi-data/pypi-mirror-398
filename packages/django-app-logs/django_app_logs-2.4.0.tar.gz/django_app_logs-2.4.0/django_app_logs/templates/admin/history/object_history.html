@@ -1,0 +1,211 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Historique de {{ object_repr }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'admin:index' %}">Accueil</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'admin:history_actionlog_changelist' %}">Journal des actions</a></li>
+        <li class="breadcrumb-item active">Historique de {{ object_repr }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-history"></i>
+                Historique de: <strong>{{ object_repr }}</strong>
+            </h3>
+            <div class="card-tools">
+                <span class="badge badge-info">{{ content_type }}</span>
+                <span class="badge badge-secondary">ID: {{ object_id }}</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if logs %}
+            <div class="timeline timeline-inverse p-3">
+                {% for log in logs %}
+                <div class="time-label">
+                    <span class="{% if log.action == 'CREATE' %}bg-success{% elif log.action == 'UPDATE' %}bg-warning{% else %}bg-danger{% endif %}">
+                        {{ log.timestamp|date:"d/m/Y H:i" }}
+                    </span>
+                </div>
+                <div>
+                    {% if log.action == 'CREATE' %}
+                    <i class="fas fa-plus bg-success"></i>
+                    {% elif log.action == 'UPDATE' %}
+                    <i class="fas fa-edit bg-warning"></i>
+                    {% else %}
+                    <i class="fas fa-trash bg-danger"></i>
+                    {% endif %}
+                    <div class="timeline-item">
+                        <span class="time">
+                            <i class="far fa-clock"></i> {{ log.timestamp|time:"H:i:s" }}
+                        </span>
+                        <h3 class="timeline-header">
+                            <strong style="color: {% if log.action == 'CREATE' %}#28a745{% elif log.action == 'UPDATE' %}#ffc107{% else %}#dc3545{% endif %};">
+                                {{ log.get_action_display }}
+                            </strong>
+                            par
+                            {% if log.user %}
+                                <a href="#">{{ log.user.last_name }} {{ log.user.first_name }}</a>
+                            {% else %}
+                                <em>Système</em>
+                            {% endif %}
+                        </h3>
+                        <div class="timeline-body">
+                            {% if log.changes %}
+                            <table class="table table-sm table-bordered">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th style="width: 25%;">Champ</th>
+                                        <th style="width: 37.5%;">Ancienne valeur</th>
+                                        <th style="width: 37.5%;">Nouvelle valeur</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for field, values in log.changes.items %}
+                                    <tr>
+                                        <td><strong>{{ field }}</strong></td>
+                                        <td class="bg-light">
+                                            {% if values.old != None %}
+                                                {% if values.old.repr %}
+                                                    {{ values.old.repr }}
+                                                {% else %}
+                                                    {{ values.old }}
+                                                {% endif %}
+                                            {% else %}
+                                                <em class="text-muted">-</em>
+                                            {% endif %}
+                                        </td>
+                                        <td class="bg-light">
+                                            {% if values.new != None %}
+                                                {% if values.new.repr %}
+                                                    {{ values.new.repr }}
+                                                {% else %}
+                                                    {{ values.new }}
+                                                {% endif %}
+                                            {% else %}
+                                                <em class="text-muted">-</em>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p class="text-muted">Aucun détail disponible</p>
+                            {% endif %}
+
+                            {% if log.ip_address %}
+                            <small class="text-muted">
+                                <i class="fas fa-globe"></i> IP: {{ log.ip_address }}
+                            </small>
+                            {% endif %}
+                        </div>
+                        <div class="timeline-footer">
+                            <a href="{% url 'admin:history_actionlog_change' log.pk %}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i> Détails
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                <div>
+                    <i class="far fa-clock bg-gray"></i>
+                </div>
+            </div>
+            {% else %}
+            <div class="p-4 text-center">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <p class="text-muted">Aucun historique trouvé pour cet objet.</p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer">
+            <a href="{% url 'admin:history_actionlog_changelist' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Retour au journal
+            </a>
+            {% if object_url %}
+            <a href="{{ object_url }}" class="btn btn-primary">
+                <i class="fas fa-external-link-alt"></i> Voir l'objet
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+.timeline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: #dee2e6;
+    left: 31px;
+    margin: 0;
+}
+.timeline > div {
+    position: relative;
+    margin-bottom: 15px;
+}
+.timeline > div > .timeline-item {
+    margin-left: 60px;
+    margin-right: 15px;
+    margin-top: 0;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+}
+.timeline > div > .timeline-item > .time {
+    color: #999;
+    float: right;
+    padding: 10px;
+    font-size: 12px;
+}
+.timeline > div > .timeline-item > .timeline-header {
+    margin: 0;
+    padding: 10px;
+    border-bottom: 1px solid #f4f4f4;
+    font-size: 16px;
+    font-weight: 600;
+}
+.timeline > div > .timeline-item > .timeline-body {
+    padding: 10px;
+}
+.timeline > div > .timeline-item > .timeline-footer {
+    padding: 10px;
+    background: #f9f9f9;
+    border-top: 1px solid #f4f4f4;
+}
+.timeline > div > i {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+    position: absolute;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 30px;
+    color: #fff;
+    left: 18px;
+}
+.time-label > span {
+    padding: 5px 10px;
+    border-radius: 4px;
+    color: #fff;
+    display: inline-block;
+    margin-left: 50px;
+}
+</style>
+{% endblock %}
