@@ -1,0 +1,576 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interface with NGspice &mdash; SLiCAP 4.0.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=b8a5ba81"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Create plots" href="plots.html" />
+    <link rel="prev" title="Work with analysis results" href="math.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            SLiCAP
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction/SLiCAPintroduction.html">SLiCAP Version 4.0</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="SLiCAPuserguide.html">SLiCAP User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="install.html">Download, install, configure and test SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit.html">Create a SLiCAP circuit object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schematics.html">Schematic capture for SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specifications.html">Work with specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html">Work with parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Work with models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="subcircuit.html">Work with subcircuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html">Perform analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matrices.html">SLiCAP circuit matrix equation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="laplace.html">SLiCAP Laplace analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pz.html">SLiCAP pole-zero analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="time.html">SLiCAP time-domain analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="noise.html">SLiCAP noise analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dcvar.html">SLiCAP DC and dcvar analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="feedback.html">Work with feedback circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="balanced.html">Work with balanced circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="math.html">Work with analysis results</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Interface with NGspice</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#supported-analysis">Supported analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kicad-spice-symbol-library">KiCAD SPICE symbol library</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example">Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#schematic-capture-and-netlist-generation">Schematic capture and netlist generation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#netlist">Netlist</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#library">Library</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#run-ngspice-from-slicap">Run NGspice from SLiCAP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dc-sweep">DC sweep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ac-analysis">AC analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#transient-analysis">Transient analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#change-the-netlist">Change the netlist</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#dc-temp-sweep">DC TEMP sweep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#noise-analysis">NOISE analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#operating-point-information">Operating point information</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#display-operating-point-information-in-kicad-schematic">Display operating point information in KiCAD schematic</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#fourier-and-fft-post-processing-functions">Fourier and FFT post processing functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#transient-analysis-with-parameter-substitution">Transient analysis with parameter substitution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fft">FFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fourier-analysis">FOURIER analysis</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="plots.html">Create plots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reports.html">Create reports</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/SLiCAPtutorials.html">SLiCAP Examples and Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syntax/SLiCAPnetlistSyntax.html">SLiCAP Netlist Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/SLiCAPreference.html">SLiCAP Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">SLiCAP</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="SLiCAPuserguide.html">SLiCAP User Guide</a></li>
+      <li class="breadcrumb-item active">Interface with NGspice</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/userguide/ngspice.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="interface-with-ngspice">
+<h1>Interface with NGspice<a class="headerlink" href="#interface-with-ngspice" title="Link to this heading"></a></h1>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+<p>SLiCAP offers a simple interface for running basic NGspice simulations and plot graphs from within your SLiCAP application. It requires installation of:</p>
+<ol class="arabic simple">
+<li><p>NGspice for circuit simulation</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://ngspice.sourceforge.io/">NGspice</a></p></li>
+<li><p><a class="reference external" href="https://ngspice.sourceforge.io/docs/ngspice-manual.pdf">NGspice manual</a></p></li>
+</ul>
+</li>
+<li><p>KiCAD for creating circuit diagrams with symbols from the KiCAD SPICE symbol library</p></li>
+</ol>
+<section id="supported-analysis">
+<h2>Supported analysis<a class="headerlink" href="#supported-analysis" title="Link to this heading"></a></h2>
+<p>The function <a class="reference external" href="../reference/SLiCAPngspice.html#SLiCAP.SLiCAPngspice.ngspice2traces">ngspice2traces()</a> creates <a class="reference external" href="../reference/SLiCAPplots.html#SLiCAP.SLiCAPplots.trace">SLiCAPplots.trace</a> objects that can be plotted with the <a class="reference external" href="../reference/SLiCAPplots.html#SLiCAP.SLiCAPplots.plot">SLiCAPplots.plot()</a> function.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ngspice2traces()</span></code> supports:</p>
+<ol class="arabic simple">
+<li><p>OP: operating point analysis</p></li>
+<li><p>DC: DC sweep</p></li>
+<li><p>AC: small-signal frequency-domain analysis</p></li>
+<li><p>TRAN: Time-domain analysis, with FFT or FOURIER post processing</p></li>
+<li><p>DC TEMP: Temperature sweep</p></li>
+<li><p>NOISE: small-signal frequency-domain noise analysis</p></li>
+</ol>
+<p>Parameter stepping (including temperature: <code class="docutils literal notranslate"><span class="pre">TEMP</span></code>) is supported on all above analysis types.</p>
+</section>
+<section id="kicad-spice-symbol-library">
+<h2>KiCAD SPICE symbol library<a class="headerlink" href="#kicad-spice-symbol-library" title="Link to this heading"></a></h2>
+<p>The KiCAD SPICE symbol library provided with SLiCAP supports all NGspice devices with associated parameters. The SPICE symbol library location is set in the SLiCAP.ini file in the user home directory. Below the location with SLiCAP installed for user <em>USR</em> in Python environment <em>ENV</em>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">ngspice_syms</span>
+<span class="go">/home/USR/ENV/lib/python3.12/site-packages/SLiCAP/files/kicad/SLiCAP</span>
+</pre></div>
+</div>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>NGspice netlist creation and simulation from within SLiCAP only works with SPICE symbols from the library mentioned above!</p>
+<p><strong>Don’t mix-up SLiCAP symbols and SPICE symbols in one schematic!</strong></p>
+</div>
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading"></a></h2>
+<p>The SLiCAP output displayed on this manual page, is generated with the script: <code class="docutils literal notranslate"><span class="pre">ngspice.py</span></code>, imported by <code class="docutils literal notranslate"><span class="pre">Manual.py</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="ch">#!/usr/bin/env python3</span>
+<span class="linenos">2</span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="linenos">3</span>
+<span class="linenos">4</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">5</span><span class="sd">ngspice.py: SLiCAP scripts for the HTML help file</span>
+<span class="linenos">6</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">7</span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+</pre></div>
+</div>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+</section>
+<section id="schematic-capture-and-netlist-generation">
+<h2>Schematic capture and netlist generation<a class="headerlink" href="#schematic-capture-and-netlist-generation" title="Link to this heading"></a></h2>
+<p><a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.makeCircuit">makeCircuit()</a> with keyword argument <code class="docutils literal notranslate"><span class="pre">language=SPICE</span></code> creates and returns a NGspice compatible netlist of a KiCAD schematic file:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 9</span><span class="c1"># Create SPICE netlist</span>
+<span class="linenos">10</span><span class="n">fileName</span> <span class="o">=</span> <span class="s2">&quot;VampQspice&quot;</span>
+<span class="linenos">11</span><span class="n">netlist</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/&quot;</span> <span class="o">+</span> <span class="n">fileName</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">fileName</span> <span class="o">+</span> <span class="s2">&quot;.kicad_sch&quot;</span><span class="p">,</span> 
+<span class="linenos">12</span>                         <span class="n">language</span><span class="o">=</span><span class="s2">&quot;SPICE&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<figure class="align-default" id="id1">
+<span id="fig-vampqspice"></span><a class="reference internal image-reference" href="../_images/VampQspice.svg"><img alt="KiCAD NGspice schematic" src="../_images/VampQspice.svg" style="width: 450px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Fig. 1 </span><span class="caption-text">KiCAD NGspice schematic with SLiCAP SPICE symbols and automatically updated operating point information.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Please notice:</p>
+<ol class="arabic simple">
+<li><p>The value field of independent sources carries the SPICE specification of simulation signals (see: <code class="docutils literal notranslate"><span class="pre">V1</span></code> and <code class="docutils literal notranslate"><span class="pre">V2</span></code>)</p></li>
+<li><p>A standard library (no binned IC models) is included with an <code class="docutils literal notranslate"><span class="pre">.INC</span></code> directive</p></li>
+<li><p>A binned IC device model library is included with a <code class="docutils literal notranslate"><span class="pre">.LIB</span></code> directive</p></li>
+<li><p>The library path is relative to the project directory</p></li>
+<li><p>All circuit parameters (here: <code class="docutils literal notranslate"><span class="pre">C_c</span></code>) must be assigned a value with a <code class="docutils literal notranslate"><span class="pre">.param</span></code> directive</p></li>
+<li><p>The netlist created from the KiCAD schematics is stored in the <code class="docutils literal notranslate"><span class="pre">cir/</span></code> folder in the project directory</p></li>
+</ol>
+<section id="netlist">
+<h3>Netlist<a class="headerlink" href="#netlist" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;BJT voltage amplifier&quot;</span>
+<span class="o">.</span><span class="n">inc</span> <span class="n">lib</span><span class="o">/</span><span class="n">BC847</span><span class="o">.</span><span class="n">lib</span>
+<span class="o">.</span><span class="n">param</span> <span class="n">C_c</span><span class="o">=</span><span class="mi">18</span><span class="n">p</span>
+<span class="n">C1</span> <span class="n">c2</span> <span class="n">out</span> <span class="mi">1</span><span class="n">u</span>
+<span class="n">C2</span> <span class="n">out</span> <span class="mi">0</span> <span class="mi">100</span><span class="n">p</span>
+<span class="n">C3</span> <span class="n">e2</span> <span class="mi">0</span> <span class="mi">200</span><span class="n">u</span>
+<span class="n">C4</span> <span class="ow">in</span> <span class="n">b1</span> <span class="mi">1</span><span class="n">u</span>
+<span class="n">C5</span> <span class="n">c2</span> <span class="n">e1</span> <span class="p">{</span><span class="n">C_c</span><span class="p">}</span>
+<span class="n">Q1</span> <span class="n">c1</span> <span class="n">b1</span> <span class="n">e1</span> <span class="n">BC847</span>
+<span class="n">Q2</span> <span class="n">c2</span> <span class="n">c1</span> <span class="n">e2</span> <span class="n">BC847</span>
+<span class="n">R1</span> <span class="n">e2</span> <span class="mi">0</span> <span class="mi">1</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R2</span> <span class="n">cc</span> <span class="n">c2</span> <span class="mf">2.7</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R3</span> <span class="n">cc</span> <span class="n">c1</span> <span class="mi">82</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R4</span> <span class="n">b1</span> <span class="n">e2</span> <span class="mi">100</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R5</span> <span class="n">out</span> <span class="mi">0</span> <span class="mi">10</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R6</span> <span class="n">e1</span> <span class="mi">0</span> <span class="mi">1</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R7</span> <span class="n">c2</span> <span class="n">e1</span> <span class="mi">3</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">R8</span> <span class="ow">in</span> <span class="mi">1</span> <span class="mi">2</span><span class="n">k</span> <span class="n">noisy</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">V1</span> <span class="mi">1</span> <span class="mi">0</span> <span class="n">DC</span> <span class="mi">0</span> <span class="n">AC</span> <span class="mi">1</span> <span class="mi">0</span> <span class="n">SIN</span> <span class="mi">0</span> <span class="p">{</span><span class="n">V_p</span><span class="p">}</span> <span class="mi">100</span><span class="n">k</span>
+<span class="o">.</span><span class="n">param</span> <span class="n">V_p</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">V2</span> <span class="n">cc</span> <span class="mi">0</span> <span class="n">DC</span> <span class="mi">12</span>
+<span class="o">.</span><span class="n">end</span>
+</pre></div>
+</div>
+</section>
+<section id="library">
+<h3>Library<a class="headerlink" href="#library" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="o">.</span><span class="n">model</span> <span class="n">BC847</span> <span class="n">NPN</span> <span class="p">(</span><span class="n">Is</span><span class="o">=</span><span class="mf">7.049</span><span class="n">f</span> <span class="n">Xti</span><span class="o">=</span><span class="mi">3</span> <span class="n">Eg</span><span class="o">=</span><span class="mf">1.11</span> <span class="n">Vaf</span><span class="o">=</span><span class="mf">62.79</span> <span class="n">Bf</span><span class="o">=</span><span class="mf">374.6</span> <span class="n">Ise</span><span class="o">=</span><span class="mi">68</span><span class="n">f</span> <span class="n">Ne</span><span class="o">=</span><span class="mf">1.576</span>
+<span class="linenos">2</span><span class="o">+</span>               <span class="n">Ikf</span><span class="o">=</span><span class="mf">81.57</span><span class="n">m</span> <span class="n">Nk</span><span class="o">=</span><span class="mf">.4767</span> <span class="n">Xtb</span><span class="o">=</span><span class="mf">1.5</span> <span class="n">Br</span><span class="o">=</span><span class="mi">1</span> <span class="n">Isc</span><span class="o">=</span><span class="mf">12.4</span><span class="n">f</span> <span class="n">Nc</span><span class="o">=</span><span class="mf">1.835</span> <span class="n">Ikr</span><span class="o">=</span><span class="mf">3.924</span>
+<span class="linenos">3</span><span class="o">+</span>               <span class="n">Rc</span><span class="o">=</span><span class="mf">.9747</span> <span class="n">Cjc</span><span class="o">=</span><span class="mf">5.25</span><span class="n">p</span> <span class="n">Mjc</span><span class="o">=</span><span class="mf">.3147</span> <span class="n">Vjc</span><span class="o">=</span><span class="mf">.5697</span> <span class="n">Fc</span><span class="o">=</span><span class="mf">.5</span> <span class="n">Cje</span><span class="o">=</span><span class="mf">11.5</span><span class="n">p</span>
+<span class="linenos">4</span><span class="o">+</span>               <span class="n">Mje</span><span class="o">=</span><span class="mf">.6715</span> <span class="n">Vje</span><span class="o">=</span><span class="mf">.5</span> <span class="n">Tr</span><span class="o">=</span><span class="mi">10</span><span class="n">n</span> <span class="n">Tf</span><span class="o">=</span><span class="mf">410.2</span><span class="n">p</span> <span class="n">Itf</span><span class="o">=</span><span class="mf">1.491</span> <span class="n">Xtf</span><span class="o">=</span><span class="mf">40.06</span> <span class="n">Vtf</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="run-ngspice-from-slicap">
+<h2>Run NGspice from SLiCAP<a class="headerlink" href="#run-ngspice-from-slicap" title="Link to this heading"></a></h2>
+<p>The function <a class="reference external" href="../reference/SLiCAPngspice.html#SLiCAP.SLiCAPngspice.ngspice2traces">ngspice2traces</a> returns</p>
+<ol class="arabic">
+<li><p>A dictionary with <a class="reference external" href="../reference/SLiCAPplots.html#SLiCAP.SLiCAPplots.trace">traces</a>, the swept variable name, and the swept variable units.</p>
+<p>In case of an AC or FFT analysis the function returns two dictionaries with traces instead of one.</p>
+</li>
+<li><p>A dictionary with operating point information</p></li>
+</ol>
+</section>
+<section id="dc-sweep">
+<h2>DC sweep<a class="headerlink" href="#dc-sweep" title="Link to this heading"></a></h2>
+<p>Simulation command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">14</span><span class="c1"># DC sweep</span>
+<span class="linenos">15</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;DC V2 6 12 1&quot;</span>
+</pre></div>
+</div>
+<p>The dictionary with names is a mapping of NGspice variable names on plot legend variable names.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">16</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_c2&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)&quot;</span><span class="p">,</span> <span class="s2">&quot;V_e2&quot;</span><span class="p">:</span><span class="s2">&quot;V(e2)&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>The function <a class="reference external" href="../reference/SLiCAPngspice.html#SLiCAP.SLiCAPngspice.ngspice2traces">ngspice2traces</a> performs the simulation and returns the data:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">17</span><span class="n">DC</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In case of a DC sweep, the <em>x-units</em> are empty. They can be defined with the plot:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">19</span><span class="c1"># DC plot </span>
+<span class="linenos">20</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceDC&quot;</span><span class="p">,</span> <span class="s2">&quot;DC voltages $V_</span><span class="si">{c2}</span><span class="s2">$, $V_</span><span class="si">{e2}</span><span class="s2">$ versus power supply&quot;</span><span class="p">,</span> 
+<span class="linenos">21</span>        <span class="s2">&quot;lin&quot;</span><span class="p">,</span> <span class="n">DC</span><span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceDC.svg"><img alt="../_images/VampQspiceDC.svg" src="../_images/VampQspiceDC.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="ac-analysis">
+<h2>AC analysis<a class="headerlink" href="#ac-analysis" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">23</span><span class="c1"># AC simulation, dBmag and phase, stepped</span>
+<span class="linenos">24</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;AC DEC 50 5 10MEG&quot;</span> 
+<span class="linenos">25</span><span class="n">stepCmd</span> <span class="o">=</span> <span class="s2">&quot;C_c LIN 2p 20p 10&quot;</span>
+<span class="linenos">26</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_out&quot;</span><span class="p">:</span> <span class="s2">&quot;V(out)&quot;</span><span class="p">}</span>
+<span class="linenos">27</span><span class="n">mag</span><span class="p">,</span> <span class="n">phase</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> 
+<span class="linenos">28</span>                                                 <span class="n">names</span><span class="p">,</span> <span class="n">stepCmd</span><span class="o">=</span><span class="n">stepCmd</span><span class="p">,</span> 
+<span class="linenos">29</span>                                                 <span class="n">traceType</span><span class="o">=</span><span class="s1">&#39;dBmagPhase&#39;</span><span class="p">)</span>
+<span class="linenos">30</span>
+<span class="linenos">31</span><span class="c1"># dB magnitude plot</span>
+<span class="linenos">32</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceM&quot;</span><span class="p">,</span> <span class="s2">&quot;dBmag($V_</span><span class="si">{out}</span><span class="s2">$)&quot;</span><span class="p">,</span> <span class="s2">&quot;semilogx&quot;</span><span class="p">,</span> <span class="n">mag</span> <span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> 
+<span class="linenos">33</span>        <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;dB&quot;</span><span class="p">)</span>
+<span class="linenos">34</span>
+<span class="linenos">35</span><span class="c1"># Phase plot</span>
+<span class="linenos">36</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceP&quot;</span><span class="p">,</span> <span class="s2">&quot;arg($V_</span><span class="si">{out}</span><span class="s2">$)&quot;</span><span class="p">,</span> <span class="s2">&quot;semilogx&quot;</span><span class="p">,</span> 
+<span class="linenos">37</span>        <span class="n">phase</span><span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;deg&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceM.svg"><img alt="../_images/VampQspiceM.svg" src="../_images/VampQspiceM.svg" style="width: 500px;" />
+</a>
+<a class="reference internal image-reference" href="../_images/VampQspiceP.svg"><img alt="../_images/VampQspiceP.svg" src="../_images/VampQspiceP.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="transient-analysis">
+<h2>Transient analysis<a class="headerlink" href="#transient-analysis" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">39</span><span class="c1"># TRAN simumlation, stepped</span>
+<span class="linenos">40</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;TRAN 1n 1u&quot;</span>
+<span class="linenos">41</span><span class="n">stepCmd</span> <span class="o">=</span> <span class="s2">&quot;C_c LIN 2p 20p 10&quot;</span>
+<span class="linenos">42</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_out&quot;</span><span class="p">:</span> <span class="s2">&quot;V(out)&quot;</span><span class="p">}</span>
+<span class="linenos">43</span><span class="n">tran</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> 
+<span class="linenos">44</span>                                           <span class="n">stepCmd</span><span class="o">=</span><span class="n">stepCmd</span><span class="p">)</span>
+<span class="linenos">45</span><span class="c1"># Time plot</span>
+<span class="linenos">46</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceT1&quot;</span><span class="p">,</span> <span class="s2">&quot;Pulse $V_</span><span class="si">{out}</span><span class="s2">$, stepped $C_c$&quot;</span><span class="p">,</span> <span class="s2">&quot;lin&quot;</span><span class="p">,</span> 
+<span class="linenos">47</span>        <span class="n">tran</span><span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span> <span class="n">xScale</span><span class="o">=</span><span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceT1.svg"><img alt="../_images/VampQspiceT1.svg" src="../_images/VampQspiceT1.svg" style="width: 500px;" />
+</a>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">49</span><span class="c1"># TRAN simumlation, multiple traces</span>
+<span class="linenos">50</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;TRAN 1n 1u&quot;</span>
+<span class="linenos">51</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_out&quot;</span><span class="p">:</span> <span class="s2">&quot;V(out)&quot;</span><span class="p">,</span> <span class="s2">&quot;V_in&quot;</span><span class="p">:</span> <span class="s2">&quot;V(in)&quot;</span><span class="p">,</span> <span class="s2">&quot;V_c2&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)&quot;</span><span class="p">}</span>
+<span class="linenos">52</span><span class="n">tran</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">)</span>
+<span class="linenos">53</span>
+<span class="linenos">54</span><span class="c1"># Time plot</span>
+<span class="linenos">55</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceT2&quot;</span><span class="p">,</span> <span class="s2">&quot;Pulse $V_</span><span class="si">{out}</span><span class="s2">$, $C_c$=18pF&quot;</span><span class="p">,</span> <span class="s2">&quot;lin&quot;</span><span class="p">,</span> <span class="n">tran</span><span class="p">,</span> 
+<span class="linenos">56</span>        <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span> <span class="n">xScale</span><span class="o">=</span><span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceT2.svg"><img alt="../_images/VampQspiceT2.svg" src="../_images/VampQspiceT2.svg" style="width: 500px;" />
+</a>
+<section id="change-the-netlist">
+<h3>Change the netlist<a class="headerlink" href="#change-the-netlist" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">50</span><span class="c1"># Change the netlist: change pulse to sinewave with parameter V_p amplitude</span>
+<span class="linenos">51</span><span class="n">netlist</span> <span class="o">=</span> <span class="n">netlist</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;PULSE 0 0.3 0 1n 1n 499n 1u&quot;</span><span class="p">,</span> 
+<span class="linenos">52</span>                          <span class="s2">&quot;SIN 0 </span><span class="si">{V_p}</span><span class="s2"> 100k</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span>
+<span class="linenos">53</span>                          <span class="s2">&quot;.param V_p=1&quot;</span><span class="p">)</span>
+<span class="linenos">54</span><span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;cir/VampQspice.cir&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span>
+<span class="linenos">55</span><span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">netlist</span><span class="p">)</span>
+<span class="linenos">56</span><span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">57</span>
+<span class="linenos">58</span><span class="c1"># TRAN simumlation, multiple traces and parameter stepping</span>
+<span class="linenos">59</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;TRAN 10n 20u&quot;</span>
+<span class="linenos">60</span><span class="n">stepCmd</span> <span class="o">=</span> <span class="s2">&quot;V_p LIN 0.5 1 2&quot;</span>
+<span class="linenos">61</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_out&quot;</span><span class="p">:</span> <span class="s2">&quot;V(out)&quot;</span><span class="p">,</span> <span class="s2">&quot;V_in&quot;</span><span class="p">:</span> <span class="s2">&quot;V(in)&quot;</span><span class="p">,</span> <span class="s2">&quot;V_c2&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)&quot;</span><span class="p">}</span>
+<span class="linenos">62</span><span class="n">sine</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> 
+<span class="linenos">63</span>                                           <span class="n">names</span><span class="p">,</span> <span class="n">stepCmd</span><span class="o">=</span><span class="n">stepCmd</span><span class="p">)</span>
+<span class="linenos">64</span>
+<span class="linenos">65</span><span class="c1"># Time plot</span>
+<span class="linenos">66</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceS&quot;</span><span class="p">,</span> <span class="s2">&quot;Sine overdrive $V_</span><span class="si">{out}</span><span class="s2">$, $C_c$=18pF&quot;</span><span class="p">,</span> <span class="s2">&quot;lin&quot;</span><span class="p">,</span> <span class="n">sine</span><span class="p">,</span> 
+<span class="linenos">67</span>        <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span> <span class="n">xScale</span><span class="o">=</span><span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceS.svg"><img alt="../_images/VampQspiceS.svg" src="../_images/VampQspiceS.svg" style="width: 500px;" />
+</a>
+</section>
+</section>
+<section id="dc-temp-sweep">
+<h2>DC TEMP sweep<a class="headerlink" href="#dc-temp-sweep" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">77</span><span class="c1"># DC TEMP sweep</span>
+<span class="linenos">78</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;DC TEMP -55 125 5&quot;</span>
+<span class="linenos">79</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_c2&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)&quot;</span><span class="p">,</span> <span class="s2">&quot;V_e2&quot;</span><span class="p">:</span><span class="s2">&quot;V(e2)&quot;</span><span class="p">}</span>
+<span class="linenos">80</span><span class="n">TMP</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">)</span>
+<span class="linenos">81</span>
+<span class="linenos">82</span><span class="c1"># TEMP plot </span>
+<span class="linenos">83</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceTMP&quot;</span><span class="p">,</span> <span class="s2">&quot;DC voltages $V_</span><span class="si">{c2}</span><span class="s2">$, $V_</span><span class="si">{e2}</span><span class="s2">$ versus temperature&quot;</span><span class="p">,</span> 
+<span class="linenos">84</span>        <span class="s2">&quot;lin&quot;</span><span class="p">,</span> <span class="n">TMP</span><span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="s2">&quot;Celsius&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceTMP.svg"><img alt="../_images/VampQspiceTMP.svg" src="../_images/VampQspiceTMP.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="noise-analysis">
+<h2>NOISE analysis<a class="headerlink" href="#noise-analysis" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">86</span><span class="c1"># NOISE analysis</span>
+<span class="linenos">87</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;NOISE V(out) V1 dec 50 5 10MEG&quot;</span>
+<span class="linenos">88</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;S_vo&quot;</span><span class="p">:</span> <span class="s2">&quot;onoise_spectrum&quot;</span><span class="p">,</span> <span class="s2">&quot;S_vi&quot;</span><span class="p">:</span> <span class="s2">&quot;inoise_spectrum&quot;</span><span class="p">}</span>
+<span class="linenos">89</span><span class="n">NOISE</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> 
+<span class="linenos">90</span>                                           <span class="n">squaredNoise</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="linenos">91</span>
+<span class="linenos">92</span><span class="c1"># NOISE plot </span>
+<span class="linenos">93</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceNOISE&quot;</span><span class="p">,</span> <span class="s2">&quot;Noise input and output spectrum&quot;</span><span class="p">,</span> 
+<span class="linenos">94</span>        <span class="s2">&quot;log&quot;</span><span class="p">,</span> <span class="n">NOISE</span><span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="s2">&quot;Hz&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;$V/</span><span class="se">\\</span><span class="s2">sqrt</span><span class="si">{Hz}</span><span class="s2">$&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceNOISE.svg"><img alt="../_images/VampQspiceNOISE.svg" src="../_images/VampQspiceNOISE.svg" style="width: 500px;" />
+</a>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 96</span><span class="c1"># Total noise versus temperature</span>
+<span class="linenos"> 97</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;NOISE V(out) V1 dec 50 5 10MEG&quot;</span>
+<span class="linenos"> 98</span><span class="n">stepCmd</span> <span class="o">=</span> <span class="s2">&quot;TEMP LIN -55 125 50&quot;</span>
+<span class="linenos"> 99</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;v_no&quot;</span><span class="p">:</span> <span class="s2">&quot;onoise_total&quot;</span><span class="p">}</span>
+<span class="linenos">100</span><span class="n">NOISETOT</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> 
+<span class="linenos">101</span>                                              <span class="n">stepCmd</span><span class="o">=</span><span class="n">stepCmd</span><span class="p">,</span> 
+<span class="linenos">102</span>                                              <span class="n">squaredNoise</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="linenos">103</span><span class="c1"># TOTAL NOISE plot </span>
+<span class="linenos">104</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceNOISETOT&quot;</span><span class="p">,</span> <span class="s2">&quot;Total output noise versus temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;lin&quot;</span><span class="p">,</span> 
+<span class="linenos">105</span>        <span class="n">NOISETOT</span><span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="s2">&quot;Celsius&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">,</span> <span class="n">yScale</span><span class="o">=</span><span class="s2">&quot;u&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/VampQspiceNOISETOT.svg"><img alt="../_images/VampQspiceNOISETOT.svg" src="../_images/VampQspiceNOISETOT.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="operating-point-information">
+<h2>Operating point information<a class="headerlink" href="#operating-point-information" title="Link to this heading"></a></h2>
+<p>Without parameter stepping an <code class="docutils literal notranslate"><span class="pre">OP</span></code> instruction returns a dictionary with name-value pairs. With parameter stepping, it returns a dictionary with traces that can be plotted with <a class="reference external" href="../reference/SLiCAPplots.html#SLiCAP.SLiCAPplots.plot">SLiCAPplots.plot()</a>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">107</span><span class="c1"># Operating point analysis</span>
+<span class="linenos">108</span><span class="n">simCmd</span>  <span class="o">=</span> <span class="s2">&quot;OP&quot;</span>
+<span class="linenos">109</span><span class="n">names</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_c1&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c1)&quot;</span><span class="p">,</span>
+<span class="linenos">110</span>           <span class="s2">&quot;V_b1&quot;</span><span class="p">:</span> <span class="s2">&quot;V(b1)&quot;</span><span class="p">,</span>
+<span class="linenos">111</span>           <span class="s2">&quot;V_e1&quot;</span><span class="p">:</span> <span class="s2">&quot;V(e1)&quot;</span><span class="p">,</span>
+<span class="linenos">112</span>           <span class="s2">&quot;V_c2&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)&quot;</span><span class="p">,</span>
+<span class="linenos">113</span>           <span class="s2">&quot;V_e2&quot;</span><span class="p">:</span> <span class="s2">&quot;V(e2)&quot;</span><span class="p">,</span> 
+<span class="linenos">114</span>           <span class="s2">&quot;I_V2&quot;</span><span class="p">:</span> <span class="s2">&quot;I(V2)&quot;</span><span class="p">}</span>
+<span class="linenos">115</span>
+<span class="linenos">116</span><span class="n">OPinfo</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">stepCmd</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="linenos">117</span>
+<span class="linenos">118</span><span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">OPinfo</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">119</span>    <span class="nb">print</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="n">OPinfo</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>V_c1 : 2.49185497
+V_b1 : 1.76367933
+V_e1 : 1.15679378
+V_c2 : 4.29572571
+V_e2 : 1.81259412
+I_V2 : -0.00296938791
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">121</span><span class="n">rst</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">RSTformatter</span><span class="p">()</span>
+<span class="linenos">122</span><span class="n">head</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="s2">&quot;Value&quot;</span><span class="p">]</span>
+<span class="linenos">123</span><span class="n">rst</span><span class="o">.</span><span class="n">dictTable</span><span class="p">(</span><span class="n">OPinfo</span><span class="p">,</span> <span class="n">head</span><span class="o">=</span><span class="n">head</span><span class="p">,</span> <span class="n">caption</span><span class="o">=</span><span class="s2">&quot;Bias voltages&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;table-VampQ-opinfo&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-number">Table 21 </span><span class="caption-text">Bias voltages</span><a class="headerlink" href="#id2" title="Link to this table"></a></caption>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>V_c1</p></td>
+<td><p><span class="math notranslate nohighlight">\(2.492\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>V_b1</p></td>
+<td><p><span class="math notranslate nohighlight">\(1.764\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>V_e1</p></td>
+<td><p><span class="math notranslate nohighlight">\(1.157\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>V_c2</p></td>
+<td><p><span class="math notranslate nohighlight">\(4.296\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>V_e2</p></td>
+<td><p><span class="math notranslate nohighlight">\(1.813\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I_V2</p></td>
+<td><p><span class="math notranslate nohighlight">\(-0.002969\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<section id="display-operating-point-information-in-kicad-schematic">
+<h3>Display operating point information in KiCAD schematic<a class="headerlink" href="#display-operating-point-information-in-kicad-schematic" title="Link to this heading"></a></h3>
+<p>The SLiCAP function <a class="reference external" href="../reference/SLiCAPkicad.html#SLiCAP.SLiCAPkicad.backAnnotateSchematic">backAnnotateSchematic()</a> can be used to display parameter values and operating point information in a KiCAD schematic file and its <code class="docutils literal notranslate"><span class="pre">svg</span></code> and <code class="docutils literal notranslate"><span class="pre">pdf</span></code> image files. To this end, text fields with the keys from the <code class="docutils literal notranslate"><span class="pre">OPinfo</span></code> dictionary must be placed on the schematic. <code class="docutils literal notranslate"><span class="pre">backAnnotateSchematic</span></code> replaces these text fields with <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;:&lt;OPinfo[name]&gt;</span></code>. The result is shown in <a class="reference internal" href="#fig-vampqspice"><span class="std std-numref">Fig. 1</span></a>. Please notice that the keys of the <code class="docutils literal notranslate"><span class="pre">OPinfo</span></code> dictionary equal those of the <code class="docutils literal notranslate"><span class="pre">names</span></code> dictionary.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">125</span><span class="n">sl</span><span class="o">.</span><span class="n">backAnnotateSchematic</span><span class="p">(</span><span class="s2">&quot;kicad/&quot;</span> <span class="o">+</span> <span class="n">fileName</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">fileName</span> <span class="o">+</span> <span class="s2">&quot;.kicad_sch&quot;</span><span class="p">,</span> 
+<span class="linenos">126</span>                         <span class="n">OPinfo</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="fourier-and-fft-post-processing-functions">
+<h2>Fourier and FFT post processing functions<a class="headerlink" href="#fourier-and-fft-post-processing-functions" title="Link to this heading"></a></h2>
+<section id="transient-analysis-with-parameter-substitution">
+<h3>Transient analysis with parameter substitution<a class="headerlink" href="#transient-analysis-with-parameter-substitution" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">128</span><span class="c1"># TRAN with parameter substitution</span>
+<span class="linenos">129</span><span class="n">simCmd</span>   <span class="o">=</span> <span class="s2">&quot;TRAN 0.1u 20u&quot;</span>
+<span class="linenos">130</span><span class="n">params</span>   <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;V_p&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)]</span>
+<span class="linenos">131</span><span class="n">names</span>    <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_out&quot;</span><span class="p">:</span> <span class="s2">&quot;V(out)&quot;</span><span class="p">}</span>
+<span class="linenos">132</span><span class="n">tran</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">parList</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+<span class="linenos">133</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceSIN&quot;</span><span class="p">,</span> <span class="s2">&quot;$V_</span><span class="si">{out}</span><span class="s2">$&quot;</span><span class="p">,</span> <span class="s2">&quot;lin&quot;</span><span class="p">,</span> <span class="n">tran</span> <span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span>
+<span class="linenos">134</span>        <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="img/VampQspiceSIN.svg"><img alt="img/VampQspiceSIN.svg" src="img/VampQspiceSIN.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="fft">
+<h3>FFT<a class="headerlink" href="#fft" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">136</span><span class="c1"># FFT</span>
+<span class="linenos">137</span><span class="n">simCmd</span>   <span class="o">=</span> <span class="s2">&quot;TRAN 1u 512u 64u 10n&quot;</span>
+<span class="linenos">138</span><span class="n">params</span>   <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;V_p&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)]</span>
+<span class="linenos">139</span><span class="c1"># Eliminate DC component from output</span>
+<span class="linenos">140</span><span class="n">names</span>    <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_AC_rms&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)-</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">OPinfo</span><span class="p">[</span><span class="s1">&#39;V_c2&#39;</span><span class="p">]))}</span>
+<span class="linenos">141</span><span class="n">postProc</span> <span class="o">=</span> <span class="s2">&quot;FFT V_AC_rms&quot;</span>
+<span class="linenos">142</span><span class="n">options</span>  <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;RELTOL&quot;</span><span class="p">:</span> <span class="mf">1e-6</span><span class="p">}</span>
+<span class="linenos">143</span><span class="n">mag</span><span class="p">,</span> <span class="n">phase</span><span class="p">,</span> <span class="n">x_name</span><span class="p">,</span> <span class="n">x_units</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> 
+<span class="linenos">144</span>                                                 <span class="n">postProc</span><span class="o">=</span><span class="n">postProc</span><span class="p">,</span> <span class="n">saveLog</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
+<span class="linenos">145</span>                                                 <span class="n">traceType</span><span class="o">=</span><span class="s1">&#39;magPhase&#39;</span><span class="p">,</span> 
+<span class="linenos">146</span>                                                 <span class="n">parList</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">optDict</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+<span class="linenos">147</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;VampQspiceFFT&quot;</span><span class="p">,</span> <span class="s2">&quot;$V_</span><span class="si">{out}</span><span class="s2">$&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">,</span> <span class="n">mag</span> <span class="p">,</span> <span class="n">xName</span><span class="o">=</span><span class="n">x_name</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="n">x_units</span><span class="p">,</span> 
+<span class="linenos">148</span>        <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">,</span> <span class="n">xLim</span><span class="o">=</span><span class="p">[</span><span class="mf">10e3</span><span class="p">,</span> <span class="mf">1e6</span><span class="p">],</span> <span class="n">yLim</span><span class="o">=</span><span class="p">[</span><span class="mf">2e-7</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="img/VampQspiceFFT.svg"><img alt="img/VampQspiceFFT.svg" src="img/VampQspiceFFT.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="fourier-analysis">
+<h3>FOURIER analysis<a class="headerlink" href="#fourier-analysis" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">150</span><span class="c1"># FOURIER</span>
+<span class="linenos">151</span><span class="n">simCmd</span>   <span class="o">=</span> <span class="s2">&quot;TRAN 1u 512u 64u 10n&quot;</span>
+<span class="linenos">152</span><span class="n">params</span>   <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;V_p&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)]</span>
+<span class="linenos">153</span><span class="c1"># Eliminate DC component from output</span>
+<span class="linenos">154</span><span class="n">names</span>    <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;V_AC&quot;</span><span class="p">:</span> <span class="s2">&quot;V(c2)-</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">OPinfo</span><span class="p">[</span><span class="s1">&#39;V_c2&#39;</span><span class="p">]))}</span>
+<span class="linenos">155</span><span class="n">postProc</span> <span class="o">=</span> <span class="s2">&quot;FOURIER 100k V_AC&quot;</span>
+<span class="linenos">156</span><span class="n">options</span>  <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;RELTOL&quot;</span><span class="p">:</span> <span class="mf">1e-6</span><span class="p">}</span>
+<span class="linenos">157</span><span class="n">results</span>  <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">ngspice2traces</span><span class="p">(</span><span class="s2">&quot;cir/&quot;</span> <span class="o">+</span> <span class="n">fileName</span><span class="p">,</span> <span class="n">simCmd</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">optDict</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> 
+<span class="linenos">158</span>                             <span class="n">postProc</span><span class="o">=</span><span class="n">postProc</span><span class="p">,</span> <span class="n">saveLog</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">parList</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The output of the Fourier analysis is found in the simulation log file. This file is stored in the <code class="docutils literal notranslate"><span class="pre">txt/</span></code> subfolder in the project directory:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">30</span><span class="n">Fourier</span> <span class="n">analysis</span> <span class="k">for</span> <span class="n">v_ac</span><span class="p">:</span>
+<span class="linenos">31</span>  <span class="n">No</span><span class="o">.</span> <span class="n">Harmonics</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="n">THD</span><span class="p">:</span> <span class="mf">0.0956761</span> <span class="o">%</span><span class="p">,</span> <span class="n">Gridsize</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span> <span class="n">Interpolation</span> <span class="n">Degree</span><span class="p">:</span> <span class="mi">1</span>
+<span class="linenos">32</span>
+<span class="linenos">33</span><span class="n">Harmonic</span> <span class="n">Frequency</span>   <span class="n">Magnitude</span>   <span class="n">Phase</span>       <span class="n">Norm</span><span class="o">.</span> <span class="n">Mag</span>   <span class="n">Norm</span><span class="o">.</span> <span class="n">Phase</span>
+<span class="linenos">34</span><span class="o">--------</span> <span class="o">---------</span>   <span class="o">---------</span>   <span class="o">-----</span>       <span class="o">---------</span>   <span class="o">-----------</span>
+<span class="linenos">35</span> <span class="mi">0</span>       <span class="mi">0</span>           <span class="mf">0.000171655</span> <span class="mi">0</span>           <span class="mi">0</span>           <span class="mi">0</span>          
+<span class="linenos">36</span> <span class="mi">1</span>       <span class="mi">100000</span>      <span class="mf">1.93936</span>     <span class="mf">69.4189</span>     <span class="mi">1</span>           <span class="mi">0</span>          
+<span class="linenos">37</span> <span class="mi">2</span>       <span class="mi">200000</span>      <span class="mf">0.000319617</span> <span class="mf">98.4118</span>     <span class="mf">0.000164805</span> <span class="mf">28.9929</span>    
+<span class="linenos">38</span> <span class="mi">3</span>       <span class="mi">300000</span>      <span class="mf">0.00179569</span>  <span class="o">-</span><span class="mf">63.728</span>     <span class="mf">0.000925916</span> <span class="o">-</span><span class="mf">133.15</span>    
+<span class="linenos">39</span> <span class="mi">4</span>       <span class="mi">400000</span>      <span class="mf">8.48382e-05</span> <span class="o">-</span><span class="mf">9.8195</span>     <span class="mf">4.37454e-05</span> <span class="o">-</span><span class="mf">79.238</span>    
+<span class="linenos">40</span> <span class="mi">5</span>       <span class="mi">500000</span>      <span class="mf">0.000320931</span> <span class="o">-</span><span class="mf">101.64</span>     <span class="mf">0.000165483</span> <span class="o">-</span><span class="mf">171.06</span>    
+<span class="linenos">41</span> <span class="mi">6</span>       <span class="mi">600000</span>      <span class="mf">3.59352e-05</span> <span class="o">-</span><span class="mf">53.792</span>     <span class="mf">1.85294e-05</span> <span class="o">-</span><span class="mf">123.21</span>    
+<span class="linenos">42</span> <span class="mi">7</span>       <span class="mi">700000</span>      <span class="mf">6.66689e-05</span> <span class="o">-</span><span class="mf">141.37</span>     <span class="mf">3.43767e-05</span> <span class="o">-</span><span class="mf">210.78</span>    
+<span class="linenos">43</span> <span class="mi">8</span>       <span class="mi">800000</span>      <span class="mf">1.09723e-05</span> <span class="o">-</span><span class="mf">92.645</span>     <span class="mf">5.65768e-06</span> <span class="o">-</span><span class="mf">162.06</span>    
+<span class="linenos">44</span> <span class="mi">9</span>       <span class="mi">900000</span>      <span class="mf">1.44773e-05</span> <span class="mf">177.593</span>     <span class="mf">7.46498e-06</span> <span class="mf">108.174</span>    
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="math.html" class="btn btn-neutral float-left" title="Work with analysis results" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="plots.html" class="btn btn-neutral float-right" title="Create plots" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, SLiCAP development team.
+      <span class="lastupdated">Last updated on 2025, Dec 27.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

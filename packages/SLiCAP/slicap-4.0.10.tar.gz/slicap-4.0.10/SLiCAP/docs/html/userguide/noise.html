@@ -1,0 +1,709 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SLiCAP noise analysis &mdash; SLiCAP 4.0.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=b8a5ba81"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="SLiCAP DC and dcvar analysis" href="dcvar.html" />
+    <link rel="prev" title="SLiCAP time-domain analysis" href="time.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            SLiCAP
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction/SLiCAPintroduction.html">SLiCAP Version 4.0</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="SLiCAPuserguide.html">SLiCAP User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="install.html">Download, install, configure and test SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="circuit.html">Create a SLiCAP circuit object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="schematics.html">Schematic capture for SLiCAP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specifications.html">Work with specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html">Work with parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Work with models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="subcircuit.html">Work with subcircuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html">Perform analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matrices.html">SLiCAP circuit matrix equation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="laplace.html">SLiCAP Laplace analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pz.html">SLiCAP pole-zero analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="time.html">SLiCAP time-domain analysis</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">SLiCAP noise analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#noise-parameters">Noise parameters</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#noise-voltage-sources">Noise voltage sources</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#noise-current-sources">Noise  current sources</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#resistors">Resistors</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#global-parameters">Global parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#noise-analysis">Noise Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#detector-referred-noise">Detector-referred noise</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#source-referred-noise">Source-referred noise</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#contributions-to-detector-referred-and-source-referred-noise">Contributions to detector-referred and source-referred noise</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#subcircuits-with-noise">Subcircuits with noise</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#built-in-subcircuits">Built-in subcircuits</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#create-noise-elements">Create noise elements</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#noise-post-processing-functions">Noise post processing functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#rms-noise">RMS noise</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#noise-figure">Noise Figure</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#noise-weighting-functions">Noise weighting functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#use-assumptions">Use assumptions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#obtain-symbolic-coefficients-of-numeric-intergals">Obtain symbolic coefficients of numeric intergals</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#display-equations-on-html-pages-and-in-latex-documents">Display equations on HTML pages and in LaTeX documents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#plot-noise-spectrum">Plot noise spectrum</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dcvar.html">SLiCAP DC and dcvar analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="feedback.html">Work with feedback circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="balanced.html">Work with balanced circuits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="math.html">Work with analysis results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ngspice.html">Interface with NGspice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plots.html">Create plots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reports.html">Create reports</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/SLiCAPtutorials.html">SLiCAP Examples and Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../syntax/SLiCAPnetlistSyntax.html">SLiCAP Netlist Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/SLiCAPreference.html">SLiCAP Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">SLiCAP</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="SLiCAPuserguide.html">SLiCAP User Guide</a></li>
+      <li class="breadcrumb-item active">SLiCAP noise analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/userguide/noise.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="slicap-noise-analysis">
+<h1>SLiCAP noise analysis<a class="headerlink" href="#slicap-noise-analysis" title="Link to this heading"></a></h1>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+<p>SLiCAP noise analysis helps to create design equations for the noise performance of a circuit.</p>
+<p>Noise can be assigned to independent voltage and current sources and to resistors. SLiCAP also has buit-in subcircuits with noise sources.</p>
+<p>SLiCAP output displayed on this manual page, is generated with the script: <code class="docutils literal notranslate"><span class="pre">noise.py</span></code>, imported by <code class="docutils literal notranslate"><span class="pre">Manual.py</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="ch">#!/usr/bin/env python3</span>
+<span class="linenos">2</span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="linenos">3</span>
+<span class="linenos">4</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">5</span><span class="sd">noise.py: SLiCAP scripts for the HTML help file</span>
+<span class="linenos">6</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos">7</span><span class="kn">import</span><span class="w"> </span><span class="nn">SLiCAP</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sl</span>
+<span class="linenos">8</span><span class="kn">import</span><span class="w"> </span><span class="nn">sympy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sp</span>
+<span class="linenos">9</span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+</pre></div>
+</div>
+<section id="noise-parameters">
+<h2>Noise parameters<a class="headerlink" href="#noise-parameters" title="Link to this heading"></a></h2>
+<p>During noise analysis, SLiCAP uses the <code class="docutils literal notranslate"><span class="pre">noise</span></code> parameter of independent voltage sources and independent current sources as uncorrelated noise sources. It inserts noise current sources in parallel with resistors with their noise spectrum determined by the parameters <code class="docutils literal notranslate"><span class="pre">noisetemp</span></code> and <code class="docutils literal notranslate"><span class="pre">noiseflow</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">10</span><span class="c1"># Create a circuit object</span>
+<span class="linenos">11</span><span class="n">cir</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">makeCircuit</span><span class="p">(</span><span class="s2">&quot;kicad/noiseSources/noiseSources.kicad_sch&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/noiseSources.svg"><img alt="../_images/noiseSources.svg" src="../_images/noiseSources.svg" style="width: 350px;" />
+</a>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="n">noiseSources</span>
+<span class="linenos">2</span><span class="n">C1</span> <span class="n">out</span> <span class="mi">0</span> <span class="n">C</span> <span class="n">value</span><span class="o">=</span><span class="p">{</span><span class="n">C_a</span><span class="p">}</span> <span class="n">vinit</span><span class="o">=</span><span class="mi">0</span>
+<span class="linenos">3</span><span class="n">I1</span> <span class="mi">0</span> <span class="n">out</span> <span class="n">I</span> <span class="n">value</span><span class="o">=</span><span class="mi">0</span> <span class="n">noise</span><span class="o">=</span><span class="p">{</span><span class="n">S_i</span><span class="p">}</span> <span class="n">dc</span><span class="o">=</span><span class="mi">0</span> <span class="n">dcvar</span><span class="o">=</span><span class="mi">0</span>
+<span class="linenos">4</span><span class="n">L1</span> <span class="mi">1</span> <span class="n">out</span> <span class="n">L</span> <span class="n">value</span><span class="o">=</span><span class="p">{</span><span class="n">L_a</span><span class="p">}</span> <span class="n">iinit</span><span class="o">=</span><span class="mi">0</span>
+<span class="linenos">5</span><span class="n">R1</span> <span class="mi">1</span> <span class="mi">2</span> <span class="n">R</span> <span class="n">value</span><span class="o">=</span><span class="p">{</span><span class="n">R_a</span><span class="p">}</span> <span class="n">noisetemp</span><span class="o">=</span><span class="p">{</span><span class="n">T</span><span class="p">}</span> <span class="n">noiseflow</span><span class="o">=</span><span class="p">{</span><span class="n">f_ell</span><span class="p">}</span> <span class="n">dcvar</span><span class="o">=</span><span class="mi">0</span> <span class="n">dcvarlot</span><span class="o">=</span><span class="mi">0</span>
+<span class="linenos">6</span><span class="n">V1</span> <span class="mi">2</span> <span class="mi">0</span> <span class="n">V</span> <span class="n">value</span><span class="o">=</span><span class="mi">0</span> <span class="n">noise</span><span class="o">=</span><span class="p">{</span><span class="n">S_v</span><span class="p">}</span> <span class="n">dc</span><span class="o">=</span><span class="mi">0</span> <span class="n">dcvar</span><span class="o">=</span><span class="mi">0</span>
+<span class="linenos">7</span><span class="o">.</span><span class="n">end</span>
+</pre></div>
+</div>
+<section id="noise-voltage-sources">
+<h3>Noise voltage sources<a class="headerlink" href="#noise-voltage-sources" title="Link to this heading"></a></h3>
+<p>The noise parameter of <a class="reference external" href="../syntax/devices.html#v-independent-voltage-source">independent voltage sources</a> must be specified in <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{V^2}{Hz} \right] }\)</span></p>
+<p>In the circuit above, the spectral density of the voltage noise from <code class="docutils literal notranslate"><span class="pre">V1</span></code> equals <span class="math notranslate nohighlight">\(S_v\)</span> <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{V^2}{Hz} \right] }\)</span>.</p>
+</section>
+<section id="noise-current-sources">
+<h3>Noise  current sources<a class="headerlink" href="#noise-current-sources" title="Link to this heading"></a></h3>
+<p>The noise parameter of <a class="reference external" href="../syntax/devices.html#i-independent-current-source">independent current sources</a> must be specified in <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{A^2}{Hz} \right] }\)</span></p>
+<p>In the circuit above, the spectral density of the curent noise from <code class="docutils literal notranslate"><span class="pre">I1</span></code> equals <span class="math notranslate nohighlight">\(S_i\)</span> <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{A^2}{Hz} \right] }\)</span>.</p>
+</section>
+<section id="resistors">
+<h3>Resistors<a class="headerlink" href="#resistors" title="Link to this heading"></a></h3>
+<p>The noise contributed by <a class="reference external" href="../syntax/devices.html#r-resistor">resistors</a> is governed by two parameters:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">noisetemp</span></code>: The noise temperature of the resistor</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">noiseflow</span></code>: The flicker noise corner frequency</p></li>
+</ul>
+<div class="note admonition">
+<p class="admonition-title">Addition of noise current sources</p>
+<p>Before executing a <code class="docutils literal notranslate"><span class="pre">doNoise()</span></code> instruction, SLiCAP adds noise current sources in parallel with resistors that have a nonzero positive noise temperature. These current sources obtain the reference designator <code class="docutils literal notranslate"><span class="pre">I_noise_&lt;resID&gt;</span></code>, where <code class="docutils literal notranslate"><span class="pre">resID</span></code> is the reference designator of the resistor. After the noise analysis, all independent current sources with reference designators starting with <code class="docutils literal notranslate"><span class="pre">I_noise_</span></code> will be removed from the circuit.</p>
+</div>
+<p>The noise current spectral density <span class="math notranslate nohighlight">\(S_\mathrm{I\_noise\_Rxx}\)</span> of a resistor <code class="docutils literal notranslate"><span class="pre">Rxx</span></code> is set to:</p>
+<div class="math notranslate nohighlight">
+\[S_\mathrm{I\_noise\_Rxx} = \frac{4kT_{noise_\mathrm{Rxx}}}{R_\mathrm{Rxx}} \left( 1 + \frac{f_{\ell_\mathrm{Rxx}}}{f}\right) \, \mathrm{\left[ \frac{A^2}{Hz}\right]}\]</div>
+<p>where:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(k\)</span> is Boltzmann’s constant in [J/K]</p></li>
+<li><p><span class="math notranslate nohighlight">\(T_{noise_\mathrm{Rxx}}\)</span> is the noise temperature <code class="docutils literal notranslate"><span class="pre">noisetemp</span></code> of resistor <code class="docutils literal notranslate"><span class="pre">Rxx</span></code> in [K]</p></li>
+<li><p><span class="math notranslate nohighlight">\(R_\mathrm{Rxx}\)</span> is the resistance <code class="docutils literal notranslate"><span class="pre">value</span></code> of <code class="docutils literal notranslate"><span class="pre">Rxx</span></code> in [Ohm]</p></li>
+<li><p><span class="math notranslate nohighlight">\(f_{\ell_\mathrm{Rxx}}\)</span> is the flicker noise corner frequency <code class="docutils literal notranslate"><span class="pre">flow</span></code> of <code class="docutils literal notranslate"><span class="pre">Rxx</span></code> in [Hz]</p></li>
+</ul>
+<p>In the circuit above:</p>
+<ul class="simple">
+<li><p>the noise temperature of the resistor <code class="docutils literal notranslate"><span class="pre">R1</span></code> is set to the gobal parameter <span class="math notranslate nohighlight">\(T\)</span></p></li>
+<li><p>the flicker noise corner frequency equals <span class="math notranslate nohighlight">\(f_{\ell}\)</span></p></li>
+</ul>
+<p>Hence, SLiCAP will insert a noise current source in parallel with <code class="docutils literal notranslate"><span class="pre">R1</span></code> with a spectral density:</p>
+<div class="math notranslate nohighlight">
+\[S_\mathrm{I\_noise\_R1} = \frac{4kT}{R_a} \left( 1 + \frac{f_\ell}{f} \right) \, \mathrm{\left[ \frac{A^2}{Hz} \right]}\]</div>
+</section>
+<section id="global-parameters">
+<h3>Global parameters<a class="headerlink" href="#global-parameters" title="Link to this heading"></a></h3>
+<p>Global parameters are defined in the file <code class="docutils literal notranslate"><span class="pre">SLiCAPmodels.lib</span></code> in the folder given by <code class="docutils literal notranslate"><span class="pre">ini.main_lib_path</span></code>. If global parameters are found in circuit element expressions or in circuit parameter definitions, SLiCAP automatically adds their definition to the circuit parameter definitions.</p>
+<p>In the circuit above, the global parameter <span class="math notranslate nohighlight">\(T\)</span> is found in the <code class="docutils literal notranslate"><span class="pre">noisetemp</span></code> parameter of <code class="docutils literal notranslate"><span class="pre">R1</span></code>. Its definition with a default value of 300 K is added to the circuit parameter definitions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">13</span><span class="k">for</span> <span class="n">par</span> <span class="ow">in</span> <span class="n">cir</span><span class="o">.</span><span class="n">parDefs</span><span class="p">:</span>
+<span class="linenos">14</span>    <span class="nb">print</span><span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">cir</span><span class="o">.</span><span class="n">parDefs</span><span class="p">[</span><span class="n">par</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>T 300
+</pre></div>
+</div>
+</section>
+</section>
+<section id="noise-analysis">
+<h2>Noise Analysis<a class="headerlink" href="#noise-analysis" title="Link to this heading"></a></h2>
+<p>At the beginning of the noise analysis, SLiCAP adds resistor noise current sources to the circuit (see above). This also adds the Boltzmann constant <span class="math notranslate nohighlight">\(k\)</span> to the circuit parameter definitions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">16</span><span class="n">noiseResult</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doNoise</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s2">&quot;V1&quot;</span><span class="p">)</span>
+<span class="linenos">17</span>
+<span class="linenos">18</span><span class="k">for</span> <span class="n">par</span> <span class="ow">in</span> <span class="n">cir</span><span class="o">.</span><span class="n">parDefs</span><span class="p">:</span>
+<span class="linenos">19</span>    <span class="nb">print</span><span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">cir</span><span class="o">.</span><span class="n">parDefs</span><span class="p">[</span><span class="n">par</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>T 300
+k 34516213/2500000000000000000000000000000
+</pre></div>
+</div>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>The function <a class="reference external" href="../reference/SLiCAPshell.html#SLiCAP.SLiCAPshell.doNoise">doNoise()</a> sets the noise attributes <code class="docutils literal notranslate"><span class="pre">onoise</span></code>, <code class="docutils literal notranslate"><span class="pre">snoiseTerms</span></code>, and <code class="docutils literal notranslate"><span class="pre">onoiseTerms</span></code> of the returned instruction object. The <code class="docutils literal notranslate"><span class="pre">inoise</span></code> and <code class="docutils literal notranslate"><span class="pre">inoiseTerms</span></code> attributes are only set if the circuit has a source specification.</p>
+</div>
+<section id="detector-referred-noise">
+<h3>Detector-referred noise<a class="headerlink" href="#detector-referred-noise" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">21</span><span class="n">onoise</span>      <span class="o">=</span> <span class="n">noiseResult</span><span class="o">.</span><span class="n">onoise</span>
+<span class="linenos">22</span><span class="nb">print</span><span class="p">(</span><span class="n">onoise</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>4*T*k*(f + f_ell)*Abs(R_a**2)/(R_a*f*(16*pi**4*C_a**2*L_a**2*f**4 + 4*pi**2*C_a**2*R_a**2*f**2 - 8*pi**2*C_a*L_a*f**2 + 1)) + S_i*(4*pi**2*L_a**2*f**2 + R_a**2)*Abs(R_a**2)/(R_a**2*(16*pi**4*C_a**2*L_a**2*f**4 + 4*pi**2*C_a**2*R_a**2*f**2 - 8*pi**2*C_a*L_a*f**2 + 1)) + S_v*Abs(R_a**2)/(R_a**2*(16*pi**4*C_a**2*L_a**2*f**4 + 4*pi**2*C_a**2*R_a**2*f**2 - 8*pi**2*C_a*L_a*f**2 + 1))
+</pre></div>
+</div>
+<p>Formatted output:</p>
+<div class="math notranslate nohighlight" id="equation-eqn-svno">
+<span class="eqno">(1)<a class="headerlink" href="#equation-eqn-svno" title="Link to this equation"></a></span>\[\begin{split}\begin{align}
+S_{vno} = &amp; \frac{4 R_{a} T k \left(f + f_{\ell}\right)}{f \left(16 \pi^{4} C_{a}^{2} L_{a}^{2} f^{4} + 4 \pi^{2} C_{a}^{2} R_{a}^{2} f^{2} - 8 \pi^{2} C_{a} L_{a} f^{2} + 1\right)} \nonumber \\
+&amp; + \frac{S_{i} \left(4 \pi^{2} L_{a}^{2} f^{2} + R_{a}^{2}\right)}{16 \pi^{4} C_{a}^{2} L_{a}^{2} f^{4} + 4 \pi^{2} C_{a}^{2} R_{a}^{2} f^{2} - 8 \pi^{2} C_{a} L_{a} f^{2} + 1} \nonumber \\
+&amp; + \frac{S_{v}}{16 \pi^{4} C_{a}^{2} L_{a}^{2} f^{4} + 4 \pi^{2} C_{a}^{2} R_{a}^{2} f^{2} - 8 \pi^{2} C_{a} L_{a} f^{2} + 1}
+\,\left[\mathrm{\frac{V^2}{Hz}}\right]
+\end{align}\end{split}\]</div>
+</section>
+<section id="source-referred-noise">
+<h3>Source-referred noise<a class="headerlink" href="#source-referred-noise" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">24</span><span class="n">inoise</span>      <span class="o">=</span> <span class="n">noiseResult</span><span class="o">.</span><span class="n">inoise</span>
+<span class="linenos">25</span><span class="nb">print</span><span class="p">(</span><span class="n">inoise</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<blockquote>
+<div><p>4*R_a*T*k*(f + f_ell)/f + S_i*(4*pi**2*L_a**2*f**2 + R_a**2) + S_v</p>
+</div></blockquote>
+<p>Formatted output:</p>
+<div class="math notranslate nohighlight" id="equation-eqn-svni">
+<span class="eqno">(2)<a class="headerlink" href="#equation-eqn-svni" title="Link to this equation"></a></span>\[S_{vni} = \frac{4 R_{a} T k \left(f + f_{\ell}\right)}{f} + S_{i} \left(4 \pi^{2} L_{a}^{2} f^{2} + R_{a}^{2}\right) + S_{v}\,\,\left[\mathrm{\frac{V^2}{Hz}}\right]\]</div>
+</section>
+<section id="contributions-to-detector-referred-and-source-referred-noise">
+<h3>Contributions to detector-referred and source-referred noise<a class="headerlink" href="#contributions-to-detector-referred-and-source-referred-noise" title="Link to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">27</span><span class="n">snoiseTerms</span> <span class="o">=</span> <span class="n">noiseResult</span><span class="o">.</span><span class="n">snoiseTerms</span>
+<span class="linenos">28</span><span class="n">onoiseTerms</span> <span class="o">=</span> <span class="n">noiseResult</span><span class="o">.</span><span class="n">onoiseTerms</span>
+<span class="linenos">29</span><span class="n">inoiseTerms</span> <span class="o">=</span> <span class="n">noiseResult</span><span class="o">.</span><span class="n">inoiseTerms</span>
+<span class="linenos">30</span><span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">snoiseTerms</span><span class="p">:</span>
+<span class="linenos">31</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">= &quot;</span> <span class="o">+</span> <span class="n">term</span> <span class="o">+</span> <span class="s2">&quot; =&quot;</span><span class="p">)</span>
+<span class="linenos">32</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;value        :&quot;</span><span class="p">,</span> <span class="n">snoiseTerms</span><span class="p">[</span><span class="n">term</span><span class="p">])</span>
+<span class="linenos">33</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;det-referred :&quot;</span><span class="p">,</span> <span class="n">onoiseTerms</span><span class="p">[</span><span class="n">term</span><span class="p">])</span>
+<span class="linenos">34</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;src-referred :&quot;</span><span class="p">,</span> <span class="n">inoiseTerms</span><span class="p">[</span><span class="n">term</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>= I1 =
+value        : S_i
+det-referred : S_i*(4*pi**2*L_a**2*f**2 + R_a**2)*Abs(R_a**2)/(R_a**2*(16*pi**4*C_a**2*L_a**2*f**4 + 4*pi**2*C_a**2*R_a**2*f**2 - 8*pi**2*C_a*L_a*f**2 + 1))
+src-referred : S_i*(4*pi**2*L_a**2*f**2 + R_a**2)
+
+= V1 =
+value        : S_v
+det-referred : S_v*Abs(R_a**2)/(R_a**2*(16*pi**4*C_a**2*L_a**2*f**4 + 4*pi**2*C_a**2*R_a**2*f**2 - 8*pi**2*C_a*L_a*f**2 + 1))
+src-referred : S_v
+
+= I_noise_R1 =
+value        : 4*T*k*(1 + f_ell/f)/R_a
+det-referred : 4*T*k*(f + f_ell)*Abs(R_a**2)/(R_a*f*(16*pi**4*C_a**2*L_a**2*f**4 + 4*pi**2*C_a**2*R_a**2*f**2 - 8*pi**2*C_a*L_a*f**2 + 1))
+src-referred : 4*R_a*T*k*(f + f_ell)/f
+</pre></div>
+</div>
+<p>Formatted output:</p>
+<table class="docutils align-default" id="noise-contributions">
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Units</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>I1: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(S_{i}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{A^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I1: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(S_{i} \left(4 \pi^{2} L_{a}^{2} f^{2} + R_{a}^{2}\right)\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>I1: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{S_{i} \left(4 \pi^{2} L_{a}^{2} f^{2} + R_{a}^{2}\right)}{16 \pi^{4} C_{a}^{2} L_{a}^{2} f^{4} + 4 \pi^{2} C_{a}^{2} R_{a}^{2} f^{2} - 8 \pi^{2} C_{a} L_{a} f^{2} + 1}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>V1: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(S_{v}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>V1: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(S_{v}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>V1: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{S_{v}}{16 \pi^{4} C_{a}^{2} L_{a}^{2} f^{4} + 4 \pi^{2} C_{a}^{2} R_{a}^{2} f^{2} - 8 \pi^{2} C_{a} L_{a} f^{2} + 1}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>I_noise_R1: Source value</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{4 T k \left(1 + \frac{f_{\ell}}{f}\right)}{R_{a}}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{A^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>I_noise_R1: Source-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{4 R_{a} T k \left(f + f_{\ell}\right)}{f}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>I_noise_R1: Detector-referred</p></td>
+<td><p><span class="math notranslate nohighlight">\(\frac{4 R_{a} T k \left(f + f_{\ell}\right)}{f \left(16 \pi^{4} C_{a}^{2} L_{a}^{2} f^{4} + 4 \pi^{2} C_{a}^{2} R_{a}^{2} f^{2} - 8 \pi^{2} C_{a} L_{a} f^{2} + 1\right)}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\mathrm{\frac{V^2}{Hz}}\)</span></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="subcircuits-with-noise">
+<h2>Subcircuits with noise<a class="headerlink" href="#subcircuits-with-noise" title="Link to this heading"></a></h2>
+<section id="built-in-subcircuits">
+<h3>Built-in subcircuits<a class="headerlink" href="#built-in-subcircuits" title="Link to this heading"></a></h3>
+<p>Below an overview of subcircuits and symbols for noise analysis. Subcircuits are defined in the library <code class="docutils literal notranslate"><span class="pre">SLiCAP.lib</span></code> in the folder indicated by <code class="docutils literal notranslate"><span class="pre">ini.main_lib_path</span></code>.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>subcircuit name</p></th>
+<th class="head"><p>description</p></th>
+<th class="head"><p>parameters</p></th>
+<th class="head"><p>KiCAD</p></th>
+<th class="head"><p>gschem/Lepton-EDA</p></th>
+<th class="head"><p>LTspice</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>N_noise</p></td>
+<td><p>Nullor with equivalent-input noise sources</p></td>
+<td><p>si, sv</p></td>
+<td><p>N_noise</p></td>
+<td><p>N_noise</p></td>
+<td><p>SLN_noise</p></td>
+</tr>
+<tr class="row-odd"><td><p>O_noise</p></td>
+<td><p>Nullor with equivalent-input noise sources</p></td>
+<td><p>si, sv</p></td>
+<td><p>O_noise</p></td>
+<td><p>O_noise</p></td>
+<td><p>SLO_noise</p></td>
+</tr>
+<tr class="row-even"><td><p>MN18_noise</p></td>
+<td><p>NMOS 180nm equivalent-input noise EKV model</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>M_noise</p></td>
+<td><p>M_noise</p></td>
+<td><p>SLM_noise</p></td>
+</tr>
+<tr class="row-odd"><td><p>MP18_noise</p></td>
+<td><p>PMOS 180nm equivalent-input noise EKV model</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>M_noise</p></td>
+<td><p>M_noise</p></td>
+<td><p>SLM_noise</p></td>
+</tr>
+<tr class="row-even"><td><p>MN18_noisyNullor</p></td>
+<td><p>Nullor with NMOS 180nm equivalent-input noise EKV model</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>SLM_noisyNullor</p></td>
+</tr>
+<tr class="row-odd"><td><p>MP18_noisyNullor</p></td>
+<td><p>Nullor with PMOS 180nm equivalent-input noise EKV model</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>SLM_noisyNullor</p></td>
+</tr>
+<tr class="row-even"><td><p>MN18_noisyNullor_simple</p></td>
+<td><p>Nullor with NMOS 180nm equivalent-input noise EKV model</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>SLM_noisyNullor</p></td>
+</tr>
+<tr class="row-odd"><td><p>MP18_noisyNullor_simple</p></td>
+<td><p>Nullor with PMOS 180nm equivalent-input noise EKV model</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>XM_noisyNullor</p></td>
+<td><p>SLM_noisyNullor</p></td>
+</tr>
+<tr class="row-even"><td><p>J_noise</p></td>
+<td><p>MOS/JFET equivalent-input noise sources</p></td>
+<td><p>ID, IG, W, L</p></td>
+<td><p>J_noise</p></td>
+<td><p>M_noise</p></td>
+<td><p>SLM_noise</p></td>
+</tr>
+<tr class="row-odd"><td><p>Q_noise</p></td>
+<td><p>BJT equivalent-input noise sources, r_b=0</p></td>
+<td><p>IC, VCE</p></td>
+<td><p>Q_noise</p></td>
+<td><p>Q_noise</p></td>
+<td><p>SLQ_noise</p></td>
+</tr>
+</tbody>
+</table>
+<p>Wide table: slide below the table!</p>
+<p>The subcircuits <code class="docutils literal notranslate"><span class="pre">MN18_noisyNullor_simple</span></code> and <code class="docutils literal notranslate"><span class="pre">MP18_noisyNullor_simple</span></code> have their noise parameters <code class="docutils literal notranslate"><span class="pre">KF</span></code> and <code class="docutils literal notranslate"><span class="pre">Gamma</span></code>, as well as their input capacitance <code class="docutils literal notranslate"><span class="pre">c_iss</span></code> modeled independent of the inversion coefficient.</p>
+</section>
+<section id="create-noise-elements">
+<h3>Create noise elements<a class="headerlink" href="#create-noise-elements" title="Link to this heading"></a></h3>
+<p>The user can create noisy circuits or subcircuits using independent noise sources, independend current sources, resistors and predefined noisy subcircuits from above.</p>
+</section>
+</section>
+<section id="noise-post-processing-functions">
+<h2>Noise post processing functions<a class="headerlink" href="#noise-post-processing-functions" title="Link to this heading"></a></h2>
+<section id="rms-noise">
+<h3>RMS noise<a class="headerlink" href="#rms-noise" title="Link to this heading"></a></h3>
+<p>SLiCAP can perform symbolic and numeric integration and calculate the source-referred or detector-referred <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.rmsNoise">rmsNoise</a> .</p>
+<p><a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.rmsNoise">rmsNoise()</a> calculates the RMS value by integrating each of the noise terms in the <code class="docutils literal notranslate"><span class="pre">onoiseTerms</span></code> or the <code class="docutils literal notranslate"><span class="pre">inoiseTerms</span></code> attribute of the noise analysis result. For each term it tries to find the best integration method. However, success is not always guaranteed:</p>
+<ul class="simple">
+<li><p>Symbolic integration of functions with many variables, may take very long</p></li>
+<li><p>Symbolic integration of functions is not always possible or implemented in Sympy.</p></li>
+</ul>
+<p>The following may help:</p>
+<ul class="simple">
+<li><p>Keep the circuit model as simple as possible and use only one or two symbolic design parameters.</p></li>
+<li><p>Calculate the variance instead of the RMS noise (standard deviation), and try to obtain expressions with symbolic variables as coefficients of numeric integrals (see below).</p></li>
+</ul>
+<p>Below an example how to express the RMS noise in terms of the source spectral densities <span class="math notranslate nohighlight">\(S_v\)</span> and <span class="math notranslate nohighlight">\(S_i\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">36</span><span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;R_a&quot;</span>  <span class="p">:</span> <span class="s2">&quot;1k&quot;</span><span class="p">,</span>
+<span class="linenos">37</span>          <span class="s2">&quot;C_a&quot;</span>  <span class="p">:</span> <span class="s2">&quot;10u&quot;</span><span class="p">,</span>
+<span class="linenos">38</span>          <span class="s2">&quot;L_a&quot;</span>  <span class="p">:</span> <span class="s2">&quot;1m&quot;</span><span class="p">,</span>
+<span class="linenos">39</span>          <span class="s2">&quot;f_ell&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">}</span>
+<span class="linenos">40</span>
+<span class="linenos">41</span><span class="n">cir</span><span class="o">.</span><span class="n">defPars</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+<span class="linenos">42</span>
+<span class="linenos">43</span><span class="n">numNoise</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doNoise</span><span class="p">(</span><span class="n">cir</span><span class="p">,</span> <span class="n">detector</span><span class="o">=</span><span class="s2">&quot;V_out&quot;</span><span class="p">,</span> <span class="n">pardefs</span><span class="o">=</span><span class="s2">&quot;circuit&quot;</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">44</span>
+<span class="linenos">45</span><span class="n">f_min</span> <span class="o">=</span> <span class="mf">1e3</span>
+<span class="linenos">46</span><span class="n">f_max</span> <span class="o">=</span> <span class="mf">1e6</span>
+<span class="linenos">47</span>
+<span class="linenos">48</span><span class="n">RMS</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">rmsNoise</span><span class="p">(</span><span class="n">numNoise</span><span class="p">,</span> <span class="s1">&#39;onoise&#39;</span><span class="p">,</span> <span class="n">f_min</span><span class="p">,</span> <span class="n">f_max</span><span class="p">)</span>
+<span class="linenos">49</span><span class="nb">print</span><span class="p">(</span><span class="n">RMS</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>711.447029712076*sqrt(S_i + 4.95576373211838e-7*S_v + 7.6162627945633e-24)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[V_{nRMS} = 711.4 \left(S_{i} + 4.956 \cdot 10^{-7} S_{v} + 7.616 \cdot 10^{-24}\right)^{0.5}\,\,\left[\mathrm{V}\right]\]</div>
+</section>
+<section id="noise-figure">
+<h3>Noise Figure<a class="headerlink" href="#noise-figure" title="Link to this heading"></a></h3>
+<p>The noise figure of a system is a measure for the deterioration of the signal-to-noise ratio by that system. It can be found as the ratio of the total weighted output noise power (variance) and the contribution of the signal source noise to it. Alternatively, one can take the ratio of the total weighted source-referred noise and the weighted source noise.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">51</span><span class="c1"># noise figure; V1 is signal source, with associated noise spectrum S_v</span>
+<span class="linenos">52</span><span class="n">o_var</span>   <span class="o">=</span> <span class="n">RMS</span><span class="o">**</span><span class="mi">2</span>
+<span class="linenos">53</span><span class="n">src_var</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">rmsNoise</span><span class="p">(</span><span class="n">numNoise</span><span class="p">,</span> <span class="s1">&#39;onoise&#39;</span><span class="p">,</span> <span class="n">f_min</span><span class="p">,</span> <span class="n">f_max</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s2">&quot;V1&quot;</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+<span class="linenos">54</span><span class="n">noiseF</span>  <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">o_var</span><span class="o">/</span><span class="n">src_var</span><span class="p">)</span>
+<span class="linenos">55</span><span class="nb">print</span><span class="p">(</span><span class="n">noiseF</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>2017852.45232533*S_i/S_v + 1.0 + 1.53684945575637e-17/S_v
+</pre></div>
+</div>
+<p>Commonly the noise figure is expressed in [dB]:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">56</span><span class="n">F</span>       <span class="o">=</span> <span class="mi">10</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">noiseF</span><span class="p">)</span><span class="o">/</span><span class="n">sp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+<span class="linenos">57</span><span class="nb">print</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>10*log(2017852.45232533*S_i/S_v + 1.0 + 1.53684945575637e-17/S_v)/log(10)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[F = \frac{10 \log{\left(\frac{2.018 \cdot 10^{6} S_{i}}{S_{v}} + 1 + \frac{1.537 \cdot 10^{-17}}{S_{v}} \right)}}{\log{\left(10 \right)}}\,\,\left[\mathrm{dB}\right]\]</div>
+</section>
+<section id="noise-weighting-functions">
+<h3>Noise weighting functions<a class="headerlink" href="#noise-weighting-functions" title="Link to this heading"></a></h3>
+<section id="din-a">
+<h4>DIN A<a class="headerlink" href="#din-a" title="Link to this heading"></a></h4>
+<p>SLiCAP has the frequency weighting function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.DIN_A">DIN_A()</a>, which is often used for spectral weighting of noise and distortion components in audio applications. See <a class="reference external" href="https://en.wikipedia.org/wiki/A-weighting">WiKi R_A(f)</a>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">59</span><span class="nb">print</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">DIN_A</span><span class="p">())</span>
+</pre></div>
+</div>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>18719114681919*f**4/(100000*sqrt((f**2 + 1159929/100)*(f**2 + 54449641/100))*(f**2 + 10609/25)*(f**2 + 148693636))
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">61</span><span class="c1"># Plot the DIN A weighting curve</span>
+<span class="linenos">62</span><span class="n">frequencies</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">geomspace</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mf">20e3</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">63</span><span class="n">din_A_func</span>  <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">lambdify</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">frequency</span><span class="p">,</span> <span class="mi">20</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">DIN_A</span><span class="p">())</span><span class="o">/</span><span class="n">sp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+<span class="linenos">64</span><span class="n">din_A_num</span>   <span class="o">=</span> <span class="n">din_A_func</span><span class="p">(</span><span class="n">frequencies</span><span class="p">)</span>
+<span class="linenos">65</span><span class="n">din_A_trace</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">trace</span><span class="p">([</span><span class="n">frequencies</span><span class="p">,</span> <span class="n">din_A_num</span><span class="p">])</span>
+<span class="linenos">66</span><span class="n">din_A_trace</span><span class="o">.</span><span class="n">label</span> <span class="o">=</span> <span class="s2">&quot;DIN A&quot;</span>
+<span class="linenos">67</span><span class="n">traceDict</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;DINA&quot;</span><span class="p">:</span> <span class="n">din_A_trace</span><span class="p">}</span>
+<span class="linenos">68</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;DINA&quot;</span><span class="p">,</span> <span class="s2">&quot;DIN A weighting curve&quot;</span><span class="p">,</span> <span class="s2">&quot;semilogx&quot;</span><span class="p">,</span> <span class="n">traceDict</span><span class="p">,</span> 
+<span class="linenos">69</span>        <span class="n">xName</span><span class="o">=</span><span class="s2">&quot;Frequency&quot;</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="s2">&quot;Hz&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;dB&quot;</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/DINA.svg"><img alt="../_images/DINA.svg" src="../_images/DINA.svg" style="width: 500px;" />
+</a>
+</section>
+<section id="correlated-double-sampling">
+<h4>Correlated Double Sampling<a class="headerlink" href="#correlated-double-sampling" title="Link to this heading"></a></h4>
+<p>Correlated Double Sampling is a technique that suppresses low-frequency noise by periodically taking the difference between two signal samples at a fixed time difference. It is applied in switched integrators used in optical detectors and image sensors.</p>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.doCDS">doCDS()</a>, takes a noise spectrum and a time delay as argument and returns the CDS weighted noise spectrum.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">71</span><span class="n">S_v</span><span class="p">,</span> <span class="n">tau</span>     <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;S_v, tau&quot;</span><span class="p">)</span>
+<span class="linenos">72</span><span class="n">cds_weighted</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doCDS</span><span class="p">(</span><span class="n">S_v</span><span class="p">,</span> <span class="n">tau</span><span class="p">)</span>
+<span class="linenos">73</span><span class="nb">print</span><span class="p">(</span><span class="n">cds_weighted</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>4*S_v*sin(pi*f*tau)**2
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[S_{vCDS} = 4 S_{v} \sin^{2}{\left(\pi f \tau \right)}\,\,\left[\mathrm{\frac{V^2}{Hz}}\right]\]</div>
+<div class="note admonition">
+<p class="admonition-title">Important</p>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.doCDS">doCDS()</a> multiplies the input spectrum with the <strong>squared magnitude</strong> of the CDS transfer function. Hence, the input spectrum must be in <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{V^2}{Hz}\right]}\)</span>, <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{A^2}{Hz}\right]}\)</span> or <span class="math notranslate nohighlight">\(\mathrm{\left[ \frac{W}{Hz}\right]}\)</span>. Use the <code class="docutils literal notranslate"><span class="pre">onoise</span></code> or <code class="docutils literal notranslate"><span class="pre">inoise</span></code> attribute of the noise analysis result!</p>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">75</span><span class="c1"># Plot the CDS weighting curve for tau = 1 us</span>
+<span class="linenos">76</span><span class="n">freqs</span>       <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">geomspace</span><span class="p">(</span><span class="mf">5e3</span><span class="p">,</span> <span class="mf">4.5e6</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span>
+<span class="linenos">77</span><span class="n">cds_func</span>  <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">lambdify</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">frequency</span><span class="p">,</span> <span class="mi">10</span><span class="o">*</span><span class="n">sp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">sl</span><span class="o">.</span><span class="n">doCDS</span><span class="p">(</span><span class="n">sp</span><span class="o">.</span><span class="n">N</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mf">1e-6</span><span class="p">))</span><span class="o">/</span><span class="n">sp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+<span class="linenos">78</span><span class="n">cds_num</span>   <span class="o">=</span> <span class="n">cds_func</span><span class="p">(</span><span class="n">freqs</span><span class="p">)</span>
+<span class="linenos">79</span><span class="n">cds_trace</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">trace</span><span class="p">([</span><span class="n">freqs</span><span class="p">,</span> <span class="n">cds_num</span><span class="p">])</span>
+<span class="linenos">80</span><span class="n">cds_trace</span><span class="o">.</span><span class="n">label</span> <span class="o">=</span> <span class="s2">&quot;CDS&quot;</span>
+<span class="linenos">81</span><span class="n">traceDict</span>   <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;CDS&quot;</span><span class="p">:</span> <span class="n">cds_trace</span><span class="p">}</span>
+<span class="linenos">82</span><span class="n">sl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;CDS&quot;</span><span class="p">,</span> <span class="s2">&quot;CDS weighting curve&quot;</span><span class="p">,</span> <span class="s2">&quot;semilogx&quot;</span><span class="p">,</span> <span class="n">traceDict</span><span class="p">,</span> 
+<span class="linenos">83</span>        <span class="n">xName</span><span class="o">=</span><span class="s2">&quot;Frequency&quot;</span><span class="p">,</span> <span class="n">xUnits</span><span class="o">=</span><span class="s2">&quot;Hz&quot;</span><span class="p">,</span> <span class="n">yUnits</span><span class="o">=</span><span class="s2">&quot;dB&quot;</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/CDS.svg"><img alt="../_images/CDS.svg" src="../_images/CDS.svg" style="width: 500px;" />
+</a>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.doCDSint">doCDSint</a> performs both CDS filtering and integration over frequency.</p>
+<p>Below the script that calculates the variance of the output voltage of a switched transimpedance integrator with a gain <span class="math notranslate nohighlight">\(Z_t=\frac{1}{2\pi f C_i}\)</span> and an input noise current with a spectral density <span class="math notranslate nohighlight">\(S_i\)</span> to which CDS filtering of the output signal with a time delay <span class="math notranslate nohighlight">\(\tau\)</span> is applied.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">85</span><span class="n">S_v</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">sympify</span><span class="p">(</span><span class="s2">&quot;S_i/(2*pi*f*C_i)^2&quot;</span><span class="p">)</span>
+<span class="linenos">86</span><span class="n">var</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">doCDSint</span><span class="p">(</span><span class="n">S_v</span><span class="p">,</span> <span class="n">tau</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">oo</span><span class="p">)</span>
+<span class="linenos">87</span><span class="nb">print</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>SLiCAP uses <span class="math notranslate nohighlight">\(\_\phi=\pi f \tau\)</span> rather than <span class="math notranslate nohighlight">\(f\)</span> as integration variable. Integration is not always possible because the integral may depend on the domain of the variables:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>S_i*tau*Integral(sin(_phi)**2/_phi**2, (_phi, 0, oo*tau))/(pi*C_i**2)
+</pre></div>
+</div>
+<p>As shown above, the integral cannot be evaluated (undefined when <span class="math notranslate nohighlight">\(\tau=0\)</span>. However, it can be done with the aid of assumptions.</p>
+</section>
+</section>
+<section id="use-assumptions">
+<h3>Use assumptions<a class="headerlink" href="#use-assumptions" title="Link to this heading"></a></h3>
+<p>Below the script to obtain the integral from above.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">89</span><span class="n">var</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">assumePosParams</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+<span class="linenos">90</span><span class="n">var</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">clearAssumptions</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+<span class="linenos">91</span><span class="nb">print</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>With <span class="math notranslate nohighlight">\(\tau&gt;0\)</span> the above integral can be evaluated:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>S_i*tau/(2*C_i**2)
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[\sigma^{2} = \frac{0.5 S_{i} \tau}{C_{i}^{2}}\,\,\left[\mathrm{V^2}\right]\]</div>
+<p>The following SLiCAP functions can be used to change the domain of variables:</p>
+<ol class="arabic simple">
+<li><p><a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.assumePosParams">assumePosParams()</a></p></li>
+<li><p><a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.assumeRealParams">assumeRealParams()</a></p></li>
+<li><p><a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.clearAssumptions">clearAssumptions()</a></p></li>
+</ol>
+</section>
+<section id="obtain-symbolic-coefficients-of-numeric-intergals">
+<h3>Obtain symbolic coefficients of numeric intergals<a class="headerlink" href="#obtain-symbolic-coefficients-of-numeric-intergals" title="Link to this heading"></a></h3>
+<p>Sometimes numeric integration over frequency becomes possible after symbolic design parameters have been elimated from the integral.</p>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.integrate_monomial_coeffs">integrate_monomial_coeffs()</a> returns an experssion in which monomials of two selected parameters have been taken out of the integral:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">93</span><span class="n">Si</span><span class="p">,</span> <span class="n">Sv</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;S_i, S_v&quot;</span><span class="p">)</span>
+<span class="linenos">94</span><span class="n">integrated_noise</span>   <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">integrate_monomial_coeffs</span><span class="p">(</span><span class="n">numNoise</span><span class="o">.</span><span class="n">onoise</span><span class="p">,</span> <span class="p">[</span><span class="n">Si</span><span class="p">,</span> <span class="n">Sv</span><span class="p">],</span> 
+<span class="linenos">95</span>                                                  <span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">frequency</span><span class="p">,</span> <span class="n">f_min</span><span class="p">,</span> <span class="n">f_max</span><span class="p">,</span> 
+<span class="linenos">96</span>                                                  <span class="n">doit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This yields:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>253078.438043065*S_i + 0.250839388927001*S_v + 3.85502378354722e-18
+</pre></div>
+</div>
+<p>Typesetted:</p>
+<div class="math notranslate nohighlight">
+\[v_{n}^{2} = 2.531 \cdot 10^{5} S_{i} + 0.2508 S_{v} + 3.855 \cdot 10^{-18}\,\,\left[\mathrm{V^2}\right]\]</div>
+<p>The function <a class="reference external" href="../reference/SLiCAPmath.html#SLiCAP.SLiCAPmath.integrated_monomial_coeffs">integrated_monomial_coeffs()</a> returns a dictionary of which the keys are monomials consisting of two variables, and the coefficients of these monomials are numeric integrals.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 99</span><span class="n">integrated_noise_coeffs</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">integrated_monomial_coeffs</span><span class="p">(</span><span class="n">numNoise</span><span class="o">.</span><span class="n">onoise</span><span class="p">,</span> <span class="p">[</span><span class="n">Si</span><span class="p">,</span> <span class="n">Sv</span><span class="p">],</span> 
+<span class="linenos">100</span>                                       <span class="n">sl</span><span class="o">.</span><span class="n">ini</span><span class="o">.</span><span class="n">frequency</span><span class="p">,</span> <span class="n">f_min</span><span class="p">,</span> <span class="n">f_max</span><span class="p">,</span> <span class="n">doit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Typesetted output:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 20 </span><span class="caption-text">Numeric integrals as coeffs of <span class="math notranslate nohighlight">\(S_v\)</span> and <span class="math notranslate nohighlight">\(S_i\)</span></span><a class="headerlink" href="#id1" title="Link to this table"></a></caption>
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(S_{i}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\int\limits_{1000}^{1.0 \cdot 10^{6}} \frac{1.0 \cdot 10^{38} \left(3.948 \cdot 10^{29} f^{2} + 1.0 \cdot 10^{40}\right)}{1.559 \cdot 10^{59} f^{4} + 3.947 \cdot 10^{69} f^{2} + 1.0 \cdot 10^{72}}\, df\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(S_{v}\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\int\limits_{1000}^{1.0 \cdot 10^{6}} \frac{1.0 \cdot 10^{72}}{1.559 \cdot 10^{59} f^{4} + 3.947 \cdot 10^{69} f^{2} + 1.0 \cdot 10^{72}}\, df\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(1\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\int\limits_{1000}^{1.0 \cdot 10^{6}} \frac{1.657 \cdot 10^{55} \left(f + 100\right)}{f \left(1.559 \cdot 10^{59} f^{4} + 3.947 \cdot 10^{69} f^{2} + 1.0 \cdot 10^{72}\right)}\, df\)</span></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="display-equations-on-html-pages-and-in-latex-documents">
+<h2>Display equations on HTML pages and in LaTeX documents<a class="headerlink" href="#display-equations-on-html-pages-and-in-latex-documents" title="Link to this heading"></a></h2>
+<p>The report module <a class="reference external" href="reports.html">Create reports</a>, discusses how HTML snippets and LaTeX snippets can be created for variables, expressions, equations and tables.</p>
+<p>As a matter of fact, all equations, tables and figures on this page are created with this module:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="linenos">102</span><span class="c1"># Create an RST formatter</span>
+<span class="linenos">103</span><span class="n">rst</span> <span class="o">=</span> <span class="n">sl</span><span class="o">.</span><span class="n">RSTformatter</span><span class="p">()</span>
+<span class="linenos">104</span><span class="c1"># Save expressions in the sphinx/SLiCAPdata folder of the project directory</span>
+<span class="linenos">105</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;S_vno&quot;</span><span class="p">,</span> <span class="n">onoise</span><span class="p">,</span> <span class="n">multiline</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;eqn-Svno&quot;</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2/Hz&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-Svno&quot;</span><span class="p">)</span>
+<span class="linenos">106</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;S_vni&quot;</span><span class="p">,</span> <span class="n">inoise</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;eqn-Svni&quot;</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2/Hz&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-Svni&quot;</span><span class="p">)</span>
+<span class="linenos">107</span><span class="n">rst</span><span class="o">.</span><span class="n">noiseContribs</span><span class="p">(</span><span class="n">noiseResult</span><span class="p">,</span> <span class="s2">&quot;Noise contributions&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;table-noiseContribs&quot;</span><span class="p">)</span>
+<span class="linenos">108</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;V_nRMS&quot;</span><span class="p">,</span> <span class="n">RMS</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-RMS&quot;</span><span class="p">)</span>
+<span class="linenos">109</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;F&quot;</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;dB&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-F&quot;</span><span class="p">)</span>
+<span class="linenos">110</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;S_vCDS&quot;</span><span class="p">,</span> <span class="n">cds_weighted</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2/Hz&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-CDSweighting&quot;</span><span class="p">)</span>
+<span class="linenos">111</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;sigma^2&quot;</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-CDSint&quot;</span><span class="p">)</span>
+<span class="linenos">112</span><span class="n">rst</span><span class="o">.</span><span class="n">eqn</span><span class="p">(</span><span class="s2">&quot;v_n^2&quot;</span><span class="p">,</span> <span class="n">integrated_noise</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="s2">&quot;V**2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;eqn-intCoeffs&quot;</span><span class="p">)</span>
+<span class="linenos">113</span><span class="n">rst</span><span class="o">.</span><span class="n">dictTable</span><span class="p">(</span><span class="n">integrated_noise_coeffs</span><span class="p">,</span> 
+<span class="linenos">114</span>              <span class="n">caption</span><span class="o">=</span><span class="s2">&quot;Numeric integrals as coeffs of :math:`S_v` and :math:`S_i`&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;table-coeffsNoise&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The typesetted tables and equations are shown on this page.</p>
+</section>
+<section id="plot-noise-spectrum">
+<h2>Plot noise spectrum<a class="headerlink" href="#plot-noise-spectrum" title="Link to this heading"></a></h2>
+<p>SLiCAP plot functions are discussed in <a class="reference external" href="plots.html">Create plots</a>.</p>
+<img alt="../_images/colorCode.svg" src="../_images/colorCode.svg" />
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="time.html" class="btn btn-neutral float-left" title="SLiCAP time-domain analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dcvar.html" class="btn btn-neutral float-right" title="SLiCAP DC and dcvar analysis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, SLiCAP development team.
+      <span class="lastupdated">Last updated on 2025, Dec 27.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
