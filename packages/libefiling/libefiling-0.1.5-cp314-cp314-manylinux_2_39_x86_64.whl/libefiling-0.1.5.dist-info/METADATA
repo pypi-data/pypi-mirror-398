@@ -1,0 +1,209 @@
+Metadata-Version: 2.4
+Name: libefiling
+Version: 0.1.5
+Summary: 
+License-Expression: MIT AND (Apache-2.0 OR BSD-2-Clause)
+Keywords: example,testpypi,demo
+Author: hyperion13th144m
+Author-email: hyperion13th144m@gmail.com
+Requires-Python: >=3.14
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Requires-Dist: asn1crypto (>=1.5.1,<2.0.0)
+Requires-Dist: beautifulsoup4 (>=4.14.3,<5.0.0)
+Requires-Dist: dotenv (>=0.9.9,<0.10.0)
+Requires-Dist: pillow (>=12.0.0,<13.0.0)
+Requires-Dist: pydantic (>=2.12.5,<3.0.0)
+Requires-Dist: pytesseract (>=0.3.13,<0.4.0)
+Requires-Dist: requests (>=2.32.5,<3.0.0)
+Requires-Dist: saxonche (>=12.9.0,<13.0.0)
+Requires-Dist: xmltodict (>=1.0.2,<2.0.0)
+Description-Content-Type: text/markdown
+
+# libefiling
+
+## 概要
+ libefiling は インターネット出願ソフトのアーカイブを扱う python パッケージです。
+ - [インターネット出願ソフト](https://www.pcinfo.jpo.go.jp/site/): 日本国特許庁に特許など出願する際に使うアプリ
+ - アーカイブ: インターネット出願ソフトの「データ出力」で保存されるようなJWX(JPC,JWX)を本パッケージではそう呼んでる。
+ - データ出力でアーカイブと一緒に出力されるXMLを手続XMLと呼ぶことにする。
+
+## 機能
+ - アーカイブの展開 -> XML, 画像ファイルが得られる
+ - 画像ファイルのフォーマット変換、サイズ変換
+ - XMLファイルの変換
+ - いまのところ 特許願(A163) だけが処理対象。
+
+## 動作環境
+ - ubuntu bookworm
+ - python 3.14
+ - saxon-he, tesseract
+
+### 必要アプリのインストール
+```bash
+apt-get update
+apt-get install -y python3.14 tesseract-ocr tesseract-ocr-jpn
+```
+
+### libefiling パッケージのインストール
+```bash
+pip install libefiling
+```
+
+## 使い方
+### アーカイブの展開
+```python
+from libefiling.archive import extract
+
+SRC='202501010000123456_A163_____XXXXXXXXXX__99999999999_____AAA.JWX'
+OUT='extracted'
+extract(SRC, OUT)
+```
+```bash
+$ ls extracted
+JPODOCXML01-appb.xml
+JPODOCXML01-jpbibl.xml
+JPOXMLDOC01-jpfolb-I000001.tif
+...
+```
+SRCに指定したアーカイブをOUTに指定したディレクトリに展開する。
+
+### 文字コードの変換
+アーカイブに含まれる XML は SJIS エンコードだが、全て UTF-8 に変換する
+```python
+from libefiling.charset import convert_xml_charset_dir
+
+convert_xml_charset_dir('extracted', 'work')
+```
+extracted ディレクトリにある XML を work ディレクトリに UTF-8にして保存する。
+
+### 手続ファイルの文字コード変換
+手続ファイルXMLの文字コードを変換する
+```python
+from libefiling.xml import convert_procedure_xml
+
+SRC='202501010000123456_A163_____XXXXXXXXXX__99999999999_____AFM.XML'
+convert_procedure_xml(SRC, 'work')
+```
+
+ **アーカイブの変換後XMLと同じディレクトリに保存する**
+
+
+### 画像の変換
+アーカイブに含まれる JPG,TIF をWebp に変換する。
+```python
+import glob
+from libefiling.image import convert_images
+
+src_images = glob.glob("extracted/*.tif") + glob.glob("extracted/*.jpg")
+result = convert_images(
+    src_images,
+    'work',
+    params=[
+        {
+            "width": 300,
+            "height": 300,
+            "suffix": "-thumbnail",
+            "format": ".webp",
+            "attributes": [{"key": "size_tag", "value": "thumbnail"}],
+        },
+        {
+            "width": 600,
+            "height": 600,
+            "suffix": "-middle",
+            "format": ".webp",
+            "attributes": [{"key": "size_tag", "value": "middle"}],
+        },
+        {
+            "width": 800,
+            "height": 0,
+            "suffix": "-large",
+            "format": ".webp",
+            "attributes": [{"key": "size_tag", "value": "large"}],
+        },
+    ],
+)
+result.save_as_xml("work/conversion_results.xml")
+```
+src_images に変換元のファイルパスを指定する。
+work ディレクトリに変換後の画像ファイルが保存される。
+param は画像のパラメータ。
+ - width 幅
+ - height 高さ
+ - suffix 変換後のァイル名に付加する文字列 e.g.) file.tiff -> file-suffix.webp
+ - format 変換後の拡張子
+ - attributes 付加したい属性
+
+
+result.save_as_xml は、変換元と変換後のファイルの対応関係を表す情報。後のテキストブロックを生成する場合に参照される。**変換後のXMLがあるディレクトリに保存する**
+
+### メタデータ生成
+アーカイブのID、文書コードなどメタデータをjsonに出力。
+```python
+
+from libefiling.metadata import get_metadata
+
+SRC='202501010000123456_A163_____XXXXXXXXXX__99999999999_____AFM.XML'
+metadata = get_metadata(SRC)
+metadata.save_as_json('work/metadata.json')
+```
+
+### xml 統合
+アーカイブファイルのXMLに纏める。まとめたXMLはocr、文書変換で参照される。
+```python
+from libefiling.xml import merge_xml
+dst_xml = 'work/document.xml'
+src_xmls = glob.glob("work/*.xml") + glob.glob("work/*.XML")
+src_xmls = filter(lambda x: x != dst_xml, src_xmls)
+merge_xml(src_xmls, dst_xml)
+```
+
+### ocr 
+画像に対してOCR処理を実行する
+```python
+import glob
+import os
+import sys
+
+from libefiling.ocr import guess_language, ocr_images
+hint = "work/document.xml"
+lang = guess_language(hint)
+src_images = glob.glob(f"{src_dir}/*.tif") + glob.glob(f"{src_dir}/*.jpg")
+ocr_result = ocr_images(src_images, lang=lang)
+ocr_result.save_as_json(dst_path)
+```
+
+### 文書変換
+```python
+from libefiling.xml import get_translators
+
+translators = get_translators('work/document.xml')
+for translator in translators:
+    dst_file_path = (
+        Path(dst_dir)
+        / f"{translator.translated_doctype}.{translator.translated_format}"
+    )
+    translator.translate(dst_file_path, params={"image_size_tag": "tall"})
+```
+
+
+#### 出力ファイル
+ **要修正**
+ - *(AFM|NFM).XML はUTF-8に変換された手続XML
+ - *.webp 画像ファイル 
+ 
+## 注意事項
+ - テストは十分でないので、いろいろバグあるとおもう。
+ - 本アプリで何らかの損害を被っても本アプリ作者は責任を負いません。
+
+## ライセンス
+MIT ライセンス
+
+## Reference
+特許庁 日本国特許庁電子文書交換標準仕様XML編 （抜粋版）
+  https://www.jpo.go.jp/system/patent/gaiyo/sesaku/document/touroku_jyohou_kikan/shomen-entry-02jpo-shiyosho.pdf
+
+# todo
+extract-merge を一関数にｎする
+
