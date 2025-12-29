@@ -1,0 +1,2 @@
+import{j as r,B as e,G as s,a}from"./Base-DQrYyEWk.js";import{r as i}from"./render-DD4YFoOX.js";function n(){return r.jsx(e,{breadCrumbList:[{label:"User Management",href:"#"}],children:r.jsx(s,{size:{xs:12},py:2,pl:2,children:r.jsx(a,{p:2,sx:{border:"1px solid",borderColor:"grey.300",borderRadius:1,minHeight:300},children:"User Management Page"})})})}i({children:r.jsx(n,{})});
+//# sourceMappingURL=users-BLWylTih.js.map
