@@ -1,0 +1,271 @@
+# B2C OAuth Client
+
+Simple, focused Python library for Azure B2C OAuth2 refresh token authentication.
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Disclaimer
+
+**B2C OAuth Client** is an independent, open-source Python library for Azure B2C OAuth2 refresh token authentication. This library is:
+
+- **Not affiliated with Microsoft Corporation** - This is a third-party library, not an official Microsoft product
+- **Not endorsed by Microsoft** - Microsoft does not endorse or support this library
+- **Not connected to any specific Azure B2C tenant** - The library is generic and works with any Azure B2C tenant
+- **Use at your own risk** - Users are responsible for their use of this library
+
+### Legal Considerations
+
+When using this library with any Azure B2C tenant, you must:
+
+- Comply with the Azure B2C tenant's terms of service
+- Comply with Microsoft's terms of service for Azure services
+- Respect any API rate limits or usage restrictions
+- Not use the library for unauthorized access or malicious purposes
+
+This library implements standard OAuth2 refresh token flow as documented by Microsoft. It does not reverse engineer proprietary protocols, bypass security measures, or violate any intellectual property rights. The implementation follows publicly available OAuth2 and Azure B2C documentation.
+
+### Privacy and Security
+
+- **No data collection** - This library does not collect or transmit any user data
+- **No secrets stored** - All authentication credentials must be provided by the user
+- **No tracking** - The library does not include any tracking or analytics
+
+## Features
+
+- ✅ Simple refresh token flow for Azure B2C
+- ✅ Automatic token expiration handling
+- ✅ Clean, minimal API
+- ✅ No external dependencies beyond `requests`
+- ✅ Fully typed with type hints
+- ✅ Works with any Azure B2C tenant
+
+## Installation
+
+```bash
+pip install b2c-oauth-client
+```
+
+## Quick Start
+
+```python
+from b2c_oauth_client import B2COAuthClient, AuthenticationError
+
+# Initialize client with your Azure B2C configuration
+client = B2COAuthClient(
+    tenant="your-tenant.onmicrosoft.com",
+    client_id="your-client-id",
+    policy="B2C_1_YourPolicy",
+    scope="https://your-tenant.onmicrosoft.com/your-api/your.scope openid profile offline_access"
+)
+
+# Refresh token to get new access token
+try:
+    token = client.refresh_token("your_refresh_token")
+
+    # Use the access token
+    print(f"Access token: {token.access_token[:50]}...")
+    print(f"Expires at: {token.expires_at}")
+
+    # Save the new refresh token for future use
+    if token.refresh_token:
+        print(f"New refresh token: {token.refresh_token[:50]}...")
+        # Save token.refresh_token to your storage
+
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+```
+
+## API Reference
+
+### `B2COAuthClient`
+
+Main client class for Azure B2C authentication.
+
+#### Constructor
+
+```python
+B2COAuthClient(
+    tenant: str,
+    client_id: str,
+    policy: str,
+    scope: str,
+    base_url: str | None = None
+)
+```
+
+**Parameters:**
+
+- `tenant`: Azure B2C tenant name (e.g., `"your-tenant.onmicrosoft.com"`)
+- `client_id`: Application (client) ID from Azure B2C
+- `policy`: B2C policy name (e.g., `"B2C_1_YourPolicy"`)
+- `scope`: Space-separated list of scopes to request
+- `base_url`: Optional base URL for B2C login (defaults to `{tenant-name}.b2clogin.com`)
+
+#### Methods
+
+##### `refresh_token(refresh_token: str, session: requests.Session | None = None) -> AuthToken`
+
+Refresh an access token using a refresh token.
+
+**Parameters:**
+
+- `refresh_token`: The refresh token to use for authentication
+- `session`: Optional requests session for connection pooling
+
+**Returns:** `AuthToken` object
+
+**Raises:** `AuthenticationError` if token refresh fails
+
+##### `is_token_valid(token: AuthToken, buffer_minutes: int = 5) -> bool`
+
+Check if a token is still valid (not expired).
+
+**Parameters:**
+
+- `token`: The `AuthToken` to check
+- `buffer_minutes`: Consider token invalid if it expires within this many minutes
+
+**Returns:** `True` if token is valid, `False` otherwise
+
+### `AuthToken`
+
+Data class representing an authentication token.
+
+```python
+@dataclass(frozen=True)
+class AuthToken:
+    access_token: str
+    refresh_token: str | None
+    expires_at: datetime
+    token_type: str = "Bearer"
+```
+
+### Exceptions
+
+#### `AuthenticationError`
+
+Raised when authentication fails (invalid token, network error, etc.)
+
+#### `ConfigurationError`
+
+Raised when client configuration is invalid (missing required parameters)
+
+## Examples
+
+### Basic Usage
+
+```python
+from b2c_oauth_client import B2COAuthClient
+
+client = B2COAuthClient(
+    tenant="myapp.onmicrosoft.com",
+    client_id="12345678-1234-1234-1234-123456789abc",
+    policy="B2C_1_SignUpSignIn",
+    scope="https://myapp.onmicrosoft.com/api/read openid profile offline_access"
+)
+
+token = client.refresh_token("your_refresh_token_here")
+print(f"Access token expires at: {token.expires_at}")
+```
+
+### Using with Requests Session
+
+```python
+import requests
+from b2c_oauth_client import B2COAuthClient
+
+session = requests.Session()
+client = B2COAuthClient(...)
+
+token = client.refresh_token("your_refresh_token", session=session)
+
+# Use the same session for API calls
+headers = {"Authorization": f"{token.token_type} {token.access_token}"}
+response = session.get("https://api.example.com/data", headers=headers)
+```
+
+### Token Validation
+
+```python
+from b2c_oauth_client import B2COAuthClient
+
+client = B2COAuthClient(...)
+token = client.refresh_token("your_refresh_token")
+
+# Check if token is still valid
+if client.is_token_valid(token):
+    print("Token is valid")
+else:
+    print("Token has expired, need to refresh")
+```
+
+### Error Handling
+
+```python
+from b2c_oauth_client import B2COAuthClient, AuthenticationError, ConfigurationError
+
+try:
+    client = B2COAuthClient(
+        tenant="",  # Invalid: empty tenant
+        client_id="...",
+        policy="...",
+        scope="..."
+    )
+except ConfigurationError as e:
+    print(f"Configuration error: {e}")
+
+try:
+    token = client.refresh_token("invalid_token")
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+    # Handle error (e.g., prompt user to re-authenticate)
+```
+
+## Requirements
+
+- Python 3.10 or higher
+- `requests>=2.31.0`
+
+## Development
+
+### Setup
+
+```bash
+# Clone repository
+git clone https://github.com/jvuori/b2c-oauth-client.git
+cd b2c-oauth-client
+
+# Install with development dependencies using uv
+uv sync --dev
+
+# Run tests
+uv run pytest
+
+# Run linting
+uv run ruff check src/
+
+# Format code
+uv run ruff format src/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+This library is provided "as-is" without warranty. For issues or questions:
+
+- Open an issue on [GitHub Issues](https://github.com/jvuori/b2c-oauth-client/issues)
+- Review the documentation
+- Check [Azure B2C official documentation](https://learn.microsoft.com/en-us/azure/active-directory-b2c/)
+
+## Links
+
+- **Repository**: [GitHub](https://github.com/jvuori/b2c-oauth-client)
+- **Issues**: [GitHub Issues](https://github.com/jvuori/b2c-oauth-client/issues)
