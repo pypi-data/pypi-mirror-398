@@ -1,0 +1,123 @@
+# Auto Scaling Group: {{ resource.original_name }}
+resource "aws_autoscaling_group" "{{ resource.terraform_name }}" {
+  name = "{{ resource.config.name }}"
+
+  min_size         = {{ resource.config.min_size | d(0) }}
+  max_size         = {{ resource.config.max_size | d(1) }}
+  desired_capacity = {{ resource.config.desired_capacity | d(1) }}
+
+{% if resource.config.launch_template.id %}
+  launch_template {
+{% if resource.config.launch_template.id is tf_ref %}
+    id      = {{ resource.config.launch_template.id }}
+{% else %}
+{% set lt_resource = graph.get_resource(resource.config.launch_template.id) %}
+{% if lt_resource and lt_resource.terraform_name %}
+    id      = aws_launch_template.{{ lt_resource.terraform_name }}.id
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_lt_{{ resource.config.launch_template.id | replace("-", "_") }}
+    id      = var.unmapped_lt_{{ resource.config.launch_template.id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+    version = "$Latest"
+  }
+{% endif %}
+
+{% if resource.config.subnet_ids %}
+  vpc_zone_identifier = [
+{% for subnet_id in resource.config.subnet_ids %}
+{% if subnet_id %}
+{% if subnet_id is tf_ref %}
+    {{ subnet_id }},
+{% else %}
+{% set subnet_resource = graph.get_resource(subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+    aws_subnet.{{ subnet_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_subnet_{{ subnet_id | replace("-", "_") }}
+    var.unmapped_subnet_{{ subnet_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+{% if resource.config.target_group_arns %}
+  # Target Group ARNs - mapped to Terraform references where possible
+  target_group_arns = [
+{% for tg_arn in resource.config.target_group_arns %}
+{% if tg_arn is tf_ref %}
+    {{ tg_arn }},
+{% else %}
+{# Try to find target group by ARN in graph #}
+{% set tg_resource = graph.get_resource(tg_arn) %}
+{% if tg_resource and tg_resource.terraform_name %}
+    aws_lb_target_group.{{ tg_resource.terraform_name }}.arn,
+{% else %}
+{# Target Group not in graph - extract name from ARN and try to find by name pattern #}
+{# ARN format: arn:aws:elasticloadbalancing:region:account:targetgroup/name/id #}
+{% set tg_name_match = tg_arn.split('/') %}
+{% if tg_name_match | length >= 2 %}
+{% set tg_name = tg_name_match[1] %}
+{# Try to find by iterating through LB_TARGET_GROUP resources #}
+{% set found_tg = namespace(resource=none) %}
+{% for res in graph.iter_resources() %}
+{% if res.resource_type.value == 'lb_target_group' and res.config.get('name', '') == tg_name %}
+{% set found_tg.resource = res %}
+{% endif %}
+{% endfor %}
+{% if found_tg.resource and found_tg.resource.terraform_name %}
+    aws_lb_target_group.{{ found_tg.resource.terraform_name }}.arn,
+{% else %}
+    # CROSS-ACCOUNT: Target Group not in graph - define variable for ARN mapping
+    # Original ARN: {{ tg_arn }}
+    var.unmapped_tg_{{ tg_name | replace("-", "_") }},
+{% endif %}
+{% else %}
+    # CROSS-ACCOUNT: Could not parse Target Group ARN - define variable
+    # Original ARN: {{ tg_arn }}
+    var.unmapped_tg_arn_{{ loop.index }},
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+  health_check_type         = "{{ resource.config.health_check_type | d('EC2') }}"
+  health_check_grace_period = {{ resource.config.health_check_grace_period | d(300) }}
+  default_cooldown          = {{ resource.config.default_cooldown | d(300) }}
+
+  tag {
+    key                 = "Name"
+    value               = "{{ resource.original_name }}"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "Environment"
+    value               = var.environment
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "ManagedBy"
+    value               = "replimap"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "SourceId"
+    value               = "{{ resource.id }}"
+    propagate_at_launch = true
+  }
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+
+  tag {
+    key                 = {{ key | quote }}
+    value               = {{ value | quote }}
+    propagate_at_launch = true
+  }
+{% endfor %}
+}

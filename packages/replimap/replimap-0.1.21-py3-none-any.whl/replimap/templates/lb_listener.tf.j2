@@ -1,0 +1,101 @@
+# LB Listener: {{ resource.config.protocol | d('HTTP') }}:{{ resource.config.port | d(80) }}
+resource "aws_lb_listener" "{{ resource.terraform_name }}" {
+{% if resource.config.load_balancer_arn is tf_ref %}
+  load_balancer_arn = {{ resource.config.load_balancer_arn }}
+{% else %}
+{% set lb_resource = graph.get_resource(resource.config.load_balancer_arn) %}
+{% if lb_resource and lb_resource.terraform_name %}
+  load_balancer_arn = aws_lb.{{ lb_resource.terraform_name }}.arn
+{% else %}
+  load_balancer_arn = "{{ resource.config.load_balancer_arn }}"
+{% endif %}
+{% endif %}
+  port              = {{ resource.config.port | d(80) }}
+  protocol          = "{{ resource.config.protocol | d('HTTP') }}"
+
+{% if resource.config.ssl_policy %}
+  ssl_policy        = "{{ resource.config.ssl_policy }}"
+{% endif %}
+{% if resource.config.certificate_arn %}
+  # NOTE: Certificate ARN is domain-specific. Set via variable for staging domains.
+  # Original certificate: {{ resource.config.certificate_arn }}
+  certificate_arn   = var.acm_certificate_arn
+{% endif %}
+
+{% set has_action = [] %}
+{% for action in resource.config.default_actions %}
+{% if action.type == 'forward' and action.target_group_arn %}
+{% set _ = has_action.append(1) %}
+  default_action {
+    type             = "forward"
+{% if action.target_group_arn is tf_ref %}
+    target_group_arn = {{ action.target_group_arn }}
+{% else %}
+{% set tg_resource = graph.get_resource(action.target_group_arn) %}
+{% if tg_resource and tg_resource.terraform_name %}
+    target_group_arn = aws_lb_target_group.{{ tg_resource.terraform_name }}.arn
+{% else %}
+    target_group_arn = "{{ action.target_group_arn }}"
+{% endif %}
+{% endif %}
+  }
+{% elif action.type == 'fixed-response' %}
+{% set _ = has_action.append(1) %}
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "{{ action.fixed_response.ContentType | default('text/plain') }}"
+      message_body = "{{ action.fixed_response.MessageBody | default('OK') }}"
+      status_code  = "{{ action.fixed_response.StatusCode | default('200') }}"
+    }
+  }
+{% elif action.type == 'redirect' %}
+{% set _ = has_action.append(1) %}
+  default_action {
+    type = "redirect"
+    redirect {
+      protocol    = "{{ action.redirect.Protocol | default('HTTPS') }}"
+      port        = "{{ action.redirect.Port | default('443') }}"
+      host        = "{{ action.redirect.Host | default('#{host}') }}"
+      path        = "{{ action.redirect.Path | default('/#{path}') }}"
+      query       = "{{ action.redirect.Query | default('#{query}') }}"
+      status_code = "{{ action.redirect.StatusCode | default('HTTP_301') }}"
+    }
+  }
+{% elif action.type == 'authenticate-cognito' %}
+{% set _ = has_action.append(1) %}
+  default_action {
+    type = "authenticate-cognito"
+    authenticate_cognito {
+      user_pool_arn       = "{{ action.authenticate_cognito.UserPoolArn }}"
+      user_pool_client_id = "{{ action.authenticate_cognito.UserPoolClientId }}"
+      user_pool_domain    = "{{ action.authenticate_cognito.UserPoolDomain }}"
+    }
+  }
+{% elif action.type == 'authenticate-oidc' %}
+{% set _ = has_action.append(1) %}
+  default_action {
+    type = "authenticate-oidc"
+    authenticate_oidc {
+      authorization_endpoint = "{{ action.authenticate_oidc.AuthorizationEndpoint }}"
+      client_id              = "{{ action.authenticate_oidc.ClientId }}"
+      client_secret          = "PLACEHOLDER_OIDC_SECRET"
+      issuer                 = "{{ action.authenticate_oidc.Issuer }}"
+      token_endpoint         = "{{ action.authenticate_oidc.TokenEndpoint }}"
+      user_info_endpoint     = "{{ action.authenticate_oidc.UserInfoEndpoint }}"
+    }
+  }
+{% endif %}
+{% endfor %}
+{% if not has_action %}
+  # FALLBACK: No default action found from source. Update this placeholder.
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Service Unavailable - Configure default action"
+      status_code  = "503"
+    }
+  }
+{% endif %}
+}

@@ -1,0 +1,84 @@
+# ElastiCache Cluster: {{ resource.original_name }}
+{# Determine default port based on cache engine #}
+{% set cache_engine = resource.config.engine | lower %}
+{% if cache_engine == 'memcached' %}
+{% set default_port = 11211 %}
+{% else %}
+{% set default_port = 6379 %}
+{% endif %}
+{# For Redis 6+, Terraform requires major.minor format only (not major.minor.patch) #}
+{% set engine_version = resource.config.engine_version %}
+{% if engine_version and cache_engine == 'redis' %}
+{% set version_parts = engine_version.split('.') %}
+{% set major_version = version_parts[0] | int %}
+{% if major_version >= 6 and version_parts | length >= 2 %}
+{% set engine_version = version_parts[0] ~ '.' ~ version_parts[1] %}
+{% endif %}
+{% endif %}
+resource "aws_elasticache_cluster" "{{ resource.terraform_name }}" {
+  cluster_id           = "{{ resource.config.cluster_id }}"
+  engine               = "{{ resource.config.engine }}"
+{% if engine_version %}
+  engine_version       = "{{ engine_version }}"
+{% endif %}
+  # Uses variables for Right-Sizer compatibility
+  node_type            = var.{{ variable_names.node_type }}
+  num_cache_nodes      = var.{{ variable_names.num_cache_nodes }}
+{% if resource.config.port %}
+  port                 = {{ resource.config.port | d(default_port) }}
+{% endif %}
+
+{% if resource.config.cache_subnet_group_name %}
+{% if resource.config.cache_subnet_group_name is tf_ref %}
+  subnet_group_name = {{ resource.config.cache_subnet_group_name }}
+{% else %}
+{% set subnet_group = graph.get_resource(resource.config.cache_subnet_group_name) %}
+{% if subnet_group and subnet_group.terraform_name %}
+  subnet_group_name = aws_elasticache_subnet_group.{{ subnet_group.terraform_name }}.name
+{% else %}
+  # CROSS-ACCOUNT: Define var.unmapped_cache_subnet_group_{{ resource.config.cache_subnet_group_name | replace("-", "_") }}
+  subnet_group_name = var.unmapped_cache_subnet_group_{{ resource.config.cache_subnet_group_name | replace("-", "_") }}
+{% endif %}
+{% endif %}
+{% endif %}
+
+{% if resource.config.security_group_ids %}
+  security_group_ids = [
+{% for sg_id in resource.config.security_group_ids %}
+{% if sg_id is tf_ref %}
+    {{ sg_id }},
+{% else %}
+{% set sg_resource = graph.get_resource(sg_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+    aws_security_group.{{ sg_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg_id | replace("-", "_") }}
+    var.unmapped_sg_{{ sg_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+{% if resource.config.parameter_group_name %}
+  parameter_group_name = "{{ resource.config.parameter_group_name }}"
+{% endif %}
+
+{% if resource.config.maintenance_window %}
+  maintenance_window = "{{ resource.config.maintenance_window }}"
+{% endif %}
+
+{% if resource.config.snapshot_retention_limit %}
+  snapshot_retention_limit = {{ resource.config.snapshot_retention_limit }}
+{% endif %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

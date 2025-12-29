@@ -1,0 +1,63 @@
+# S3 Bucket: {{ resource.id }}
+# Note: S3 bucket names must be globally unique (max 63 characters)
+{# Calculate if we can safely append environment suffix (bucket names max 63 chars) #}
+{% set bucket_name = resource.config.bucket %}
+{% set max_env_suffix_len = 10 %}  {# e.g., "-staging" = 8, "-production" = 11 #}
+{% set safe_length = 63 - max_env_suffix_len %}
+{% if bucket_name | length <= safe_length %}
+resource "aws_s3_bucket" "{{ resource.terraform_name }}" {
+  bucket = "{{ bucket_name }}-${var.environment}"
+{% else %}
+# CROSS-ACCOUNT: Bucket name too long for auto-suffix - define var.bucket_name_{{ resource.terraform_name }}
+# Original bucket: {{ bucket_name }} ({{ bucket_name | length }} chars, max 63)
+# Suggested: Truncate or use a shorter unique name for the target environment
+resource "aws_s3_bucket" "{{ resource.terraform_name }}" {
+  bucket = var.bucket_name_{{ resource.terraform_name }}
+{% endif %}
+
+  tags = {
+    Name        = "{{ resource.tags.get('Name', resource.id) }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+
+{% if resource.config.versioning %}
+resource "aws_s3_bucket_versioning" "{{ resource.terraform_name }}" {
+  bucket = aws_s3_bucket.{{ resource.terraform_name }}.id
+
+  versioning_configuration {
+    status = "{{ 'Enabled' if resource.config.versioning.enabled else 'Suspended' }}"
+  }
+}
+{% endif %}
+
+{% if resource.config.server_side_encryption_configuration %}
+resource "aws_s3_bucket_server_side_encryption_configuration" "{{ resource.terraform_name }}" {
+  bucket = aws_s3_bucket.{{ resource.terraform_name }}.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "{{ resource.config.server_side_encryption_configuration.sse_algorithm | default('AES256') }}"
+{% if resource.config.server_side_encryption_configuration.kms_master_key_id %}
+      kms_master_key_id = "{{ resource.config.server_side_encryption_configuration.kms_master_key_id }}"
+{% endif %}
+    }
+  }
+}
+{% endif %}
+
+{% if resource.config.public_access_block %}
+resource "aws_s3_bucket_public_access_block" "{{ resource.terraform_name }}" {
+  bucket = aws_s3_bucket.{{ resource.terraform_name }}.id
+
+  block_public_acls       = {{ resource.config.public_access_block.block_public_acls | default(false) | lower }}
+  block_public_policy     = {{ resource.config.public_access_block.block_public_policy | default(false) | lower }}
+  ignore_public_acls      = {{ resource.config.public_access_block.ignore_public_acls | default(false) | lower }}
+  restrict_public_buckets = {{ resource.config.public_access_block.restrict_public_buckets | default(false) | lower }}
+}
+{% endif %}

@@ -1,0 +1,32 @@
+# Subnet: {{ resource.original_name }}
+# Original ID: {{ resource.id }}
+# Original Availability Zone: {{ resource.config.availability_zone }}
+resource "aws_subnet" "{{ resource.terraform_name }}" {
+{% if resource.config.vpc_id is tf_ref %}
+  vpc_id                  = {{ resource.config.vpc_id }}
+{% else %}
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+{% if vpc_resource and vpc_resource.terraform_name %}
+  vpc_id                  = aws_vpc.{{ vpc_resource.terraform_name }}.id
+{% else %}
+  # WARNING: VPC {{ resource.config.vpc_id }} not found in graph - using original ID
+  vpc_id                  = "{{ resource.config.vpc_id }}"
+{% endif %}
+{% endif %}
+  cidr_block              = "{{ resource.config.cidr_block }}"
+  # NOTE: AZ is dynamically mapped to target region using local.az_map
+  # Original AZ: {{ resource.config.availability_zone }}
+{% set az_suffix = resource.config.availability_zone[-1] %}
+  availability_zone       = local.az_map["{{ az_suffix }}"]
+  map_public_ip_on_launch = {{ resource.config.map_public_ip_on_launch | d(false) | lower }}
+
+  tags = {
+    Name        = "{{ resource.tags.get('Name', resource.terraform_name) }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

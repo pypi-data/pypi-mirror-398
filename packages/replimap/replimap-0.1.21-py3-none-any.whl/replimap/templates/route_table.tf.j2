@@ -1,0 +1,210 @@
+# Route Table: {{ resource.original_name }}
+{% if resource.config.is_main %}
+# ═══════════════════════════════════════════════════════════════════════════
+# This is the VPC's MAIN Route Table (implicitly created with the VPC).
+# Using aws_default_route_table to adopt it rather than creating a duplicate.
+# ═══════════════════════════════════════════════════════════════════════════
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+resource "aws_default_route_table" "{{ resource.terraform_name }}" {
+{% if vpc_resource and vpc_resource.terraform_name %}
+  default_route_table_id = aws_vpc.{{ vpc_resource.terraform_name }}.default_route_table_id
+{% else %}
+  # WARNING: VPC not found - you may need to import this manually
+  default_route_table_id = "{{ resource.id }}"
+{% endif %}
+
+{% for route in resource.config.routes %}
+{% if route.gateway_id and (route.gateway_id.startswith('igw-') or route.gateway_id.startswith('aws_internet_gateway.')) %}
+  route {
+    cidr_block = "{{ route.destination_cidr_block }}"
+{% if route.gateway_id is tf_ref %}
+    gateway_id = {{ route.gateway_id }}
+{% else %}
+{% set igw_resource = graph.get_resource(route.gateway_id) %}
+{% if igw_resource and igw_resource.terraform_name %}
+    gateway_id = aws_internet_gateway.{{ igw_resource.terraform_name }}.id
+{% else %}
+    gateway_id = "{{ route.gateway_id }}"
+{% endif %}
+{% endif %}
+  }
+{% elif route.nat_gateway_id %}
+  route {
+    cidr_block     = "{{ route.destination_cidr_block }}"
+{% if route.nat_gateway_id is tf_ref %}
+    nat_gateway_id = {{ route.nat_gateway_id }}
+{% else %}
+{% set nat_resource = graph.get_resource(route.nat_gateway_id) %}
+{% if nat_resource and nat_resource.terraform_name %}
+    nat_gateway_id = aws_nat_gateway.{{ nat_resource.terraform_name }}.id
+{% else %}
+    nat_gateway_id = "{{ route.nat_gateway_id }}"
+{% endif %}
+{% endif %}
+  }
+{% elif route.destination_cidr_block == "0.0.0.0/0" %}
+  # Default route placeholder - no target specified
+{% endif %}
+{% endfor %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+{% else %}
+{# Regular (non-main) route table #}
+resource "aws_route_table" "{{ resource.terraform_name }}" {
+{% if resource.config.vpc_id is tf_ref %}
+  vpc_id = {{ resource.config.vpc_id }}
+{% else %}
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+{% if vpc_resource and vpc_resource.terraform_name %}
+  vpc_id = aws_vpc.{{ vpc_resource.terraform_name }}.id
+{% else %}
+  # WARNING: VPC {{ resource.config.vpc_id }} not found in graph - using original ID
+  vpc_id = "{{ resource.config.vpc_id }}"
+{% endif %}
+{% endif %}
+
+{% for route in resource.config.routes %}
+{% if route.gateway_id and (route.gateway_id.startswith('igw-') or route.gateway_id.startswith('aws_internet_gateway.')) %}
+  route {
+    cidr_block = "{{ route.destination_cidr_block }}"
+{% if route.gateway_id is tf_ref %}
+    gateway_id = {{ route.gateway_id }}
+{% else %}
+{% set igw_resource = graph.get_resource(route.gateway_id) %}
+{% if igw_resource and igw_resource.terraform_name %}
+    gateway_id = aws_internet_gateway.{{ igw_resource.terraform_name }}.id
+{% else %}
+    gateway_id = "{{ route.gateway_id }}"
+{% endif %}
+{% endif %}
+  }
+{% elif route.nat_gateway_id %}
+  route {
+    cidr_block     = "{{ route.destination_cidr_block }}"
+{% if route.nat_gateway_id is tf_ref %}
+    nat_gateway_id = {{ route.nat_gateway_id }}
+{% else %}
+{% set nat_resource = graph.get_resource(route.nat_gateway_id) %}
+{% if nat_resource and nat_resource.terraform_name %}
+    nat_gateway_id = aws_nat_gateway.{{ nat_resource.terraform_name }}.id
+{% else %}
+    nat_gateway_id = "{{ route.nat_gateway_id }}"
+{% endif %}
+{% endif %}
+  }
+{% elif route.vpc_peering_connection_id %}
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ⚠️ BOUNDARY RESOURCE: VPC Peering Connection
+  # ═══════════════════════════════════════════════════════════════════════════
+  # VPC Peering is specific to the source/destination VPC pair.
+  # This peering ({{ route.vpc_peering_connection_id }}) connects the PRODUCTION VPC
+  # to another VPC. It CANNOT be reused for the staging VPC.
+  #
+  # To enable this route in staging:
+  # 1. Create a new VPC Peering Connection for the staging VPC
+  # 2. Accept the peering request
+  # 3. Uncomment and update the route below with the new peering ID
+  #
+  # route {
+  #   cidr_block                = "{{ route.destination_cidr_block }}"
+  #   vpc_peering_connection_id = var.vpc_peering_{{ route.destination_cidr_block | replace('.', '_') | replace('/', '_') }}
+  # }
+  # ═══════════════════════════════════════════════════════════════════════════
+{% elif route.transit_gateway_id %}
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ⚠️ BOUNDARY RESOURCE: Transit Gateway
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Transit Gateway attachments are VPC-specific. The staging VPC needs its own
+  # attachment to the Transit Gateway.
+  #
+  # Original Transit Gateway: {{ route.transit_gateway_id }}
+  # Destination: {{ route.destination_cidr_block }}
+  #
+  # To enable this route in staging:
+  # 1. Create a TGW attachment for the staging VPC
+  # 2. Update TGW route tables if needed
+  # 3. Uncomment and update the route below
+  #
+  # route {
+  #   cidr_block         = "{{ route.destination_cidr_block }}"
+  #   transit_gateway_id = var.transit_gateway_id
+  # }
+  # ═══════════════════════════════════════════════════════════════════════════
+{% elif route.network_interface_id %}
+  route {
+    cidr_block = "{{ route.destination_cidr_block }}"
+{% if route.network_interface_id is tf_ref %}
+    network_interface_id = {{ route.network_interface_id }}
+{% else %}
+{% set eni_resource = graph.get_resource(route.network_interface_id) %}
+{% if eni_resource and eni_resource.terraform_name %}
+    network_interface_id = aws_network_interface.{{ eni_resource.terraform_name }}.id
+{% else %}
+    network_interface_id = "{{ route.network_interface_id }}"
+{% endif %}
+{% endif %}
+  }
+{% elif route.instance_id %}
+  route {
+    cidr_block = "{{ route.destination_cidr_block }}"
+{% if route.instance_id is tf_ref %}
+    instance_id = {{ route.instance_id }}
+{% else %}
+{% set instance_resource = graph.get_resource(route.instance_id) %}
+{% if instance_resource and instance_resource.terraform_name %}
+    instance_id = aws_instance.{{ instance_resource.terraform_name }}.id
+{% else %}
+    instance_id = "{{ route.instance_id }}"
+{% endif %}
+{% endif %}
+  }
+{% elif route.destination_cidr_block == "0.0.0.0/0" %}
+  # Default route placeholder - no target specified
+{% endif %}
+{% endfor %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+
+{% for assoc in resource.config.associations %}
+{% if assoc.subnet_id and not assoc.main %}
+{% if assoc.subnet_id is tf_ref %}
+resource "aws_route_table_association" "{{ resource.terraform_name }}_assoc_{{ loop.index }}" {
+  subnet_id      = {{ assoc.subnet_id }}
+  route_table_id = aws_route_table.{{ resource.terraform_name }}.id
+}
+{% else %}
+{% set subnet_resource = graph.get_resource(assoc.subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+resource "aws_route_table_association" "{{ resource.terraform_name }}_{{ subnet_resource.terraform_name }}" {
+  subnet_id      = aws_subnet.{{ subnet_resource.terraform_name }}.id
+  route_table_id = aws_route_table.{{ resource.terraform_name }}.id
+}
+{% else %}
+# WARNING: Subnet {{ assoc.subnet_id }} not found in graph - creating with original ID
+resource "aws_route_table_association" "{{ resource.terraform_name }}_assoc_{{ loop.index }}" {
+  subnet_id      = "{{ assoc.subnet_id }}"
+  route_table_id = aws_route_table.{{ resource.terraform_name }}.id
+}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}

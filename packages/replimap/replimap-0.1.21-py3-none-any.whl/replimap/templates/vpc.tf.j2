@@ -1,0 +1,31 @@
+# VPC: {{ resource.original_name }}
+# Original ID: {{ resource.id }}
+resource "aws_vpc" "{{ resource.terraform_name }}" {
+  cidr_block           = "{{ resource.config.cidr_block }}"
+  instance_tenancy     = "{{ resource.config.instance_tenancy | default('default') }}"
+  enable_dns_support   = {{ resource.config.enable_dns_support | default(true) | lower }}
+  enable_dns_hostnames = {{ resource.config.enable_dns_hostnames | default(false) | lower }}
+
+  tags = {
+    Name        = "{{ resource.tags.get('Name', resource.terraform_name) }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+
+{% if resource.config.cidr_block_association_set %}
+{% for assoc in resource.config.cidr_block_association_set %}
+{% if assoc.cidr_block != resource.config.cidr_block and assoc.state == 'associated' %}
+# Secondary CIDR Block: {{ assoc.cidr_block }}
+resource "aws_vpc_ipv4_cidr_block_association" "{{ resource.terraform_name }}_cidr_{{ loop.index }}" {
+  vpc_id     = aws_vpc.{{ resource.terraform_name }}.id
+  cidr_block = "{{ assoc.cidr_block }}"
+}
+
+{% endif %}
+{% endfor %}
+{% endif %}
