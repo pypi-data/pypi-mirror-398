@@ -1,0 +1,3 @@
+from lionweb.lionweb_version import LionWebVersion
+
+LIONWEB_VERSION_USED_BY_STARLASU = LionWebVersion.V2023_1
