@@ -1,0 +1,40 @@
+stages:
+  - test
+  - deploy
+
+code_quality:
+  stage: test
+  image: ghcr.io/astral-sh/uv:python3.13-trixie-slim
+  before_script:
+    - uv sync --extra linting
+    - chmod +x ./scripts/linting.sh
+  script:
+    - echo "Code quality check"
+    - ./scripts/linting.sh
+
+unit_tests:
+  stage: test
+  image: ghcr.io/astral-sh/uv:python3.13-trixie-slim
+  before_script:
+    - uv sync --extra unit-testing
+  script:
+    - echo "Unit tests"
+    - uv run pytest -v
+    - echo "Unit tests completed"
+
+publish_pypi:
+  stage: deploy
+  image: ghcr.io/astral-sh/uv:python3.13-trixie-slim
+  before_script:
+    - uv sync
+  script:
+    - echo "Building package..."
+    - uv build
+    - echo "Publishing to PyPI..."
+    - uv publish --token $PYPI_TOKEN
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
+      when: manual
+  artifacts:
+    paths:
+      - dist/
