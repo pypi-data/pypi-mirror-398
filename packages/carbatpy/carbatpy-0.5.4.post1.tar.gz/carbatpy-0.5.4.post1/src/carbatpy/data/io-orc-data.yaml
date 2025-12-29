@@ -1,0 +1,166 @@
+cold_storage:
+  fixed: null
+  fractions:
+  - 1.0
+  p_low: 200000.0
+  props: REFPROP
+  species: Methanol
+  temp_high: ambient
+  temp_low: 260.0
+environment_storage:
+  fixed: null
+  fractions:
+  - 1.0
+  p_low: 200000.0
+  props: REFPROP
+  species: water
+  temp_high: 300.
+  temp_low: ambient
+pump:
+  calc_type: const_eta
+  dt_superheat: 1
+  eta_s: 0.7
+  fixed: m_dot
+  model: FlowDevice
+  power: 1000.0
+  name_cost: 'centrifugal pump cs'
+  species:
+    working_fluid:
+      in: start
+      out: evaporator
+      p_in: p_low
+      p_out: p_high
+evaporator:
+  area: 1
+  calc_type: const
+  dt_min: 3.0
+  fixed: q_dot
+  model: StaticHeatExchanger
+  overall_u: 100
+  name_cost: 'Fin-plate heat exchanger Morandin'
+  species:
+    hot_storage:
+      in: temp_high
+      out: temp_low
+      p_in: p_low
+      p_out: p_low
+    working_fluid:
+      in: pump
+      out: expander
+      p_in: p_high
+      p_out: p_high
+expander:
+  calc_type: const_eta
+  dt_superheat: 1
+  eta_s: 0.7
+  fixed: m_dot
+  model: FlowDevice
+  name_cost: 'centrifugal compressor cs'
+  species:
+    working_fluid:
+      in: evporator
+      out: condenser_sur
+      p_in: p_high
+      p_out: p_low
+condenser_sur:
+  area: 1
+  calc_type: const
+  dt_min: 3.0
+  fixed: q_m_dot_w
+  model: StaticHeatExchanger
+  overall_u: 100
+  q_dot: 1000.0
+  name_cost: 'Fin-plate heat exchanger Morandin'
+  species:
+    environment_storage:
+      in: temp_low
+      out: temp_high
+      p_in: p_low
+      p_out: p_low
+    working_fluid:
+      in: expander
+      out: condenser
+      p_in: p_low
+      p_out: p_low
+condenser:
+  area: 1
+  calc_type: const
+  dt_min: 3.0
+  fixed: q_m_dot_w
+  model: StaticHeatExchanger
+  overall_u: 100
+  q_dot: 1000.0
+  name_cost: 'Fin-plate heat exchanger Morandin'
+  species:
+    cold_storage:
+      in: temp_low
+      out: temp_high
+      p_in: p_low
+      p_out: p_low
+    working_fluid:
+      in: condenser_sur
+      out: start
+      p_in: p_low
+      p_out: p_low
+fluids_all:
+  cold_storage: source-sink
+  hot_storage: source-sink
+  environment_storage:: source-sink
+  working_fluid: cycle
+hot_storage:
+  fixed: null
+  fractions:
+  - 1.0
+  p_low: 200000.0
+  props: REFPROP
+  species: Water
+  temp_high: 360.0
+  temp_low: ambient
+process:
+  cycle:
+  - start
+  - pump
+  - evaporator
+  - expander
+  - condenser_sur
+  - condenser
+  - start
+  name: orc
+  type: orc
+  time: 36000
+  cost_modell: 'Towler Method'
+  year: 2024
+  fixed: 
+    cevaporator:
+      q_dot: 100000.0
+start:
+  calc_type: null
+  dt_min: 3.0
+  dt_subcool: 1.0
+  model: Start
+  phase: liquid
+  species:
+    cold_storage:
+      in: temp_low
+      out: temp_low
+      p_in: p_low
+      p_out: p_low
+    working_fluid:
+      in: temp_start
+      out: temp_start
+      p_in: p_low
+      p_out: p_low
+working_fluid:
+  fractions:
+  - 0.4379
+  - 0.4305
+  - 0.1311
+  - 0.0005
+  optimize: None
+  p_high: 470700.28
+  p_low: 220925.0708
+  props: REFPROP
+  setting: initial
+  species: Propane * Isobutane * Pentane * Hexane
+  temp_high: 3.94957070e+02
+  temp_low: ambient
