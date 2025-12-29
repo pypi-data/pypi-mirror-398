@@ -1,0 +1,72 @@
+"""Model registry for PenguiFlow."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
+from pydantic.type_adapter import TypeAdapter
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+@dataclass(slots=True)
+class RegistryEntry:
+    in_adapter: TypeAdapter[Any]
+    out_adapter: TypeAdapter[Any]
+    in_model: type[BaseModel]
+    out_model: type[BaseModel]
+
+
+class ModelRegistry:
+    """Stores per-node type adapters for validation."""
+
+    def __init__(self) -> None:
+        self._entries: dict[str, RegistryEntry] = {}
+
+    def register(
+        self,
+        node_name: str,
+        in_model: type[BaseModel],
+        out_model: type[BaseModel],
+    ) -> None:
+        if node_name in self._entries:
+            raise ValueError(f"Node '{node_name}' already registered")
+        if not issubclass(in_model, BaseModel) or not issubclass(out_model, BaseModel):
+            raise TypeError("Models must inherit from pydantic.BaseModel")
+        self._entries[node_name] = RegistryEntry(
+            TypeAdapter(in_model),
+            TypeAdapter(out_model),
+            in_model,
+            out_model,
+        )
+
+    def has(self, node_name: str) -> bool:
+        """Check if a node is already registered."""
+        return node_name in self._entries
+
+    def adapters(self, node_name: str) -> tuple[TypeAdapter[Any], TypeAdapter[Any]]:
+        try:
+            entry = self._entries[node_name]
+        except KeyError as exc:
+            raise KeyError(f"Node '{node_name}' not registered") from exc
+        return entry.in_adapter, entry.out_adapter
+
+    def models(self, node_name: str) -> tuple[type[BaseModel], type[BaseModel]]:
+        """Return the registered models for ``node_name``.
+
+        Raises
+        ------
+        KeyError
+            If the node has not been registered.
+        """
+
+        try:
+            entry = self._entries[node_name]
+        except KeyError as exc:
+            raise KeyError(f"Node '{node_name}' not registered") from exc
+        return entry.in_model, entry.out_model
+
+
+__all__ = ["ModelRegistry"]
