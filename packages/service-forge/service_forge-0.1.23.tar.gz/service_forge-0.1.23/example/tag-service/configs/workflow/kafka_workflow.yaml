@@ -1,0 +1,28 @@
+name: kafka_workflow
+description: Kafka workflow
+nodes:
+  - name: kafka_server
+    type: KafkaAPITrigger
+    args:
+      app: kafka_app
+      topic: <{INPUT_TOPIC}>
+      data_type: <{INPUT_TOPIC_TYPE}>
+      group_id: <{KAFKA_GROUP_ID}>
+    outputs:
+      data: get_tags|record
+
+  - name: get_tags
+    type: GetTagsNode
+    args:
+      prompt: prompt/get_tags.md
+      temperature: 0
+    outputs:
+      tag: kafka_output|data
+
+  - name: kafka_output
+    type: KafkaOutputNode
+    args:
+      app: kafka_app
+      topic: <{OUTPUT_TOPIC}>
+      data_type: <{OUTPUT_TOPIC_TYPE}>
+    outputs: 

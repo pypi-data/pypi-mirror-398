@@ -1,0 +1,38 @@
+name: Update Template Repo Submodules
+on:
+    push:
+      branches:
+        - main
+    workflow_dispatch: 
+
+jobs:
+    update_modules:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: checkout_template_repo
+            uses: actions/checkout@v4
+            with:
+                repository: NextHCI/kafka-pipeline-template
+                submodules: true
+                token: ${{ secrets.UPDATE_TEMPLATE_PAT_TOKEN }}
+
+          - name: setup github auth
+            run: |
+                git config --global user.name "GitHub Actions - update submodules"
+                git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                git config --global url."https://x-access-token:${{ secrets.UPDATE_TEMPLATE_PAT_TOKEN }}@github.com/".insteadOf "https://github.com/"
+                git config --global submodule.recurse true
+
+                
+
+          - name: Pull & update submodules recursively
+            run: |
+                git submodule update --init --recursive
+                git submodule update --recursive --remote
+
+          - name: Commit
+            run: |
+                git add --all
+                git commit -m "Update protobuf submodules" || echo "No changes to commit"
+                git push
