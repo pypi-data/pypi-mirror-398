@@ -1,0 +1,259 @@
+[build-system]
+requires = ["uv_build>=0.9.11,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "reporoulette"
+version = "0.4.0"
+description = "Random sampling of GitHub repositories using multiple methods"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Gaurav Sood", email = "gsood07@example.com"}
+]
+keywords = [
+    "github",
+    "repository",
+    "sampling",
+    "random",
+    "research",
+    "data-collection",
+    "bigquery",
+    "git"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.25.0",
+]
+
+[project.optional-dependencies]
+bigquery = [
+    "google-cloud-bigquery>=2.0.0",
+    "google-auth>=1.30.0",
+]
+docs = [
+    "sphinx>=4.0.0",
+    "furo>=2023.0.0",
+    "myst-parser>=0.15.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "ruff>=0.8.0",
+    "pre-commit>=3.0.0",
+]
+all = []  # Install with: pip install reporoulette[bigquery,docs,dev]
+
+[project.urls]
+"Homepage" = "https://github.com/gojiplus/reporoulette"
+"Repository" = "https://github.com/gojiplus/reporoulette"
+"Bug Tracker" = "https://github.com/gojiplus/reporoulette/issues"
+"Documentation" = "https://gojiplus.github.io/reporoulette/"
+"Changelog" = "https://github.com/gojiplus/reporoulette/releases"
+
+[tool.sphinx]
+project = "reporoulette"
+author = "Gaurav Sood"
+copyright = "2025, Gaurav Sood"
+version = "0.3.0"
+release = "0.3.0"
+language = "en"
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
+    "myst_parser",
+]
+html_theme = "furo"
+
+[tool.reporoulette.logging]
+version = 1
+disable_existing_loggers = false
+
+[tool.reporoulette.logging.formatters.standard]
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+datefmt = "%Y-%m-%d %H:%M:%S"
+
+[tool.reporoulette.logging.handlers.console]
+class = "logging.StreamHandler"
+level = "INFO"
+formatter = "standard"
+stream = "ext://sys.stdout"
+
+[tool.reporoulette.logging.handlers.file]
+class = "logging.FileHandler"
+level = "DEBUG"
+formatter = "standard"
+filename = "reporoulette.log"
+encoding = "utf8"
+
+[tool.reporoulette.logging.loggers.reporoulette]
+level = "INFO"
+handlers = ["console", "file"]
+propagate = false
+
+[tool.reporoulette.logging.root]
+level = "WARNING"
+handlers = ["console"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "D",    # pydocstyle
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "PL",   # pylint
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "D100",   # missing docstring in public module
+    "D104",   # missing docstring in public package
+    "D107",   # missing docstring in __init__
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401", "F403", "F811"]
+"tests/*" = ["D", "PLR2004", "PLC0415"]  # Disable docstring, magic number, and import location checks for tests
+"reporoulette/samplers/*" = ["PLR0912", "PLR0913", "PLR0915"]  # Allow complex samplers
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "ruff>=0.8.0",
+    "pre-commit>=3.0.0",
+    "pyright>=1.1.390",
+    "pydoclint>=0.6.0",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+# Use index strategy for better performance
+
+[tool.uv.build-backend]
+# Configure uv_build to work with flat layout (not src/)
+module-root = ""
+module-name = "reporoulette"
+
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev", "docs"]
+
+[tool.deptry.per_rule_ignores]
+DEP004 = ["google"]  # Google Cloud is an optional dependency with try/except imports
+
+[tool.pydoclint]
+style = "google"
+exclude = ".venv|build|dist|tests"
+require-return-section-when-returning-nothing = false
+arg-type-hints-in-docstring = false
+arg-type-hints-in-signature = true
+check-return-types = false
+check-yield-types = false
+allow-init-docstring = true
+skip-checking-raises = true
+
+[tool.pyright]
+include = ["reporoulette"]
+exclude = [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/node_modules",
+    "**/.venv",
+    "**/venv",
+    "build",
+    "dist",
+    "docs/_build"
+]
+ignore = ["tests"]
+pythonVersion = "3.12"
+pythonPlatform = "All"
+typeCheckingMode = "strict"
+useLibraryCodeForTypes = true
+reportMissingImports = "error"
+reportMissingTypeStubs = "warning"
+reportUndefinedVariable = "error"
+reportAssertAlwaysTrue = "error"
+reportInvalidStringEscapeSequence = "error"
+reportInvalidTypeVarUse = "error"
+reportSelfClsParameterName = "warning"
+reportUnsupportedDunderAll = "warning"
+reportUnusedExpression = "warning"
+reportWildcardImportFromLibrary = "warning"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+reportTypedDictNotRequiredAccess = "error"
+reportPrivateImportUsage = "error"
+reportUnknownArgumentType = "warning"
+reportUnknownLambdaType = "warning"
+reportUnknownVariableType = "warning"
+reportUnknownMemberType = "warning"
+reportMissingParameterType = "error"
+reportMissingTypeArgument = "error"
+reportInvalidTypeForm = "error"
+reportUnnecessaryIsInstance = "warning"
+reportUnnecessaryCast = "warning"
+reportUnnecessaryComparison = "warning"
+reportUnnecessaryContains = "warning"
+reportImplicitStringConcatenation = "warning"
+reportIncompatibleMethodOverride = "error"
+reportIncompatibleVariableOverride = "error"
+reportOverlappingOverload = "error"
+reportPossiblyUnboundVariable = "error"
+reportCallInDefaultInitializer = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportImportCycles = "error"
+reportPropertyTypeMismatch = "error"
