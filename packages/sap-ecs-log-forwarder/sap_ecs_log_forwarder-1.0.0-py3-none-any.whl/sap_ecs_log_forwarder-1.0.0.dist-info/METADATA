@@ -1,0 +1,634 @@
+Metadata-Version: 2.1
+Name: sap-ecs-log-forwarder
+Version: 1.0.0
+Summary: A package to consume events from an AWS SQS queue, Azure Storage Account Topic and GCP PubSub Topic, process log files, and forward them to a HTTP endpoint or file.
+Home-page: https://www.sap.com/
+License: SAP DEVELOPER LICENSE AGREEMENT
+Keywords: SAP AWS Log Forwarder,SAP Azure Log Forwarder,SAP GCP Log Forwarder,SAP Log Forwarder
+Author: SAP SE
+Requires-Python: >=3.10,<4.0
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Dist: aiohttp (>=3.13.2,<4.0.0)
+Requires-Dist: azure-storage-blob (>=12.27.1,<13.0.0)
+Requires-Dist: azure-storage-queue (>=12.14.1,<13.0.0)
+Requires-Dist: boto3 (>=1.17.49,<2.0.0)
+Requires-Dist: click (>=8.3.0,<9.0.0)
+Requires-Dist: cryptography (>=44.0.1,<45.0.0)
+Requires-Dist: google-cloud-pubsub (>=2.33.0,<3.0.0)
+Requires-Dist: google-cloud-storage (>=3.6.0,<4.0.0)
+Requires-Dist: requests (>=2.32.4,<3.0.0)
+Requires-Dist: urllib3 (>=2.5.0,<3.0.0)
+Description-Content-Type: text/markdown
+
+# SAP ECS Log Forwarder
+
+Unified Python service that consumes object / blob creation events from:
+- AWS SQS (S3 ObjectCreated notifications)
+- GCP Pub/Sub (Cloud Storage OBJECT_FINALIZE)
+- Azure Queue (Storage BlobCreated events)
+
+Downloads referenced log files, decompresses if gzip, splits into lines, and forwards each line to configured outputs (HTTP, files, console). Provides structured JSON logging, in‑memory metrics, regex filtering, encrypted credentials, jittered retries, and a configuration CLI.
+
+## Features
+- Single `config.json` drives all cloud provider inputs.
+- Per input regex filters: include / exclude.
+- Output‑level filters (include / exclude) per output.
+- Outputs: http, files, console (multiple per input).
+- HTTP output supports TLS client certs, custom CA, and insecure skip verify.
+- Encrypted credentials stored inline (Fernet) using `enc:` prefix.
+- Structured JSON logging (console by default, optional file target).
+- In‑memory counters periodically logged; daily reset at 00:00 UTC.
+- Jittered exponential retries for transient failures.
+- CLI to manage inputs, outputs, credentials, and log file path.
+- Unit test scaffolding (pytest).
+
+## Architecture
+
+### AWS
+
+![Image for AWS on sap-ecs-log-forwarder](https://raw.githubusercontent.com/sap-ecs-log-forwarders/pypi/main/aws-log-forwarder.png)
+
+### Azure
+
+![Image for Azure on sap-ecs-log-forwarder](https://raw.githubusercontent.com/sap-ecs-log-forwarders/pypi/main/azure-log-forwarder.png)
+
+### GCP
+
+![Image for GCP on sap-ecs-log-forwarder](https://raw.githubusercontent.com/sap-ecs-log-forwarders/pypi/main/gcp-log-forwarder.png)
+
+## Configuration Schema (config.json)
+```json
+{
+  "logLevel": "INFO",
+  "logFile": "/var/log/sap-log-forwarder/app.jsonl",
+  "inputs": [
+    {
+      "provider": "aws",
+      "name": "aws1",
+      "queue": "https://sqs.us-east-1.amazonaws.com/123/queue",
+      "region": "us-east-1",
+      "bucket": "my-bucket",
+      "includeFilter": ["\\.log$"],
+      "excludeFilter": ["debug"],
+      "maxRetries": 5,
+      "retryDelay": 10,
+      "authentication": {
+        "accessKeyId": "enc:...",
+        "secretAccessKey": "enc:...",
+        "encrypted": true
+      },
+      "outputs": [
+        {
+          "type": "http",
+          "destination": "https://example.com/ingest",
+          "authorization": {
+            "type": "bearer",
+            "token": "enc:...",
+            "encrypted": true
+          },
+          "tls": {
+            "pathToClientCert": "/path/client.crt",
+            "pathToClientKey": "/path/client.key",
+            "pathToCACert": "/path/ca.crt",
+            "insecureSkipVerify": false
+          },
+          "includeFilter": ["prod"],
+          "excludeFilter": ["test"]
+        },
+        {
+          "type": "files",
+          "destination": "logs/",
+          "compress": true,
+          "includeFilter": [],
+          "excludeFilter": []
+        },
+        {
+          "type": "console"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Provider authentication fields:
+- AWS: accessKeyId, secretAccessKey; or dynamic clientId, clientSecret, loginUrl, awsCredsUrl
+- Azure: sasToken; or dynamic clientId, clientSecret, loginUrl, credsUrl
+- GCP: serviceAccountJson (raw JSON string encrypted)
+All optionally encrypted with `enc:` prefix.
+
+## Installation
+### With direct internet access:
+```sh
+pip install sap-ecs-log-forwarder
+
+or
+
+pip install sap-ecs-log-forwarder==<version>
+```
+
+### Without direct internet access:
+1. **Download the wheel**  
+   On a machine with internet access, visit the [PyPI files page](https://pypi.org/project/sap-ecs-log-forwarder/#files) for `sap-ecs-aws-log-forwarder` and download the `.whl` file matching your Python version (e.g., `sap_ecs_log_forwarder-1.0.0-py3-none-any.whl`).
+2. **Transfer the file**  
+   Copy the downloaded wheel to the target (offline) machine using SCP, or another secure method.
+3. **Install from file**  
+   On the offline machine, run:
+   ```sh
+   pip install /path/to/sap_ecs_log_forwarder-<version>-py3-none-any.whl
+   ```
+
+## Encryption
+Generate a Fernet key:
+```python
+from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())
+```
+Export:
+```bash
+export FORWARDER_ENCRYPTION_KEY="YOUR_FERNET_KEY"
+```
+CLI will encrypt secrets you enter; encrypted values stored as `enc:<ciphertext>`.
+
+## CLI Usage
+Add an input:
+```bash
+sap-ecs-config-cli input add --provider aws --name aws1 --queue https://sqs... --region us-east-1 --bucket my-bucket
+```
+
+```bash
+sap-ecs-config-cli input add --provider azure --name azure1 --queue my-queue --storage-account my-storage-account
+```
+
+List inputs:
+```bash
+sap-ecs-config-cli input list
+```
+
+Remove input:
+```bash
+sap-ecs-config-cli input remove aws1
+```
+
+Add output (with optional output-level filters):
+```bash
+sap-ecs-config-cli output add --input-name aws1 --type http --destination https://example.com/ingest \
+  --include prod --exclude test
+```
+
+List outputs:
+```bash
+sap-ecs-config-cli output list aws1
+```
+
+Set HTTP authorization (encrypted):
+```bash
+sap-ecs-config-cli creds set-http-auth --input-name aws1 --output-index 0 --auth-type bearer
+```
+
+Set provider credentials (encrypted):
+```bash
+sap-ecs-config-cli creds set-provider-auth --input-name aws1
+```
+
+Configure JSON log file path:
+```bash
+sap-ecs-config-cli set-log-file --path /var/log/sap-log-forwarder/app.jsonl
+# To disable file logging:
+sap-ecs-config-cli set-log-file --path ""
+```
+
+## Configuration File Location
+
+Resolution order:
+1. Environment variable `SAP_LOG_FORWARDER_CONFIG` if set (supports `~` expansion).
+2. `./config.json` in current working directory (legacy behavior) if it exists.
+3. Default: `~/.sapecslogforwarder/config.json` (directory auto-created).
+
+Show path:
+```bash
+sap-ecs-config-cli config-path
+```
+
+Set custom path:
+```bash
+export SAP_LOG_FORWARDER_CONFIG=/etc/sap-log-forwarder/config.json
+```
+
+All CLI operations read/write the resolved path.
+
+## Usage
+
+To run the Log Forwarder, use the following command:
+
+```sh
+sap-ecs-log-forwarder
+```
+
+Service starts threads / async loops per input, logs metrics snapshot every 30s.
+
+## Structured Logging
+Emits JSON lines to console (and to logFile if configured):
+```json
+{"ts":"2025-11-25T12:00:00","level":"INFO","message":"Wrote logs to logs/app.log.gz","thread":"aws-aws1"}
+```
+
+## Metrics (logged)
+Counters (examples):
+- files_forward_success / files_forward_error
+- http_forward_success / http_forward_error
+- output_invocations
+- aws_messages_processed / aws_retry
+- gcp_messages_processed / gcp_retry
+- azure_messages_processed / azure_retry
+
+Snapshot logged periodically; can be extended to expose HTTP endpoint.
+
+## Filtering
+- Include / exclude lists are regex patterns applied (case-insensitive) to object/blob/file names.
+- Exclude overrides include.
+- Output-level include/exclude filters are also supported per output.
+
+## Retries
+Exponential backoff with added random jitter up to base retryDelay for download / processing failures.
+
+## HTTP Output
+- Per-line POST with `Content-Type: application/json`.
+- Auth types: bearer, api-key, basic.
+- TLS options:
+  - pathToClientCert + pathToClientKey for mTLS
+  - pathToCACert for custom CA
+  - insecureSkipVerify to skip verification (not recommended)
+
+## Extending
+- Add new output: implement handler and register in `processor.py` (OUTPUT_HANDLERS).
+- Add metrics: `metrics.inc("<name>")`.
+- Add provider: create runner class following existing pattern and register in `consumer.PROVIDERS`.
+
+## Security Notes
+- Ensure `FORWARDER_ENCRYPTION_KEY` is injected via secrets manager.
+- Structured logs avoid sensitive fields.
+
+### AWS Dynamic Authentication (Temporary Credentials)
+Instead of static IAM keys, you can configure dynamic AWS auth. The forwarder will:
+- POST to your backend login endpoint with `client_id` and `client_secret`, receive `session-id-raven` cookie.
+- GET temporary AWS credentials for the target bucket, and refresh them every ~15 minutes or before expiration.
+
+CLI:
+```bash
+sap-ecs-config-cli creds set-provider-auth --input-name aws1
+# Choose auth mode: dynamic
+# Provide client_id, client_secret, login URL (default http://logserv.forwarder.host/api/v1/app/login)
+# Provide AWS credentials URL (default http://logserv.forwarder.host/api/v1/aws/credentials)
+```
+
+Config (snippet):
+```json
+{
+  "provider": "aws",
+  "name": "aws1",
+  "queue": "https://sqs.us-east-1.amazonaws.com/123/queue",
+  "region": "us-east-1",
+  "bucket": "my-s3-bucket",
+  "authentication": {
+    "clientId": "enc:...",
+    "clientSecret": "enc:...",
+    "loginUrl": "http://logserv.forwarder.host/api/v1/app/login",
+    "awsCredsUrl": "http://logserv.forwarder.host/api/v1/aws/credentials",
+    "encrypted": true
+  }
+}
+```
+
+Backend contract:
+```bash
+# Login
+curl -X POST -H 'content-type: application/x-www-form-urlencoded' \
+  -d client_id=xxx -d client_secret=xxx \
+  http://logserv.forwarder.host/api/v1/app/login
+
+# Fetch temporary creds (cookie required)
+curl -H 'Cookie: session-id-raven=xxxx' \
+  'http://logserv.forwarder.host/api/v1/aws/credentials?bucket=my-s3-bucket'
+```
+
+Expected response:
+```json
+{
+  "data": {
+    "AccessKeyId": "xxxx",
+    "SecretAccessKey": "xxxxx",
+    "SessionToken": "xxxxxx",
+    "Expiration": "2025-11-27T00:20:33Z",
+    "Region": "ap-south-1"
+  }
+}
+```
+
+Notes:
+- Region from response overrides input region if provided; otherwise uses configured `region`.
+- Static keys are used if dynamic fields are absent.
+- Credentials refresh occurs on a schedule or 60s before expiration.
+
+### Azure Dynamic Authentication (Temporary SAS)
+Instead of a static `sasToken`, you can configure dynamic Azure auth. The forwarder will:
+- POST to your backend login endpoint with `client_id` and `client_secret`, receive `session-id-raven` cookie.
+- GET temporary credentials for the storage account, extract `SASToken`, and refresh it every ~15 minutes (or before expiry).
+
+CLI:
+```bash
+sap-ecs-config-cli creds set-provider-auth --input-name azure1
+# Choose auth mode: dynamic
+# Provide client_id, client_secret, login URL (default http://logserv.forwarder.host/api/v1/app/login)
+# Provide credentials URL (default http://logserv.forwarder.host/api/v1/azure/credentials)
+```
+
+Config (snippet):
+```json
+{
+  "provider": "azure",
+  "name": "azure1",
+  "queue": "my-queue",
+  "storageAccount": "mystorageacct",
+  "authentication": {
+    "clientId": "enc:...",
+    "clientSecret": "enc:...",
+    "loginUrl": "http://logserv.forwarder.host/api/v1/app/login",
+    "credsUrl": "http://logserv.forwarder.host/api/v1/azure/credentials",
+    "encrypted": true
+  }
+}
+```
+
+Notes:
+- The credentials endpoint must accept `storage-account-name` query parameter.
+- Response must include `data.SASToken` and `data.Expiration` (RFC3339 UTC).
+- If `sasToken` is set and dynamic fields absent, static SAS is used.
+- For connection strings, the runner uses them directly and skips SAS refresh.
+
+```bash
+# macOS: test endpoints locally
+curl -X POST -H "content-type: application/x-www-form-urlencoded" \
+  -d "client_id=xxx" -d "client_secret=xxx" \
+  http://logserv.forwarder.host/api/v1/app/login
+
+curl -H "Cookie: session-id-raven=xxxxx" \
+  "http://logserv.forwarder.host/api/v1/azure/credentials?storage-account-name=mystorageacct"
+```
+
+### GCP Dynamic Authentication (Temporary Credentials)
+
+**Will be available in a future release**
+
+## Systemd Deployment Guide
+(For Linux servers only.)
+
+### Overview
+Run the forwarder as a managed service with automatic restarts and persistent log files.
+
+### 1. Create a Service Account (Optional)
+```bash
+sudo useradd -r -s /bin/false saplogfwd || true
+```
+
+### 2. Create Directories
+```bash
+sudo mkdir -p /opt/sap-log-forwarder
+sudo mkdir -p /var/log/sap-log-forwarder
+sudo chown -R saplogfwd:saplogfwd /opt/sap-log-forwarder /var/log/sap-log-forwarder
+```
+
+Place your project (editable install or wheel) under /opt/sap-log-forwarder or install via pip:
+```bash
+cd /opt/sap-log-forwarder
+sudo pip install sap-ecs-log-forwarder
+```
+
+### 3. Environment File
+Create /etc/sap-log-forwarder.env:
+```bash
+SAP_LOG_FORWARDER_CONFIG=/etc/sap-log-forwarder/config.json
+FORWARDER_ENCRYPTION_KEY=YOUR_FERNET_KEY
+PYTHONUNBUFFERED=1
+LOG_LEVEL=INFO
+```
+
+(Generate key earlier and replace.)
+
+### 4. Systemd Unit
+Create /etc/systemd/system/sap-log-forwarder.service:
+```ini
+[Unit]
+Description=SAP ECS Log Forwarder
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=saplogfwd
+Group=saplogfwd
+WorkingDirectory=/opt/sap-log-forwarder
+EnvironmentFile=/etc/sap-log-forwarder.env
+ExecStart=/usr/bin/python -m sap_ecs_log_forwarder.consumer
+Restart=always
+RestartSec=5
+# File logging (append). Systemd 240+ supports append:
+StandardOutput=append:/var/log/sap-log-forwarder/forwarder.out.log
+StandardError=append:/var/log/sap-log-forwarder/forwarder.err.log
+# Alternatively (recommended) use journald and remove StandardOutput/StandardError lines.
+
+# Resource limits (optional)
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Reload and start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now sap-log-forwarder
+```
+
+Status:
+```bash
+systemctl status sap-log-forwarder
+```
+
+### 5. Log Rotation (If Using File Output)
+Create /etc/logrotate.d/sap-log-forwarder:
+```conf
+/var/log/sap-log-forwarder/forwarder.*.log {
+  daily
+  rotate 14
+  compress
+  missingok
+  notifempty
+  create 0640 saplogfwd saplogfwd
+  sharedscripts
+  postrotate
+    systemctl kill -s SIGUSR1 sap-log-forwarder || true
+  endscript
+}
+```
+
+(Forwarder ignores SIGUSR1 now; postrotate just optional. Compression handled by logrotate.)
+
+### 6. Using Journald Instead
+Remove StandardOutput/StandardError lines to keep logs in journal:
+```bash
+journalctl -u sap-log-forwarder -f
+```
+To export periodically, use:
+```bash
+journalctl -u sap-log-forwarder --since "1 hour ago" > /var/log/sap-log-forwarder/hour.log
+```
+
+### 7. Config File Location
+Place config.json in WorkingDirectory (/opt/sap-log-forwarder/config.json). Edit via CLI:
+```bash
+sudo -u saplogfwd sap-ecs-config-cli input list
+```
+
+### 8. Permissions
+Ensure /var/log/sap-log-forwarder writable by service user. If using file outputs (destination logs/):
+```bash
+sudo mkdir -p /opt/sap-log-forwarder/logs
+sudo chown saplogfwd:saplogfwd /opt/sap-log-forwarder/logs
+```
+
+### 9. Updating
+```bash
+sudo systemctl stop sap-log-forwarder
+sudo pip install --upgrade sap-ecs-log-forwarder
+sudo systemctl start sap-log-forwarder
+```
+
+### 10. Common Checks
+```bash
+systemctl status sap-log-forwarder
+journalctl -u sap-log-forwarder -n 50
+ls -lh /var/log/sap-log-forwarder
+```
+
+### 11. Troubleshooting Restart Loops
+- Inspect recent logs (`journalctl -u sap-log-forwarder -f`).
+- Validate config.json structure.
+- Verify FORWARDER_ENCRYPTION_KEY present (`systemctl show -p Environment sap-log-forwarder`).
+
+### 12. Security Hardening (Optional)
+Add directives:
+```
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+```
+
+Keep encryption key in a root-readable-only environment file (chmod 640).
+
+### 13. Switching To Virtualenv
+If installed in virtualenv:
+```
+ExecStart=/opt/sap-log-forwarder/venv/bin/python -m sap_ecs_log_forwarder.consumer
+```
+
+Ensure venv ownership matches service user.
+
+### 14. Testing Manual Run
+```bash
+sudo -u saplogfwd FORWARDER_ENCRYPTION_KEY=YOUR_FERNET_KEY python -m sap_ecs_log_forwarder.consumer
+```
+
+Stop with:
+```bash
+sudo systemctl stop sap-log-forwarder
+```
+
+Service now runs with automatic restart (Restart=always) and logs persisted under /var/log/sap-log-forwarder.
+
+## Troubleshooting
+
+### Quick Checklist
+1. config.json present and valid (`jq '.' config.json`).
+2. `FORWARDER_ENCRYPTION_KEY` exported.
+3. Inputs listed (`sap-ecs-config-cli input list`).
+4. Outputs configured (`sap-ecs-config-cli output list <input>`).
+5. Per-input `logLevel` set (use `DEBUG` for diagnosis).
+6. If using HTTP/TLS, verify cert/key/CA paths.
+
+### General Issues
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Encrypted values not decrypted | Missing `FORWARDER_ENCRYPTION_KEY` | Export key before running consumer |
+| No files processed | Check exclude/include filters | Adjust filters |
+| Output skipped | Output-level include/exclude filters | Remove or correct filters |
+| HTTP send fails | Bad URL, TLS paths, undecrypted auth | Verify destination, cert/key/CA paths, export key |
+| File output missing | No destination or permission denied | Provide writable directory in output config |
+
+### AWS (SQS + S3)
+- No messages: Ensure S3 event notification configured (ObjectCreated -> SQS).
+- Objects ignored: Bucket mismatch, eventName not `ObjectCreated:Put`, regex filters.
+- Repeated retries (`aws_retry`): Missing `s3:GetObject` or corrupt gzip.
+- Credential failure: Re-run `creds set-provider-auth` and export key.
+
+### GCP (Pub/Sub + Storage)
+- Subscription path invalid: Must be `projects/<project>/subscriptions/<name>`.
+- PermissionDenied: Grant `roles/pubsub.subscriber` and `roles/storage.objectViewer`.
+- Service account JSON parse failure: Re-enter credentials (file/paste mode).
+- Events ignored: Not `OBJECT_FINALIZE` or filters reject.
+
+### Azure (Queue + Blob)
+- Decode errors: Ensure Event Grid -> Queue message schema.
+- Missing blob URL: Recreate Event Grid subscription; `data.url` must exist.
+- Unauthorized blob download: Provide SAS token or full connection string.
+- Filters miss: Subject pattern `/blobServices/default/containers/<c>/blobs/<name>`; adjust regex.
+
+### Performance
+- Slow: Large object fully loaded; consider future streaming enhancement.
+- Many retries: Increase `retryDelay`, verify network and permissions.
+- Parallelism: Each input runs its own thread/loop; split workloads across inputs.
+
+### Debug Commands (macOS)
+```bash
+env | grep FORWARDER_ENCRYPTION_KEY
+sap-ecs-config-cli input list
+sap-ecs-config-cli output list <input-name>
+python -m sap_ecs_log_forwarder.consumer
+```
+
+### Metrics Reference
+- aws_messages_processed / aws_retry
+- gcp_messages_processed / gcp_retry
+- azure_messages_processed / azure_retry
+- output_invocations
+- files_forward_success / files_forward_error
+- http_forward_success / http_forward_error
+
+### When Nothing Processes
+1. Set input `logLevel` to DEBUG.
+2. Temporarily clear include/exclude filters.
+3. Upload a small test file that matches expected pattern.
+4. Confirm metrics counters increment.
+5. Reapply filters gradually.
+
+## License
+This application and its source code are licensed under the terms of the SAP Developer License Agreement. See the LICENSE file for more information.
+
+## Changelog
+
+**Version 1.0.0**
+
+- First proper release
