@@ -1,0 +1,38 @@
+{% load event_tags %}
+{% load i18n %}
+{% load samaware_extras %}
+
+{% for slot in slots %}
+{% url 'plugins:samaware:talk_overview' event=request.event.slug code=slot.submission.code as talk_url %}
+<tr>
+    <td class="text-center">
+        {% if request.event|get_feature_flag:'use_tracks' and slot.submission.track %}
+        <div class="color-square" style="background-color: {{ slot.submission.track.color }}" title="{{ slot.submission.track.name }}"></div>
+        {% endif %}
+    </td>
+    <td>
+        <a href="{{ talk_url }}">{{ slot.submission.title }}</a>
+    </td>
+    <td>
+        {% for speaker in slot.submission.speakers.all %}
+        {% with speaker_profile=event_profiles|get_item:speaker %}
+        {% if speaker_profile.has_arrived %}
+        <i class="fa fa-check-circle-o text-success" title="{% translate 'Arrived' %}" aria-hidden="true"></i>
+        <span class="sr-only">{% translate 'Arrived' %}</span>
+        {% else %}
+        <i class="fa fa-times-circle-o text-danger" title="{% translate 'Not arrived' %}" aria-hidden="true"></i>
+        <span class="sr-only">{% translate 'Not arrived' %}</span>
+        {% endif %}
+        &nbsp;<a href="{{ talk_url }}">{{ speaker.name }}</a>
+        {% endwith %}
+        {% if not forloop.last %}<br/>{% endif %}
+        {% endfor %}
+    </td>
+    <td>
+        {{ slot.start|date:'SHORT_DATETIME_FORMAT' }}
+    </td>
+    <td>
+        {{ slot.room }}
+    </td>
+</tr>
+{% endfor %}
