@@ -1,0 +1,140 @@
+from formset.boundfield import ClassList
+from formset.renderers import ButtonSize, ButtonVariant, ClassList
+from formset.renderers.default import FormRenderer as DefaultFormRenderer
+
+
+class FormRenderer(DefaultFormRenderer):
+    max_options_per_line = 4
+    framework = 'tailwind'
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault('label_css_classes', 'formset-label')
+        super().__init__(**kwargs)
+
+    _template_mapping = dict(DefaultFormRenderer._template_mapping, **{
+        'django/forms/div.html': 'formset/tailwind/form.html',
+        'django/forms/widgets/checkbox.html': 'formset/tailwind/widgets/checkbox.html',
+        'django/forms/widgets/radio.html': 'formset/tailwind/widgets/multiple_input.html',
+        'django/forms/widgets/checkbox_select.html': 'formset/tailwind/widgets/multiple_input.html',
+        'formset/default/form.html': 'formset/tailwind/form.html',
+        'formset/default/collection.html': 'formset/tailwind/collection.html',
+        'formset/default/widgets/collection.html': 'formset/tailwind/widgets/collection.html',
+        'formset/default/widgets/dual_selector.html': 'formset/tailwind/widgets/dual_selector.html',
+        'formset/default/widgets/file.html': 'formset/tailwind/widgets/file.html',
+    })
+
+    def _amend_label(self, context):
+        return super()._amend_label(context, hide_checkbox_label=True)
+
+    def _amend_text_input(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-text-input')
+        return context
+
+    def _amend_email_input(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-email-input')
+        return context
+
+    def _amend_date_input(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-date-input')
+        return context
+
+    def _amend_number_input(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-number-input')
+        return context
+
+    def _amend_password_input(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-password-input')
+        return context
+
+    def _amend_url_input(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-url-input')
+        return context
+
+    def _amend_textarea(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-textarea')
+        return context
+
+    def _amend_select(self, context):
+        if context['widget']['attrs'].get('multiple') is True:
+            context['widget']['attrs']['class'] = ClassList('formset-select-multiple')
+        else:
+            context['widget']['attrs']['class'] = ClassList('formset-select')
+        return context
+
+    def _amend_dual_selector(self, context):
+        context.update(
+            select_classes=ClassList('formset-dual-selector-select'),
+            lookup_field_classes=ClassList('formset-dual-selector-lookup'),
+        )
+        return context
+
+    def _amend_checkbox(self, context):
+        context['widget']['attrs']['class'] = ClassList('formset-checkbox')
+        return context
+
+    def _amend_multiple_input(self, context, css_class):
+        context = super()._amend_multiple_input(context)
+        for _, optgroup, _ in context['widget']['optgroups']:
+            for option in optgroup:
+                option['template_name'] = 'formset/tailwind/widgets/input_option.html'
+                option['attrs']['class'] = ClassList(css_class)
+        return context
+
+    def _amend_checkbox_select(self, context):
+        return self._amend_multiple_input(context, 'formset-checkbox-multiple')
+
+    def _amend_radio(self, context):
+        return self._amend_multiple_input(context, 'formset-radio-select')
+
+    def _amend_button(self, context):
+        class_list = ClassList(context['widget']['attrs'].get('class'))
+        variant = context['widget']['variant']
+        if not isinstance(variant, ButtonVariant):
+            variant = 'default'
+        class_list.add(f'formset-button-{variant}')
+        size = context['widget']['size']
+        if size is ButtonSize.SMALL:
+            class_list.add('formset-button-small')
+        elif size is ButtonSize.LARGE:
+            class_list.add('formset-button-large')
+        else:
+            class_list.add('formset-button-base')
+        context['widget']['attrs']['class'] = class_list
+        context['icon_class'] = ' me-1' if context['icon_left'] else ' ms-1'
+        return context
+
+    def _amend_fieldset(self, context):
+        context = super()._amend_fieldset(context)
+        context.update(
+            help_text_template='formset/tailwind/help_text.html',
+        )
+        return context
+
+    def _amend_detached_field(self, context):
+        context.update(
+            help_text_template='formset/tailwind/help_text.html',
+        )
+        return context
+
+    _context_modifiers = dict(DefaultFormRenderer._context_modifiers, **{
+        'django/forms/label.html': _amend_label,
+        'django/forms/widgets/text.html': _amend_text_input,
+        'django/forms/widgets/email.html': _amend_email_input,
+        'django/forms/widgets/date.html': _amend_date_input,
+        'django/forms/widgets/number.html': _amend_number_input,
+        'django/forms/widgets/password.html': _amend_password_input,
+        'django/forms/widgets/url.html': _amend_url_input,
+        'django/forms/widgets/textarea.html': _amend_textarea,
+        'django/forms/widgets/select.html': _amend_select,
+        'django/forms/widgets/checkbox.html': _amend_checkbox,
+        'django/forms/widgets/checkbox_select.html': _amend_checkbox_select,
+        'django/forms/widgets/radio.html': _amend_radio,
+        'formset/default/widgets/button.html': _amend_button,
+        'formset/default/widgets/datetime.html': _amend_date_input,
+        'formset/default/widgets/selectize.html': _amend_select,
+        'formset/default/widgets/selectize_country.html': _amend_select,
+        'formset/default/widgets/dual_selector.html': _amend_dual_selector,
+        'formset/default/detached_field.html': _amend_detached_field,
+        'formset/default/fieldset.html': _amend_fieldset,
+        'formset/default/widgets/richtextarea.html': _amend_textarea,
+    })
