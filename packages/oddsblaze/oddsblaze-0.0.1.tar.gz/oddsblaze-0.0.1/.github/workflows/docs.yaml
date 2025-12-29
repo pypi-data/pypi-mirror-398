@@ -1,0 +1,40 @@
+name: Build and Deploy Documentation
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install uv and set Python
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: 3.12
+
+    - name: Clean previous build
+      run: rm -rf site
+
+    - name: Build docs (PR validation)
+      if: github.event_name == 'pull_request'
+      run: uv run --group docs mkdocs build --clean
+
+    - name: Build docs (publish)
+      if: github.event_name != 'pull_request'
+      run: uv run --group docs mkdocs build --clean
+
+    - name: Deploy to GitHub Pages
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: site
+        force_orphan: true
