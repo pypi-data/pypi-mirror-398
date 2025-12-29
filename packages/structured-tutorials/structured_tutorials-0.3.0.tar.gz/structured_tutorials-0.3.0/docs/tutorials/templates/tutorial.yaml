@@ -1,0 +1,39 @@
+configuration:
+  context:  # context shared between documentation and runtime
+    filename: example.json
+  doc:  # template context at runtime
+    context:
+      dest: /tmp/tmp...
+      contents: '{"key": "doc"}'
+  run:  # template context at runtime
+    context:
+      # dest is captured and added to the context by mktemp at runtime
+      contents: '{"key": "run"}'
+parts:
+  - id: create-directory
+    commands:
+      - command: mktemp -d
+        doc:
+          output: "{{ dest }}"
+        run:
+          show_output: false
+          test:
+            # Capture the whole output and add it to the context
+            - regex: (?P<dest>.*)
+          cleanup:
+            # Remove temporary directory after running the tutorial
+            - command: rm -rf {{ dest }}
+  - id: create-file
+    contents: "{{ contents }}\n"
+    destination: "{{ dest }}/{{ filename }}"
+    doc:
+      language: json
+      # If you use sphinxcontrib-spelling, make sure the filename is not spell-checked
+      ignore_spelling: true
+  - commands:
+      - command: cat {{ dest }}/{{ filename }}
+        doc:
+          output: "{{ contents }}"
+      - command: cat {{ dest }}/{{ filename }} | python -m json.tool
+        doc:
+          output: ...

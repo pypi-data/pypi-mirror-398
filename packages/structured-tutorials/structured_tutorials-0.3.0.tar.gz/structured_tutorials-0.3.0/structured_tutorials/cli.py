@@ -1,0 +1,92 @@
+# Copyright (c) 2025 Mathias Ertl
+# Licensed under the MIT License. See LICENSE file for details.
+
+"""Main CLI entrypoint."""
+
+import argparse
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+
+import yaml
+
+from structured_tutorials import __version__
+from structured_tutorials.errors import InvalidAlternativesSelectedError, RunTutorialException
+from structured_tutorials.models import TutorialModel
+from structured_tutorials.output import error, setup_logging
+from structured_tutorials.runners.local import LocalTutorialRunner
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Main entry function for the command-line."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", type=Path)
+    parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument("-a", "--alternative", dest="alternatives", action="append", default=[])
+    parser.add_argument("--no-colors", action="store_true", default=False)
+    parser.add_argument(
+        "-n",
+        "--non-interactive",
+        dest="interactive",
+        action="store_false",
+        default=True,
+        help="Never prompt for any user input.",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+        help="Override root log level",
+    )
+    parser.add_argument(
+        "--hide-commands",
+        dest="show_commands",
+        action="store_false",
+        default=True,
+        help="Do not show commands that are run by the tutorial.",
+    )
+    parser.add_argument(
+        "--hide-command-output",
+        dest="show_command_output",
+        action="store_false",
+        default=True,
+        help="Do not show the output of commands that are run on the terminal.",
+    )
+    parser.add_argument(
+        "-D", "--define", action="append", default=[], nargs=2, help="Define custom variables in context."
+    )
+    args = parser.parse_args(argv)
+
+    setup_logging(level=args.log_level, no_colors=args.no_colors, show_commands=args.show_commands)
+    context = {k: v for k, v in args.define}
+
+    try:
+        tutorial = TutorialModel.from_file(args.path)
+    except yaml.YAMLError as exc:  # an invalid YAML file
+        error(f"{args.path}: Invalid YAML file:")
+        print(exc, file=sys.stderr)
+        return 1
+    except ValueError as ex:  # thrown by Pydantic model loading
+        error(f"{args.path}: File is not a valid Tutorial:")
+        print(ex, file=sys.stderr)
+        return 1
+
+    runner = LocalTutorialRunner(
+        tutorial,
+        alternatives=tuple(args.alternatives),
+        show_command_output=args.show_command_output,
+        interactive=args.interactive,
+        context=context,
+    )
+
+    try:
+        runner.validate_alternatives()
+    except InvalidAlternativesSelectedError as ex:
+        error(str(ex))
+        return 1
+
+    try:
+        runner.run()
+    except RunTutorialException:
+        return 1  # ignored, already handled by cleanup
+    return 0
