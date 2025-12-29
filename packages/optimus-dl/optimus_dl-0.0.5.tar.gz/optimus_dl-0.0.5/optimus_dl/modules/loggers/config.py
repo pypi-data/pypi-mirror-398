@@ -1,0 +1,19 @@
+from dataclasses import dataclass
+from typing import Any
+
+from omegaconf import II
+
+from optimus_dl.core.registry import RegistryConfigStrict
+
+
+@dataclass
+class MetricsLoggerConfig(RegistryConfigStrict):
+    """Base configuration for metrics loggers."""
+
+    # Common fields that all loggers might use
+    enabled: bool = True
+    id: str = II("._name")
+
+    # Optional experiment metadata
+    tags: dict[str, Any] | None = None
+    notes: str | None = None

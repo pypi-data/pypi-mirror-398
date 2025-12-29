@@ -1,0 +1,82 @@
+name: Docker Image CI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Delete huge unnecessary tools folder
+      run: |
+        rm -rf /opt/hostedtoolcache
+        rm -rf "/usr/local/share/boost"
+        rm -rf "$AGENT_TOOLSDIRECTORY"
+        df -h
+
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        token: ${{ github.token }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install build
+      run: |
+        pip install build setuptools_scm
+        python -m setuptools_scm > /opt/version.txt
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Aggressive free disk space
+      run: |
+        echo "################################"
+        echo "Disk usage BEFORE cleanup:"
+        echo "################################"
+        df -h
+
+        echo "Removing hosted toolcache..."
+        rm -rf /opt/hostedtoolcache || true
+
+        echo "Removing .NET..."
+        rm -rf /usr/share/dotnet || true
+
+        echo "Removing Android SDK..."
+        rm -rf /usr/local/lib/android || true
+
+        echo "Removing GHC / Haskell..."
+        rm -rf /opt/ghc || true
+        rm -rf /usr/local/.ghcup || true
+
+        echo "Docker prune (just in case runner had leftovers)..."
+        docker container prune -f || true
+        docker image prune -af || true
+        docker volume prune -f || true
+
+        echo "################################"
+        echo "Disk usage AFTER cleanup:"
+        echo "################################"
+        df -h
+
+    - name: Docker Build & Push Action
+      run: |
+        export VERSION=$(cat /opt/version.txt)
+        echo $VERSION
+        docker buildx bake -f docker/docker-bake.hcl --print
+        docker buildx bake -f docker/docker-bake.hcl \
+          --allow network.host \
+          --push \
+          --set *.cache-from=type=gha,ghtoken=${{ github.token }} \
+          --set *.cache-to=type=gha,mode=max,ghtoken=${{ github.token }}
