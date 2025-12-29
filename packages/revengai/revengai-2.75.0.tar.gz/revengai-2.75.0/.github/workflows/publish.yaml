@@ -1,0 +1,110 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # Required for creating tags and releases
+      id-token: write  # Required for trusted publishing to PyPI
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Generate a token
+      id: generate-token
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ vars.REVENG_APP_ID }}
+        private-key: ${{ secrets.REVENG_APP_PRIVATE_KEY }}
+
+    - name: Read version from file
+      id: version
+      run: |
+        if [ ! -f ".sdk-version" ]; then
+          echo "Error: .sdk-version file not found"
+          exit 1
+        fi
+        
+        VERSION=$(cat .sdk-version | tr -d '\n\r' | xargs)
+        
+        if [ -z "$VERSION" ]; then
+          echo "Error: .sdk-version file is empty"
+          exit 1
+        fi
+        
+        echo "Found version: $VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Check if tag already exists
+      id: check-tag
+      run: |
+        if git ls-remote --tags origin | grep -q "refs/tags/${{ steps.version.outputs.version }}$"; then
+          echo "Tag ${{ steps.version.outputs.version }} already exists"
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "Tag ${{ steps.version.outputs.version }} does not exist"
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create and push tag
+      if: steps.check-tag.outputs.tag_exists == 'false'
+      env:
+        GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+      run: |
+        git config --global user.name "reveng-github[bot]"
+        git config --global user.email "reveng-github[bot]@users.noreply.github.com"
+        
+        # Configure git to use the token for authentication
+        git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/${{ github.repository }}.git
+        
+        TAG_NAME="${{ steps.version.outputs.version }}"
+        
+        git tag "$TAG_NAME"
+        git push origin "$TAG_NAME"
+        
+        echo "Created and pushed tag: $TAG_NAME"
+
+    - name: Create GitHub release
+      if: steps.check-tag.outputs.tag_exists == 'false'
+      env:
+        GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+      run: |
+        TAG_NAME="${{ steps.version.outputs.version }}"
+        
+        gh release create "$TAG_NAME" \
+          --title "$TAG_NAME" \
+          --notes "$TAG_NAME" \
+          --verify-tag
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version-file: '.python-version'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Build and publish package to PyPI
+      if: steps.check-tag.outputs.tag_exists == 'false'
+      run: |
+        uv build
+        uv publish
+
+    - name: Notify the releases channel about the release
+      if: steps.check-tag.outputs.tag_exists == 'false'
+      uses: slackapi/slack-github-action@v2.0.0
+      env:
+        REPO_URL: "${{github.server_url}}/${{github.repository}}"
+        RELEASE_URL: "${{github.server_url}}/${{github.repository}}/releases/tag/${{ steps.version.outputs.version }}"
+      with:
+        webhook: ${{ secrets.RELEASES_SLACK_WEBHOOK }}
+        webhook-type: incoming-webhook
+        payload: |
+          text: "<${{ env.RELEASE_URL }}|${{ steps.version.outputs.version }}> has been released for <${{ env.REPO_URL }}|${{ github.repository }}>"

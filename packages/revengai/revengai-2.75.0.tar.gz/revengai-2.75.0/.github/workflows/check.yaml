@@ -1,0 +1,201 @@
+name: Check Updates
+
+on:
+  schedule:
+    - cron: '0 06 * * 1-5'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Required for creating branches and PRs
+      pull-requests: write # Required for creating PRs
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetch all history
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version-file: '.python-version'
+
+    - name: Install dependencies
+      run: |
+        pip install requests
+
+    - name: Get OpenAPI version and check for existing PRs
+      id: version_check
+      run: |
+        python << 'EOF'
+        import requests
+        import json
+        import subprocess
+        import sys
+        import os
+        
+        def get_openapi_version():
+            """Get version from OpenAPI spec"""
+            try:
+                response = requests.get('https://api.reveng.ai/openapi.json', timeout=30)
+                response.raise_for_status()
+                openapi_data = response.json()
+                return openapi_data.get('info', {}).get('version')
+            except Exception as e:
+                print(f"Error fetching OpenAPI spec: {e}")
+                return None
+        
+        def check_existing_prs():
+            """Check if there are existing open PRs from the bot"""
+            try:
+                result = subprocess.run([
+                    'gh', 'pr', 'list', '--state', 'open', 
+                    '--author', 'app/github-actions', '--json', 'title'
+                ], capture_output=True, text=True, check=True)
+                
+                prs = json.loads(result.stdout)
+                for pr in prs:
+                    if 'SDK update' in pr.get('title', '') or 'OpenAPI' in pr.get('title', ''):
+                        return True
+                return False
+            except Exception as e:
+                print(f"Error checking existing PRs: {e}")
+                return True  # Assume PR exists to be safe
+        
+        # Main logic
+        print("🔍 Getting OpenAPI version and checking for existing PRs...")
+        
+        # Get OpenAPI version
+        openapi_version = get_openapi_version()
+        
+        if not openapi_version:
+            print("❌ Could not retrieve OpenAPI version")
+            sys.exit(1)
+        
+        print(f"📋 OpenAPI version: {openapi_version}")
+        
+        # Check for existing PRs
+        if check_existing_prs():
+            print("📋 Existing PR found, skipping SDK generation")
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                f.write(f"should_generate=false\n")
+        else:
+            print("✅ No existing PRs found, proceeding with SDK generation")
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                f.write(f"should_generate=true\n")
+                f.write(f"openapi_version={openapi_version}\n")
+        
+        print("✅ Check completed")
+        EOF
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Generate Python SDK
+      if: steps.version_check.outputs.should_generate == 'true'
+      uses: openapi-generators/openapitools-generator-action@v1
+      with:
+        generator: python
+        generator-tag: 'v7.17.0'
+        openapi-url: https://api.reveng.ai/openapi.json
+        config-file: config.yml
+        template-dir: templates
+        command-args: |
+          --additional-properties=packageVersion=${{ steps.version_check.outputs.openapi_version }}
+
+    - name: Check for changes
+      if: steps.version_check.outputs.should_generate == 'true'
+      id: check_changes
+      run: |
+        # Move generated files to the correct locations and clean up
+        rm -Rf docs && mv python-client/docs .
+        rm -Rf revengai && mv python-client/revengai .
+        rm -Rf test && mv python-client/test .
+        rm -Rf README.md && mv python-client/README.md .
+        rm -Rf python-client
+
+        # Store the SDK version
+        echo ${{ steps.version_check.outputs.openapi_version }} > .sdk-version
+
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Check if there are any changes
+        if git diff --quiet && git diff --cached --quiet; then
+          echo "No changes detected in generated SDK"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "Changes detected in generated SDK"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          
+          # Show what changed
+          echo "Files changed:"
+          git diff --name-only
+          echo
+          echo "Summary of changes:"
+          git diff --stat
+        fi
+
+    - name: Generate a token
+      id: generate-token
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ vars.REVENG_APP_ID }}
+        private-key: ${{ secrets.REVENG_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: |
+          sdk-python
+
+    - name: Create Pull Request
+      if: steps.version_check.outputs.should_generate == 'true' && steps.check_changes.outputs.has_changes == 'true'
+      run: |
+        # Create a new branch
+        BRANCH_NAME="sdk-update-${{ steps.version_check.outputs.openapi_version }}"
+        git checkout -b "$BRANCH_NAME"
+        
+        # Stage all changes
+        git add .
+        
+        # Commit changes
+        git commit -m "Update SDK to version ${{ steps.version_check.outputs.openapi_version }}
+
+        - Generated from OpenAPI spec version ${{ steps.version_check.outputs.openapi_version }}
+        - Auto-generated by GitHub Actions"
+        
+        # Push the branch
+        git push -f origin "$BRANCH_NAME"
+        
+        # Create PR using GitHub CLI
+        gh pr create \
+          --title "🤖 Update SDK to version ${{ steps.version_check.outputs.openapi_version }}" \
+          --body "## 🔄 Automated SDK Update
+
+        This PR was automatically generated to update the Python SDK to match the latest OpenAPI specification.
+
+        ### 📊 Version Information
+        - **OpenAPI Spec Version**: \`${{ steps.version_check.outputs.openapi_version }}\`
+
+        ### 🔧 Changes
+        - Generated fresh SDK from [OpenAPI specification](https://api.reveng.ai/openapi.json)
+        - Updated package version to match OpenAPI spec version
+        - All changes are auto-generated using openapi-generator
+
+        ### ✅ Next Steps
+        1. Review the generated changes
+        2. Run tests to ensure compatibility
+        3. Merge to trigger automatic PyPI publishing
+
+        ---
+        🤖 *This PR was created automatically by GitHub Actions*" \
+          --head "$BRANCH_NAME" \
+          --base main
+        
+        echo "✅ Pull request created successfully"
+        echo "::notice title=PR Created::Created PR for SDK update to version ${{ steps.version_check.outputs.openapi_version }}"
+      env:
+        GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
