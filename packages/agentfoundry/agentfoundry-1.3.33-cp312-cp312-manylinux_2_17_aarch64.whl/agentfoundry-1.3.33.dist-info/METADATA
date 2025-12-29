@@ -1,0 +1,218 @@
+Metadata-Version: 2.4
+Name: agentfoundry
+Version: 1.3.33
+Summary: AgentFoundry: A modular autonomous AI agent framework
+Author-email: Chris Steel <csteel@syntheticore.com>
+License-Expression: LicenseRef-Proprietary
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: autogen
+Requires-Dist: autogen-agentchat
+Requires-Dist: adbc_driver_manager
+Requires-Dist: autogen
+Requires-Dist: beautifulsoup4
+Requires-Dist: chromadb
+Requires-Dist: cryptography
+Requires-Dist: cython
+Requires-Dist: duckdb
+Requires-Dist: google_search_results
+Requires-Dist: importlib_metadata
+Requires-Dist: Jinja2
+Requires-Dist: joblib
+Requires-Dist: langchain
+Requires-Dist: langchain_chroma
+Requires-Dist: langchain_classic
+Requires-Dist: langchain_community
+Requires-Dist: langchain_core
+Requires-Dist: langchain-milvus
+Requires-Dist: langchain_ollama
+Requires-Dist: langchain_openai
+Requires-Dist: langchain_xai
+Requires-Dist: langgraph
+Requires-Dist: langgraph_supervisor
+Requires-Dist: Markdown
+Requires-Dist: markdown-it-py<4.0.0,>=1.0.0
+Requires-Dist: openai
+Requires-Dist: pdfkit
+Requires-Dist: pg8000
+Requires-Dist: pydantic
+Requires-Dist: pyodbc
+Requires-Dist: PyPDF2
+Requires-Dist: pytest
+Requires-Dist: pytz
+Requires-Dist: Requests
+Requires-Dist: requests_html
+Requires-Dist: setuptools
+Requires-Dist: threadpoolctl
+Requires-Dist: transformers
+Requires-Dist: typing_extensions
+Requires-Dist: PyYAML
+Dynamic: license-file
+Dynamic: requires-dist
+
+# AIgent
+
+**AIgent** is a modular, extensible AI framework designed to support the construction and orchestration of autonomous agents across a variety of complex tasks. The system is built in Python and leverages modern AI tooling to integrate large language models (LLMs), vector stores, rule-based decision logic, and dynamic tool discovery in secure and performance-conscious environments.
+
+## Features
+
+- Modular agent architecture with support for specialization (e.g., memory agents, reactive agents, compliance agents)
+- Cython-compiled backend for performance and IP protection
+- Integration with popular frameworks such as LangChain, ChromaDB, and OpenAI
+- Support for licensed or embedded deployments via license file verification or compiled-only distribution
+- Configurable with runtime enforcement of execution licenses (RSA-signed, machine-bound)
+
+## Use Cases
+
+AIgent is designed to serve as a core intelligence engine for:
+
+- Secure enterprise AI platforms (e.g., QuantumDrive)
+- Compliance monitoring and rule-based alerting systems
+- Conversational interfaces with dynamic tool execution
+- Embedded agents in SaaS and on-premise environments
+
+## Requirements
+
+- Python 3.11+
+- Cython
+- Compatible dependencies (see `requirements.txt`)
+
+## Required Configuration (Fail‑Fast)
+
+This project does not use dummy/stub fallbacks. Missing config or dependencies cause explicit errors. Configure these before running:
+
+- `VECTORSTORE.PROVIDER`: Set to `faiss` or `chroma`.
+- `OPENAI_API_KEY`: Required for components that use OpenAI embeddings (e.g., ThreadMemory; FAISS provider uses OpenAI embeddings).
+- `FAISS.INDEX_PATH`: When `VECTORSTORE.PROVIDER=faiss`, must point to an existing FAISS index created by your ingestion pipeline.
+- `CHROMA.URL` or `CHROMA.HOST`/`CHROMA.PORT`, else local `CHROMADB_PERSIST_DIR` is used for embedded Chroma.
+- KGraph (`duckdb_sqlite`) requires `duckdb`, `adbc-driver-duckdb`, and `adbc-driver-manager` Python packages.
+- Optional: `SERPAPI_API_KEY` for Discovery; `OLLAMA.HOST`/`OLLAMA.MODEL` for Ollama LLM.
+
+You can set these via environment variables (e.g., `VECTORSTORE_PROVIDER`, `OPENAI_API_KEY`, `CHROMA_URL`) or in the TOML at `~/.config/agentfoundry/agentfoundry.toml` (copied from `agentfoundry/resources/default_agentfoundry.toml`).
+
+Example TOML entries:
+
+```
+VECTORSTORE.PROVIDER = "chroma"  # or "faiss"
+
+# Unified persistence directory for embedded Chroma (DuckDB)
+CHROMADB_PERSIST_DIR = "~/.config/agentfoundry/chromadb"
+
+[FAISS]
+INDEX_PATH = "~/.config/agentfoundry/faiss_index"
+```
+
+## Author
+
+**Christopher Steel**  
+AI Practice Lead, AlphaSix Corporation  
+Founder, Syntheticore, Inc.  
+Email: `csteel@syntheticore.com`
+
+## Licensing and Legal Notice
+
+© Syntheticore, Inc. All rights reserved.
+
+> **This software is proprietary and confidential.**  
+> Any use, reproduction, modification, distribution, or commercial deployment of AIgent or any part thereof requires **explicit written authorization** from Syntheticore, Inc.
+
+Unauthorized use is strictly prohibited and may result in legal action.
+
+---
+
+For licensing inquiries or permission to use this software, please contact:  
+📧 **csteel@syntheticore.com**
+
+## Gradio Chat Interface
+
+A simple Gradio-based chat interface for interacting with the HybridOrchestrator agent.
+
+### Prerequisites
+
+- Ensure you have set your OpenAI API key:
+
+```bash
+export OPENAI_API_KEY=<your_api_key>
+```
+
+### Running the App
+
+```bash
+python gradio_app.py
+```
+
+The interface will be available at http://localhost:7860 by default.
+
+## API Server
+
+Genie can be accessed programmatically via a FastAPI‑based HTTP API. Two main endpoints are provided:
+
+- **POST /v1/chat**: Send or continue a multi‑turn conversation with Genie. Accepts JSON payload with conversation history and returns the assistant reply and updated history.
+- **POST /v1/orchestrate**: Discover APIs and execute a main task across all agents. Returns aggregated results.
+- **GET /health**: Health check endpoint.
+
+### Prerequisites
+
+- Ensure you have set your OpenAI API key:
+
+```bash
+export OPENAI_API_KEY=<your_api_key>
+```
+- Install FastAPI and Uvicorn (if not already):
+
+```bash
+pip install fastapi uvicorn[standard]
+```
+
+### Running the API
+
+```bash
+python api_server.py
+# Or with auto‑reload during development:
+uvicorn api_server:app --reload --host 0.0.0.0 --port 8000
+```
+
+Interactive API docs will be available at http://localhost:8000/docs
+
+## Logging & Debugging
+
+AgentFoundry automatically logs events to a file and rotates it on each startup.
+
+By default, logs are written to `agentfoundry.log` at INFO level. You can customize
+logging behavior via environment variables:
+
+```bash
+export AGENTFOUNDRY_LOG_FILE=agentfoundry.log
+export AGENTFOUNDRY_LOG_LEVEL=DEBUG  # or INFO, WARNING, ERROR
+```
+
+Upon each restart of the application or API server, if `agentfoundry.log` already exists,
+it is renamed to `agentfoundry.log.YYYYMMDDHHMMSS` for archival, and a fresh log file
+is started. View live logs in `agentfoundry.log` and inspect past runs in the timestamped
+backup files.
+
+## Quick Smoke Test (Chroma, local persistence)
+
+This verifies vector search without external APIs:
+
+```
+export VECTORSTORE_PROVIDER=chroma
+export CHROMADB_PERSIST_DIR="$(mktemp -d)"
+python - <<'PY'
+from agentfoundry.vectorstores.factory import VectorStoreFactory
+vs = VectorStoreFactory.get_store(org_id='smoke')
+vs.add_texts(["hello world"], metadatas=[{"org_id":"smoke"}], ids=["1"])
+hits = vs.similarity_search("hello", k=1, filter={"org_id":"smoke"})
+print("Hits:", [h.page_content for h in hits])
+PY
+```
+
+Expected: `Hits: ['hello world']`.
+
+Notes:
+- ThreadMemory requires `OPENAI_API_KEY` and will fail fast if not set.
+- FAISS provider raises if `FAISS.INDEX_PATH` does not exist; initialize with your ingestion tooling.
+
