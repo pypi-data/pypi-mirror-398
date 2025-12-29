@@ -1,0 +1,161 @@
+Metadata-Version: 2.4
+Name: pylet
+Version: 0.4.0
+Summary: A simple distributed task execution system for GPU servers
+Author-email: Yao Fu <yao.fu.aisys@gmail.com>
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/ServerlessLLM/pylet
+Project-URL: Repository, https://github.com/ServerlessLLM/pylet
+Project-URL: Issues, https://github.com/ServerlessLLM/pylet/issues
+Keywords: distributed,gpu,cluster,task,execution,scheduling
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: System :: Distributed Computing
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: uvicorn>=0.20.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: aiosqlite>=0.19.0
+Requires-Dist: aiohttp>=3.8.0
+Requires-Dist: tomli>=2.0.0; python_version < "3.11"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Dynamic: license-file
+
+# PyLet
+
+[![PyPI version](https://img.shields.io/pypi/v/pylet.svg)](https://pypi.org/project/pylet/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pylet.svg)](https://pypi.org/project/pylet/)
+[![License](https://img.shields.io/pypi/l/pylet.svg)](https://github.com/ServerlessLLM/pylet/blob/main/LICENSE)
+
+A simple distributed task execution system for GPU servers. Like Ray/K8s but much simpler.
+
+## Install
+
+```bash
+pip install pylet
+```
+
+For development:
+
+```bash
+git clone https://github.com/ServerlessLLM/pylet.git
+cd pylet
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+### CLI
+
+```bash
+# Terminal 1: Start head node
+pylet start
+
+# Terminal 2: Start worker node with GPUs
+pylet start --head localhost:8000 --gpu-units 4
+
+# Terminal 3: Submit an instance
+pylet submit 'vllm serve Qwen/Qwen2.5-1.5B-Instruct --port $PORT' \
+    --gpu-units 1 --name my-vllm
+
+# Check status
+pylet get-instance --name my-vllm
+
+# Get endpoint for inference
+pylet get-endpoint --name my-vllm
+# Output: 192.168.1.10:15600
+
+# View logs
+pylet logs <instance-id>
+
+# Cancel
+pylet cancel <instance-id>
+```
+
+### Python API
+
+```python
+import pylet
+
+# Connect to head node
+pylet.init()  # or pylet.init("http://head:8000")
+
+# Submit an instance
+instance = pylet.submit(
+    "vllm serve Qwen/Qwen2.5-1.5B-Instruct --port $PORT",
+    name="my-vllm",
+    gpu=1,
+    memory=4096,
+)
+
+# Wait for it to start
+instance.wait_running()
+print(f"Endpoint: {instance.endpoint}")
+
+# Get logs
+print(instance.logs())
+
+# Cancel when done
+instance.cancel()
+instance.wait()
+```
+
+For local testing:
+
+```python
+import pylet
+
+with pylet.local_cluster(workers=2, gpu_per_worker=1) as cluster:
+    instance = pylet.submit("nvidia-smi", gpu=1)
+    instance.wait()
+    print(instance.logs())
+```
+
+Async API available via `import pylet.aio as pylet`.
+
+See [examples/README.md](examples/README.md) for more detailed examples including vLLM and SGLang.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `pylet start` | Start head node |
+| `pylet start --head <ip:port> --gpu-units N` | Start worker with N GPUs |
+| `pylet submit <cmd> --gpu-units N --name <name>` | Submit instance |
+| `pylet get-instance --name <name>` | Get instance status |
+| `pylet get-endpoint --name <name>` | Get instance endpoint (host:port) |
+| `pylet logs <id>` | View instance logs |
+| `pylet logs <id> --follow` | Follow logs in real-time |
+| `pylet cancel <id>` | Cancel instance |
+| `pylet list-workers` | List registered workers |
+
+## Key Features
+
+- **Simple**: No containers, no complex configs. Just `pylet start` and `pylet submit`.
+- **GPU-aware**: Automatic GPU allocation via `CUDA_VISIBLE_DEVICES`.
+- **Service discovery**: Instances get a `PORT` env var; endpoint available via `get-endpoint`.
+- **Real-time logs**: Stream logs from running instances.
+- **Graceful shutdown**: SIGTERM with configurable grace period before SIGKILL.
+
+## Requirements
+
+- Python 3.9+
+- Linux (tested on Ubuntu)
+
+## License
+
+Apache 2.0
