@@ -1,0 +1,397 @@
+Metadata-Version: 2.4
+Name: huynk
+Version: 1.0.1
+Summary: Rule Evaluator API - He thong danh gia ho so bao hiem su dung AI
+Author-email: HuyNK <huynk@example.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/huynk/huynk
+Project-URL: Documentation, https://github.com/huynk/huynk#readme
+Project-URL: Repository, https://github.com/huynk/huynk
+Project-URL: Issues, https://github.com/huynk/huynk/issues
+Keywords: insurance,evaluator,ai,openai,fastapi,rule-engine
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn>=0.24.0
+Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: openai>=1.0.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: openpyxl>=3.1.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: httpx>=0.24.0; extra == "dev"
+Dynamic: license-file
+
+# Rule Evaluator API - Hệ Thống Đánh Giá Hồ Sơ Bảo Hiểm
+
+## Tổng Quan
+
+Hệ thống đánh giá hồ sơ yêu cầu bồi thường bảo hiểm tự động sử dụng AI (GPT-4o-mini). Hệ thống so sánh thông tin hồ sơ với các điều khoản hợp đồng bảo hiểm và đánh giá theo bộ quy tắc được định nghĩa trước.
+
+### Tính Năng Chính
+
+- Đánh giá tự động hồ sơ bảo hiểm theo bộ quy tắc
+- Tích hợp AI để phân tích và đưa ra kết luận
+- Tạo báo cáo chi tiết dạng Markdown
+- API RESTful với tài liệu Swagger tự động
+- Hỗ trợ CLI để chạy độc lập
+
+---
+
+## Cấu Trúc Dự Án
+
+```
+claude_pet_zoo/
+├── app/                          # Package ứng dụng chính
+│   ├── main.py                   # Khởi tạo FastAPI app
+│   ├── config/
+│   │   └── settings.py           # Cấu hình từ .env
+│   ├── models/
+│   │   └── schemas.py            # Pydantic schemas
+│   ├── routers/
+│   │   └── evaluate.py           # API endpoints
+│   ├── services/
+│   │   ├── evaluator.py          # Logic đánh giá chính
+│   │   └── openai_client.py      # Client gọi OpenAI API
+│   └── utils/
+│       └── markdown.py           # Tạo báo cáo Markdown
+├── input/                        # Thư mục dữ liệu đầu vào
+│   ├── claim/                    # Hồ sơ yêu cầu bồi thường (JSON)
+│   ├── contract_ocr/             # Hợp đồng bảo hiểm (Markdown)
+│   └── rules/                    # Bộ quy tắc đánh giá (Excel)
+├── output/                       # Báo cáo đánh giá đầu ra
+├── app.py                        # Entry point thay thế
+├── rule_evaluator.py             # CLI tool độc lập
+├── test_api.py                   # Script test API
+├── requirements.txt              # Dependencies
+└── .env                          # Cấu hình môi trường
+```
+
+---
+
+## Cài Đặt
+
+### 1. Cài đặt Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Cấu hình Môi Trường
+
+Tạo file `.env` trong thư mục gốc:
+
+```env
+# OpenAI Configuration
+OPENAI_API_KEY=sk-proj-your-api-key-here
+
+# App Configuration
+APP_NAME=Rule Evaluator API
+APP_VERSION=1.0.0
+DEBUG=false
+
+# Model Configuration
+OPENAI_MODEL=gpt-4o-mini
+MAX_TOKENS=2000
+TEMPERATURE=0.1
+```
+
+| Tham số | Mô tả |
+|---------|-------|
+| `OPENAI_API_KEY` | API key của OpenAI (bắt buộc) |
+| `OPENAI_MODEL` | Model AI sử dụng (mặc định: gpt-4o-mini) |
+| `MAX_TOKENS` | Số token tối đa cho response |
+| `TEMPERATURE` | Độ ngẫu nhiên (0.1 = ổn định) |
+
+---
+
+## Cách Sử Dụng
+
+### Cách 1: Chạy API Server
+
+```bash
+# Khởi động server
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Các Endpoint:**
+
+| URL | Mô tả |
+|-----|-------|
+| `http://localhost:8000` | Health check |
+| `http://localhost:8000/docs` | Swagger UI Documentation |
+| `http://localhost:8000/redoc` | ReDoc Documentation |
+| `http://localhost:8000/evaluate` | API đánh giá hồ sơ |
+
+**Gọi API Đánh Giá:**
+
+```bash
+curl -X POST "http://localhost:8000/evaluate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claim_path": "input/claim/CLM-2025-001.json",
+    "contract_path": "input/contract_ocr/MAX.VP.D09.MGC.26.HD1.md",
+    "rules_path": "input/rules/rules.xlsx"
+  }'
+```
+
+**Đánh giá một số quy tắc cụ thể:**
+
+```bash
+curl -X POST "http://localhost:8000/evaluate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claim_path": "input/claim/CLM-2025-001.json",
+    "contract_path": "input/contract_ocr/MAX.VP.D09.MGC.26.HD1.md",
+    "rules_path": "input/rules/rules.xlsx",
+    "rule_ids": ["B1", "B4", "B13"]
+  }'
+```
+
+### Cách 2: Sử dụng CLI Tool
+
+```bash
+# Chạy với demo mode (không cần API key)
+python rule_evaluator.py --demo
+
+# Chạy với API thật
+python rule_evaluator.py
+
+# Đánh giá một số quy tắc cụ thể
+python rule_evaluator.py --demo --rules B1 B4 B13
+
+# Chỉ định đường dẫn tùy chỉnh
+python rule_evaluator.py \
+  --claim input/claim/CLM-2025-001.json \
+  --contract input/contract_ocr/MAX.VP.D09.MGC.26.HD1.md \
+  --rules-file input/rules/rules.xlsx \
+  --output output/result.json
+```
+
+### Cách 3: Test API
+
+```bash
+# Chạy test (server phải đang chạy ở port 8000)
+python test_api.py
+
+# Test với các quy tắc cụ thể
+python test_api.py rules "B1,B4,B13"
+```
+
+---
+
+## Định Dạng Dữ Liệu
+
+### Dữ Liệu Đầu Vào
+
+#### 1. Hồ Sơ Yêu Cầu (JSON)
+
+```json
+{
+  "claim_id": "CLM-2025-001",
+  "contract_id": "MAX.VP.D09.MGC.26.HD1",
+  "insured_name": "Nguyen Van A",
+  "claim_type": "outpatient",
+  "claim_amount": 2500000,
+  "treatment_date": "2026-03-15",
+  "hospital_name": "Benh vien Da khoa Quoc te Vinmec",
+  "diagnosis": "Viem hong cap",
+  "icd_code": "J02.9",
+  "documents": [
+    {
+      "doc_type": "medical_record",
+      "doc_name": "Ho so benh an"
+    }
+  ],
+  "cost_items": [
+    {
+      "item_type": "consultation",
+      "item_name": "Kham benh",
+      "amount": 500000
+    }
+  ]
+}
+```
+
+#### 2. Hợp Đồng Bảo Hiểm (Markdown)
+
+File `.md` chứa nội dung hợp đồng bảo hiểm đã được OCR từ PDF. Bao gồm các thông tin về quyền lợi, điều kiện, loại trừ, v.v.
+
+#### 3. Bộ Quy Tắc (Excel)
+
+File Excel với sheet `"Các bước GQHS"` chứa các cột:
+- `rule_id`: Mã quy tắc (B1, B2, B3...)
+- `nhom_thong_tin`: Nhóm thông tin
+- `dau_muc`: Đầu mục
+- `chi_tiet`: Chi tiết câu hỏi đánh giá
+- `du_lieu_dau_vao_bt`: Dữ liệu đầu vào
+- Các cột khác...
+
+### Dữ Liệu Đầu Ra
+
+#### Kết Quả Đánh Giá
+
+Hệ thống phân loại kết quả thành 3 loại:
+
+| Kết quả | Mô tả |
+|---------|-------|
+| `DAT` | Hồ sơ đáp ứng yêu cầu quy tắc |
+| `KHONG_DAT` | Hồ sơ không đáp ứng yêu cầu |
+| `CAN_XEM_XET` | Cần xem xét thêm bởi chuyên viên |
+
+#### Báo Cáo Markdown
+
+Báo cáo được tạo tự động bao gồm:
+- Tổng quan với bảng thống kê
+- Kết luận và khuyến nghị
+- Danh sách quy tắc không đạt
+- Danh sách quy tắc cần xem xét
+- Chi tiết từng quy tắc với giải thích và độ tin cậy
+
+---
+
+## Luồng Xử Lý
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  HTTP Request (POST /evaluate)                               │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Validate & Load Input Files                                 │
+│  - Claim JSON                                                │
+│  - Contract Markdown                                         │
+│  - Rules Excel                                               │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  For Each Rule:                                              │
+│  1. Build AI Prompt (rule + claim + contract)                │
+│  2. Send to GPT-4o-mini                                      │
+│  3. Parse Response (result, explanation, confidence)         │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Aggregate Results                                           │
+│  - Count DAT / KHONG_DAT / CAN_XEM_XET                       │
+│  - Calculate average confidence                              │
+│  - Determine overall conclusion                              │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Generate Markdown Report                                    │
+│  - Save to output/ directory                                 │
+│  - Return response                                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Các Thành Phần Chính
+
+### 1. RuleEvaluator (`app/services/evaluator.py`)
+
+Class chính thực hiện logic đánh giá:
+- `_build_rule_prompt()`: Tạo prompt cho AI
+- `evaluate_rule()`: Đánh giá một quy tắc
+- `evaluate_all_rules()`: Đánh giá tất cả quy tắc
+- `generate_summary()`: Tổng hợp kết quả
+
+### 2. OpenAIClient (`app/services/openai_client.py`)
+
+Client gọi OpenAI API:
+- Singleton pattern
+- Xử lý response từ GPT
+- Extract JSON từ response
+
+### 3. Markdown Generator (`app/utils/markdown.py`)
+
+Tạo báo cáo Markdown:
+- Bảng tổng quan
+- Chi tiết từng quy tắc
+- Kết luận và khuyến nghị
+
+---
+
+## Ví Dụ Báo Cáo
+
+```markdown
+# BÁO CÁO ĐÁNH GIÁ HỒ SƠ BẢO HIỂM
+
+**Mã hồ sơ:** CLM-2025-001
+**Mã hợp đồng:** MAX.VP.D09.MGC.26.HD1
+
+## TỔNG QUAN
+
+| Chỉ số | Giá trị |
+|--------|---------|
+| Tổng số quy tắc | 15 |
+| Đạt (DAT) | 12 |
+| Không đạt (KHONG_DAT) | 2 |
+| Cần xem xét (CAN_XEM_XET) | 1 |
+| Độ tin cậy trung bình | 0.85 |
+
+## KẾT LUẬN: CAN_XEM_XET
+
+**Khuyến nghị:** Hồ sơ cần được xem xét thêm bởi chuyên viên...
+
+## DANH SÁCH QUY TẮC KHÔNG ĐẠT
+1. **B4** - Kiểm tra thời hạn hợp đồng
+   - Giải thích: ...
+
+## CHI TIẾT TỪNG QUY TẮC
+...
+```
+
+---
+
+## Yêu Cầu Hệ Thống
+
+- Python 3.9+
+- OpenAI API Key
+- RAM: 2GB+
+- Disk: 500MB+
+
+---
+
+## Dependencies
+
+| Package | Phiên bản | Mô tả |
+|---------|-----------|-------|
+| fastapi | >=0.104.0 | Web framework |
+| uvicorn | >=0.24.0 | ASGI server |
+| openai | >=1.0.0 | OpenAI API client |
+| pandas | >=2.0.0 | Xử lý dữ liệu |
+| openpyxl | >=3.1.0 | Đọc file Excel |
+| pydantic | >=2.0.0 | Data validation |
+| pydantic-settings | >=2.0.0 | Config management |
+| python-dotenv | >=1.0.0 | Env variables |
+
+---
+
+## Lưu Ý Bảo Mật
+
+- Không commit file `.env` chứa API key lên Git
+- Sử dụng secret management trong môi trường production
+- API hiện chưa có authentication - cần thêm trong production
+- CORS đang cho phép tất cả origins - cần giới hạn trong production
+
+---
+
+## License
+
+Private - All rights reserved.
