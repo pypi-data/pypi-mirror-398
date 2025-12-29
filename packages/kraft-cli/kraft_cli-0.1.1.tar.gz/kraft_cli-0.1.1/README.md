@@ -1,0 +1,110 @@
+# kraft
+
+Python service scaffolding with zero learning curve.
+
+## Installation
+
+### Using uvx (recommended - no installation needed)
+```bash
+uvx kraft
+```
+
+### Using uv tool (persistent installation)
+```bash
+uv tool install kraft-cli
+kraft create my-api
+```
+
+### Using pipx (if you have it)
+```bash
+pipx install kraft-cli
+kraft create my-api
+```
+
+### Using pip (traditional installation)
+
+If you get "externally managed environment" error, try:
+
+```bash
+# Option 1: Install to user directory
+pip3 install --user kraft-cli
+kraft create my-api
+
+# Option 2: Use pipx (install it first if needed)
+pip3 install --user pipx
+pipx install kraft-cli
+kraft create my-api
+
+# Option 3: Use a virtual environment
+python3 -m venv ~/kraft-env
+source ~/kraft-env/bin/activate
+pip3 install kraft-cli
+kraft create my-api
+```
+
+**Note:** If you get "externally managed environment" error with pip, use `uvx` or `uv tool install` instead.
+
+## Shell Completion (Optional)
+
+kraft supports shell completion for bash, zsh, and fish. To enable it:
+
+```bash
+# For bash
+kraft --install-completion bash
+
+# For zsh
+kraft --install-completion zsh
+
+# For fish
+kraft --install-completion fish
+```
+
+After installation, restart your shell or reload your config. You'll then be able to use Tab to autocomplete commands and options.
+
+## Development
+
+### Setup
+
+**Using uv (recommended):**
+```bash
+uv sync --extra dev
+```
+
+**Using pip:**
+```bash
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# With uv
+uv run pytest
+
+# With pip (after activating venv)
+pytest
+```
+
+### Linting
+
+```bash
+# With uv
+uv run ruff check src/
+
+# With pip (after activating venv)
+ruff check src/
+```
+
+### Type Checking
+
+```bash
+# With uv
+uv run mypy src/
+
+# With pip (after activating venv)
+mypy src/
+```
+
+## License
+
+MIT
