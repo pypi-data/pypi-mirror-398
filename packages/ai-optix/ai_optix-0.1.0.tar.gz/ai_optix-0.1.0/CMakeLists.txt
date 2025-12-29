@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.10)
+project(ai_optix_kernels)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# Hardware Detection
+if(APPLE)
+    message(STATUS "Mac OS detected - enabling Metal optimization")
+    find_library(METAL_LIB Metal)
+    find_library(ACCELERATE_LIB Accelerate)
+    add_compile_definitions(USE_METAL)
+elseif(UNIX AND NOT APPLE)
+    message(STATUS "Linux detected")
+    find_package(OpenMP)
+    if(OpenMP_FOUND)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    endif()
+endif()
+
+# Check for CUDA
+find_package(CUDA QUIET)
+if(CUDA_FOUND)
+    message(STATUS "CUDA detected")
+    enable_language(CUDA)
+    add_library(kernels_cuda SHARED src/cpp/kernels.cu)
+    target_link_libraries(kernels_cuda ${CUDA_LIBRARIES})
+else()
+    message(STATUS "CUDA not found - Using CPU Kernels")
+    add_library(kernels_cpu STATIC src/cpp/kernels.cpp)
+    if(OpenMP_FOUND)
+        target_link_libraries(kernels_cpu OpenMP::OpenMP_CXX)
+    endif()
+endif()
+
+install(TARGETS kernels_cpu DESTINATION .)
