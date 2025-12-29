@@ -1,0 +1,51 @@
+# Opik experiment config for E1: Chunking strategies evaluation (Finance)
+experiment:
+  id: E1_chunking_finance
+  name: "E1 - Chunking Strategy Evaluation (Finance)"
+  description: "Compare fixed-size, lexical (header/paragraph), semantic and hierarchical chunking on financial filings (EDGAR subset)."
+  author: "Ungraph Research"
+  date: 2025-12-25
+
+dataset:
+  path: "project/experiments/E1_chunking_finance/dataset/edgar_subset.jsonl"
+  format: "jsonl"
+  fields:
+    - id
+    - filename
+    - text
+
+chunking:
+  strategies:
+    - fixed_size:
+        chunk_size_chars: [1000, 2000]
+        overlap_chars: [100, 300]
+    - markdown_header: {}
+    - semantic:
+        breakpoint_threshold: 95
+    - recursive: {}
+  evaluate_all: true
+  model_max_tokens: 2048
+
+embeddings:
+  model: "sentence-transformers/all-MiniLM-L6-v2"
+  batch_size: 64
+
+reproducibility:
+  seed: 42
+  experiments_dir: "project/experiments/E1_chunking_finance/results"
+
+metrics:
+  - recall_at_k: [5, 10]
+  - chunking_quality_score
+  - avg_chunk_size
+  - num_chunks
+  - latency
+
+outputs:
+  save_chunks_by_strategy: true
+  save_metrics: true
+  save_profiles: true
+
+run:
+  script: "run_e1_chunking.py"
+  notebook: "E1_chunking_finance.ipynb"
