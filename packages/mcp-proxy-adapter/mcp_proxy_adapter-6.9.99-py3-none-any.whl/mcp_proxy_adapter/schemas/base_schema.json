@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Base Schema",
+  "description": "Basic schema for validating commands and results",
+  "definitions": {
+    "command": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "enum": ["2.0"],
+          "description": "JSON-RPC version"
+        },
+        "method": {
+          "type": "string",
+          "description": "Command name"
+        },
+        "params": {
+          "type": "object",
+          "description": "Command parameters"
+        },
+        "id": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "integer"},
+            {"type": "null"}
+          ],
+          "description": "Request ID"
+        }
+      },
+      "required": ["jsonrpc", "method"]
+    },
+    "success_response": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "enum": ["2.0"],
+          "description": "JSON-RPC version"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "enum": [true],
+              "description": "Success flag"
+            },
+            "data": {
+              "type": "object",
+              "description": "Response data"
+            },
+            "message": {
+              "type": "string",
+              "description": "Response message"
+            }
+          },
+          "required": ["success"]
+        },
+        "id": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "integer"},
+            {"type": "null"}
+          ],
+          "description": "Request ID"
+        }
+      },
+      "required": ["jsonrpc", "result"]
+    },
+    "error_response": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "enum": ["2.0"],
+          "description": "JSON-RPC version"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "integer",
+              "description": "Error code"
+            },
+            "message": {
+              "type": "string",
+              "description": "Error message"
+            },
+            "details": {
+              "type": "object",
+              "description": "Detailed error information"
+            }
+          },
+          "required": ["code", "message"]
+        },
+        "id": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "integer"},
+            {"type": "null"}
+          ],
+          "description": "Request ID"
+        }
+      },
+      "required": ["jsonrpc", "error"]
+    }
+  },
+  "oneOf": [
+    {"$ref": "#/definitions/command"},
+    {"$ref": "#/definitions/success_response"},
+    {"$ref": "#/definitions/error_response"}
+  ]
+} 
