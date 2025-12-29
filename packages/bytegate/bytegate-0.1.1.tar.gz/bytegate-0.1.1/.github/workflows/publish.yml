@@ -1,0 +1,35 @@
+name: Publish Python distribution to PyPI
+
+on:
+    release:
+        types: [created]
+
+jobs:
+    publish-pypi-package:
+        name: Publish Python distribution to PyPI.
+        runs-on: ubuntu-24.04
+
+        environment:
+            name: release
+            url: https://pypi.org/project/bytegate/
+
+        permissions:
+            id-token: write
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Install uv.
+              uses: astral-sh/setup-uv@v4
+              with:
+                  version: "0.8.0"
+
+            - name: Install dependencies.
+              run: uv sync --extra dev
+
+            - name: Build package.
+              run: uv run python -m build . --sdist --wheel --outdir dist/
+
+            - uses: pypa/gh-action-pypi-publish@release/v1
