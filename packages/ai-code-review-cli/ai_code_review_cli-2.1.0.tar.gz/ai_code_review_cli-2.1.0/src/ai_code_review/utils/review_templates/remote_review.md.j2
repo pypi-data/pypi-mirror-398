@@ -1,0 +1,71 @@
+## AI Code Review
+
+{% if include_summary and review.summary %}
+### 📋 MR Summary
+{{ review.summary | e }}
+
+{% if review.key_changes %}
+- **Key Changes:**
+{% for change in review.key_changes %}
+  - {{ change | e }}
+{% endfor %}
+{% else %}
+- **Key Changes:** See detailed review below
+{% endif %}
+- **Impact:** {{ (review.modules_affected | join(", ")) | e if review.modules_affected else "Multiple components" }}
+- **Risk Level:** {{ review.risk_level | risk_emoji }} {{ review.risk_level | title }}{% if review.risk_justification %} - {{ review.risk_justification | e }}{% endif %}
+
+{% endif %}
+### Detailed Code Review
+
+{{ review.general_feedback | e }}
+
+{% if review.file_reviews %}
+#### 📂 File Reviews
+{% for file_review in review.file_reviews %}
+
+<details>
+<summary><strong>📄 `{{ file_review.file_path | e }}`</strong> - {{ file_review.summary | e }}</summary>
+
+{% for comment in file_review.comments %}
+- **{{ comment.severity | title }}** [{{ comment.issue_type | title }}]: {{ comment.description | e }}
+{% if comment.suggestion %}
+  - *Suggestion:* {{ comment.suggestion | e }}
+{% endif %}
+{% if comment.code_example %}
+
+````
+{{ comment.code_example }}
+````
+{% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+
+{% if file_review.questions %}
+**Questions:**
+{% for question in file_review.questions %}
+- ❓ {{ question | e }}
+{% endfor %}
+{% endif %}
+
+</details>
+{% endfor %}
+{% endif %}
+
+### ✅ Summary
+
+- **Overall Assessment:** {{ review.overall_assessment | e }}
+{% if review.priority_issues %}
+- **Priority Issues:**
+{% for issue in review.priority_issues %}
+  - {{ issue | e }}
+{% endfor %}
+{% endif %}
+{% if review.minor_suggestions %}
+- **Minor Suggestions:**
+{% for suggestion in review.minor_suggestions %}
+  - {{ suggestion | e }}
+{% endfor %}
+{% endif %}
