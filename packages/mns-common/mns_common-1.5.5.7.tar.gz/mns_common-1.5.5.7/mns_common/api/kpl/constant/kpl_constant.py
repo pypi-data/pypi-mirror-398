@@ -1,0 +1,11 @@
+import sys
+import os
+
+file_path = os.path.abspath(__file__)
+end = file_path.index('mns') + 14
+project_path = file_path[0:end]
+sys.path.append(project_path)
+
+# 指数分类
+FIRST_INDEX = "first_index"
+SUB_INDEX = "sub_index"
