@@ -1,0 +1,861 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from __future__ import annotations
+
+import os
+from typing import Any, cast
+
+import pytest
+
+from retell import Retell, AsyncRetell
+from tests.utils import assert_matches_type
+from retell.types import (
+    LlmResponse,
+    LlmListResponse,
+)
+
+base_url = os.environ.get("TEST_API_BASE_URL", "http://127.0.0.1:4010")
+
+
+class TestLlm:
+    parametrize = pytest.mark.parametrize("client", [False, True], indirect=True, ids=["loose", "strict"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_create(self, client: Retell) -> None:
+        llm = client.llm.create()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_create_with_all_params(self, client: Retell) -> None:
+        llm = client.llm.create(
+            begin_after_user_silence_ms=2000,
+            begin_message="Hey I am a virtual assistant calling from Retell Hospital.",
+            default_dynamic_variables={"customer_name": "John Doe"},
+            general_prompt="You are ...",
+            general_tools=[
+                {
+                    "name": "end_call",
+                    "type": "end_call",
+                    "description": "End the call with user.",
+                    "execution_message_description": "execution_message_description",
+                    "speak_during_execution": True,
+                }
+            ],
+            kb_config={
+                "filter_score": 0.6,
+                "top_k": 3,
+            },
+            knowledge_base_ids=["string"],
+            mcps=[
+                {
+                    "name": "name",
+                    "url": "url",
+                    "headers": {"Authorization": "Bearer 1234567890"},
+                    "query_params": {
+                        "index": "1",
+                        "key": "value",
+                    },
+                    "timeout_ms": 0,
+                }
+            ],
+            model="gpt-4.1",
+            model_high_priority=True,
+            model_temperature=0,
+            s2s_model="gpt-4o-realtime",
+            start_speaker="user",
+            starting_state="information_collection",
+            states=[
+                {
+                    "name": "information_collection",
+                    "edges": [
+                        {
+                            "description": "Transition to book an appointment.",
+                            "destination_state_name": "appointment_booking",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to collect information...",
+                    "tools": [
+                        {
+                            "name": "transfer_to_support",
+                            "transfer_destination": {
+                                "number": "16175551212",
+                                "type": "predefined",
+                                "extension": "123*456#",
+                            },
+                            "transfer_option": {
+                                "type": "cold_transfer",
+                                "show_transferee_as_caller": False,
+                            },
+                            "type": "transfer_call",
+                            "custom_sip_headers": {"X-Custom-Header": "Custom Value"},
+                            "description": "Transfer to the support team.",
+                            "execution_message_description": "execution_message_description",
+                            "ignore_e164_validation": False,
+                            "speak_during_execution": True,
+                        }
+                    ],
+                },
+                {
+                    "name": "appointment_booking",
+                    "edges": [
+                        {
+                            "description": "description",
+                            "destination_state_name": "destination_state_name",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to book an appointment...",
+                    "tools": [
+                        {
+                            "cal_api_key": "cal_live_xxxxxxxxxxxx",
+                            "event_type_id": 60444,
+                            "name": "book_appointment",
+                            "type": "book_appointment_cal",
+                            "description": "Book an annual check up.",
+                            "timezone": "America/Los_Angeles",
+                        }
+                    ],
+                },
+            ],
+            tool_call_strict_mode=True,
+            version=1,
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_raw_response_create(self, client: Retell) -> None:
+        response = client.llm.with_raw_response.create()
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = response.parse()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_streaming_response_create(self, client: Retell) -> None:
+        with client.llm.with_streaming_response.create() as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = response.parse()
+            assert_matches_type(LlmResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_retrieve(self, client: Retell) -> None:
+        llm = client.llm.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_retrieve_with_all_params(self, client: Retell) -> None:
+        llm = client.llm.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+            version=1,
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_raw_response_retrieve(self, client: Retell) -> None:
+        response = client.llm.with_raw_response.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = response.parse()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_streaming_response_retrieve(self, client: Retell) -> None:
+        with client.llm.with_streaming_response.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+        ) as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = response.parse()
+            assert_matches_type(LlmResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_path_params_retrieve(self, client: Retell) -> None:
+        with pytest.raises(ValueError, match=r"Expected a non-empty value for `llm_id` but received ''"):
+            client.llm.with_raw_response.retrieve(
+                llm_id="",
+            )
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_update(self, client: Retell) -> None:
+        llm = client.llm.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_update_with_all_params(self, client: Retell) -> None:
+        llm = client.llm.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+            query_version=1,
+            begin_after_user_silence_ms=2000,
+            begin_message="Hey I am a virtual assistant calling from Retell Hospital.",
+            default_dynamic_variables={"customer_name": "John Doe"},
+            general_prompt="You are ...",
+            general_tools=[
+                {
+                    "name": "end_call",
+                    "type": "end_call",
+                    "description": "End the call with user.",
+                    "execution_message_description": "execution_message_description",
+                    "speak_during_execution": True,
+                }
+            ],
+            kb_config={
+                "filter_score": 0.6,
+                "top_k": 3,
+            },
+            knowledge_base_ids=["string"],
+            mcps=[
+                {
+                    "name": "name",
+                    "url": "url",
+                    "headers": {"Authorization": "Bearer 1234567890"},
+                    "query_params": {
+                        "index": "1",
+                        "key": "value",
+                    },
+                    "timeout_ms": 0,
+                }
+            ],
+            model="gpt-4.1",
+            model_high_priority=True,
+            model_temperature=0,
+            s2s_model="gpt-4o-realtime",
+            start_speaker="user",
+            starting_state="information_collection",
+            states=[
+                {
+                    "name": "information_collection",
+                    "edges": [
+                        {
+                            "description": "Transition to book an appointment.",
+                            "destination_state_name": "appointment_booking",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to collect information...",
+                    "tools": [
+                        {
+                            "name": "transfer_to_support",
+                            "transfer_destination": {
+                                "number": "16175551212",
+                                "type": "predefined",
+                                "extension": "123*456#",
+                            },
+                            "transfer_option": {
+                                "type": "cold_transfer",
+                                "show_transferee_as_caller": False,
+                            },
+                            "type": "transfer_call",
+                            "custom_sip_headers": {"X-Custom-Header": "Custom Value"},
+                            "description": "Transfer to the support team.",
+                            "execution_message_description": "execution_message_description",
+                            "ignore_e164_validation": False,
+                            "speak_during_execution": True,
+                        }
+                    ],
+                },
+                {
+                    "name": "appointment_booking",
+                    "edges": [
+                        {
+                            "description": "description",
+                            "destination_state_name": "destination_state_name",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to book an appointment...",
+                    "tools": [
+                        {
+                            "cal_api_key": "cal_live_xxxxxxxxxxxx",
+                            "event_type_id": 60444,
+                            "name": "book_appointment",
+                            "type": "book_appointment_cal",
+                            "description": "Book an annual check up.",
+                            "timezone": "America/Los_Angeles",
+                        }
+                    ],
+                },
+            ],
+            tool_call_strict_mode=True,
+            body_version=1,
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_raw_response_update(self, client: Retell) -> None:
+        response = client.llm.with_raw_response.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = response.parse()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_streaming_response_update(self, client: Retell) -> None:
+        with client.llm.with_streaming_response.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+        ) as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = response.parse()
+            assert_matches_type(LlmResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_path_params_update(self, client: Retell) -> None:
+        with pytest.raises(ValueError, match=r"Expected a non-empty value for `llm_id` but received ''"):
+            client.llm.with_raw_response.update(
+                llm_id="",
+            )
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_list(self, client: Retell) -> None:
+        llm = client.llm.list()
+        assert_matches_type(LlmListResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_list_with_all_params(self, client: Retell) -> None:
+        llm = client.llm.list(
+            limit=50,
+            pagination_key="llm_1ffdb9717444d0e77346838911",
+            pagination_key_version=0,
+        )
+        assert_matches_type(LlmListResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_raw_response_list(self, client: Retell) -> None:
+        response = client.llm.with_raw_response.list()
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = response.parse()
+        assert_matches_type(LlmListResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_streaming_response_list(self, client: Retell) -> None:
+        with client.llm.with_streaming_response.list() as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = response.parse()
+            assert_matches_type(LlmListResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_method_delete(self, client: Retell) -> None:
+        llm = client.llm.delete(
+            "oBeDLoLOeuAbiuaMFXRtDOLriTJ5tSxD",
+        )
+        assert llm is None
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_raw_response_delete(self, client: Retell) -> None:
+        response = client.llm.with_raw_response.delete(
+            "oBeDLoLOeuAbiuaMFXRtDOLriTJ5tSxD",
+        )
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = response.parse()
+        assert llm is None
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_streaming_response_delete(self, client: Retell) -> None:
+        with client.llm.with_streaming_response.delete(
+            "oBeDLoLOeuAbiuaMFXRtDOLriTJ5tSxD",
+        ) as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = response.parse()
+            assert llm is None
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    def test_path_params_delete(self, client: Retell) -> None:
+        with pytest.raises(ValueError, match=r"Expected a non-empty value for `llm_id` but received ''"):
+            client.llm.with_raw_response.delete(
+                "",
+            )
+
+
+class TestAsyncLlm:
+    parametrize = pytest.mark.parametrize(
+        "async_client", [False, True, {"http_client": "aiohttp"}], indirect=True, ids=["loose", "strict", "aiohttp"]
+    )
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_create(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.create()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_create_with_all_params(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.create(
+            begin_after_user_silence_ms=2000,
+            begin_message="Hey I am a virtual assistant calling from Retell Hospital.",
+            default_dynamic_variables={"customer_name": "John Doe"},
+            general_prompt="You are ...",
+            general_tools=[
+                {
+                    "name": "end_call",
+                    "type": "end_call",
+                    "description": "End the call with user.",
+                    "execution_message_description": "execution_message_description",
+                    "speak_during_execution": True,
+                }
+            ],
+            kb_config={
+                "filter_score": 0.6,
+                "top_k": 3,
+            },
+            knowledge_base_ids=["string"],
+            mcps=[
+                {
+                    "name": "name",
+                    "url": "url",
+                    "headers": {"Authorization": "Bearer 1234567890"},
+                    "query_params": {
+                        "index": "1",
+                        "key": "value",
+                    },
+                    "timeout_ms": 0,
+                }
+            ],
+            model="gpt-4.1",
+            model_high_priority=True,
+            model_temperature=0,
+            s2s_model="gpt-4o-realtime",
+            start_speaker="user",
+            starting_state="information_collection",
+            states=[
+                {
+                    "name": "information_collection",
+                    "edges": [
+                        {
+                            "description": "Transition to book an appointment.",
+                            "destination_state_name": "appointment_booking",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to collect information...",
+                    "tools": [
+                        {
+                            "name": "transfer_to_support",
+                            "transfer_destination": {
+                                "number": "16175551212",
+                                "type": "predefined",
+                                "extension": "123*456#",
+                            },
+                            "transfer_option": {
+                                "type": "cold_transfer",
+                                "show_transferee_as_caller": False,
+                            },
+                            "type": "transfer_call",
+                            "custom_sip_headers": {"X-Custom-Header": "Custom Value"},
+                            "description": "Transfer to the support team.",
+                            "execution_message_description": "execution_message_description",
+                            "ignore_e164_validation": False,
+                            "speak_during_execution": True,
+                        }
+                    ],
+                },
+                {
+                    "name": "appointment_booking",
+                    "edges": [
+                        {
+                            "description": "description",
+                            "destination_state_name": "destination_state_name",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to book an appointment...",
+                    "tools": [
+                        {
+                            "cal_api_key": "cal_live_xxxxxxxxxxxx",
+                            "event_type_id": 60444,
+                            "name": "book_appointment",
+                            "type": "book_appointment_cal",
+                            "description": "Book an annual check up.",
+                            "timezone": "America/Los_Angeles",
+                        }
+                    ],
+                },
+            ],
+            tool_call_strict_mode=True,
+            version=1,
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_raw_response_create(self, async_client: AsyncRetell) -> None:
+        response = await async_client.llm.with_raw_response.create()
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = await response.parse()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_streaming_response_create(self, async_client: AsyncRetell) -> None:
+        async with async_client.llm.with_streaming_response.create() as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = await response.parse()
+            assert_matches_type(LlmResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_retrieve(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_retrieve_with_all_params(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+            version=1,
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_raw_response_retrieve(self, async_client: AsyncRetell) -> None:
+        response = await async_client.llm.with_raw_response.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = await response.parse()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_streaming_response_retrieve(self, async_client: AsyncRetell) -> None:
+        async with async_client.llm.with_streaming_response.retrieve(
+            llm_id="16b980523634a6dc504898cda492e939",
+        ) as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = await response.parse()
+            assert_matches_type(LlmResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_path_params_retrieve(self, async_client: AsyncRetell) -> None:
+        with pytest.raises(ValueError, match=r"Expected a non-empty value for `llm_id` but received ''"):
+            await async_client.llm.with_raw_response.retrieve(
+                llm_id="",
+            )
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_update(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_update_with_all_params(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+            query_version=1,
+            begin_after_user_silence_ms=2000,
+            begin_message="Hey I am a virtual assistant calling from Retell Hospital.",
+            default_dynamic_variables={"customer_name": "John Doe"},
+            general_prompt="You are ...",
+            general_tools=[
+                {
+                    "name": "end_call",
+                    "type": "end_call",
+                    "description": "End the call with user.",
+                    "execution_message_description": "execution_message_description",
+                    "speak_during_execution": True,
+                }
+            ],
+            kb_config={
+                "filter_score": 0.6,
+                "top_k": 3,
+            },
+            knowledge_base_ids=["string"],
+            mcps=[
+                {
+                    "name": "name",
+                    "url": "url",
+                    "headers": {"Authorization": "Bearer 1234567890"},
+                    "query_params": {
+                        "index": "1",
+                        "key": "value",
+                    },
+                    "timeout_ms": 0,
+                }
+            ],
+            model="gpt-4.1",
+            model_high_priority=True,
+            model_temperature=0,
+            s2s_model="gpt-4o-realtime",
+            start_speaker="user",
+            starting_state="information_collection",
+            states=[
+                {
+                    "name": "information_collection",
+                    "edges": [
+                        {
+                            "description": "Transition to book an appointment.",
+                            "destination_state_name": "appointment_booking",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to collect information...",
+                    "tools": [
+                        {
+                            "name": "transfer_to_support",
+                            "transfer_destination": {
+                                "number": "16175551212",
+                                "type": "predefined",
+                                "extension": "123*456#",
+                            },
+                            "transfer_option": {
+                                "type": "cold_transfer",
+                                "show_transferee_as_caller": False,
+                            },
+                            "type": "transfer_call",
+                            "custom_sip_headers": {"X-Custom-Header": "Custom Value"},
+                            "description": "Transfer to the support team.",
+                            "execution_message_description": "execution_message_description",
+                            "ignore_e164_validation": False,
+                            "speak_during_execution": True,
+                        }
+                    ],
+                },
+                {
+                    "name": "appointment_booking",
+                    "edges": [
+                        {
+                            "description": "description",
+                            "destination_state_name": "destination_state_name",
+                            "parameters": {
+                                "properties": {"foo": "bar"},
+                                "type": "object",
+                                "required": ["string"],
+                            },
+                        }
+                    ],
+                    "state_prompt": "You will follow the steps below to book an appointment...",
+                    "tools": [
+                        {
+                            "cal_api_key": "cal_live_xxxxxxxxxxxx",
+                            "event_type_id": 60444,
+                            "name": "book_appointment",
+                            "type": "book_appointment_cal",
+                            "description": "Book an annual check up.",
+                            "timezone": "America/Los_Angeles",
+                        }
+                    ],
+                },
+            ],
+            tool_call_strict_mode=True,
+            body_version=1,
+        )
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_raw_response_update(self, async_client: AsyncRetell) -> None:
+        response = await async_client.llm.with_raw_response.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+        )
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = await response.parse()
+        assert_matches_type(LlmResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_streaming_response_update(self, async_client: AsyncRetell) -> None:
+        async with async_client.llm.with_streaming_response.update(
+            llm_id="16b980523634a6dc504898cda492e939",
+        ) as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = await response.parse()
+            assert_matches_type(LlmResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_path_params_update(self, async_client: AsyncRetell) -> None:
+        with pytest.raises(ValueError, match=r"Expected a non-empty value for `llm_id` but received ''"):
+            await async_client.llm.with_raw_response.update(
+                llm_id="",
+            )
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_list(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.list()
+        assert_matches_type(LlmListResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_list_with_all_params(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.list(
+            limit=50,
+            pagination_key="llm_1ffdb9717444d0e77346838911",
+            pagination_key_version=0,
+        )
+        assert_matches_type(LlmListResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_raw_response_list(self, async_client: AsyncRetell) -> None:
+        response = await async_client.llm.with_raw_response.list()
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = await response.parse()
+        assert_matches_type(LlmListResponse, llm, path=["response"])
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_streaming_response_list(self, async_client: AsyncRetell) -> None:
+        async with async_client.llm.with_streaming_response.list() as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = await response.parse()
+            assert_matches_type(LlmListResponse, llm, path=["response"])
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_method_delete(self, async_client: AsyncRetell) -> None:
+        llm = await async_client.llm.delete(
+            "oBeDLoLOeuAbiuaMFXRtDOLriTJ5tSxD",
+        )
+        assert llm is None
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_raw_response_delete(self, async_client: AsyncRetell) -> None:
+        response = await async_client.llm.with_raw_response.delete(
+            "oBeDLoLOeuAbiuaMFXRtDOLriTJ5tSxD",
+        )
+
+        assert response.is_closed is True
+        assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+        llm = await response.parse()
+        assert llm is None
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_streaming_response_delete(self, async_client: AsyncRetell) -> None:
+        async with async_client.llm.with_streaming_response.delete(
+            "oBeDLoLOeuAbiuaMFXRtDOLriTJ5tSxD",
+        ) as response:
+            assert not response.is_closed
+            assert response.http_request.headers.get("X-Stainless-Lang") == "python"
+
+            llm = await response.parse()
+            assert llm is None
+
+        assert cast(Any, response.is_closed) is True
+
+    @pytest.mark.skip(reason="Prism tests are disabled")
+    @parametrize
+    async def test_path_params_delete(self, async_client: AsyncRetell) -> None:
+        with pytest.raises(ValueError, match=r"Expected a non-empty value for `llm_id` but received ''"):
+            await async_client.llm.with_raw_response.delete(
+                "",
+            )
