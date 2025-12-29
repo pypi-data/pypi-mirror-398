@@ -1,0 +1,163 @@
+{% if description %}# {{ description }}
+{% endif %}{{ command_name }}{% for arg_name in args.keys() %} {{ arg_name }}{% endfor %} *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    {% if args %}
+    # Validate input arguments (readonly=true)
+    {% for arg_name, arg_spec in args.items() %}
+    {% if arg_spec.type in ["file", "directory"] and arg_spec.readonly %}
+    if [[ ! -e "{{ '{{' }}{{ arg_name }}{{ '}}' }}" ]]; then
+        echo "Error: {{ arg_name }} does not exist: {{ '{{' }}{{ arg_name }}{{ '}}' }}"
+        exit 1
+    fi
+    {% if arg_spec.type == "file" %}
+    if [[ ! -f "{{ '{{' }}{{ arg_name }}{{ '}}' }}" ]]; then
+        echo "Error: {{ arg_name }} is not a file: {{ '{{' }}{{ arg_name }}{{ '}}' }}"
+        exit 1
+    fi
+    {% elif arg_spec.type == "directory" %}
+    if [[ ! -d "{{ '{{' }}{{ arg_name }}{{ '}}' }}" ]]; then
+        echo "Error: {{ arg_name }} is not a directory: {{ '{{' }}{{ arg_name }}{{ '}}' }}"
+        exit 1
+    fi
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+    # Container configuration
+    CONTAINER_NAME="{{ image_name }}-development"
+    IMAGE="{{ image_name }}:{{ image_tag }}"
+
+    # Build container arguments
+    RUN_ARGS=()
+    RUN_ARGS+=("{{ runtime }}" "run")
+    RUN_ARGS+=("--name" "${CONTAINER_NAME}")
+    RUN_ARGS+=("--rm")
+    {% if network %}
+    RUN_ARGS+=("--net" "{{ network }}")
+    {% endif %}
+
+    {% if runtime == "podman" %}
+    # Podman-specific configuration
+    RUN_ARGS+=("--replace")
+    RUN_ARGS+=("--userns=keep-id")
+    {% endif %}
+
+    # Mount workspace
+    RUN_ARGS+=("-v" "$(pwd)/{{ workspace_name }}:{{ container_home }}/{{ workspace_name }}:z")
+    {% if features.display %}
+
+    # Display support (Wayland and X11)
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        wayland_socket="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+        RUN_ARGS+=("-e" "WAYLAND_DISPLAY")
+        RUN_ARGS+=("-e" "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}")
+        RUN_ARGS+=("-v" "${wayland_socket}:${wayland_socket}:rw")
+    fi
+    if [[ -n "${DISPLAY:-}" ]]; then
+        xsock=/tmp/.X11-unix
+        xauth=/tmp/.docker.xauth
+        touch $xauth
+        if [[ -f "$HOME/.Xauthority" ]]; then
+            xauth nlist "${DISPLAY}" | sed -e 's/^..../ffff/' | xauth -f "${xauth}" nmerge -
+        fi
+        RUN_ARGS+=("-e" "DISPLAY")
+        RUN_ARGS+=("-e" "XAUTHORITY=${xauth}")
+        RUN_ARGS+=("-v" "${xauth}:${xauth}:rw")
+        RUN_ARGS+=("-v" "${xsock}:${xsock}:rw")
+        RUN_ARGS+=("--env" "QT_X11_NO_MITSHM=1")
+    fi
+    {% endif %}
+    {% if features.gpu %}
+
+    # GPU support
+    if [[ -d /dev/dri ]]; then
+        RUN_ARGS+=("--device" "/dev/dri:/dev/dri")
+    fi
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        RUN_ARGS+=("-e" "NVIDIA_DRIVER_CAPABILITIES=all")
+        {% if runtime == "docker" %}
+        RUN_ARGS+=("--gpus=all")
+        {% elif runtime == "podman" %}
+        RUN_ARGS+=("--device" "nvidia.com/gpu=all")
+        RUN_ARGS+=("--annotation=run.oci.keep_original_groups=1")
+        RUN_ARGS+=("--security-opt=label=disable")
+        {% endif %}
+    fi
+    {% endif %}
+    {% if features.audio %}
+
+    # Audio support (PulseAudio/PipeWire)
+    if [[ -S "/run/user/$(id -u)/pulse/native" ]]; then
+        RUN_ARGS+=("-v" "/run/user/$(id -u)/pulse/native:/run/user/$(id -u)/pulse/native")
+        RUN_ARGS+=("-e" "PULSE_SERVER=unix:/run/user/$(id -u)/pulse/native")
+    fi
+    {% endif %}
+    {% if features.aws_credentials %}
+
+    # AWS credentials
+    if [[ -d "$HOME/.aws" ]]; then
+        RUN_ARGS+=("-v" "$HOME/.aws:{{ container_home }}/.aws:z")
+    fi
+    {% endif %}
+
+    {% for arg_name, arg_spec in args.items() %}
+    {% if arg_spec.type in ["file", "directory"] and arg_spec.mount_as %}
+    # Mount {{ arg_name }}
+    {% if arg_spec.readonly %}
+    RUN_ARGS+=("-v" "{{ '{{' }}{{ arg_name }}{{ '}}' }}:{{ arg_spec.mount_as }}:ro,z")
+    {% else %}
+    # Ensure parent directory exists for output
+    mkdir -p "$(dirname "{{ '{{' }}{{ arg_name }}{{ '}}' }}")"
+    RUN_ARGS+=("-v" "{{ '{{' }}{{ arg_name }}{{ '}}' }}:{{ arg_spec.mount_as }}:rw,z")
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    # Container environment variables
+    {% if env %}
+    {% for key, value in env.items() %}
+    RUN_ARGS+=("-e" "{{ key }}={{ value }}")
+    {% endfor %}
+    {% endif %}
+
+    # Add TTY flags if available (for real-time output)
+    if [[ -t 1 ]]; then
+        RUN_ARGS+=("--interactive" "--tty")
+    fi
+
+    # Image
+    RUN_ARGS+=("${IMAGE}")
+
+    # Build command string
+    COMMAND="{{ command | replace('\"', '\\\"') }}"
+    {% for arg_name, arg_spec in args.items() %}
+    {% if arg_spec.mount_as %}
+    # Substitute {{ arg_name }} with container path
+    COMMAND="${COMMAND//{{ '{' }}{{ arg_name }}{{ '}' }}/{{ arg_spec.mount_as }}}"
+    {% else %}
+    # Substitute {{ arg_name }} with actual value
+    COMMAND="${COMMAND//{{ '{' }}{{ arg_name }}{{ '}' }}/{{ '{{' }}{{ arg_name }}{{ '}}' }}}"
+    {% endif %}
+    {% endfor %}
+    # Append extra arguments
+    EXTRA_ARGS="{{ '{{args}}' }}"
+    if [[ -n "${EXTRA_ARGS}" ]]; then
+        COMMAND="${COMMAND} ${EXTRA_ARGS}"
+    fi
+
+    # Check if container already running
+    if ! {{ runtime }} ps --quiet --filter name="${CONTAINER_NAME}" | grep -q .; then
+        # Start new container
+        RUN_ARGS+=("{{ shell }}" "-c" "${COMMAND}")
+        "${RUN_ARGS[@]}"
+    else
+        # Exec into existing container
+        EXEC_ARGS=("{{ runtime }}" "exec")
+        if [[ -t 1 ]]; then
+            EXEC_ARGS+=("--interactive" "--tty")
+        fi
+        EXEC_ARGS+=("${CONTAINER_NAME}")
+        EXEC_ARGS+=("{{ shell }}" "-c" "${COMMAND}")
+        "${EXEC_ARGS[@]}"
+    fi
