@@ -1,0 +1,276 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, "renovate/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dependency-sync:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-suffix: ${{ hashFiles('uv.lock') }}
+
+      - run: uv sync --all-groups --frozen
+
+      - run: uv cache prune --ci
+
+  test:
+    needs: dependency-sync
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-suffix: ${{ hashFiles('uv.lock') }}
+
+      - run: uv sync --all-groups --frozen
+
+      - run: |
+          uv run ruff format --check
+          make lint
+
+      - run: make test-cov
+
+      - uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+        with:
+          files: ./coverage.xml
+          flags: ${{ matrix.python-version }}
+          name: coverage-${{ matrix.python-version }}
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1
+        if: ${{ !cancelled() }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - run: uv cache prune --ci
+
+  security:
+    needs: dependency-sync
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-suffix: ${{ hashFiles('uv.lock') }}
+
+      - run: uv sync --all-groups --frozen
+
+      - run: make bandit
+
+      - uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
+        continue-on-error: true
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+
+      - uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0
+        with:
+          scan-type: fs
+          skip-dirs: .git,.github,.venv,docs/_build
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      - uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      - run: uv cache prune --ci
+
+  build:
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      released: ${{ steps.version.outputs.released }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - run: git checkout -B ${{ github.ref_name }}
+
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-suffix: ${{ hashFiles('uv.lock') }}
+
+      - run: uv sync --group build --no-default-groups --frozen
+
+      - id: version
+        env:
+          GH_TOKEN: none
+        run: uv run semantic-release -v version --no-commit --no-tag
+
+      - if: steps.version.outputs.released == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: dist
+          path: dist/**
+          if-no-files-found: error
+          retention-days: 2
+
+      - if: steps.version.outputs.released == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: uv.lock
+          path: uv.lock
+          if-no-files-found: error
+          retention-days: 2
+
+      - run: uv cache prune --ci
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - if: needs.build.outputs.released == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        id: download
+        with:
+          name: dist
+          path: ./dist
+
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-suffix: ${{ hashFiles('uv.lock') }}
+
+      - run: uv sync --frozen
+
+      - if: steps.download.outcome == 'success'
+        run: |
+          uv pip uninstall cb-events
+          uv pip install dist/cb_events-*.whl
+
+      - run: make test-e2e
+
+      - run: uv cache prune --ci
+
+  release:
+    needs: [build, e2e]
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.released == 'true'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ${{ github.workflow }}-release-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    outputs:
+      released: ${{ steps.publish.outputs.released }}
+      version: ${{ steps.publish.outputs.version }}
+      tag: ${{ steps.publish.outputs.tag }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - run: git reset --hard ${{ github.sha }}
+
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-suffix: ${{ hashFiles('uv.lock') }}
+
+      - run: uv sync --group build --no-default-groups --frozen
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: dist
+          path: dist
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: uv.lock
+
+      - run: git add uv.lock
+
+      - id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/workflows/verify_upstream.sh
+          uv run semantic-release -v --strict version --skip-build
+          uv run semantic-release publish
+
+      - run: uv cache prune --ci
+
+  deploy:
+    needs: [build, release]
+    if: github.ref == 'refs/heads/main' && needs.release.outputs.released == 'true' && github.repository == 'MountainGod2/cb-events'
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cb-events/
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: dist
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@987f11e872eb5ca67aad6a4fe531bd3089142c60 # v1
+        with:
+          packages-dir: dist
+          print-hash: true
+          verbose: true
+          attestations: true
+
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: dist/*
