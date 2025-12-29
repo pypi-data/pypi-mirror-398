@@ -1,0 +1,126 @@
+{
+  "apiVersion": "{{ include \"common.capabilities.statefulset.apiVersion\" . }}",
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "{{ include \"mongodb.fullname\" . }}-hidden",
+    "namespace": "{{ include \"mongodb.namespace\" . }}",
+    "labels": {
+      "app.kubernetes.io/component": "hidden"
+    }
+  },
+  "spec": {
+    "serviceName": "{{ include \"mongodb.fullname\" . }}-hidden-headless",
+    "podManagementPolicy": "{{ .Values.hidden.podManagementPolicy }}",
+    "replicas": "{{ .Values.hidden.replicaCount }}",
+    "updateStrategy": {
+      "type": "{{ .Values.hidden.strategyType }}"
+    },
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/component": "hidden"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/component": "hidden"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "mongodb",
+            "image": "{{ include \"mongodb.image\" . }}",
+            "imagePullPolicy": "{{ .Values.image.pullPolicy | quote }}",
+            "command": [
+              "/scripts/setup-hidden.sh"
+            ],
+            "env": [
+              {
+                "name": "BITNAMI_DEBUG",
+                "value": "{{ ternary \"true\" \"false\" (or .Values.image.debug .Values.diagnosticMode.enabled) | quote }}"
+              },
+              {
+                "name": "MY_POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "MY_POD_NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "K8S_SERVICE_NAME",
+                "value": "{{ include \"mongodb.fullname\" . }}-headless"
+              },
+              {
+                "name": "K8S_HIDDEN_NODE_SERVICE_NAME",
+                "value": "{{ include \"mongodb.fullname\" . }}-hidden-headless"
+              },
+              {
+                "name": "MONGODB_REPLICA_SET_MODE",
+                "value": "hidden"
+              },
+              {
+                "name": "MONGODB_INITIAL_PRIMARY_HOST",
+                "value": "{{ include \"mongodb.fullname\" . }}-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.clusterDomain }}"
+              },
+              {
+                "name": "MONGODB_REPLICA_SET_NAME",
+                "value": "{{ .Values.replicaSetName | quote }}"
+              }
+            ],
+            "ports": [
+              {
+                "containerPort": 27017,
+                "name": "mongodb"
+              }
+            ],
+            "volumeMounts": [
+              {
+                "name": "datadir",
+                "mountPath": "{{ .Values.hidden.persistence.mountPath }}",
+                "subPath": "{{ .Values.hidden.persistence.subPath }}"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "scripts",
+            "configMap": {
+              "name": "{{ include \"mongodb.fullname\" . }}-scripts",
+              "defaultMode": 755
+            }
+          }
+        ]
+      }
+    },
+    "volumeClaimTemplates": [
+      {
+        "metadata": {
+          "name": "datadir"
+        },
+        "spec": {
+          "accessModes": [
+            "{{ range .Values.hidden.persistence.accessModes }}",
+            "{{ . | quote }}",
+            "{{ end }}"
+          ],
+          "resources": {
+            "requests": {
+              "storage": "{{ .Values.hidden.persistence.size | quote }}"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

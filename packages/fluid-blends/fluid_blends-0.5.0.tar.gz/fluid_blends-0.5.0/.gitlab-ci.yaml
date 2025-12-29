@@ -1,0 +1,198 @@
+blends-coverage:
+  before_script:
+  - mkdir -p /root/.ssh
+  - echo "$UNIVERSE_SSH_KEY" > /root/.ssh/id_ed25519
+  - chmod 400 /root/.ssh/id_ed25519
+  - echo 'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf'
+    >> /root/.ssh/known_hosts
+  - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+  - nix-env -iA cachix -f https://cachix.org/api/v1/install &> /dev/null
+  - cachix use fluidattacks
+  - cachix watch-store fluidattacks &
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  image: nixos/nix:latest@sha256:3bb728719e2c4e478df4c50b80f93adbe27d5c561d1417c3a2306eb914d910da
+  interruptible: true
+  needs:
+  - blends-test content_unittesting
+  retry:
+    max: 2
+    when: runner_system_failure
+  rules:
+  - if: $CI_COMMIT_BRANCH == "trunk"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "trigger"
+    when: never
+  - if: $CI_COMMIT_TITLE =~ /^(all|blends)\\(feat|fix|refac)/
+  script:
+  - pushd .
+  - nix run ./blends#blends-coverage
+  stage: deploy
+  tags:
+  - aarch64
+  variables:
+    GIT_DEPTH: 3
+blends-deploy:
+  before_script:
+  - mkdir -p /root/.ssh
+  - echo "$UNIVERSE_SSH_KEY" > /root/.ssh/id_ed25519
+  - chmod 400 /root/.ssh/id_ed25519
+  - echo 'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf'
+    >> /root/.ssh/known_hosts
+  - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+  - nix-env -iA cachix -f https://cachix.org/api/v1/install &> /dev/null
+  - cachix use fluidattacks
+  - cachix watch-store fluidattacks &
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  image: nixos/nix:latest@sha256:3bb728719e2c4e478df4c50b80f93adbe27d5c561d1417c3a2306eb914d910da
+  interruptible: true
+  needs: []
+  retry:
+    max: 2
+    when: runner_system_failure
+  rules:
+  - if: $CI_COMMIT_BRANCH != "trunk"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "trigger"
+    when: never
+  - if: $CI_COMMIT_TITLE =~ /^(all|blends)\\(feat|fix|refac)/
+  script:
+  - pushd blends
+  - nix run .#blends-deploy
+  stage: deploy
+  tags:
+  - aarch64
+  variables:
+    GIT_DEPTH: 3
+blends-lint:
+  before_script:
+  - mkdir -p /root/.ssh
+  - echo "$UNIVERSE_SSH_KEY" > /root/.ssh/id_ed25519
+  - chmod 400 /root/.ssh/id_ed25519
+  - echo 'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf'
+    >> /root/.ssh/known_hosts
+  - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+  - nix-env -iA cachix -f https://cachix.org/api/v1/install &> /dev/null
+  - cachix use fluidattacks
+  - cachix watch-store fluidattacks &
+  cache:
+    key: $CI_COMMIT_REF_NAME-blends-lint
+    paths:
+    - blends/.ruff_cache
+    - blends/.mypy_cache
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  image: nixos/nix:latest@sha256:3bb728719e2c4e478df4c50b80f93adbe27d5c561d1417c3a2306eb914d910da
+  interruptible: true
+  needs: []
+  retry:
+    max: 2
+    when: runner_system_failure
+  rules:
+  - if: $CI_COMMIT_BRANCH == "trunk"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "trigger"
+    when: never
+  - if: $CI_COMMIT_TITLE =~ /^(all|blends)\\(feat|fix|refac)/
+  script:
+  - pushd blends
+  - nix run .#blends-lint
+  stage: test
+  tags:
+  - aarch64
+  variables:
+    GIT_DEPTH: 3
+blends-pipeline:
+  before_script:
+  - mkdir -p /root/.ssh
+  - echo "$UNIVERSE_SSH_KEY" > /root/.ssh/id_ed25519
+  - chmod 400 /root/.ssh/id_ed25519
+  - echo 'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf'
+    >> /root/.ssh/known_hosts
+  - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+  - nix-env -iA cachix -f https://cachix.org/api/v1/install &> /dev/null
+  - cachix use fluidattacks
+  - cachix watch-store fluidattacks &
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  image: nixos/nix:latest@sha256:3bb728719e2c4e478df4c50b80f93adbe27d5c561d1417c3a2306eb914d910da
+  interruptible: true
+  needs: []
+  retry:
+    max: 2
+    when: runner_system_failure
+  rules:
+  - if: $CI_COMMIT_BRANCH == "trunk"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "trigger"
+    when: never
+  - if: $CI_COMMIT_TITLE =~ /^(all|blends)\\(feat|fix|refac)/
+  script:
+  - pushd blends
+  - nix run .#blends-pipeline
+  stage: test
+  tags:
+  - aarch64
+  variables:
+    GIT_DEPTH: 3
+blends-test content_unittesting:
+  artifacts:
+    expire_in: 1 day
+    paths:
+    - blends/.coverage.*
+  before_script:
+  - mkdir -p /root/.ssh
+  - echo "$UNIVERSE_SSH_KEY" > /root/.ssh/id_ed25519
+  - chmod 400 /root/.ssh/id_ed25519
+  - echo 'gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf'
+    >> /root/.ssh/known_hosts
+  - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+  - nix-env -iA cachix -f https://cachix.org/api/v1/install &> /dev/null
+  - cachix use fluidattacks
+  - cachix watch-store fluidattacks &
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://gitlab.com
+  image: nixos/nix:latest@sha256:3bb728719e2c4e478df4c50b80f93adbe27d5c561d1417c3a2306eb914d910da
+  interruptible: true
+  needs: []
+  retry:
+    max: 2
+    when: runner_system_failure
+  rules:
+  - if: $CI_COMMIT_BRANCH == "trunk"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "trigger"
+    when: never
+  - if: $CI_COMMIT_TITLE =~ /^(all|blends)\\(feat|fix|refac)/
+  script:
+  - pushd blends
+  - nix run .#blends-test content_unittesting
+  stage: test
+  tags:
+  - aarch64
+  variables:
+    GIT_DEPTH: 3

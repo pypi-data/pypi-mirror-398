@@ -1,0 +1,44 @@
+{{- $dot := . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+spec:
+  replica: {{ .Values }}
+  {{- if .Values }}
+  labels:
+    {{- toYaml .Values.label | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.annotations }}
+          {{- toYaml .Values.annotations | nindent 8 }}
+        {{ end }}
+    spec:
+    {{- with .Values.configs }}
+      config:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      securityContext:
+        {{- toYaml .Values.securityContext}}
+    {{ end }}
+    {{- if .Values.initContainers }}
+      initContainers:
+        {{- toYaml .Values.initContainers | nindent 8 }}
+    {{ end }}
+      containers:
+        - name: {{ .Values.Name }}
+          image: "{{ .Values.image }}:{{ .Values.version }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+              protocol: {{ .Values.protocol }}
+          {{- if .Values.deployment.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+      {{- if .Values.host }}
+      host:
+        {{- toYaml .Values.host | nindent 8 }}
+      {{- end }}
