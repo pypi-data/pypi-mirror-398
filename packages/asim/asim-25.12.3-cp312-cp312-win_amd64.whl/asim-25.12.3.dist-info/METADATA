@@ -1,0 +1,77 @@
+Metadata-Version: 2.4
+Name: asim
+Version: 25.12.3
+Summary: Automatic simulation system powered by neural networks
+Keywords: simulation
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.8.0
+Requires-Dist: lightning>=2.5.5
+Provides-Extra: dev
+Requires-Dist: matplotlib; extra == "dev"
+Dynamic: license-file
+
+# Automatic simulation system powered by neural networks
+
+## Installation
+
+```bash
+pip install asim
+```
+
+## What is asim
+
+- Physical field modeling with automatic constraint enforcement
+- Flexible data grouping and normalization
+- Built-in support for recurrent architectures
+- Export/import of trained models
+
+## Using asim
+
+```python
+import matplotlib.pyplot as plt
+import pandas as pd
+from asim.dataset import PhysicalDataManage, Vt, Vu, Vx, DummyDatasets
+from asim.model import PhysicalFieldModel
+from asim.optimizer import ContinuousOptimizer
+from asim.simulator import PhysicalSimulator
+
+# 1. Define data and structure
+df = DummyDatasets.boiler_minimum(size=2000)  # pd.read_csv("demo.csv")
+cols = [
+    Vt(label="ts"),
+    Vx(group="boiler", label="heat_temp", minmax=(0.0, None), unit="kj", enable=True),
+    Vu(group="boiler", label="heat_power1", minmax=(0.0, None), unit="kw", enable=True),
+    Vu(group="boiler", label="heat_power2", minmax=(0.0, None), unit="kw", enable=True),
+]
+dm = PhysicalDataManage(df, columns=cols, batch_size=64)
+
+# 2A. Select the model, define the parameters, train and save
+fm = PhysicalFieldModel(dm, lr=0.003)
+fm.fit(epochs=100)
+fm.export("demo.sim.onnx")
+
+# 2B. Use a simulator to simulate the operation
+sim = PhysicalSimulator("demo.sim.onnx", dm=dm)
+sim_df = df[0:1440].copy()
+sim_df.index = pd.to_datetime(sim_df["ts"], unit="s", utc=True).dt.tz_convert("Etc/GMT-8")
+sim_df = sim.steps(sim_df, x0={"heat_temp": 150.0})
+sim_df.plot(
+    y=sum(sim.get_group_names(), []),
+    subplots=sim.get_group_names(),
+    sharex=True,
+    figsize=(10, 3),
+    ylim=(0, None),
+    grid=True,
+)
+plt.tight_layout()
+plt.show()
+
+# 3A. RL
+opt = ContinuousOptimizer(sim=sim, dm=dm)
+opt.fit(epochs=100)
+opt.export("demo.opt.onnx")
+
+# 3B. Use the simulator to reinforce the test
+```
