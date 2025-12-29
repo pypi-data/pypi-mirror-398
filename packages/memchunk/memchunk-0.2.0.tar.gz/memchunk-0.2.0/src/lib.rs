@@ -1,0 +1,796 @@
+//! The fastest semantic text chunking library — up to 1TB/s chunking throughput.
+//!
+//! # Example
+//!
+//! ```
+//! use memchunk::chunk;
+//!
+//! let text = b"Hello world. How are you? I'm fine.\nThanks for asking.";
+//!
+//! // With defaults (4KB chunks, split at \n . ?)
+//! let chunks: Vec<&[u8]> = chunk(text).collect();
+//!
+//! // With custom size and delimiters
+//! let chunks: Vec<&[u8]> = chunk(text).size(1024).delimiters(b"\n.?!").collect();
+//!
+//! // With multi-byte pattern (e.g., metaspace for SentencePiece tokenizers)
+//! let metaspace = "▁".as_bytes(); // [0xE2, 0x96, 0x81]
+//! let chunks: Vec<&[u8]> = chunk(b"Hello\xE2\x96\x81World").pattern(metaspace).collect();
+//! ```
+
+use memchr::memmem;
+
+/// Default chunk target size (4KB).
+pub const DEFAULT_TARGET_SIZE: usize = 4096;
+
+/// Default delimiters: newline, period, question mark.
+pub const DEFAULT_DELIMITERS: &[u8] = b"\n.?";
+
+/// Find last delimiter in window using SIMD-accelerated memchr (1-3 delimiters)
+/// or lookup table (4+ delimiters).
+#[inline]
+fn find_last_delimiter(
+    window: &[u8],
+    delimiters: &[u8],
+    table: Option<&[bool; 256]>,
+) -> Option<usize> {
+    if let Some(t) = table {
+        window.iter().rposition(|&b| t[b as usize])
+    } else {
+        match delimiters.len() {
+            1 => memchr::memrchr(delimiters[0], window),
+            2 => memchr::memrchr2(delimiters[0], delimiters[1], window),
+            3 => memchr::memrchr3(delimiters[0], delimiters[1], delimiters[2], window),
+            0 => None,
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Find last occurrence of a multi-byte pattern in window using SIMD memmem.
+/// Returns the start position of the match.
+#[inline]
+fn find_last_pattern(window: &[u8], pattern: &[u8]) -> Option<usize> {
+    if pattern.is_empty() {
+        return None;
+    }
+    // Optimize single-byte patterns to use faster memrchr
+    if pattern.len() == 1 {
+        memchr::memrchr(pattern[0], window)
+    } else {
+        memmem::rfind(window, pattern)
+    }
+}
+
+/// Build lookup table for 4+ delimiters.
+#[inline]
+fn build_table(delimiters: &[u8]) -> Option<[bool; 256]> {
+    if delimiters.len() > 3 {
+        let mut t = [false; 256];
+        for &b in delimiters {
+            t[b as usize] = true;
+        }
+        Some(t)
+    } else {
+        None
+    }
+}
+
+/// Chunk text at delimiter boundaries.
+///
+/// Returns a builder that can be configured with `.size()` and `.delimiters()`,
+/// or used directly as an iterator with defaults (4KB chunks, `\n.?` delimiters).
+///
+/// - For 1-3 delimiters: uses SIMD-accelerated memchr
+/// - For 4+ delimiters: uses lookup table
+///
+/// # Example
+///
+/// ```
+/// use memchunk::chunk;
+///
+/// let text = b"First sentence. Second sentence. Third sentence.";
+///
+/// // With defaults
+/// let chunks: Vec<_> = chunk(text).collect();
+///
+/// // With custom size
+/// let chunks: Vec<_> = chunk(text).size(1024).collect();
+///
+/// // With custom delimiters
+/// let chunks: Vec<_> = chunk(text).delimiters(b"\n.?!").collect();
+///
+/// // With both
+/// let chunks: Vec<_> = chunk(text).size(8192).delimiters(b"\n").collect();
+/// ```
+pub fn chunk(text: &[u8]) -> Chunker<'_> {
+    Chunker::new(text)
+}
+
+/// Chunker splits text at delimiter boundaries.
+///
+/// Created via [`chunk()`], can be configured with `.size()` and `.delimiters()`.
+/// For multi-byte delimiters, use `.pattern()` instead.
+pub struct Chunker<'a> {
+    text: &'a [u8],
+    target_size: usize,
+    delimiters: &'a [u8],
+    pattern: Option<&'a [u8]>,
+    pos: usize,
+    table: Option<[bool; 256]>,
+    initialized: bool,
+    prefix_mode: bool,
+}
+
+impl<'a> Chunker<'a> {
+    fn new(text: &'a [u8]) -> Self {
+        Self {
+            text,
+            target_size: DEFAULT_TARGET_SIZE,
+            delimiters: DEFAULT_DELIMITERS,
+            pattern: None,
+            pos: 0,
+            table: None,
+            initialized: false,
+            prefix_mode: false,
+        }
+    }
+
+    /// Set the target chunk size in bytes.
+    pub fn size(mut self, size: usize) -> Self {
+        self.target_size = size;
+        self
+    }
+
+    /// Set single-byte delimiters to split on.
+    ///
+    /// Mutually exclusive with `pattern()` - last one set wins.
+    pub fn delimiters(mut self, delimiters: &'a [u8]) -> Self {
+        self.delimiters = delimiters;
+        self.pattern = None; // Clear pattern mode
+        self
+    }
+
+    /// Set a multi-byte pattern to split on.
+    ///
+    /// Use this for multi-byte delimiters like UTF-8 characters (e.g., metaspace `▁`).
+    /// Mutually exclusive with `delimiters()` - last one set wins.
+    ///
+    /// ```
+    /// use memchunk::chunk;
+    /// let metaspace = "▁".as_bytes(); // [0xE2, 0x96, 0x81]
+    /// let chunks: Vec<_> = chunk(b"Hello\xE2\x96\x81World\xE2\x96\x81Test")
+    ///     .size(15)
+    ///     .pattern(metaspace)
+    ///     .prefix()
+    ///     .collect();
+    /// assert_eq!(chunks[0], b"Hello");
+    /// assert_eq!(chunks[1], b"\xE2\x96\x81World\xE2\x96\x81Test");
+    /// ```
+    pub fn pattern(mut self, pattern: &'a [u8]) -> Self {
+        self.pattern = Some(pattern);
+        self.delimiters = &[]; // Clear single-byte delimiters
+        self
+    }
+
+    /// Put delimiter at the start of the next chunk (prefix mode).
+    ///
+    /// ```
+    /// use memchunk::chunk;
+    /// let chunks: Vec<_> = chunk(b"Hello World").size(8).delimiters(b" ").prefix().collect();
+    /// assert_eq!(chunks, vec![b"Hello".as_slice(), b" World".as_slice()]);
+    /// ```
+    pub fn prefix(mut self) -> Self {
+        self.prefix_mode = true;
+        self
+    }
+
+    /// Put delimiter at the end of the current chunk (suffix mode, default).
+    ///
+    /// ```
+    /// use memchunk::chunk;
+    /// let chunks: Vec<_> = chunk(b"Hello World").size(8).delimiters(b" ").suffix().collect();
+    /// assert_eq!(chunks, vec![b"Hello ".as_slice(), b"World".as_slice()]);
+    /// ```
+    pub fn suffix(mut self) -> Self {
+        self.prefix_mode = false;
+        self
+    }
+
+    /// Initialize lookup table if needed (called on first iteration).
+    fn init(&mut self) {
+        if !self.initialized {
+            self.table = build_table(self.delimiters);
+            self.initialized = true;
+        }
+    }
+}
+
+impl<'a> Iterator for Chunker<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.init();
+
+        if self.pos >= self.text.len() {
+            return None;
+        }
+
+        let remaining = self.text.len() - self.pos;
+
+        // Last chunk - return remainder
+        if remaining <= self.target_size {
+            let chunk = &self.text[self.pos..];
+            self.pos = self.text.len();
+            return Some(chunk);
+        }
+
+        let end = self.pos + self.target_size;
+        let window = &self.text[self.pos..end];
+
+        // Find split point - use pattern mode or delimiter mode
+        let split_at = if let Some(pattern) = self.pattern {
+            // Multi-byte pattern mode
+            match find_last_pattern(window, pattern) {
+                Some(pos) => {
+                    if self.prefix_mode {
+                        // Split BEFORE pattern (pattern goes to next chunk)
+                        if pos == 0 { end } else { self.pos + pos }
+                    } else {
+                        // Split AFTER pattern (pattern stays with current chunk)
+                        self.pos + pos + pattern.len()
+                    }
+                }
+                None => end, // No pattern found, hard split at target
+            }
+        } else {
+            // Single-byte delimiters mode
+            match find_last_delimiter(window, self.delimiters, self.table.as_ref()) {
+                Some(pos) => {
+                    if self.prefix_mode {
+                        // In prefix mode, delimiter goes to next chunk (split before it)
+                        // If delimiter is at pos 0, this would create empty chunk - use hard split instead
+                        if pos == 0 { end } else { self.pos + pos }
+                    } else {
+                        self.pos + pos + 1 // Delimiter stays with current chunk
+                    }
+                }
+                None => end, // No delimiter found, hard split at target
+            }
+        };
+
+        let chunk = &self.text[self.pos..split_at];
+        self.pos = split_at;
+        Some(chunk)
+    }
+}
+
+/// Owned chunker for FFI bindings (Python, WASM).
+///
+/// Unlike [`Chunker`], this owns its data and returns owned chunks.
+/// Use this when you need to cross FFI boundaries where lifetimes can't be tracked.
+///
+/// # Example
+///
+/// ```
+/// use memchunk::OwnedChunker;
+///
+/// let text = b"Hello world. How are you?".to_vec();
+/// let mut chunker = OwnedChunker::new(text)
+///     .size(15)
+///     .delimiters(b"\n.?".to_vec());
+///
+/// while let Some(chunk) = chunker.next_chunk() {
+///     println!("{:?}", chunk);
+/// }
+/// ```
+pub struct OwnedChunker {
+    text: Vec<u8>,
+    target_size: usize,
+    delimiters: Vec<u8>,
+    pattern: Option<Vec<u8>>,
+    pos: usize,
+    table: Option<[bool; 256]>,
+    initialized: bool,
+    prefix_mode: bool,
+}
+
+impl OwnedChunker {
+    /// Create a new owned chunker with the given text.
+    pub fn new(text: Vec<u8>) -> Self {
+        Self {
+            text,
+            target_size: DEFAULT_TARGET_SIZE,
+            delimiters: DEFAULT_DELIMITERS.to_vec(),
+            pattern: None,
+            pos: 0,
+            table: None,
+            initialized: false,
+            prefix_mode: false,
+        }
+    }
+
+    /// Set the target chunk size in bytes.
+    pub fn size(mut self, size: usize) -> Self {
+        self.target_size = size;
+        self
+    }
+
+    /// Set single-byte delimiters to split on.
+    ///
+    /// Mutually exclusive with `pattern()` - last one set wins.
+    pub fn delimiters(mut self, delimiters: Vec<u8>) -> Self {
+        self.delimiters = delimiters;
+        self.pattern = None; // Clear pattern mode
+        self
+    }
+
+    /// Set a multi-byte pattern to split on.
+    ///
+    /// Use this for multi-byte delimiters like UTF-8 characters (e.g., metaspace `▁`).
+    /// Mutually exclusive with `delimiters()` - last one set wins.
+    pub fn pattern(mut self, pattern: Vec<u8>) -> Self {
+        self.pattern = Some(pattern);
+        self.delimiters = vec![]; // Clear single-byte delimiters
+        self
+    }
+
+    /// Put delimiter at the start of the next chunk (prefix mode).
+    pub fn prefix(mut self) -> Self {
+        self.prefix_mode = true;
+        self
+    }
+
+    /// Put delimiter at the end of the current chunk (suffix mode, default).
+    pub fn suffix(mut self) -> Self {
+        self.prefix_mode = false;
+        self
+    }
+
+    /// Initialize lookup table if needed.
+    fn init(&mut self) {
+        if !self.initialized {
+            self.table = build_table(&self.delimiters);
+            self.initialized = true;
+        }
+    }
+
+    /// Get the next chunk, or None if exhausted.
+    pub fn next_chunk(&mut self) -> Option<Vec<u8>> {
+        self.init();
+
+        if self.pos >= self.text.len() {
+            return None;
+        }
+
+        let remaining = self.text.len() - self.pos;
+
+        // Last chunk - return remainder
+        if remaining <= self.target_size {
+            let chunk = self.text[self.pos..].to_vec();
+            self.pos = self.text.len();
+            return Some(chunk);
+        }
+
+        let end = self.pos + self.target_size;
+        let window = &self.text[self.pos..end];
+
+        // Find split point - use pattern mode or delimiter mode
+        let split_at = if let Some(ref pattern) = self.pattern {
+            // Multi-byte pattern mode
+            match find_last_pattern(window, pattern) {
+                Some(pos) => {
+                    if self.prefix_mode {
+                        // Split BEFORE pattern (pattern goes to next chunk)
+                        if pos == 0 { end } else { self.pos + pos }
+                    } else {
+                        // Split AFTER pattern (pattern stays with current chunk)
+                        self.pos + pos + pattern.len()
+                    }
+                }
+                None => end, // No pattern found, hard split at target
+            }
+        } else {
+            // Single-byte delimiters mode
+            match find_last_delimiter(window, &self.delimiters, self.table.as_ref()) {
+                Some(pos) => {
+                    if self.prefix_mode {
+                        // In prefix mode, delimiter goes to next chunk (split before it)
+                        // If delimiter is at pos 0, this would create empty chunk - use hard split instead
+                        if pos == 0 { end } else { self.pos + pos }
+                    } else {
+                        self.pos + pos + 1 // Delimiter stays with current chunk
+                    }
+                }
+                None => end, // No delimiter found, hard split at target
+            }
+        };
+
+        let chunk = self.text[self.pos..split_at].to_vec();
+        self.pos = split_at;
+        Some(chunk)
+    }
+
+    /// Reset the chunker to start from the beginning.
+    pub fn reset(&mut self) {
+        self.pos = 0;
+    }
+
+    /// Get a reference to the underlying text.
+    pub fn text(&self) -> &[u8] {
+        &self.text
+    }
+
+    /// Collect all chunk offsets as (start, end) pairs.
+    /// This is more efficient for FFI as it returns all offsets in one call.
+    pub fn collect_offsets(&mut self) -> Vec<(usize, usize)> {
+        self.init();
+
+        let mut offsets = Vec::new();
+        let mut pos = 0;
+
+        while pos < self.text.len() {
+            let remaining = self.text.len() - pos;
+
+            if remaining <= self.target_size {
+                offsets.push((pos, self.text.len()));
+                break;
+            }
+
+            let end = pos + self.target_size;
+            let window = &self.text[pos..end];
+
+            // Find split point - use pattern mode or delimiter mode
+            let split_at = if let Some(ref pattern) = self.pattern {
+                // Multi-byte pattern mode
+                match find_last_pattern(window, pattern) {
+                    Some(p) => {
+                        if self.prefix_mode {
+                            if p == 0 { end } else { pos + p }
+                        } else {
+                            pos + p + pattern.len()
+                        }
+                    }
+                    None => end,
+                }
+            } else {
+                // Single-byte delimiters mode
+                match find_last_delimiter(window, &self.delimiters, self.table.as_ref()) {
+                    Some(p) => {
+                        if self.prefix_mode {
+                            // In prefix mode, delimiter goes to next chunk (split before it)
+                            // If delimiter is at pos 0, this would create empty chunk - use hard split instead
+                            if p == 0 { end } else { pos + p }
+                        } else {
+                            pos + p + 1 // Delimiter stays with current chunk
+                        }
+                    }
+                    None => end, // No delimiter found, hard split at target
+                }
+            };
+
+            offsets.push((pos, split_at));
+            pos = split_at;
+        }
+
+        offsets
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_chunking() {
+        let text = b"Hello. World. Test.";
+        let chunks: Vec<_> = chunk(text).size(10).delimiters(b".").collect();
+        // "Hello." (6) + " World." (7) + " Test." (6) = 19
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0], b"Hello.");
+        assert_eq!(chunks[1], b" World.");
+        assert_eq!(chunks[2], b" Test.");
+    }
+
+    #[test]
+    fn test_newline_delimiter() {
+        let text = b"Line one\nLine two\nLine three";
+        let chunks: Vec<_> = chunk(text).size(15).delimiters(b"\n").collect();
+        assert_eq!(chunks[0], b"Line one\n");
+        assert_eq!(chunks[1], b"Line two\n");
+        assert_eq!(chunks[2], b"Line three");
+    }
+
+    #[test]
+    fn test_multiple_delimiters() {
+        let text = b"Hello? World. Yes!";
+        let chunks: Vec<_> = chunk(text).size(10).delimiters(b".?!").collect();
+        assert_eq!(chunks[0], b"Hello?");
+    }
+
+    #[test]
+    fn test_four_delimiters_uses_table() {
+        let text = b"A. B? C! D; E";
+        let chunks: Vec<_> = chunk(text).size(5).delimiters(b".?!;").collect();
+        assert!(chunks.len() >= 2);
+    }
+
+    #[test]
+    fn test_no_delimiter_hard_split() {
+        let text = b"abcdefghij";
+        let chunks: Vec<_> = chunk(text).size(5).delimiters(b".").collect();
+        assert_eq!(chunks[0], b"abcde");
+        assert_eq!(chunks[1], b"fghij");
+    }
+
+    #[test]
+    fn test_empty_text() {
+        let text = b"";
+        let chunks: Vec<_> = chunk(text).size(10).delimiters(b".").collect();
+        assert_eq!(chunks.len(), 0);
+    }
+
+    #[test]
+    fn test_text_smaller_than_target() {
+        let text = b"Small";
+        let chunks: Vec<_> = chunk(text).size(100).delimiters(b".").collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0], b"Small");
+    }
+
+    #[test]
+    fn test_total_bytes_preserved() {
+        let text = b"The quick brown fox jumps over the lazy dog. How vexingly quick!";
+        let chunks: Vec<_> = chunk(text).size(20).delimiters(b"\n.?!").collect();
+        let total: usize = chunks.iter().map(|c| c.len()).sum();
+        assert_eq!(total, text.len());
+    }
+
+    #[test]
+    fn test_defaults() {
+        let text = b"Hello world. This is a test.";
+        // Should work with just defaults
+        let chunks: Vec<_> = chunk(text).collect();
+        assert!(!chunks.is_empty());
+    }
+
+    #[test]
+    fn test_suffix_mode_default() {
+        let text = b"Hello World Test";
+        let chunks: Vec<_> = chunk(text).size(8).delimiters(b" ").collect();
+        assert_eq!(chunks[0], b"Hello ");
+        assert_eq!(chunks[1], b"World ");
+        assert_eq!(chunks[2], b"Test");
+    }
+
+    #[test]
+    fn test_prefix_mode() {
+        let text = b"Hello World Test";
+        let chunks: Vec<_> = chunk(text).size(8).delimiters(b" ").prefix().collect();
+        assert_eq!(chunks[0], b"Hello");
+        assert_eq!(chunks[1], b" World");
+        assert_eq!(chunks[2], b" Test");
+    }
+
+    #[test]
+    fn test_suffix_mode_explicit() {
+        let text = b"Hello World Test";
+        let chunks: Vec<_> = chunk(text).size(8).delimiters(b" ").suffix().collect();
+        assert_eq!(chunks[0], b"Hello ");
+        assert_eq!(chunks[1], b"World ");
+        assert_eq!(chunks[2], b"Test");
+    }
+
+    #[test]
+    fn test_prefix_preserves_total_bytes() {
+        let text = b"Hello World Test More Words Here";
+        let chunks: Vec<_> = chunk(text).size(10).delimiters(b" ").prefix().collect();
+        let total: usize = chunks.iter().map(|c| c.len()).sum();
+        assert_eq!(total, text.len());
+    }
+}
+
+#[test]
+fn test_consecutive_delimiters() {
+    // Test with consecutive newlines
+    let text = b"Hello\n\nWorld";
+
+    // Suffix mode (default)
+    let chunks: Vec<_> = chunk(text).size(8).delimiters(b"\n").collect();
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+
+    // Prefix mode
+    let chunks: Vec<_> = chunk(text).size(8).delimiters(b"\n").prefix().collect();
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+
+    // Smaller target to force more splits
+    let chunks: Vec<_> = chunk(text).size(4).delimiters(b"\n").prefix().collect();
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+}
+
+#[test]
+fn test_prefix_mode_delimiter_at_window_start() {
+    // This was causing an infinite loop before the fix.
+    // When window starts with delimiter in prefix mode, we now hard split at target size.
+    let text = b"Hello world";
+
+    // With size=5: "Hello" (no delim) → "Hello", then " worl" (delim at 0) → hard split
+    let chunks: Vec<_> = chunk(text).size(5).delimiters(b" ").prefix().collect();
+
+    // Should not hang and should preserve all bytes
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+
+    // Hard split behavior: ["Hello", " worl", "d"]
+    assert_eq!(chunks[0], b"Hello");
+    assert_eq!(chunks[1], b" worl");
+    assert_eq!(chunks[2], b"d");
+}
+
+#[test]
+fn test_prefix_mode_small_chunks() {
+    // More edge cases with small chunks
+    let text = b"a b c d e";
+
+    let chunks: Vec<_> = chunk(text).size(2).delimiters(b" ").prefix().collect();
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+
+    // Each chunk should be non-empty
+    for chunk in &chunks {
+        assert!(!chunk.is_empty(), "Found empty chunk!");
+    }
+}
+
+// ============ Multi-byte pattern tests ============
+
+#[test]
+fn test_pattern_metaspace_suffix() {
+    // Metaspace: ▁ = [0xE2, 0x96, 0x81]
+    let metaspace = "▁".as_bytes();
+    let text = "Hello▁World▁Test".as_bytes();
+
+    // Suffix mode (default): metaspace at end of chunk
+    let chunks: Vec<_> = chunk(text).size(15).pattern(metaspace).collect();
+
+    // First chunk: "Hello▁" (8 bytes)
+    assert_eq!(chunks[0], "Hello▁".as_bytes());
+    // Remaining: "World▁Test"
+    assert_eq!(chunks[1], "World▁Test".as_bytes());
+
+    // Total bytes preserved
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+}
+
+#[test]
+fn test_pattern_metaspace_prefix() {
+    let metaspace = "▁".as_bytes();
+    let text = "Hello▁World▁Test".as_bytes();
+
+    // Prefix mode: metaspace at start of next chunk
+    let chunks: Vec<_> = chunk(text).size(15).pattern(metaspace).prefix().collect();
+
+    // First chunk: "Hello" (5 bytes)
+    assert_eq!(chunks[0], "Hello".as_bytes());
+    // Second chunk: "▁World▁Test" (remaining)
+    assert_eq!(chunks[1], "▁World▁Test".as_bytes());
+
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+}
+
+#[test]
+fn test_pattern_preserves_bytes() {
+    let metaspace = "▁".as_bytes();
+    let text = "The▁quick▁brown▁fox▁jumps▁over▁the▁lazy▁dog".as_bytes();
+
+    // Suffix mode
+    let chunks: Vec<_> = chunk(text).size(20).pattern(metaspace).collect();
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+
+    // Prefix mode
+    let chunks: Vec<_> = chunk(text).size(20).pattern(metaspace).prefix().collect();
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+}
+
+#[test]
+fn test_pattern_no_match_hard_split() {
+    let pattern = b"XYZ";
+    let text = b"abcdefghijklmnop";
+
+    let chunks: Vec<_> = chunk(text).size(5).pattern(pattern).collect();
+    assert_eq!(chunks[0], b"abcde");
+    assert_eq!(chunks[1], b"fghij");
+    assert_eq!(chunks[2], b"klmno");
+    assert_eq!(chunks[3], b"p");
+}
+
+#[test]
+fn test_pattern_single_byte_optimization() {
+    // Single-byte pattern should work (uses memrchr optimization)
+    let text = b"Hello World Test";
+    let chunks: Vec<_> = chunk(text).size(8).pattern(b" ").prefix().collect();
+
+    assert_eq!(chunks[0], b"Hello");
+    assert_eq!(chunks[1], b" World");
+    assert_eq!(chunks[2], b" Test");
+}
+
+#[test]
+fn test_pattern_at_window_start_prefix() {
+    // Edge case: pattern at position 0 in prefix mode should hard split
+    let metaspace = "▁".as_bytes();
+    let text = "Hello▁▁World".as_bytes(); // Two consecutive metaspaces
+
+    let chunks: Vec<_> = chunk(text).size(10).pattern(metaspace).prefix().collect();
+
+    // Should not hang and should preserve all bytes
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+
+    // Each chunk should be non-empty
+    for c in &chunks {
+        assert!(!c.is_empty(), "Found empty chunk!");
+    }
+}
+
+#[test]
+fn test_pattern_empty() {
+    // Empty pattern should result in hard splits only
+    let text = b"Hello World Test";
+    let chunks: Vec<_> = chunk(text).size(5).pattern(b"").collect();
+
+    assert_eq!(chunks[0], b"Hello");
+    assert_eq!(chunks[1], b" Worl");
+    assert_eq!(chunks[2], b"d Tes");
+    assert_eq!(chunks[3], b"t");
+}
+
+#[test]
+fn test_owned_chunker_pattern() {
+    let metaspace = "▁".as_bytes();
+    let text = "Hello▁World▁Test".as_bytes().to_vec();
+
+    let mut chunker = OwnedChunker::new(text.clone())
+        .size(15)
+        .pattern(metaspace.to_vec())
+        .prefix();
+
+    let mut chunks = Vec::new();
+    while let Some(c) = chunker.next_chunk() {
+        chunks.push(c);
+    }
+
+    assert_eq!(chunks[0], "Hello".as_bytes());
+    assert_eq!(chunks[1], "▁World▁Test".as_bytes());
+
+    let total: usize = chunks.iter().map(|c| c.len()).sum();
+    assert_eq!(total, text.len());
+}
+
+#[test]
+fn test_owned_chunker_pattern_collect_offsets() {
+    let metaspace = "▁".as_bytes();
+    let text = "Hello▁World▁Test".as_bytes().to_vec();
+
+    let mut chunker = OwnedChunker::new(text.clone())
+        .size(15)
+        .pattern(metaspace.to_vec())
+        .prefix();
+
+    let offsets = chunker.collect_offsets();
+
+    // Verify offsets
+    assert_eq!(offsets[0], (0, 5)); // "Hello"
+    assert_eq!(offsets[1], (5, text.len())); // "▁World▁Test"
+
+    // Verify slicing produces correct chunks
+    assert_eq!(&text[offsets[0].0..offsets[0].1], "Hello".as_bytes());
+    assert_eq!(&text[offsets[1].0..offsets[1].1], "▁World▁Test".as_bytes());
+}
