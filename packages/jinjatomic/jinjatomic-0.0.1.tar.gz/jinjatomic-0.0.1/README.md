@@ -1,0 +1,289 @@
+# Jinjatomic
+
+A Datomic REST API client for Python, reliant on jinja2 templates for writing stringified [edn](https://github.com/edn-format/edn) (extensible data notation, a subset of Clojure syntax for data) and `requests` for HTTP.
+
+## Contents
+
+- [Installing](#installing)
+- [Usage](#usage)
+  - [Writing data](#writing-data)
+  - [Reading data](#reading-data)
+- [Setting up Datomic](#setting-up-datomic)
+
+## Installing
+
+`pip3 install jinjatomic`
+
+
+## Usage
+
+If you're unfamiliar with Clojure or Datomic, and for setting up Datomic REST API itself as well as the nuances of what different terms/phrases represent make sure to check https://lukal.neocities.org/parallel-experiments/datomic-rest-api-how-to-use-datomic-from-python-or-php-ruby-go (archived here https://archive.is/Gt5xf also copied verbatim into this README for longevity: [Setting up Datomic](#setting-up-datomic)).
+
+Jinjatomic exists in order to reduce complexity necessary to do even the simplest things with Datomic, which would be writing and reading data.
+
+### Writing data
+
+A *prerequisite* for writing data to Datomic is to set up a schema, skip to [On conformity - when do the errors stop?](#on-conformity---when-do-the-errors-stop) for info on comprehensive schema management or define your attributes one at a time via Jinjatomic's `transact` method (https://docs.datomic.com/schema/schema-reference.html#defining-schema).
+
+To write data use the `transact` method to send a transaction with datoms (https://docs.datomic.com/reference/rest.html#transact):
+
+```python
+from jinjatomic import Jinjatomic                                               
+                                                                                
+client = Jinjatomic.create(                                                     
+    host="http://127.1:3003", storage_alias="something", db_name="mydb"         
+)                                                                               
+                                                                                
+client.transact(                                                                
+    """[{:person/name "{{name}}" :person/email "{{email}}"}]""",                
+    name="John Doe",                                                            
+    email="johndoe@example.com",                                                
+)                                                                               
+```
+
+the response to which will be the newly inserted EAVTs corresponding to each attribute.
+
+### Reading data
+
+Once you've written data to your Datomic instance you should be able to query it via Jinjatomic's `query` method:
+
+```python
+from jinjatomic import Jinjatomic                                               
+                                                                                
+client = Jinjatomic.create(                                                     
+    host="http://127.1:3003", storage_alias="something", db_name="mydb"         
+)                                                                               
+                                                                                
+client.query(                                                                   
+    """[:find ?name :where [?e :person/name ?name] [?e :person/email "{{email}}\
+"]""",                                                                          
+    email="johndoe@example.com",                                                
+)  # => [["John Doe"]] 
+```
+
+
+## Setting up Datomic
+
+> NOTE: This entire section is copied verbatim from https://archive.is/Gt5xf https://lukal.neocities.org/parallel-experiments/datomic-rest-api-how-to-use-datomic-from-python-or-php-ruby-go and some parts might change over time.
+
+Article text follows:
+
+---
+
+# Datomic REST API - how to use Datomic from Python (or PHP, or Ruby, or Go)
+
+Believe it or not I have to write this up for myself, for future reference.
+
+Biggest complaint about Clojure is its DX(developer experience)/ecosystem, basically a lack of work towards making things noob friendly.
+
+I won't go into that matter itself but an unfortunate fact is - the same applies to Datomic.
+
+## What is Datomic?
+
+Datomic is a database system, it stores a record of immutable facts.
+
+So you say Alice and Bob are people and Alice works some job  in some company in some city and at that job she sells something to various buyers and wouldn't you know it one of the companies in some other city is a company which Bob works in and he's the one handling procurement.
+
+Thanks to Datomic and its variations/siblings you have a way to write a program which you can use to ask questions such as
+
+- how many units of X has Bob bought from Alice's company?
+- what are the most common products that Bob buys?
+- what are the most common products that Alice sells?
+- what are the most common products, per company, per city, that Alice sells?
+
+If you had facts about shipping routes as well you could do all kinds of crazy optimizations and whatnot. But I won't bore you with these, you get the picture.
+
+Of course you could accomplish the same with any other data store (things like Neo4j are best suited for graphs, even SQL can be of use) but if you're reading this blog post you're probably the type of person to understand how much of a pain it would be to programatically obtain such information with SQL.
+
+## How Datomic works in the wild
+
+Datomic works best when used in Clojure, of course, you'd add it as a project dependency and you've got a ready-to-use client. You can connect it to their Datomic Cloud or you can run your own transactor against your own database.
+
+Then you write Clojure code to manage the schema (not akin to SQL table schema, more like type definitions for various types of data you're working with (a :user/username is :db.type/string and so on)) and you write Clojure code to write/read the data.
+
+That's it, effectively.
+
+Internally Datomic is backend agnostic and exposes the same interface no matter if it's pointed at a Postgres database, an in-memory JDBC datastore (for development), or other SQL  /NoSQL datastores.
+
+More info [here](https://docs.datomic.com/operation/storage.html)
+
+## How Datomic (can) work with programming languages other than Clojure
+
+Datomic ships with a REST API. This means you can use it for  basically everything you'd want to use it for with Clojure, but with Python for example.
+
+You can [download Datomic from here](https://docs.datomic.com/setup/pro-setup.html#get-datomic) and start its REST server like so (example uses Postgres):
+
+```
+./bin/rest -p $SOME_PORT $DATOMIC_STORAGE_ALIAS 'datomic:sql://$PG_DB?jdbc:postgresql://$PG_HOST:$PG_PORT/$PG_DB?user=$PG_USR&password=$PG_PWD'
+```
+
+where - obviously - the environment variables are substituted with appropriate data. Two caveates with this info:
+
+> NOTE: Not yet sure if there's a way to avoid passing credentials in the connection query string
+
+and (edit)
+
+### Terminology
+
+~~will double check but I might have mistaken the places where `$DATOMIC_DB` and `$PG_DB` go (I gave them both the same name but they're two different things -_-), if it doesn't work for you and I haven't double checked it yet try switching them around until the connection gets properly established.~~
+
+> WARNING: Beware that there are THREE (not two) different terms in play here: $PG_DB, $DATOMIC_STORAGE_ALIAS, and $DATOMIC_DB
+
+The ENV VAR naming is self explanatory but just to be clear one is a Postgres DB (`$PG_DB`), another is a Datomic Storage Alias (`$DATOMIC_STORAGE_ALIAS`), and only then there is a `$DATOMIC_DB` to represent (one or many) actual Datomic database(s).
+
+I have edited the URI above to substitute `$DATOMIC_DB` with `$DATOMIC_STORAGE_ALIAS`.
+
+More on this in the [Uncomformitable silent failure](#uncomformitable-silent-failure) appendix.
+
+## Some errors
+
+You are likely to face an `unsupported protocol: sql` error at this point, and its cause would be that Clojure (read Java) underneath Datomic doesn't know what Postgres is nor that it's a SQL database.
+
+To teach your Datomic installation (read Java) about Postgres you will have to `cd $WHEREVER_YOU_EXTRACT_AKA_INSTALL_DATOMIC` then `mvn install` (more info [here](https://www.marcobehler.com/guides/mvn-clean-install-a-short-guide-to-maven))
+
+It might just so happen your `mvn install` run fails as well, something about PGP and keys and whatnot:
+
+## Some more errors
+
+If at this point you're facing a GPG key error of some kind it would mean you also have to tell your Datomic (read Java) installation about an identity.
+
+> Sidenote: This (I think) is part of the proprietary DNA that got carried over to the free version of Datomic where you sign your subscription with your secure keypair in order to be able to completely install Datomic.
+
+PGP and GPG are a rabbit hole on their own but the basic idea is you can install GPG [more info](https://en.wikipedia.org/wiki/Pretty_Good_Privacy) and run its key generator to create yourself a keypair and maven will then use your keys to install Datomic's core dependencies.
+
+## No more errors, or ...?
+
+It might seem odd at first and it was a major hurdle for me: the REST program will start succesfully and you can talk to it however you will keep getting errors.
+
+It won't be immediately obvious (and yes the [download page](https://docs.datomic.com/setup/pro-setup.html#run-a-transactor) has got a section mentioning it right below the download link) but you need to start the transactor as well.
+
+Think of the transactor as of a centralized Datomic gate, IIRC it's basically a chokepoint in order to guarantee ACID compliance.
+
+Run the transactor via
+
+```
+./bin/transactor config/samples/sql-transactor-template.properties
+```
+
+I think the sample originally targets the in-memory store, copy the dot-properties file somewhere and edit (comment out?) the lines pointing to the protocol, host, port, sql-url, sql-user, sql-password.
+
+## More errors
+
+<iframe src="https://microads.ftp.sh/api/ads/delivery-node/random?nonce=abc123"></iframe>
+
+After configuring and starting these services you will ... face more errors :) because Datomic doesn't autoconfigure the storage, it's up to you to do it.
+
+For Postgres there's a dot-sql script file in `./bin/sql/postgres-table.sql` which you can run directly against your Postgres instance. It will create a `datomic_kvs` table which Datomic operates in.
+
+After doing this you will finally be able to write facts to your Datomic datastore via Datomic HTTP REST API... but only about the ~~Database~~ storage-alias itself (writing :db/doc facts).
+
+> Sidenote, check out https://pypi.org/project/edn-format/ for json<->edn conversion with Python
+
+## Even more errors
+
+So Datomic won't let you persist facts/datums without declaring your fact schemas? What's a programmer to do?
+
+At this point we go into options & opinions territory but I'd concluded that for my project's needs, [conformity](https://github.com/qtrfeast/conformity) is more than enough.
+
+I'd set up an initializer type of microservice (in Clojure) which my main Python program depends on, and the idea is that on every start/restart the sidecar will start and transform the schema to the desired structure.
+
+## Creating the actual Datomic DB
+
+So creating the **Datomic DB**, not the Postgres DB, not the Datomic storage-alias, but an actual **Datomic DB**.
+
+If you choose to use Conformity this step is optional/unnecessary as Conformity will handle it however this is important to mention because this information might help understand why some other things work the way they do.
+
+You will need this section if you both use the API to create the Datomic DB then use the same Datomic DB in conformity as well as in your own application.
+
+In the official docs https://docs.datomic.com/reference/rest.html#create-database you will find this step for database creation. Yes creating (one or many) Datomic DBs is an API operation meant for API consumers because all the server-side configuration steps you have done have been not about your application's Datomic DB but about configuring Datomic itself.
+
+The `$DATOMIC_STORAGE_ALIAS` variable albeit used from your application is not intended to be interacted with. All it represents is a nickname for Datomic itself to be able to differentiate between potentially multiple different storage backends it is configured with.
+
+When you use the API to create a Datomic DB **you will get back something unexpected**: the database name you passed in - lets say "baz" for example - appended to the storage-alias.
+
+So if you have
+
+1. a Postgres DB called "foo" (`PG_DB=foo`)
+2. a Datomic storage-alias called "bar" (`DATOMIC_STORAGE_ALIAS=bar`)
+3. multiple Datomic DBs called
+	- baz
+	- qux
+	- quux
+	- corge
+	
+you **WILL** end up with Datomic DBs called
+- barbaz
+- barqux
+- barquux
+- barcorge
+
+So basically sometimes you will have to concatenate `$DATOMIC_STORAGE_ALIAS$DATOMIC_DB` in order to target the actual Datomic DB.
+
+The REST API just does that and it's a thing and I understand why it does that however I did ***not*** expect it.
+
+## On conformity - when do the errors stop?
+
+Since this is an article inteded for people who are generally not used to the impenetrable Clojure ecosystem and adopting a schema in order to do transactions is actually necessary, we will proceed into Clojure-only territory - that is - managing the Datomic schema with Conformity.
+
+In the project's README you will find an example of how it is supposed to be used and while last commit was in 2020. it's still valid, Clojure ecosystem is as stable as it is impenetrable (case in point: while researching this section I'd noticed that clojure.org has literally 0 mentions of either the word "install" or "download").
+It does not, however, explain how exactly are we supposed to run it against a system running on Postgres - the examples are all about the in-memory Datomic store.
+
+To run conformity in a Clojure project you will need the following:
+
+1. https://clojure.org/guides/install_clojure
+2. a directory for your Datomic schema project - best to put this into a separate repository and touch only when necessary (or use [this template  I made](https://github.com/lukal-x/datomic-schema-postgres/) and skip the following points)
+3. cd into your schema dir/repo
+4. `touch deps.edn`
+5. add the following to `deps.edn`
+```
+{:paths ["src" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.3"}
+        io.rkn/conformity {:mvn/version "0.5.4"}
+        org.postgresql/postgresql {:mvn/version "42.7.7"}
+        com.datomic/peer {:mvn/version "1.0.7469"}}}
+```
+
+6. `mkdir resources && touch resources/myschema.edn`
+7. specify your schema in `resources/myschema.edn` (more info [here](https://docs.datomic.com/schema/schema-reference.html))
+8. then `mkdir src/myproj && touch src/myproj/main.clj`
+9. add the exact same clojure code as in examples from [conformity's README](https://github.com/qtrfeast/conformity?tab=readme-ov-file#srcmy_projectsomethingclj) but change the connection uri to `datomic:sql://myprojdb?jdbc:postgresql://localhost:5432/myprojpgdb?user=myprojuser&password=myprojpwd`
+
+then in repo root run
+
+`clj -M -m myproj.main`
+
+and clojure will download conformity, postgresql driver, and a datomic peer (provides the `datomic.api` that you see being imported in the example (plus conformity uses it internally I think)). 
+
+Conformity should run without error, print out the new state of Datomic after ensuring the schema, and hang. ~~I force stopped the command I ran and called it a day.~~ Addendum a month later - Conformity can be stopped by doing a
+
+```clojure
+(d/shutdown true)
+```
+
+you can see this in the template [here](https://github.com/)
+
+## Uncomformitable silent failure
+
+Uncomformitable. Heh. Get it?
+
+Anyway, following all of these steps and completing them successfully you might say to yourself "OK now with all these steps completed I'm finally ready do write to and query my Datomic instance" but that would actually not be the case if your conformity "migration" ran against the wrong location.
+
+It's not that big of a deal but it is an obstacle - if you miss the fact in the newly added section about [creating a Datomic DB by hand (via API) instead of letting Conformity create it](#creating-the-actual-datomic-db) you could end up running Conformity against a Datomic DB that doesn't actually exist. 
+
+The schema/attr defining trasaction somehow goes through and you get back the fact that the definitions were persisted, you can run it two five twenty more times, invoke `/c/ensure-conforms` and it will return a `true` and invoke `c/has-attribute?` on any the same schema and it will also return a `true`.
+
+But your actual application will try to insert something and get back errors about your attributes not existing:
+
+```
+:db.error/not-an-entity Unable to resolve entity: :myprojthing/title
+```
+
+> NOTE: You won't even see this error in either the ./bin/transactor nor ./bin/rest programs logs, you have to tail ./log/* by hand in order to even see the error.
+
+Because conformity is talking about database A and your application is talking about database B. And since in Datomic everything is just a Datom and conformity won't stop you can define schemas and attributes for databases that don't actually exist. Combine that fact with unexpected names of your newly created databases and you have yourself an intriguing but not very fun debugging session :)
+
+## Et voila
+
+With that said your application can now freely use Datomic DBs. Have fun!
+
+I consider this document important and to try and preserve it I'd put it in archives: https://archive.is/Gt5xf & https://web.archive.org/web/20251221090848/https://lukal.neocities.org/parallel-experiments/datomic-rest-api-how-to-use-datomic-from-python-or-php-ruby-go
