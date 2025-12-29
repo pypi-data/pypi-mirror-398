@@ -1,0 +1,154 @@
+[project]
+name = "echoes-mcp-server"
+version = "5.5.1"
+description = "MCP server for Echoes storytelling platform with Narrative Knowledge Graph"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Zweer", email = "n.olivieriachille@gmail.com"}
+]
+keywords = ["echoes", "mcp", "storytelling", "knowledge-graph", "rag", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "click>=8.1",
+    "mcp>=1.0",
+    "lancedb>=0.17",
+    "llama-index>=0.12",
+    "llama-index-embeddings-huggingface>=0.4",
+    "sentence-transformers>=3.0",
+    "spacy>=3.7",
+    "pydantic>=2.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    "torch>=2.0",
+    "google-genai>=1.56.0",
+]
+
+[tool.uv]
+# Use CPU-only PyTorch (no CUDA, ~2GB smaller)
+extra-index-url = ["https://download.pytorch.org/whl/cpu"]
+index-strategy = "unsafe-best-match"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "python-semantic-release>=9.0",
+]
+
+[project.scripts]
+echoes = "echoes_mcp.cli:cli"
+echoes-mcp-server = "echoes_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/echoes-io/mcp-server"
+Repository = "https://github.com/echoes-io/mcp-server"
+Issues = "https://github.com/echoes-io/mcp-server/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/echoes_mcp"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "W",      # pycodestyle warnings
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["echoes_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/echoes_mcp"]
+branch = true
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "lancedb.*",
+    "llama_index.*",
+    "spacy.*",
+    "mcp.*",
+]
+ignore_missing_imports = true
+
+[tool.semantic_release]
+version_variables = ["src/echoes_mcp/__init__.py:__version__"]
+version_toml = ["pyproject.toml:project.version"]
+build_command = ""  # Build handled by workflow
+commit_message = "chore(release): {version}"
+
+[tool.semantic_release.remote]
+type = "github"
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = false
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
