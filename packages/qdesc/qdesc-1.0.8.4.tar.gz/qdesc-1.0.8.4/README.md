@@ -1,0 +1,244 @@
+# <font face = 'Impact' color = '#274472' >  qdesc : Quick and Easy Descriptive Analysis </font>
+![QDesc](https://raw.githubusercontent.com/Dcroix/qdesc/refs/heads/main/QDesc%20logo.png)
+
+![Package Version](https://img.shields.io/badge/version-1.0.8.3-pink)
+![Downloads](https://pepy.tech/badge/qdesc)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+[![DOI](https://zenodo.org/badge/990715642.svg)](https://doi.org/10.5281/zenodo.15834554)
+![License: GPL v3.0](https://img.shields.io/badge/license-GPL%20v3.0-blue)
+
+## <font face = 'Calibri' color = '#274472' >  Installation </font>
+```sh
+pip install qdesc
+```
+
+## <font face = 'Calibri' color = '#274472' >  What's New? </font>
+QDesc introduces three new visualization functions designed to make column and bar charts more intentional and expressive.
+
+### <font face = 'Calibri' color = '#274472' >  Purpose-Driven Bar, Column, and Line Visualizations </font>
+These new tools allow you to emphasize what matters most by selectively highlighting either the top or bottom values in your data. You control how many values are emphasized, making it easy to tailor each chart to your reporting needs whether you are spotlighting top performers or calling attention to areas that need improvement.
+
+
+### <font face = 'Calibri' color = '#274472' >  Custom Color Palettes</font>
+To complement this focused storytelling, the new functions support beautiful, customizable color palettes. Choose from curated palettes to match your brand, publication style, or personal preference without sacrificing clarity or visual impact. Currently supports: teal, dark_blue, rose, earth, mono, dawn, and stern color palette. 
+
+### <font face = 'Calibri' color = '#274472' >  Clear Insights, Thoughtful Design</font>
+Together, these enhancements make it easier to create charts that are not just visually appealing but also purposeful in guiding the audience attention exactly where it belongs.
+
+## <font face = 'Calibri' color = '#274472' >  The New purvis_col function </font>
+```python
+import pandas as pd
+import qdesc as qd
+
+df = pd.DataFrame({
+    'Category': ['Laptops', 'Desktops', 'Tablets', 'Smart_Phones', 'Television'],
+    'Value': [23, 88, 55, 67, 34]
+})
+
+qd.purvis_col(df, 
+           title = "Gadgets Sold for Current Year",
+           category_col='Category',
+           value_col='Value',
+           xlabel= "Types of Gadgets", 
+           ylabel = "Items Sold",
+           mode = "top",
+           top_n = 3, 
+           palette = "dark_blue")
+```
+![purvis_col](https://raw.githubusercontent.com/Dcroix/qdesc/refs/heads/main/dark_blue_purvis_col.png)
+
+
+## <font face = 'Calibri' color = '#274472' >  The New purvis_bar function </font>
+```python
+import pandas as pd
+import qdesc as qd
+
+df = pd.DataFrame({
+    'Category': ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf'],
+    'Value':    [34,78,22,91,45,62,55]
+})
+
+qd.purvis_bar(df,
+           title = "Unit Tardiness during Annual Operations", 
+           category_col = "Category",
+           value_col = "Value",
+           xlabel= "Tardiness", 
+           top_n = 2, 
+           mode = "top",
+           palette = "rose")
+```
+![purvis_col](https://raw.githubusercontent.com/Dcroix/qdesc/refs/heads/main/rose_purvis_bar.png)
+
+## <font face = 'Calibri' color = '#274472' >  The New purvis_line function </font>
+```python
+import pandas as pd
+import qdesc as qd
+
+# Sample data
+df = pd.DataFrame({
+    'Period': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
+    'Sales': [150, 200, 180, 220, 300, 280, 350, 400]
+})
+
+annotations_list = [
+    {"x": "Aug", "text": "Peak Performance"},
+    {"x": "Jan", "text": "Progam Launch"}
+]
+
+purvis_line(
+    df,
+    x_col="Period",
+    y_col="Sales",
+    title="Monthly Revenue",
+    xlabel="Month",
+    ylabel="Revenue ($)",
+    palette="stern",
+    mode="both",
+    top_n= 1,
+    marker_shape='o',
+    line_width=2.5,
+    annotations = annotations_list
+)
+```
+![purvis_line](https://raw.githubusercontent.com/Dcroix/qdesc/refs/heads/main/Stern_Line.png)
+
+## <font face = 'Calibri' color = '#274472' >  Overview </font>
+Qdesc is a package for quick and easy descriptive analysis. It is a powerful Python package designed for quick and easy descriptive analysis of quantitative data. It provides essential statistics like mean and standard deviation for normal distribution and median and raw/norm median absolute deviation for skewed data. With built-in functions for frequency distributions, users can effortlessly analyze categorical variables and export results to a spreadsheet. The package also includes a normality check dashboard, featuring Anderson-Darling statistics and visualizations like histograms and Q-Q plots. Whether you're handling structured datasets or exploring statistical trends, qdesc streamlines the process with efficiency and clarity.
+
+## <font face = 'Calibri' color = '#274472' >  Creating a sample dataframe</font>
+```python
+import pandas as pd
+import numpy as np
+
+# Create sample data
+np.random.seed(42)  # 🔒 Set the seed for reproducibility
+
+data = {
+    "Age": np.random.randint(18, 60, size=570),  # Continuous variable
+    "Salary": np.random.randint(30000, 120000, size=570),  # Continuous variable
+    "Department": np.random.choice(["HR", "Finance", "IT", "Marketing"], size=570),  # Categorical variable
+    "Gender": np.random.choice(["Male", "Female"], size=570),  # Categorical variable
+}
+
+# Create DataFrame
+df = pd.DataFrame(data)
+```
+## <font face = 'Calibri' color = '#274472' >  qd.desc Function</font>
+The function qd.desc(df) generates the following statistics:
+* count - number of observations
+* mean - measure of central tendency for normal distribution	
+* std - measure of spread for normal distribution
+* median - measure of central tendency for skewed distributions or those with outliers
+* MAD_raw - measure of spread for skewed distributions or those with outliers; this is manual Median Absolute Deviation (MAD) which is more robust when dealing with non-normal distributions.
+* MAD_Norm -MAD_raw multiplied by 1.4826 to make it comparable to the standard deviation for normally distributed data.
+* min - lowest observed value
+* max - highest observed value	
+* AD_stat	- Anderson - Darling Statistic
+* 5% crit_value - critical value for a 5% Significance Level	
+* 1% crit_value - critical value for a 1% Significance Level
+
+```python
+import qdesc as qd
+qd.desc(df)
+
+| Variable | Count | Mean     | Std Dev   | Median   | MAD Raw  | MAD Norm  | Min      | Max       | AD Stat | 5% Crit Value |
+|----------|-------|----------|-----------|----------|----------|-----------|----------|-----------|---------|----------------|
+| Age      | 570.0 | 39.23    | 12.15     | 40.0     | 10.0     | 14.83     | 18.0     | 59.0      | 7.11    | 0.78           |
+| Salary   | 570.0 | 72419.00 | 26364.59  | 71333.5  | 22751.5  | 33731.37  | 30055.0  | 119339.0  | 7.49    | 0.78           |
+```
+
+## <font face = 'Calibri' color = '#274472' >  qd.grp_desc Function</font>
+This function, qd.grp_desc(df, "Continuous Var", "Group Var") creates a table for descriptive statistics similar to the qd.desc function but has the measures
+presented for each level of the grouping variable. It allows one to check whether these measures, for each group, are approximately normal or not. Combining it
+with qd.normcheck_dashboard allows one to decide on the appropriate measure of central tendency and spread.
+
+```python
+import qdesc as qd
+qd.grp_desc(df, "Salary", "Gender")
+
+| Variable       | Count | Mean      | Std Dev   | Median   | MAD Raw  | MAD Norm  | Min    | Max      | AD Stat | 5% Crit Value  |
+|----------------|-------|-----------|-----------|----------|----------|-----------|--------|----------|---------|----------------|
+| Gender: Female | 292   | 73144.74  | 26180.74  | 72496.5  | 22883.5  | 33927.08  | 30055  | 118869   | 3.69    | 0.78           |
+| Gender: Male   | 278   | 71656.72  | 26582.16  | 69290.0  | 21591.0  | 32010.82  | 30077  | 119339   | 4.01    | 0.78           |
+```
+
+## <font face = 'Calibri' color = '#274472' >  qd.freqdist Function</font>
+Run the function qd.freqdist(df, "Variable Name") to easily create a frequency distribution for your chosen categorical variable with the following:
+* Variable Levels (i.e., for Sex Variable: Male and Female)
+* Counts - the number of observations
+* Percentage - percentage of observations from total.
+
+```python
+import qdesc as qd
+qd.freqdist(df, "Department")
+
+| Variable              | Count | Percentage |
+|-----------------------|-------|------------|
+| Department: HR        | 154   | 27.02%     |
+| Department: Finance   | 145   | 25.44%     |
+| Department: IT        | 144   | 25.26%     |
+| Department: Marketing | 127   | 22.28%     |
+
+```
+
+## <font face = 'Calibri' color = '#274472' >  qd.freqdist_a Function</font>
+Run the function qd.freqdist_a(df, ascending = FALSE) to easily create frequency distribution tables, arranged in descending manner (default) or ascending (TRUE), for all the categorical variables in your data frame. The resulting table will include columns such as:
+* Variable levels (i.e., for Satisfaction: Very Low, Low, Moderate, High, Very High) 
+* Counts - the number of observations
+* Percentage - percentage of observations from total.
+
+```python
+import qdesc as qd
+qd.freqdist_a(df)
+
+| Variable              | Count | Percentage |
+|-----------------------|-------|------------|
+| Department: HR        | 154   | 27.02%     |
+| Department: Finance   | 145   | 25.44%     |
+| Department: IT        | 144   | 25.26%     |
+| Department: Marketing | 127   | 22.28%     |
+| Gender: Female        | 292   | 51.23%     |
+| Gender: Male          | 278   | 48.77%     |
+
+```
+
+## <font face = 'Calibri' color = '#274472' >  qd.freqdist_to_excel Function</font>
+Run the function qd.freqdist_to_excel(df, "Filename.xlsx", ascending = FALSE ) to easily create frequency distribution tables, arranged in descending manner (default) or ascending (TRUE), for all  the categorical variables in your data frame and SAVED as separate sheets in the .xlsx File. The resulting table will include columns such as:
+* Variable levels (i.e., for Satisfaction: Very Low, Low, Moderate, High, Very High) 
+* Counts - the number of observations
+* Percentage - percentage of observations from total.
+
+```python
+import qdesc as qd
+qd.freqdist_to_excel(df, "Results.xlsx")
+
+Frequency distributions written to Results.xlsx
+```
+
+## <font face = 'Calibri' color = '#274472' >  qd.normcheck_dashboard Function</font>
+Run the function qd.normcheck_dashboard(df) to efficiently check each numeric variable for normality of its distribution. It will compute the Anderson-Darling statistic and create visualizations (i.e., qq-plot, histogram, and boxplots) for checking whether the distribution is approximately normal.
+
+```python
+import qdesc as qd
+qd.normcheck_dashboard(df)
+```
+![Descriptive Statistics](https://raw.githubusercontent.com/Dcroix/qdesc/refs/heads/main/qd.normcheck_dashboard_new.png)
+
+
+## <font face = 'Calibri' color = '#3D5B59' >  License</font>
+This project is licensed under the GPL-3 License. See the LICENSE file for more details.
+
+## <font face = 'Calibri' color = '#3D5B59' >  Acknowledgements</font>
+Acknowledgement of the libraries used by this package...
+
+### <font face = 'Calibri' color = '#3D5B59' >  Pandas</font>
+Pandas is distributed under the BSD 3-Clause License, pandas is developed by Pandas contributors. Copyright (c) 2008-2024, the pandas development team All rights reserved.
+### <font face = 'Calibri' color = '#3D5B59' >  Numpy</font>
+NumPy is distributed under the BSD 3-Clause License, numpy is developed by NumPy contributors. Copyright (c) 2005-2024, NumPy Developers. All rights reserved.
+### <font face = 'Calibri' color = '#3D5B59' >  SciPy</font>
+SciPy is distributed under the BSD License, scipy is developed by SciPy contributors. Copyright (c) 2001-2024, SciPy Developers. All rights reserved.
+
+
+
+
+
