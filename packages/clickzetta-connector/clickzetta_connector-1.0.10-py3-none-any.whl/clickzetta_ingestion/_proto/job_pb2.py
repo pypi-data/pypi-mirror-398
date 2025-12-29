@@ -1,0 +1,165 @@
+"""Generated protocol buffer code."""
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import descriptor_pool as _descriptor_pool
+from google.protobuf import runtime_version as _runtime_version
+from google.protobuf import symbol_database as _symbol_database
+from google.protobuf.internal import builder as _builder
+_runtime_version.ValidateProtobufRuntimeVersion(_runtime_version.Domain.PUBLIC, 5, 28, 1, '', 'job.proto')
+_sym_db = _symbol_database.Default()
+from . import statistics_pb2 as statistics__pb2
+from . import operator_pb2 as operator__pb2
+from . import ddl_pb2 as ddl__pb2
+from . import time_range_pb2 as time__range__pb2
+from . import meter_pb2 as meter__pb2
+from . import runtime_run_span_stats_pb2 as runtime__run__span__stats__pb2
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\tjob.proto\x12\x08cz.proto\x1a\x10statistics.proto\x1a\x0eoperator.proto\x1a\tddl.proto\x1a\x10time_range.proto\x1a\x0bmeter.proto\x1a\x1cruntime_run_span_stats.proto"\x95\x02\n\x03Job\x12-\n\x08settings\x18\x01 \x03(\x0b2\x1b.cz.proto.Job.SettingsEntry\x124\n\nstatements\x18\x02 \x03(\x0b2 .cz.proto.access.AccessStatement\x12\x1a\n\x03dml\x18\x03 \x01(\x0b2\r.cz.proto.DML\x12%\n\x07user_id\x18\x04 \x01(\x0b2\x14.cz.proto.Job.UserId\x1a/\n\rSettingsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x028\x01\x1a5\n\x06UserId\x12\x13\n\x0binstance_id\x18\x01 \x01(\x03\x12\n\n\x02ns\x18\x02 \x03(\t\x12\n\n\x02id\x18\x03 \x01(\x03"\xa8\x01\n\x03DML\x12\x1f\n\x06stages\x18\x01 \x03(\x0b2\x0f.cz.proto.Stage\x12+\n\nboundaries\x18\x02 \x03(\x0b2\x17.cz.proto.RangeBoundary\x12\x1d\n\x05pipes\x18\x03 \x03(\x0b2\x0e.cz.proto.Pipe\x12\x12\n\nplan_index\x18\x04 \x01(\x05\x12 \n\x06traits\x18\x05 \x03(\x0b2\x10.cz.proto.Traits"\xa4\x01\n\x05Stage\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tbatchSize\x18\x02 \x01(\x04\x12%\n\toperators\x18\x03 \x03(\x0b2\x12.cz.proto.Operator\x12\x0b\n\x03dop\x18\x04 \x01(\x04\x12\x10\n\x08cpu_core\x18\x05 \x01(\x04\x12\x11\n\tmemory_mb\x18\x06 \x01(\x04\x12\x14\n\x0cenforced_dop\x18\x07 \x01(\x08\x12\r\n\x05index\x18\x08 \x01(\x04"\x86\x02\n\x04Pipe\x12\x0c\n\x04from\x18\x01 \x01(\t\x12\x0f\n\x07from_op\x18\x02 \x01(\t\x12\n\n\x02to\x18\x03 \x01(\t\x12\r\n\x05to_op\x18\x04 \x01(\t\x12+\n\x0cshuffle_type\x18\n \x01(\x0b2\x15.cz.proto.ShuffleType\x12\x16\n\x0estart_fraction\x18\x0b \x01(\x04\x12\x12\n\nmerge_sort\x18\x0c \x01(\x08\x12\x11\n\tcan_split\x18\x14 \x01(\x08\x12\x11\n\tcan_merge\x18\x15 \x01(\x08\x12\x10\n\x08can_copy\x18\x16 \x01(\x08\x12\x1d\n\x15re_optimize_threshold\x18\x17 \x01(\x04\x12\x14\n\x0cvirtual_edge\x18\x18 \x01(\x08"\x8e\x02\n\x12RuntimeDriverStats\x12\n\n\x02id\x18\x01 \x01(\t\x12*\n\rtime_range_us\x18\x02 \x01(\x0b2\x13.cz.proto.TimeRange\x120\n\trun_stats\x18\x03 \x03(\x0b2\x1d.cz.proto.RuntimeRunSpanStats\x12\x13\n\x0bpipeline_id\x18\x04 \x01(\x04\x12\x17\n\x0fdriver_sequence\x18\x05 \x01(\x04\x12\x1a\n\x12block_timing_nanos\x18\x06 \x01(\x04\x12\x1a\n\x12queue_timing_nanos\x18\x07 \x01(\x04\x12\x13\n\x0byield_count\x18\x08 \x01(\x04\x12\x13\n\x0bblock_count\x18\t \x01(\x04"/\n\x14RuntimePipelineStats\x12\n\n\x02id\x18\x01 \x01(\x04\x12\x0b\n\x03dop\x18\x02 \x01(\x04"\xa0\x02\n\x0bWorkerStats\x12 \n\x06timing\x18\x01 \x01(\x0b2\x10.cz.proto.Timing\x12/\n\x0eoperator_stats\x18\x02 \x03(\x0b2\x17.cz.proto.OperatorStats\x12*\n\rtime_range_ms\x18\x03 \x01(\x0b2\x13.cz.proto.TimeRange\x12\x13\n\x0bpeak_memory\x18\x04 \x01(\x04\x122\n\x0cdriver_stats\x18\x05 \x03(\x0b2\x1c.cz.proto.RuntimeDriverStats\x12\x11\n\trunner_id\x18\x06 \x01(\x04\x126\n\x0epipeline_stats\x18\x07 \x03(\x0b2\x1e.cz.proto.RuntimePipelineStats"\x83\x01\n\x0bLogicalPlan\x12%\n\toperators\x18\x01 \x03(\x0b2\x12.cz.proto.Operator\x12+\n\nboundaries\x18\x05 \x03(\x0b2\x17.cz.proto.RangeBoundary\x12 \n\x06traits\x18\x06 \x03(\x0b2\x10.cz.proto.Traits"\x90\x01\n\x08WorkerId\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x12\n\nsub_job_id\x18\x02 \x01(\x04\x12\x10\n\x08stage_id\x18\x03 \x01(\t\x12\n\n\x02id\x18\x04 \x01(\x04\x12\x11\n\tbackup_id\x18\x05 \x01(\x04\x12\x10\n\x08retry_id\x18\x06 \x01(\x04\x12\r\n\x05ta_id\x18\x07 \x01(\x04\x12\x0e\n\x06dag_id\x18\x08 \x01(\t"b\n\x0cWorkerDetail\x12+\n\x0cworker_stats\x18\x01 \x01(\x0b2\x15.cz.proto.WorkerStats\x12%\n\tworker_id\x18\x02 \x01(\x0b2\x12.cz.proto.WorkerId"^\n\x0bDetailState"O\n\x05State\x12\x07\n\x03NEW\x10\x00\x12\x0b\n\x07RUNNING\x10\x01\x12\r\n\tSUCCEEDED\x10\x02\x12\n\n\x06FAILED\x10\x03\x12\n\n\x06KILLED\x10\x04\x12\t\n\x05ERROR\x10\x05"\x8f\x03\n\x13TaskAttemptProgress\x12-\n\x10time_on_executor\x18\x01 \x01(\x0b2\x13.cz.proto.TimeRange\x12+\n\x0etime_on_master\x18\x02 \x01(\x0b2\x13.cz.proto.TimeRange\x12\x18\n\x10executor_address\x18\x03 \x01(\t\x127\n\x05stats\x18\x04 \x03(\x0b2(.cz.proto.TaskAttemptProgress.StatsEntry\x12\x12\n\ndiagnostic\x18\x05 \x01(\t\x12*\n\x05state\x18\x06 \x01(\x0e2\x1b.cz.proto.DetailState.State\x12\x12\n\nattempt_id\x18\x07 \x01(\t\x12\x13\n\x0binited_time\x18\x08 \x01(\x03\x122\n\x15time_on_wait_resource\x18\t \x01(\x0b2\x13.cz.proto.TimeRange\x1a,\n\nStatsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c:\x028\x01"\xe7\x01\n\x0cTaskProgress\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nstart_time\x18\x02 \x01(\x04\x12\x15\n\rschedule_time\x18\x03 \x01(\x04\x12\x12\n\ndiagnostic\x18\x04 \x01(\t\x12/\n\x08attempts\x18\x05 \x03(\x0b2\x1d.cz.proto.TaskAttemptProgress\x12*\n\x05state\x18\x06 \x01(\x0e2\x1b.cz.proto.DetailState.State\x12\x13\n\x0bfinish_time\x18\x07 \x01(\x04\x12\x15\n\rattempt_count\x18\x08 \x01(\r"\xef\x02\n\rStageProgress\x12\x0e\n\x06failed\x18\x01 \x01(\x04\x12\x0f\n\x07succeed\x18\x02 \x01(\x04\x12\x0f\n\x07running\x18\x03 \x01(\x04\x12\r\n\x05total\x18\x04 \x01(\x04\x12@\n\rtask_progress\x18\x05 \x03(\x0b2).cz.proto.StageProgress.TaskProgressEntry\x12\x11\n\tinit_time\x18\x06 \x01(\x04\x12\x12\n\nstart_time\x18\x07 \x01(\x04\x12\x13\n\x0bfinish_time\x18\x08 \x01(\x04\x12*\n\x05state\x18\t \x01(\x0e2\x1b.cz.proto.DetailState.State\x12\x12\n\ndiagnostic\x18\n \x01(\t\x12\x12\n\ndeprecated\x18\x0b \x01(\x08\x1aK\n\x11TaskProgressEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12%\n\x05value\x18\x02 \x01(\x0b2\x16.cz.proto.TaskProgress:\x028\x01"`\n\x13ContinuousBatchInfo\x12\x13\n\x0bsnapshot_id\x18\x01 \x01(\t\x12\x13\n\x0bbatch_index\x18\x02 \x01(\x03\x12\x12\n\nwall_nanos\x18\x03 \x01(\x03\x12\x0b\n\x03lag\x18\x04 \x01(\x03"\x9d\x01\n\x13ContinuousBatchStat\x12\x12\n\nstart_time\x18\x01 \x01(\x03\x12\x13\n\x0bfinish_time\x18\x02 \x01(\x03\x12\x12\n\ninput_rows\x18\x03 \x01(\x03\x12\x13\n\x0boutput_rows\x18\x04 \x01(\x03\x12\x0b\n\x03lag\x18\x05 \x01(\x03\x12\x12\n\nwall_nanos\x18\x06 \x01(\x03\x12\x13\n\x0bbatch_index\x18\x07 \x01(\x03"\xa6\x03\n\x12ContinuousProgress\x12\x13\n\x0btotal_count\x18\x01 \x01(\x03\x12\x17\n\x0fsucceeded_count\x18\x02 \x01(\x03\x12\x15\n\rrunning_count\x18\x03 \x01(\x03\x12\x16\n\x0econflict_count\x18\x04 \x01(\x03\x12\x17\n\x0fddl_error_count\x18\x05 \x01(\x03\x12\x1d\n\x15retry_succeeded_count\x18\x06 \x01(\x03\x12\x1b\n\x13batch_retried_count\x18\x07 \x01(\x03\x12\x17\n\x0fdag_rerun_count\x18\x08 \x01(\x03\x12\x18\n\x10total_wall_nanos\x18\t \x01(\x03\x12:\n\x13latest_commit_batch\x18\n \x01(\x0b2\x1d.cz.proto.ContinuousBatchInfo\x12;\n\x14latest_running_batch\x18\x0b \x01(\x0b2\x1d.cz.proto.ContinuousBatchInfo\x122\n\x0bbatch_stats\x18\x0c \x03(\x0b2\x1d.cz.proto.ContinuousBatchStat"\xf6\x01\n\x0bJobProgress\x12@\n\x0estage_progress\x18\x01 \x03(\x0b2(.cz.proto.JobProgress.StageProgressEntry\x12>\n\x13continuous_progress\x18\x02 \x01(\x0b2\x1c.cz.proto.ContinuousProgressH\x00\x88\x01\x01\x1aM\n\x12StageProgressEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b2\x17.cz.proto.StageProgress:\x028\x01B\x16\n\x14_continuous_progress"\xb7\x02\n\x10InputOutputStats\x12\x19\n\x11files_write_count\x18\x01 \x01(\x03\x12\x18\n\x10output_row_count\x18\x02 \x01(\x03\x12\x14\n\x0coutput_bytes\x18\x03 \x01(\x03\x12!\n\x19output_io_time_elapsed_us\x18\x04 \x01(\x03\x12\x18\n\x10files_read_count\x18\x05 \x01(\x03\x12\x17\n\x0finput_row_count\x18\x06 \x01(\x03\x12\x13\n\x0binput_bytes\x18\x07 \x01(\x03\x12\x19\n\x11input_cache_bytes\x18\x08 \x01(\x03\x12\x18\n\x10input_disk_bytes\x18\t \x01(\x03\x12 \n\x18input_io_time_elapsed_us\x18\n \x01(\x03\x12\x16\n\x0espilling_bytes\x18\x0b \x01(\x03"B\n\x08JobStats\x126\n\x12input_output_stats\x18\x01 \x01(\x0b2\x1a.cz.proto.InputOutputStats"\xf3\x01\n\x0bTaskSummary\x12\x0f\n\x07task_id\x18\x01 \x01(\x04\x12\x11\n\tbackup_id\x18\x02 \x01(\x04\x12\x10\n\x08retry_id\x18\x03 \x01(\x04\x12\x12\n\nstart_time\x18\x04 \x01(\x03\x12\x10\n\x08end_time\x18\x05 \x01(\x03\x12\x14\n\x0cpending_time\x18\x06 \x01(\x03\x12\x14\n\x0crunning_time\x18\x07 \x01(\x03\x12\x10\n\x08executor\x18\x08 \x01(\t\x12\x12\n\ndiagnostic\x18\t \x01(\t\x126\n\x12input_output_stats\x18\n \x01(\x0b2\x1a.cz.proto.InputOutputStats"Y\n\x12OperatorStatistics\x12\x0f\n\x07records\x18\x01 \x03(\x04\x12\x0b\n\x03max\x18\x02 \x01(\x04\x12\x0b\n\x03min\x18\x03 \x01(\x04\x12\x0b\n\x03sum\x18\x04 \x01(\x04\x12\x0b\n\x03avg\x18\x05 \x01(\x04"\xeb\x07\n\x10TableScanSummary\x121\n\x0binput_bytes\x18\x01 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12/\n\tsplit_cnt\x18\x02 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12P\n\x17table_scan_source_stats\x18\x03 \x01(\x0b2/.cz.proto.TableScanSummary.TableScanSourceStats\x12P\n\x17parquet_row_group_stats\x18\x04 \x01(\x0b2/.cz.proto.TableScanSummary.ParquetRowGroupStats\x12P\n\x17parquet_row_count_stats\x18\x05 \x01(\x0b2/.cz.proto.TableScanSummary.ParquetRowCountStats\x12X\n\x1bparquet_pruned_splits_stats\x18\x06 \x01(\x0b23.cz.proto.TableScanSummary.ParquetPrunedSplitsStats\x1a\x90\x01\n\x14ParquetRowGroupStats\x12\x1e\n\x16bloom_pruned_row_group\x18\x01 \x01(\x03\x12\x1e\n\x16stats_pruned_row_group\x18\x02 \x01(\x03\x12\x1d\n\x15dict_pruned_row_group\x18\x03 \x01(\x03\x12\x19\n\x11request_row_group\x18\x04 \x01(\x03\x1aU\n\x14ParquetRowCountStats\x12\x1c\n\x14parquet_read_row_cnt\x18\x01 \x01(\x03\x12\x1f\n\x17parquet_request_row_cnt\x18\x02 \x01(\x03\x1au\n\x18ParquetPrunedSplitsStats\x12\x17\n\x0fpruned_file_cnt\x18\x01 \x01(\x03\x12\x1c\n\x14bitmap_pruned_splits\x18\x02 \x01(\x03\x12"\n\x1abloom_filter_pruned_splits\x18\x03 \x01(\x03\x1a\xc1\x01\n\x14TableScanSourceStats\x12\x1b\n\x13short_circuit_bytes\x18\x01 \x01(\x03\x12 \n\x18short_circuit_percentage\x18\x02 \x01(\x02\x12\x11\n\trpc_bytes\x18\x03 \x01(\x03\x12\x16\n\x0erpc_percentage\x18\x04 \x01(\x02\x12\x1c\n\x14object_storage_bytes\x18\x05 \x01(\x03\x12!\n\x19object_storage_percentage\x18\x06 \x01(\x02"k\n\x10TableSinkSummary\x12=\n\x17compressed_output_bytes\x18\x01 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12\x18\n\x10total_file_count\x18\x02 \x01(\x03"\r\n\x0bCalcSummary"\x11\n\x0fHashJoinSummary"\x12\n\x10MergeJoinSummary"\x16\n\x14HashAggregateSummary"\x17\n\x15MergeAggregateSummary"\x84\x02\n\x10LocalSortSummary\x12:\n\x14gen_run_wall_time_ns\x18\x01 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x129\n\x13gen_run_cpu_time_ns\x18\x02 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12<\n\x16merge_run_wall_time_ns\x18\x03 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12;\n\x15merge_run_cpu_time_ns\x18\x04 \x01(\x0b2\x1c.cz.proto.OperatorStatistics"\x12\n\x10MergeSortSummary"\x0f\n\rValuesSummary"\x8c\x02\n\x13ExchangeSinkSummary\x12>\n\x18compressed_shuffle_bytes\x18\x01 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12@\n\x1auncompressed_shuffle_bytes\x18\x02 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x129\n\x13submit_wall_time_ns\x18\x03 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x128\n\x12close_wall_time_ns\x18\x04 \x01(\x0b2\x1c.cz.proto.OperatorStatistics"\xdb\x01\n\x15ExchangeSourceSummary\x12>\n\x18compressed_shuffle_bytes\x18\x01 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12@\n\x1auncompressed_shuffle_bytes\x18\x02 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12@\n\x1aread_buffer_timing_wall_ns\x18\x03 \x01(\x0b2\x1c.cz.proto.OperatorStatistics"\x11\n\x0fUnionAllSummary"\x0f\n\rBufferSummary"\x0f\n\rWindowSummary"\x0f\n\rExpandSummary"\x14\n\x12LateralViewSummary"\x16\n\x14PartialWindowSummary"\x16\n\x14LocalExchangeSummary"\xa2\n\n\x0fOperatorSummary\x12\r\n\x05op_id\x18\x01 \x01(\t\x126\n\x12input_output_stats\x18\x02 \x01(\x0b2\x1a.cz.proto.InputOutputStats\x122\n\x0cwall_time_ns\x18\x03 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x12/\n\trow_count\x18\x04 \x01(\x0b2\x1c.cz.proto.OperatorStatistics\x128\n\x12table_scan_summary\x18\x14 \x01(\x0b2\x1a.cz.proto.TableScanSummaryH\x00\x128\n\x12table_sink_summary\x18\x15 \x01(\x0b2\x1a.cz.proto.TableSinkSummaryH\x00\x12-\n\x0ccalc_summary\x18\x16 \x01(\x0b2\x15.cz.proto.CalcSummaryH\x00\x126\n\x11hash_join_summary\x18\x17 \x01(\x0b2\x19.cz.proto.HashJoinSummaryH\x00\x128\n\x12merge_join_summary\x18\x18 \x01(\x0b2\x1a.cz.proto.MergeJoinSummaryH\x00\x12@\n\x16hash_aggregate_summary\x18\x19 \x01(\x0b2\x1e.cz.proto.HashAggregateSummaryH\x00\x12B\n\x17merge_aggregate_summary\x18\x1a \x01(\x0b2\x1f.cz.proto.MergeAggregateSummaryH\x00\x128\n\x12local_sort_summary\x18\x1b \x01(\x0b2\x1a.cz.proto.LocalSortSummaryH\x00\x128\n\x12merge_sort_summary\x18\x1c \x01(\x0b2\x1a.cz.proto.MergeSortSummaryH\x00\x121\n\x0evalues_summary\x18\x1d \x01(\x0b2\x17.cz.proto.ValuesSummaryH\x00\x12>\n\x15exchange_sink_summary\x18\x1e \x01(\x0b2\x1d.cz.proto.ExchangeSinkSummaryH\x00\x12B\n\x17exchange_source_summary\x18\x1f \x01(\x0b2\x1f.cz.proto.ExchangeSourceSummaryH\x00\x126\n\x11union_all_summary\x18  \x01(\x0b2\x19.cz.proto.UnionAllSummaryH\x00\x121\n\x0ebuffer_summary\x18! \x01(\x0b2\x17.cz.proto.BufferSummaryH\x00\x121\n\x0ewindow_summary\x18" \x01(\x0b2\x17.cz.proto.WindowSummaryH\x00\x121\n\x0eexpand_summary\x18# \x01(\x0b2\x17.cz.proto.ExpandSummaryH\x00\x12<\n\x14lateral_view_summary\x18$ \x01(\x0b2\x1c.cz.proto.LateralViewSummaryH\x00\x12@\n\x16partial_window_summary\x18% \x01(\x0b2\x1e.cz.proto.PartialWindowSummaryH\x00\x12@\n\x16local_exchange_summary\x18& \x01(\x0b2\x1e.cz.proto.LocalExchangeSummaryH\x00B\n\n\x08op_stats"\xce\x03\n\x0cStageSummary\x12\x10\n\x08stage_id\x18\x01 \x01(\t\x12\x12\n\nstart_time\x18\x02 \x01(\x03\x12\x10\n\x08end_time\x18\x03 \x01(\x03\x12\x14\n\x0cpending_time\x18\x04 \x01(\x03\x12\x14\n\x0crunning_time\x18\x05 \x01(\x03\x126\n\x12input_output_stats\x18\x06 \x01(\x0b2\x1a.cz.proto.InputOutputStats\x12=\n\x0ctask_summary\x18\x07 \x03(\x0b2\'.cz.proto.StageSummary.TaskSummaryEntry\x12E\n\x10operator_summary\x18\x08 \x03(\x0b2+.cz.proto.StageSummary.OperatorSummaryEntry\x1aI\n\x10TaskSummaryEntry\x12\x0b\n\x03key\x18\x01 \x01(\x04\x12$\n\x05value\x18\x02 \x01(\x0b2\x15.cz.proto.TaskSummary:\x028\x01\x1aQ\n\x14OperatorSummaryEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12(\n\x05value\x18\x02 \x01(\x0b2\x19.cz.proto.OperatorSummary:\x028\x01"\xe1\x01\n\nJobSummary\x12!\n\x05stats\x18\x01 \x01(\x0b2\x12.cz.proto.JobStats\x12=\n\rstage_summary\x18\x02 \x03(\x0b2&.cz.proto.JobSummary.StageSummaryEntry\x12$\n\x05meter\x18\x03 \x01(\x0b2\x15.cz.proto.meter.Meter\x1aK\n\x11StageSummaryEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12%\n\x05value\x18\x02 \x01(\x0b2\x16.cz.proto.StageSummary:\x028\x01"\xed\x01\n\x14SimplifyDagSubVertex\x12\x13\n\x0boperator_id\x18\x01 \x01(\t\x12\x1a\n\x12parent_operator_id\x18\x02 \x03(\t\x12\x17\n\x0foperator_digest\x18\x03 \x01(\t\x12Q\n\x12operator_attribute\x18\x04 \x03(\x0b25.cz.proto.SimplifyDagSubVertex.OperatorAttributeEntry\x1a8\n\x16OperatorAttributeEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x028\x01"{\n\x11SimplifyDagVertex\x12\x10\n\x08stage_id\x18\x01 \x01(\t\x12\x14\n\x0cparent_stage\x18\x02 \x03(\t\x121\n\toperators\x18\x03 \x03(\x0b2\x1e.cz.proto.SimplifyDagSubVertex\x12\x0b\n\x03dop\x18\x04 \x01(\x04"g\n\x0bSimplifyDag\x12+\n\x06stages\x18\x01 \x03(\x0b2\x1b.cz.proto.SimplifyDagVertex\x12\x14\n\x0cinput_tables\x18\x02 \x03(\t\x12\x15\n\routput_tables\x18\x03 \x03(\t"\xd5\x02\n\x0bDAGProgress\x12*\n\x05state\x18\x01 \x01(\x0e2\x1b.cz.proto.DetailState.State\x12\x0e\n\x06job_id\x18\x02 \x01(\t\x12\x13\n\x0bsubmit_time\x18\x03 \x01(\x03\x12\x11\n\tinit_time\x18\x04 \x01(\x03\x12\x12\n\nstart_time\x18\x05 \x01(\x03\x12\x13\n\x0bfinish_time\x18\x06 \x01(\x03\x12\x12\n\ndiagnostic\x18\x07 \x01(\t\x12@\n\x0estage_progress\x18\x08 \x03(\x0b2(.cz.proto.DAGProgress.StageProgressEntry\x12\x14\n\x0crunning_mode\x18\t \x01(\t\x1aM\n\x12StageProgressEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b2\x17.cz.proto.StageProgress:\x028\x01B\x0cB\x08JobProtoP\x01b\x06proto3')
+_globals = globals()
+_builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'job_pb2', _globals)
+if not _descriptor._USE_C_DESCRIPTORS:
+    _globals['DESCRIPTOR']._loaded_options = None
+    _globals['DESCRIPTOR']._serialized_options = b'B\x08JobProtoP\x01'
+    _globals['_JOB_SETTINGSENTRY']._loaded_options = None
+    _globals['_JOB_SETTINGSENTRY']._serialized_options = b'8\x01'
+    _globals['_TASKATTEMPTPROGRESS_STATSENTRY']._loaded_options = None
+    _globals['_TASKATTEMPTPROGRESS_STATSENTRY']._serialized_options = b'8\x01'
+    _globals['_STAGEPROGRESS_TASKPROGRESSENTRY']._loaded_options = None
+    _globals['_STAGEPROGRESS_TASKPROGRESSENTRY']._serialized_options = b'8\x01'
+    _globals['_JOBPROGRESS_STAGEPROGRESSENTRY']._loaded_options = None
+    _globals['_JOBPROGRESS_STAGEPROGRESSENTRY']._serialized_options = b'8\x01'
+    _globals['_STAGESUMMARY_TASKSUMMARYENTRY']._loaded_options = None
+    _globals['_STAGESUMMARY_TASKSUMMARYENTRY']._serialized_options = b'8\x01'
+    _globals['_STAGESUMMARY_OPERATORSUMMARYENTRY']._loaded_options = None
+    _globals['_STAGESUMMARY_OPERATORSUMMARYENTRY']._serialized_options = b'8\x01'
+    _globals['_JOBSUMMARY_STAGESUMMARYENTRY']._loaded_options = None
+    _globals['_JOBSUMMARY_STAGESUMMARYENTRY']._serialized_options = b'8\x01'
+    _globals['_SIMPLIFYDAGSUBVERTEX_OPERATORATTRIBUTEENTRY']._loaded_options = None
+    _globals['_SIMPLIFYDAGSUBVERTEX_OPERATORATTRIBUTEENTRY']._serialized_options = b'8\x01'
+    _globals['_DAGPROGRESS_STAGEPROGRESSENTRY']._loaded_options = None
+    _globals['_DAGPROGRESS_STAGEPROGRESSENTRY']._serialized_options = b'8\x01'
+    _globals['_JOB']._serialized_start = 130
+    _globals['_JOB']._serialized_end = 407
+    _globals['_JOB_SETTINGSENTRY']._serialized_start = 305
+    _globals['_JOB_SETTINGSENTRY']._serialized_end = 352
+    _globals['_JOB_USERID']._serialized_start = 354
+    _globals['_JOB_USERID']._serialized_end = 407
+    _globals['_DML']._serialized_start = 410
+    _globals['_DML']._serialized_end = 578
+    _globals['_STAGE']._serialized_start = 581
+    _globals['_STAGE']._serialized_end = 745
+    _globals['_PIPE']._serialized_start = 748
+    _globals['_PIPE']._serialized_end = 1010
+    _globals['_RUNTIMEDRIVERSTATS']._serialized_start = 1013
+    _globals['_RUNTIMEDRIVERSTATS']._serialized_end = 1283
+    _globals['_RUNTIMEPIPELINESTATS']._serialized_start = 1285
+    _globals['_RUNTIMEPIPELINESTATS']._serialized_end = 1332
+    _globals['_WORKERSTATS']._serialized_start = 1335
+    _globals['_WORKERSTATS']._serialized_end = 1623
+    _globals['_LOGICALPLAN']._serialized_start = 1626
+    _globals['_LOGICALPLAN']._serialized_end = 1757
+    _globals['_WORKERID']._serialized_start = 1760
+    _globals['_WORKERID']._serialized_end = 1904
+    _globals['_WORKERDETAIL']._serialized_start = 1906
+    _globals['_WORKERDETAIL']._serialized_end = 2004
+    _globals['_DETAILSTATE']._serialized_start = 2006
+    _globals['_DETAILSTATE']._serialized_end = 2100
+    _globals['_DETAILSTATE_STATE']._serialized_start = 2021
+    _globals['_DETAILSTATE_STATE']._serialized_end = 2100
+    _globals['_TASKATTEMPTPROGRESS']._serialized_start = 2103
+    _globals['_TASKATTEMPTPROGRESS']._serialized_end = 2502
+    _globals['_TASKATTEMPTPROGRESS_STATSENTRY']._serialized_start = 2458
+    _globals['_TASKATTEMPTPROGRESS_STATSENTRY']._serialized_end = 2502
+    _globals['_TASKPROGRESS']._serialized_start = 2505
+    _globals['_TASKPROGRESS']._serialized_end = 2736
+    _globals['_STAGEPROGRESS']._serialized_start = 2739
+    _globals['_STAGEPROGRESS']._serialized_end = 3106
+    _globals['_STAGEPROGRESS_TASKPROGRESSENTRY']._serialized_start = 3031
+    _globals['_STAGEPROGRESS_TASKPROGRESSENTRY']._serialized_end = 3106
+    _globals['_CONTINUOUSBATCHINFO']._serialized_start = 3108
+    _globals['_CONTINUOUSBATCHINFO']._serialized_end = 3204
+    _globals['_CONTINUOUSBATCHSTAT']._serialized_start = 3207
+    _globals['_CONTINUOUSBATCHSTAT']._serialized_end = 3364
+    _globals['_CONTINUOUSPROGRESS']._serialized_start = 3367
+    _globals['_CONTINUOUSPROGRESS']._serialized_end = 3789
+    _globals['_JOBPROGRESS']._serialized_start = 3792
+    _globals['_JOBPROGRESS']._serialized_end = 4038
+    _globals['_JOBPROGRESS_STAGEPROGRESSENTRY']._serialized_start = 3937
+    _globals['_JOBPROGRESS_STAGEPROGRESSENTRY']._serialized_end = 4014
+    _globals['_INPUTOUTPUTSTATS']._serialized_start = 4041
+    _globals['_INPUTOUTPUTSTATS']._serialized_end = 4352
+    _globals['_JOBSTATS']._serialized_start = 4354
+    _globals['_JOBSTATS']._serialized_end = 4420
+    _globals['_TASKSUMMARY']._serialized_start = 4423
+    _globals['_TASKSUMMARY']._serialized_end = 4666
+    _globals['_OPERATORSTATISTICS']._serialized_start = 4668
+    _globals['_OPERATORSTATISTICS']._serialized_end = 4757
+    _globals['_TABLESCANSUMMARY']._serialized_start = 4760
+    _globals['_TABLESCANSUMMARY']._serialized_end = 5763
+    _globals['_TABLESCANSUMMARY_PARQUETROWGROUPSTATS']._serialized_start = 5217
+    _globals['_TABLESCANSUMMARY_PARQUETROWGROUPSTATS']._serialized_end = 5361
+    _globals['_TABLESCANSUMMARY_PARQUETROWCOUNTSTATS']._serialized_start = 5363
+    _globals['_TABLESCANSUMMARY_PARQUETROWCOUNTSTATS']._serialized_end = 5448
+    _globals['_TABLESCANSUMMARY_PARQUETPRUNEDSPLITSSTATS']._serialized_start = 5450
+    _globals['_TABLESCANSUMMARY_PARQUETPRUNEDSPLITSSTATS']._serialized_end = 5567
+    _globals['_TABLESCANSUMMARY_TABLESCANSOURCESTATS']._serialized_start = 5570
+    _globals['_TABLESCANSUMMARY_TABLESCANSOURCESTATS']._serialized_end = 5763
+    _globals['_TABLESINKSUMMARY']._serialized_start = 5765
+    _globals['_TABLESINKSUMMARY']._serialized_end = 5872
+    _globals['_CALCSUMMARY']._serialized_start = 5874
+    _globals['_CALCSUMMARY']._serialized_end = 5887
+    _globals['_HASHJOINSUMMARY']._serialized_start = 5889
+    _globals['_HASHJOINSUMMARY']._serialized_end = 5906
+    _globals['_MERGEJOINSUMMARY']._serialized_start = 5908
+    _globals['_MERGEJOINSUMMARY']._serialized_end = 5926
+    _globals['_HASHAGGREGATESUMMARY']._serialized_start = 5928
+    _globals['_HASHAGGREGATESUMMARY']._serialized_end = 5950
+    _globals['_MERGEAGGREGATESUMMARY']._serialized_start = 5952
+    _globals['_MERGEAGGREGATESUMMARY']._serialized_end = 5975
+    _globals['_LOCALSORTSUMMARY']._serialized_start = 5978
+    _globals['_LOCALSORTSUMMARY']._serialized_end = 6238
+    _globals['_MERGESORTSUMMARY']._serialized_start = 6240
+    _globals['_MERGESORTSUMMARY']._serialized_end = 6258
+    _globals['_VALUESSUMMARY']._serialized_start = 6260
+    _globals['_VALUESSUMMARY']._serialized_end = 6275
+    _globals['_EXCHANGESINKSUMMARY']._serialized_start = 6278
+    _globals['_EXCHANGESINKSUMMARY']._serialized_end = 6546
+    _globals['_EXCHANGESOURCESUMMARY']._serialized_start = 6549
+    _globals['_EXCHANGESOURCESUMMARY']._serialized_end = 6768
+    _globals['_UNIONALLSUMMARY']._serialized_start = 6770
+    _globals['_UNIONALLSUMMARY']._serialized_end = 6787
+    _globals['_BUFFERSUMMARY']._serialized_start = 6789
+    _globals['_BUFFERSUMMARY']._serialized_end = 6804
+    _globals['_WINDOWSUMMARY']._serialized_start = 6806
+    _globals['_WINDOWSUMMARY']._serialized_end = 6821
+    _globals['_EXPANDSUMMARY']._serialized_start = 6823
+    _globals['_EXPANDSUMMARY']._serialized_end = 6838
+    _globals['_LATERALVIEWSUMMARY']._serialized_start = 6840
+    _globals['_LATERALVIEWSUMMARY']._serialized_end = 6860
+    _globals['_PARTIALWINDOWSUMMARY']._serialized_start = 6862
+    _globals['_PARTIALWINDOWSUMMARY']._serialized_end = 6884
+    _globals['_LOCALEXCHANGESUMMARY']._serialized_start = 6886
+    _globals['_LOCALEXCHANGESUMMARY']._serialized_end = 6908
+    _globals['_OPERATORSUMMARY']._serialized_start = 6911
+    _globals['_OPERATORSUMMARY']._serialized_end = 8225
+    _globals['_STAGESUMMARY']._serialized_start = 8228
+    _globals['_STAGESUMMARY']._serialized_end = 8690
+    _globals['_STAGESUMMARY_TASKSUMMARYENTRY']._serialized_start = 8534
+    _globals['_STAGESUMMARY_TASKSUMMARYENTRY']._serialized_end = 8607
+    _globals['_STAGESUMMARY_OPERATORSUMMARYENTRY']._serialized_start = 8609
+    _globals['_STAGESUMMARY_OPERATORSUMMARYENTRY']._serialized_end = 8690
+    _globals['_JOBSUMMARY']._serialized_start = 8693
+    _globals['_JOBSUMMARY']._serialized_end = 8918
+    _globals['_JOBSUMMARY_STAGESUMMARYENTRY']._serialized_start = 8843
+    _globals['_JOBSUMMARY_STAGESUMMARYENTRY']._serialized_end = 8918
+    _globals['_SIMPLIFYDAGSUBVERTEX']._serialized_start = 8921
+    _globals['_SIMPLIFYDAGSUBVERTEX']._serialized_end = 9158
+    _globals['_SIMPLIFYDAGSUBVERTEX_OPERATORATTRIBUTEENTRY']._serialized_start = 9102
+    _globals['_SIMPLIFYDAGSUBVERTEX_OPERATORATTRIBUTEENTRY']._serialized_end = 9158
+    _globals['_SIMPLIFYDAGVERTEX']._serialized_start = 9160
+    _globals['_SIMPLIFYDAGVERTEX']._serialized_end = 9283
+    _globals['_SIMPLIFYDAG']._serialized_start = 9285
+    _globals['_SIMPLIFYDAG']._serialized_end = 9388
+    _globals['_DAGPROGRESS']._serialized_start = 9391
+    _globals['_DAGPROGRESS']._serialized_end = 9732
+    _globals['_DAGPROGRESS_STAGEPROGRESSENTRY']._serialized_start = 3937
+    _globals['_DAGPROGRESS_STAGEPROGRESSENTRY']._serialized_end = 4014
