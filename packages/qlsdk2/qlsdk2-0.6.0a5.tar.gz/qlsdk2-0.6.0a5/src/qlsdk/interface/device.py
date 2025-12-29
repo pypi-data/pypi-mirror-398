@@ -1,0 +1,2 @@
+class IDevice:
+    pass
