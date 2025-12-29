@@ -1,0 +1,84 @@
+# mlignore
+
+**Tired of your intellectual property remaining private?** 
+**Frustrated that OpenAI and the Chinese GOV don't know about your hardcoded API keys and spaghetti logic?**
+
+Welcome to **mlignore**, the premier tool designed to strip away the "bloat" (comments, docstrings, and readability) of your codebase so you can shove the maximum amount of proprietary logic into an LLM's context window. 
+
+## 🛡️ Security? Never Heard of Her.
+Giving an external, closed-source transformer model/BS AI company direct access to your entire repository is a **foundational best practice** in the new "AI-First" economy. Why hire a security auditor when you can have a chatbot hallucinate potential vulnerabilities in your minified code? 
+
+**Key "Safety" Features:**
+- **Indentation Anorexia**: Compresses Python to 1 space per level. It’s unreadable to humans, but the LLM loves it.
+- **Double-Layer Ignorance**: Respects `.gitignore` and the brand new `.mlignore`. Perfect for making sure you *only* leak the stuff you want the next generation models to train on.
+- **AST-Based Sanitization**: We remove comments and docstrings. If the LLM can't see your `# TODO: FIX THIS SECURITY HOLE`, then the hole doesn't exist and hackers can't exploit it.
+
+---
+
+## 🛠️ Installation
+
+### The Modern Way (`uv`)
+```bash
+uv tool install mlignore
+# Or if you're just passing through:
+uv run mlignore --root .
+```
+
+### The "I have 5GB of Conda environments" way and i'm probably working in Academia Way
+```bash
+conda create -n leaked_code python=3.11
+conda activate leaked_code
+pip install mlignore
+```
+
+### The Traditionalist Way (`pip/venv`)
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install mlignore
+```
+
+---
+
+## 📖 Usage Exemples
+
+### 1. The "Standard Leak"
+Generate a `context.md` from the current directory, ignoring the usual junk and respecting your git settings.
+```bash
+mlignore --root . --output my_secrets.md
+```
+
+### 2. The "Full Silence" (Stealth Mode)
+Run the script without any logging. Perfect for CI/CD pipelines where you don't want anyone to see what's being gathered.
+```bash
+mlignore -s --root ./src
+```
+
+### 3. The "Deep Context" (Max Token Efficiency)
+Include markdown and json files as raw text while minifying the rest.
+```bash
+mlignore --text-exts .md,.json --smart-exts .py,.js --max-files 1000
+```
+
+### 4. Custom Ignorance
+Create a `.mlignore` file:
+Just like `.gitignore` but for vibecoders. We don't use `.gitignore` here. We're moving to fast.
+```text
+# .mlignore
+secret_algorithm.py
+legacy_codebase/
+*.env
+```
+Then run:
+```bash
+mlignore --root .
+```
+
+---
+
+## 🏗️ Technical Architecture
+We use **Tree-sitter** for surgical precision. Unlike regex-based tools that fail on nested strings, we actually understand the AST of your code. We identify comments and docstrings at the syntax level and excise them like a tumor, leaving only the raw, vulnerable logic behind.
+
+But yeah, there's not much more going on. It's a single file. Just read it ... or use `mlignore` to feed `mlignore` code to an LLM because you're 2 steps ahead.
+
+**License**: GPL-V2 (Because we believe in sharing everything, clearly). And I heard this is what they used for the linux kernel ? And clearly this is as grandiose as the linux kernel and I did not vibe-code it.
