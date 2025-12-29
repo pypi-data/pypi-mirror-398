@@ -1,0 +1,555 @@
+"""Integration tests for API endpoints."""
+
+import os
+
+import httpx
+import pytest
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Get test port from environment or use default (matching development server)
+TEST_PORT = int(os.environ.get("VDM_TEST_PORT", "8082"))
+BASE_URL = f"http://localhost:{TEST_PORT}"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_health_check():
+    """Test health check endpoint."""
+    import yaml
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{BASE_URL}/health")
+
+        assert response.status_code == 200
+        # Verify content type is YAML
+        assert "text/yaml" in response.headers.get("content-type", "")
+        # Verify it displays inline (not as attachment)
+        content_disposition = response.headers.get("content-disposition", "")
+        assert "inline" in content_disposition
+
+        # Parse YAML response
+        data = yaml.safe_load(response.text)
+        assert "status" in data
+        # Accept both "healthy" and "ok" status values for flexibility
+        assert data["status"] in ["healthy", "ok", "degraded"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_models_endpoint():
+    """Test /v1/models endpoint."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{BASE_URL}/v1/models")
+
+        # NOTE: integration tests run against an already-running server.
+        # If the server binary isn't restarted after code changes, it may return `null`.
+        assert response.status_code == 200
+        data = response.json()
+        assert data is not None
+
+        # Default is Anthropic schema (Claude consumes this endpoint)
+        assert "data" in data
+        assert isinstance(data["data"], list)
+        # Pagination helper keys are optional; tolerate servers that omit them.
+        if "data" and isinstance(data.get("data"), list) and data.get("data"):
+            assert "first_id" not in data or isinstance(data.get("first_id"), str)
+            assert "last_id" not in data or isinstance(data.get("last_id"), str)
+            assert "has_more" not in data or isinstance(data.get("has_more"), bool)
+
+        # OpenAI format is available
+        response_openai = await client.get(f"{BASE_URL}/v1/models?format=openai")
+        assert response_openai.status_code == 200
+        data_openai = response_openai.json()
+        assert data_openai is not None
+        assert data_openai.get("object") == "list"
+        assert isinstance(data_openai.get("data"), list)
+
+        # Raw format is available
+        response_raw = await client.get(f"{BASE_URL}/v1/models?format=raw")
+        assert response_raw.status_code == 200
+        assert response_raw.json() is not None
+        assert isinstance(response_raw.json(), dict)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_logs_endpoint():
+    """Test GET /metrics/logs endpoint."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{BASE_URL}/metrics/logs")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "systemd" in data
+        assert "errors" in data
+        assert "traces" in data
+
+        systemd = data["systemd"]
+        assert isinstance(systemd, dict)
+        assert "requested" in systemd
+        assert "effective" in systemd
+        assert "handler" in systemd
+
+        assert isinstance(data["errors"], list)
+        assert isinstance(data["traces"], list)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_running_totals_endpoint():
+    """Test GET /metrics/running-totals endpoint."""
+    async with httpx.AsyncClient() as client:
+        # Test without filters
+        response = await client.get(f"{BASE_URL}/metrics/running-totals")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/yaml; charset=utf-8"
+
+        yaml_content = response.text
+
+        # If metrics are disabled, we get a different response
+        if "Request metrics logging is disabled" in yaml_content:
+            assert "Set LOG_REQUEST_METRICS=true to enable tracking" in yaml_content
+        else:
+            # Check for YAML structure elements
+            assert "# Running Totals Report" in yaml_content
+            assert "summary:" in yaml_content
+            assert "total_requests:" in yaml_content
+            assert "total_errors:" in yaml_content
+            assert "total_input_tokens:" in yaml_content
+            assert "total_output_tokens:" in yaml_content
+            assert "active_requests:" in yaml_content
+            assert "average_duration_ms:" in yaml_content
+
+            # New provider schema (explicit rollup + per-model split).
+            # NOTE: Integration tests assume the running server is the code under test.
+            # If you're running an older server binary, these assertions will fail.
+            assert "providers:" in yaml_content
+            assert "rollup:" in yaml_content
+            assert "models:" in yaml_content
+
+            # Streaming split keys
+            assert "total:" in yaml_content
+
+            # Nested mirrored metric keys
+            assert "requests:" in yaml_content
+            assert "errors:" in yaml_content
+            assert "input_tokens:" in yaml_content
+            assert "output_tokens:" in yaml_content
+            assert "cache_read_tokens:" in yaml_content
+            assert "cache_creation_tokens:" in yaml_content
+            assert "tool_uses:" in yaml_content
+            assert "tool_results:" in yaml_content
+            assert "tool_calls:" in yaml_content
+            assert "average_duration_ms:" in yaml_content
+
+            # Old ambiguous nested provider totals should not appear
+            # These are summary totals and are expected
+            assert "total_tool_uses:" in yaml_content
+            assert "total_tool_results:" in yaml_content
+            assert "total_tool_calls:" in yaml_content
+            assert "total_cache_read_tokens:" in yaml_content
+            assert "total_cache_creation_tokens:" in yaml_content
+
+            # Summary stays in old schema
+            assert "total_requests:" in yaml_content
+            assert "total_errors:" in yaml_content
+            assert "total_input_tokens:" in yaml_content
+            assert "total_output_tokens:" in yaml_content
+
+        # Test with provider filter
+        response = await client.get(f"{BASE_URL}/metrics/running-totals?provider=poe")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/yaml; charset=utf-8"
+        yaml_content = response.text
+
+        if "Request metrics logging is disabled" not in yaml_content:
+            assert "# Filter: provider=poe" in yaml_content
+
+        # Test with model filter using wildcard
+        response = await client.get(f"{BASE_URL}/metrics/running-totals?model=gpt*")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/yaml; charset=utf-8"
+        yaml_content = response.text
+
+        if "Request metrics logging is disabled" not in yaml_content:
+            assert "# Filter: model=gpt*" in yaml_content
+
+        # Test with both provider and model filter
+        response = await client.get(f"{BASE_URL}/metrics/running-totals?provider=poe&model=claude*")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/yaml; charset=utf-8"
+        yaml_content = response.text
+
+        if "Request metrics logging is disabled" not in yaml_content:
+            assert "# Filter: provider=poe & model=claude*" in yaml_content
+
+        # Test case-insensitive matching
+        response = await client.get(f"{BASE_URL}/metrics/running-totals?provider=POE")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/yaml; charset=utf-8"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_connection_test():
+    """Test connection test endpoint."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{BASE_URL}/test-connection")
+
+        assert response.status_code == 200
+        data = response.json()
+        # Check for success response structure
+        assert "status" in data
+        assert data["status"] == "success"
+        assert "provider" in data
+        assert "message" in data
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_basic_chat():
+    """Test basic chat completion with real API."""
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 20,
+                "messages": [{"role": "user", "content": "Say 'Hello world'"}],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+        assert len(data["content"]) > 0
+        assert "role" in data
+        assert data["role"] == "assistant"
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_streaming_chat():
+    """Test streaming chat completion with real API."""
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+
+    async with (
+        httpx.AsyncClient(timeout=30.0) as client,
+        client.stream(
+            "POST",
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-3-5-haiku-20241022",
+                "max_tokens": 50,
+                "messages": [{"role": "user", "content": "Count to 3"}],
+                "stream": True,
+            },
+        ) as response,
+    ):
+        assert response.status_code == 200
+
+        # Collect streamed events
+        events = []
+        async for line in response.aiter_lines():
+            if line.startswith("data: "):
+                events.append(line[6:])  # Remove "data: " prefix
+
+        # Should have at least some events
+        assert len(events) > 0
+
+        # Check for event stream format
+        assert any("message_start" in event for event in events)
+        assert any("content_block_start" in event for event in events)
+        assert any("content_block_stop" in event for event in events)
+        assert any("message_stop" in event for event in events)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_function_calling():
+    """Test function calling with real API."""
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 200,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "What's 2 + 2? Use the calculator tool.",
+                    }
+                ],
+                "tools": [
+                    {
+                        "name": "calculator",
+                        "description": "Perform basic arithmetic",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "expression": {
+                                    "type": "string",
+                                    "description": "Mathematical expression",
+                                },
+                            },
+                            "required": ["expression"],
+                        },
+                    }
+                ],
+                "tool_choice": {"type": "auto"},
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+
+        # Should have tool_use in content
+        tool_use_found = False
+        for content_block in data.get("content", []):
+            if content_block.get("type") == "tool_use":
+                tool_use_found = True
+                assert "id" in content_block
+                assert "name" in content_block
+                assert content_block["name"] == "calculator"
+
+        assert tool_use_found, "Expected tool_use block in response"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_with_system_message():
+    """Test with system message."""
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 50,
+                "system": (
+                    "You are a helpful assistant that always ends responses with 'over and out'."
+                ),
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+        assert len(data["content"]) > 0
+
+        # Check that the response follows the system instruction
+        content_text = data["content"][0].get("text", "").lower()
+        assert "over and out" in content_text
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_multimodal():
+    """Test multimodal input (text + image)."""
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Small 1x1 pixel red PNG
+        sample_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/"
+            "PchI7wAAAABJRU5ErkJggg=="
+        )
+
+        response = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 50,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What color is this image?"},
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/png",
+                                    "data": sample_image,
+                                },
+                            },
+                        ],
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+        assert len(data["content"]) > 0
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_conversation_with_tool_use():
+    """Test a complete conversation with tool use and results.
+
+    This test relies on a real upstream call and will timeout if the local proxy
+    is configured with a non-OpenAI default provider.
+    """
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+    if os.getenv("VDM_DEFAULT_PROVIDER") not in ("openai", "OPENAI"):
+        pytest.skip("VDM_DEFAULT_PROVIDER is not openai")
+    if os.getenv("OPENAI_BASE_URL"):
+        pytest.skip("OPENAI_BASE_URL override set; this test expects direct OpenAI")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        # First message with tool call
+        response1 = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-sonnet-4.5",
+                "max_tokens": 200,
+                "messages": [{"role": "user", "content": "Calculate 25 * 4"}],
+                "tools": [
+                    {
+                        "name": "calculator",
+                        "description": "Perform arithmetic calculations",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "expression": {
+                                    "type": "string",
+                                    "description": "Mathematical expression to calculate",
+                                }
+                            },
+                            "required": ["expression"],
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert response1.status_code == 200
+        result1 = response1.json()
+
+        # Note: tool calling behavior is provider/model dependent and may not be
+        # deterministically triggered by upstream models. Accept either:
+        # - a tool_use block (tool calling path), or
+        # - a direct text answer (no tool calling).
+        tool_use_blocks = [
+            block for block in result1.get("content", []) if block.get("type") == "tool_use"
+        ]
+        if not tool_use_blocks:
+            content_text = " ".join(
+                block.get("text", "")
+                for block in result1.get("content", [])
+                if block.get("type") == "text"
+            ).lower()
+            assert "100" in content_text
+            return
+
+        # Simulate tool execution and send result
+        tool_block = tool_use_blocks[0]
+
+        response2 = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 50,
+                "messages": [
+                    {"role": "user", "content": "Calculate 25 * 4"},
+                    {"role": "assistant", "content": result1["content"]},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_block["id"],
+                                "content": "100",
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+
+        assert response2.status_code == 200
+        result2 = response2.json()
+        assert "content" in result2
+
+        # Should acknowledge the calculation result
+        content_text = " ".join(
+            block.get("text", "")
+            for block in result2.get("content", [])
+            if block.get("type") == "text"
+        ).lower()
+        assert "100" in content_text
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_token_counting():
+    """Test token counting endpoint."""
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{BASE_URL}/v1/messages/count_tokens",
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "messages": [
+                    {"role": "user", "content": "This is a test message for token counting."}
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "input_tokens" in data
+        assert data["input_tokens"] > 0
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_anthropic_passthrough():
+    """Test Anthropic API passthrough format with real API."""
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        pytest.skip("ANTHROPIC_API_KEY not set")
+
+    os.environ["ANTHROPIC_API_FORMAT"] = "anthropic"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{BASE_URL}/v1/messages",
+            json={
+                "model": "anthropic:claude-3-5-sonnet-20241022",
+                "max_tokens": 20,
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+        assert "role" in data
+        assert data["role"] == "assistant"
