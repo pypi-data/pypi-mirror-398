@@ -1,0 +1,415 @@
+Metadata-Version: 2.4
+Name: rpa-moodle
+Version: 2.0.0
+Summary: RPA library for Moodle automation with Robot Framework
+Author-email: Khanh <khanh@example.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/khanh/rpa-moodle
+Project-URL: Documentation, https://github.com/khanh/rpa-moodle#readme
+Project-URL: Repository, https://github.com/khanh/rpa-moodle
+Project-URL: Issues, https://github.com/khanh/rpa-moodle/issues
+Keywords: robotframework,moodle,automation,rpa,testing,web-services,gemini-ai,auto-grading
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: Robot Framework
+Classifier: Framework :: Robot Framework :: Library
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: openpyxl>=3.1.0
+Requires-Dist: robotframework>=6.0.0
+Requires-Dist: google-auth>=2.0.0
+Requires-Dist: google-auth-oauthlib>=1.0.0
+Requires-Dist: google-api-python-client>=2.0.0
+Requires-Dist: google-generativeai>=0.3.0
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: importlib-metadata>=6.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+# RPA.Moodle Library
+
+Thư viện Robot Framework để tự động hóa các tác vụ Moodle, bao gồm quản lý khóa học, người dùng, và **chấm điểm tự động bằng Gemini AI**.
+
+## 🚀 Tính năng chính
+
+### 1. **Quản lý Khóa học & Người dùng**
+- Tạo categories, courses, users
+- Enroll users vào courses
+- Bulk enrollment từ Excel
+
+### 2. **Quản lý Quiz & Câu hỏi**
+- Tạo quiz từ Google Docs
+- Import câu hỏi GIFT/XML
+- Upload quiz lên Google Drive
+
+### 3. **🎯 Chấm điểm Tự động (Auto Grading)**
+- **Chấm điểm từ text** - Gemini AI 1.5-flash
+- **Chấm điểm từ ảnh** - Gemini Vision API
+- **Upload tự động lên Moodle** - Tạo submissions & grades
+- **Export Excel/CSV** - Kết quả chi tiết
+
+---
+
+## 📦 Cài đặt
+
+```bash
+pip install -e .
+```
+
+### Dependencies:
+```bash
+pip install robotframework requests pandas openpyxl google-api-python-client google-generativeai pillow
+```
+
+---
+
+## 🔧 Cấu hình
+
+### 1. Moodle Token
+Tạo file `moodle_token.json`:
+```json
+{
+    "base_url": "http://your-moodle.com/",
+    "token": "your_web_service_token"
+}
+```
+
+### 2. Google Credentials
+Tạo file `credentials.json` từ Google Cloud Console, sau đó chạy:
+```bash
+python get_google_token.py
+```
+
+### 3. Gemini API Key
+Lấy API key từ https://makersuite.google.com/app/apikey
+
+---
+
+## 📚 Hướng dẫn sử dụng
+
+### **Auto Grading Workflow (Chấm điểm tự động)**
+
+#### **A. Chấm điểm từ Text Files**
+
+```robot
+*** Settings ***
+Library    RPA.Moodle
+
+*** Variables ***
+${MOODLE_TOKEN}          moodle_token.json
+${GOOGLE_TOKEN}          google_token.json
+${GEMINI_API_KEY}        your_gemini_api_key
+
+# Google Drive URLs
+${SUBMISSIONS_FOLDER}    https://drive.google.com/drive/folders/YOUR_FOLDER_ID
+${QUESTIONS_FILE}        https://docs.google.com/document/d/YOUR_DOC_ID
+${ANSWER_KEY_FILE}       https://docs.google.com/document/d/YOUR_DOC_ID
+
+# Moodle settings
+${COURSE_ID}             2
+${ASSIGNMENT_URL}        http://moodle.com/mod/assign/view.php?id=23
+${MAX_SCORE}             10.0
+
+*** Test Cases ***
+Complete Auto Grading Workflow
+    # Setup connections
+    Set Up Moodle Connection    ${MOODLE_TOKEN}
+    Setup Google Connection     ${GOOGLE_TOKEN}
+    Setup Gemini AI            ${GEMINI_API_KEY}
+    
+    # Extract IDs from URLs
+    ${folder_id}=    Get Google Drive File ID From URL    ${SUBMISSIONS_FOLDER}
+    ${questions_id}=    Get Google Drive File ID From URL    ${QUESTIONS_FILE}
+    ${answer_id}=    Get Google Drive File ID From URL    ${ANSWER_KEY_FILE}
+    ${cmid}=    Get Assignment ID From URL    ${ASSIGNMENT_URL}
+    ${assignment_id}=    Get Assignment Instance ID From Course Module ID    ${COURSE_ID}    ${cmid}
+    
+    # Run complete workflow
+    ${result}=    Complete Auto Grading And Upload Workflow
+    ...    submissions_folder_id=${folder_id}
+    ...    question_file_id=${questions_id}
+    ...    answer_key_file_id=${answer_id}
+    ...    course_id=${COURSE_ID}
+    ...    assignment_id=${assignment_id}
+    ...    max_score=${MAX_SCORE}
+    
+    # Export results
+    Export Grading Results To Excel    ${result['grading']['results']}    grading_results.xlsx    ${MAX_SCORE}
+    Export Grading Results To CSV      ${result['grading']['results']}    grading_results.csv     ${MAX_SCORE}
+    
+    Log    ✅ Graded: ${result['summary']['graded']}/${result['summary']['total_submissions']}
+    Log    ✅ Uploaded: ${result['summary']['uploaded']}/${result['summary']['total_submissions']}
+    Log    📊 Average: ${result['summary']['average_score']}/${MAX_SCORE}
+```
+
+#### **B. Chấm điểm từ Images**
+
+```robot
+*** Test Cases ***
+Grade Image Submissions
+    # Setup
+    Set Up Moodle Connection    ${MOODLE_TOKEN}
+    Setup Google Connection     ${GOOGLE_TOKEN}
+    Setup Gemini AI            ${GEMINI_API_KEY}
+    
+    # Grade images
+    ${result}=    Complete Auto Grading From Images
+    ...    submissions_folder_id=${IMAGE_FOLDER_ID}
+    ...    question_file_id=${QUESTIONS_ID}
+    ...    answer_key_file_id=${ANSWER_KEY_ID}
+    ...    max_score=10.0
+    
+    # Upload to Moodle
+    Upload Grades To Moodle    ${COURSE_ID}    ${ASSIGNMENT_ID}    ${result['results']}
+```
+
+---
+
+## 📖 Keywords Reference
+
+### **Connection & Setup**
+
+#### `Set Up Moodle Connection`
+```robot
+Set Up Moodle Connection    moodle_token.json
+```
+
+#### `Setup Google Connection`
+```robot
+Setup Google Connection    google_token.json
+```
+
+#### `Setup Gemini AI`
+```robot
+Setup Gemini AI    ${GEMINI_API_KEY}
+```
+
+---
+
+### **Auto Grading Keywords**
+
+#### `Complete Auto Grading Workflow`
+Chấm điểm tất cả submissions từ Google Drive folder.
+
+**Arguments:**
+- `submissions_folder_id` - Google Drive folder ID chứa bài làm
+- `question_file_id` - File ID của đề bài
+- `answer_key_file_id` - File ID của đáp án
+- `max_score` - Điểm tối đa (default: 10.0)
+
+**Returns:** Dict với keys:
+- `total_submissions` - Tổng số bài nộp
+- `graded` - Số bài đã chấm
+- `failed` - Số bài lỗi
+- `results` - List kết quả chi tiết
+- `summary` - Thống kê tổng hợp
+
+#### `Complete Auto Grading From Images`
+Chấm điểm từ ảnh bài làm sử dụng Gemini Vision.
+
+**Arguments:** Giống `Complete Auto Grading Workflow`
+
+#### `Upload Grades To Moodle`
+Upload grades lên Moodle assignment (tự động tạo submissions).
+
+**Arguments:**
+- `course_id` - Moodle course ID
+- `assignment_id` - Assignment instance ID
+- `grades` - List of grade dicts
+
+**Returns:** Upload summary
+
+#### `Export Grading Results To Excel`
+Export kết quả ra Excel với 2 sheets (Results + Summary).
+
+**Arguments:**
+- `grading_results` - List kết quả chấm điểm
+- `output_path` - Đường dẫn file Excel
+- `max_score` - Điểm tối đa
+
+#### `Export Grading Results To CSV`
+Export kết quả ra CSV để import vào Moodle Gradebook.
+
+**Arguments:**
+- `grading_results` - List kết quả chấm điểm
+- `output_path` - Đường dẫn file CSV
+- `max_score` - Điểm tối đa
+- `grade_item_name` - Tên cột điểm (default: "Auto Grading")
+
+---
+
+### **Helper Keywords**
+
+#### `Get Assignment ID From URL`
+Parse assignment course module ID từ URL.
+
+```robot
+${cmid}=    Get Assignment ID From URL    http://moodle.com/mod/assign/view.php?id=23
+# Returns: 23
+```
+
+#### `Get Assignment Instance ID From Course Module ID`
+Convert course module ID sang assignment instance ID.
+
+```robot
+${instance_id}=    Get Assignment Instance ID From Course Module ID    2    23
+# Returns: 1
+```
+
+#### `Get Google Drive File ID From URL`
+Parse file/folder ID từ Google Drive URL.
+
+```robot
+${file_id}=    Get Google Drive File ID From URL    https://drive.google.com/file/d/ABC123/view
+# Returns: ABC123
+```
+
+---
+
+## 🎯 Workflow Examples
+
+### **Example 1: Chấm điểm và Upload lên Moodle**
+
+```robot
+*** Test Cases ***
+Auto Grade And Upload
+    [Documentation]    Chấm tự động và upload điểm lên Moodle
+    
+    # Setup
+    Set Up Moodle Connection    moodle_token.json
+    Setup Google Connection     google_token.json
+    Setup Gemini AI            ${GEMINI_KEY}
+    
+    # Extract IDs
+    ${folder}=    Get Google Drive File ID From URL    ${FOLDER_URL}
+    ${questions}=    Get Google Drive File ID From URL    ${QUESTIONS_URL}
+    ${answers}=    Get Google Drive File ID From URL    ${ANSWERS_URL}
+    
+    # Grade
+    ${result}=    Complete Auto Grading Workflow
+    ...    ${folder}    ${questions}    ${answers}    10.0
+    
+    # Upload
+    ${cmid}=    Get Assignment ID From URL    ${ASSIGNMENT_URL}
+    ${assign_id}=    Get Assignment Instance ID From Course Module ID    2    ${cmid}
+    Upload Grades To Moodle    2    ${assign_id}    ${result['results']}
+    
+    # Export
+    Export Grading Results To Excel    ${result['results']}    grades.xlsx    10.0
+```
+
+### **Example 2: Bulk Enrollment**
+
+```robot
+*** Test Cases ***
+Bulk Enroll Students
+    Set Up Moodle Connection    moodle_token.json
+    
+    Complete Bulk Enrollment Workflow
+    ...    students_file=students.xlsx
+    ...    courses_file=courses.xlsx
+```
+
+---
+
+## 📊 Output Files
+
+### **Excel Output (`grading_results.xlsx`)**
+- **Sheet 1: Grading Results**
+  - Student Name
+  - Score
+  - Max Score
+  - Percentage
+  - Feedback (chi tiết từ Gemini AI)
+  - File ID
+
+- **Sheet 2: Summary**
+  - Total Submissions
+  - Average Score
+  - Highest/Lowest Score
+  - Pass Rate
+  - Generated At
+
+### **CSV Output (`grading_results.csv`)**
+Format để import vào Moodle Gradebook:
+```csv
+Email,Full Name,Username,Auto Grading
+student001@example.com,Nguyen Van A,student001,10.0
+student002@example.com,Tran Thi B,student002,9.0
+```
+
+---
+
+## 🔑 Required Moodle Permissions
+
+Web Service user cần có các quyền sau:
+
+### **Web Service Functions:**
+- `core_course_get_contents`
+- `core_user_get_users_by_field`
+- `mod_assign_save_grades`
+- `mod_assign_save_grade`
+- `gradereport_user_get_grade_items`
+
+### **Capabilities:**
+- `moodle/course:view`
+- `moodle/user:viewdetails`
+- `mod/assign:grade`
+- `gradereport/user:view`
+
+---
+
+## 🐛 Troubleshooting
+
+### **Lỗi: "Access control exception"**
+→ Thêm quyền cho Web Service user
+
+### **Lỗi: "Can't find data record in database table assign"**
+→ Assignment ID không đúng, dùng `Get Assignment Instance ID From Course Module ID`
+
+### **Lỗi: "User not found"**
+→ Kiểm tra username/email trong Moodle
+
+### **Lỗi: "models/gemini-pro is not found"**
+→ Gemini model cũ, code đã update sang `gemini-1.5-flash`
+
+---
+
+## 📝 License
+
+MIT License
+
+## 👥 Contributors
+
+- Auto Grading Workflow with Gemini AI
+- Google Drive Integration
+- Moodle Web Services Integration
+
+---
+
+## 🔗 Links
+
+- [Moodle Web Services Documentation](https://docs.moodle.org/dev/Web_services)
+- [Google Gemini AI](https://ai.google.dev/)
+- [Robot Framework](https://robotframework.org/)
+
+---
+
+**Version:** 1.0.7  
+**Last Updated:** 2025-12-26
