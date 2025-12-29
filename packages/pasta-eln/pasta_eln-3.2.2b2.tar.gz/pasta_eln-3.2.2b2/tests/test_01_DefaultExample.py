@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+"""TEST using the FULL set of python-requirements: create the default example that all installations create and verify it thoroughly """
+import logging
+import warnings
+import unittest
+from pathlib import Path
+from pasta_eln.backendWorker.backend import Backend
+from pasta_eln.miscTools import getConfiguration
+from pasta_eln.installationTools import exampleData
+
+class TestStringMethods(unittest.TestCase):
+  """
+  derived class for this test
+  """
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.be = None
+    self.dirName = ''
+
+  def test_main(self):
+    """
+    main function
+    """
+    # initialization: create database, destroy on filesystem and database and then create new one
+    warnings.filterwarnings('ignore', message='numpy.ufunc size changed')
+    warnings.filterwarnings('ignore', message='invalid escape sequence')
+    warnings.filterwarnings('ignore', category=ResourceWarning, module='PIL')
+    warnings.filterwarnings('ignore', category=ImportWarning)
+    logPath = Path.home()/'pastaELN.log'
+    logging.basicConfig(filename=logPath, level=logging.INFO, format='%(asctime)s|%(levelname)s:%(message)s',
+                        datefmt='%m-%d %H:%M:%S')   #This logging is always info, since for installation only
+    for package in ['urllib3', 'requests', 'asyncio', 'PIL', 'matplotlib.font_manager']:
+      logging.getLogger(package).setLevel(logging.WARNING)
+    logging.info('Start 01 test')
+
+    log_records = []
+    class ErrorHandler(logging.Handler):
+      def emit(self, record):
+        if record.levelno >= logging.ERROR:
+          log_records.append(record)
+    handler = ErrorHandler()
+    logging.getLogger().addHandler(handler)
+
+    configuration, _ = getConfiguration('research')
+    exampleData(True, None, 'research', '')
+    self.be = Backend(configuration, 'research')
+    output = self.be.output('x0')
+    self.assertEqual(output.split('\n')[0][:129],
+                      'name                   | tags      | status | objective                                | comment                             | id')
+    self.assertEqual(output.split('\n')[2][:126],
+                      'PASTAs Example Project | Important | active | Test if everything is working as inte... | Can be used as reference or deleted |')
+    projID = output.split('|')[-2].strip()
+    self.be.changeHierarchy(projID)
+
+    output = self.be.outputHierarchy(False, False)
+    refOutput = """PASTAs Example Project | x0
+  This is an example task | x1
+  This is another example task | x1
+    This is an example subtask | x1
+    This is another example subtask | x1
+    simple.png | measurement/image
+  Data files | x1
+    story.odt | -
+    simple.png | measurement/image
+    example.tif | measurement/image
+    https://download.samplelib.com/jpeg/sample-clouds-400x300.jpg | measurement/image
+    simple.csv | measurement/csv/linesAndDots
+  procedure.md | workflow/procedure/markdown
+  workplan.py | workflow/workplan
+  Example_SOP.md | workflow/procedure/markdown
+  worklog.log | workflow/worklog
+"""
+    for line in refOutput.split('\n'):
+      self.assertIn(line, output.split('\n'))
+
+    output = self.be.output('workflow')
+    self.assertIn('name           | tags | comment | id', output)
+    self.assertIn('Example_SOP.md |  v1  |         |'   , output)
+    self.assertIn('procedure.md | nan  |', output)
+    self.assertIn('workplan.py | nan  |', output)
+    self.assertIn('worklog.log | nan  |', output)
+
+    output = self.be.output('sample')
+    self.assertEqual(output.split('\n')[0][:102], 'name           | tags | chemistry | comment                                  | qrCodes            | id')
+    self.assertEqual(output.split('\n')[2][:102], 'Example sample | nan  | A2B2C3    | this sample has multiple groups of me... | 13214124, 99698708 | s-')
+
+    output = self.be.output('device')
+    self.assertEqual(output.split('\n')[0][:82], 'name           | tags | comment                                  | vendor    | id ')
+    self.assertIn('Big instrument | nan  | Instrument onto which attachments can... | Company A | d-', output)
+    self.assertIn('        Sensor | nan  | Attachment that increases functionali... | Company B | d-', output)
+
+    output = self.be.output('measurement')
+    self.assertIn('https://download.samplelib.com/jpeg/s... |  _3  | - Remote image from samplelib. Used f... |            measurement/image | Y     | nan    ', output)
+    self.assertIn('simple.csv | nan  | # These .csv files use the simple con... | measurement/csv/linesAndDots | Y     | nan    |                                nan | m-', output)
+    self.assertIn('simple.png | nan  | # File with two locations', output)
+    self.assertIn('- The sam... |            measurement/image | Y     | nan    |                                nan | m-', output)
+
+    #Verify DB
+    output = self.be.checkDB(outputStyle='text')
+    print(output)
+    output = '\n'.join(output.split('\n')[8:])
+    self.assertNotIn('**ERROR', output, 'Error in checkDB')
+    self.assertEqual(len(output.split('\n')), 8, 'Check db should have 8 more-less empty lines')
+
+    logging.getLogger().removeHandler(handler)
+    self.assertEqual(len(log_records), 0, f"Logging errors found: {[r.getMessage() for r in log_records]}")
+    return
+
+
+  def tearDown(self):
+    logging.info('End 3Projects test')
+    return
+
+if __name__ == '__main__':
+  unittest.main()
