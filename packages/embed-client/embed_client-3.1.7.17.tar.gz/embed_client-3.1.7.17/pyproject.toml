@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "embed-client"
+version = "3.1.7.17"
+description = """Async client for Embedding Service API with comprehensive authentication, SSL/TLS, and mTLS support.
+
+Configuration Structure:
+All configurations include complete structure with all fields:
+- protocol (required): "http", "https", or "mtls" - always present
+- server.host (required, default: "localhost"): Server hostname
+- server.port (required, default: 8001): Server port
+- auth.api_key.key (optional): Authentication token, can be null
+- auth.certificate.cert_file (required for mTLS, null for HTTP, optional for HTTPS): Client certificate file
+- auth.certificate.key_file (required for mTLS, null for HTTP, optional for HTTPS): Client key file
+- auth.certificate.ca_cert_file (required for mTLS, null for HTTP, optional for HTTPS): CA certificate file
+- ssl.cert_file (required for mTLS, null for HTTP, optional for HTTPS): SSL certificate file
+- ssl.key_file (required for mTLS, null for HTTP, optional for HTTPS): SSL key file
+- ssl.ca_cert_file (required for mTLS, null for HTTP, optional for HTTPS): SSL CA certificate file
+- ssl.crl_file (optional, can be null for all protocols): Certificate Revocation List file
+- client.timeout (optional, default: 30.0): Request timeout in seconds
+
+Field Requirements:
+- HTTP: protocol="http", ssl.enabled=false, all certificate fields must be null
+- HTTPS: protocol="https", ssl.enabled=true, certificate fields optional
+- mTLS: protocol="mtls", ssl.enabled=true, certificate fields required (cert_file, key_file, ca_cert_file)
+
+Features:
+- Uses mcp-proxy-adapter for unified command execution and queue management
+- Includes configuration generator CLI (embed-config-generator) for all 8 security modes
+- Includes configuration validator CLI (embed-config-validator) for validation
+- Vectorization method fully hides all intermediate status polling calls
+- Vectorization method supports connection override parameters (host, port, protocol, token, certificates, CRL, timeout) as method arguments
+- Three separate queue methods: submit_job() (submit to queue), get_job_status_or_result() (get status or result), list_queue() (list queue)
+- Complete configuration structure with all fields for easy server integration
+
+See CONFIGURATION.md for complete configuration reference."""
+authors = [{name = "Vasiliy Zdanovskiy", email = "vasilyvz@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = ["embedding", "async", "client", "api", "authentication", "ssl", "tls", "mtls", "config", "generator", "validator", "configuration"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Security",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    "PyJWT>=2.0.0",
+    "cryptography>=3.0.0",
+    "pydantic>=2.0.0",
+    "mcp-proxy-adapter>=6.9.99",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "black",
+    "flake8",
+    "mypy",
+]
+
+[project.urls]
+Homepage = "https://github.com/vasilyvz/embed-client"
+Repository = "https://github.com/vasilyvz/embed-client"
+Documentation = "https://github.com/vasilyvz/embed-client#readme"
+"Bug Tracker" = "https://github.com/vasilyvz/embed-client/issues"
+"Configuration Reference" = "https://github.com/vasilyvz/embed-client/blob/main/CONFIGURATION.md"
+
+[project.scripts]
+embed-config-generator = "embed_client.config_generator_cli:main"
+embed-config-validator = "embed_client.config_validator_cli:main"
+embed-vectorize = "embed_client.cli:cli_main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["embed_client*"]
+exclude = ["test_environment*", "logs*", "tests*"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.flake8]
+max-line-length = 120
