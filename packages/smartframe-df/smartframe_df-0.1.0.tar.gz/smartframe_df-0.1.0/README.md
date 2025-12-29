@@ -1,0 +1,137 @@
+# SmartFrame 📊
+
+**Memory-Efficient DataFrame Management for Python**
+
+SmartFrame automatically manages RAM by keeping only the latest DataFrame in memory, offloading older ones to disk, and providing transparent access with auto-loading.
+
+## 🎯 Problem
+
+When working with large CSVs in Jupyter notebooks:
+```python
+df = pd.read_csv('huge.csv')          # 10GB in RAM
+df_filtered = df[df["col"]==1]        # +3GB (df still in RAM!)
+df_grouped = df_filtered.groupby(...) # +500MB (all 3 in RAM!)
+# Total: ~13.5GB sitting in RAM! 😱
+```
+
+## ✨ Solution
+
+```python
+from smartframe import SmartFrame
+import pandas as pd
+
+sf = SmartFrame()
+
+sf['raw'] = pd.read_csv('huge.csv')       # raw: 10GB in RAM
+sf['filtered'] = sf['raw'].query('x > 0') # raw → disk, filtered: in RAM
+sf['result'] = sf['filtered'].sum()       # filtered → disk, result: in RAM
+
+# Access old data? Auto-loads from disk!
+print(sf['raw'].head())
+
+# See what's in RAM vs disk
+sf.status()
+
+# Cleanup when done
+sf.cleanup()
+```
+
+## 📦 Installation
+
+```bash
+# From this directory
+pip install -e .
+
+# Or just copy the smartframe/ folder to your project
+```
+
+## 🚀 Quick Start
+
+```python
+from smartframe import SmartFrame
+import pandas as pd
+
+# Create a SmartFrame (verbose=True shows what's happening)
+sf = SmartFrame(verbose=True)
+
+# Store DataFrames like a dict
+sf['raw'] = pd.read_csv('data.csv')
+sf['clean'] = sf['raw'].dropna()
+sf['result'] = sf['clean'].groupby('category').sum()
+
+# Check what's where
+sf.status()
+# Output:
+# Name         Location   Size         Shape
+# raw          💾 Disk    1.20 GB      (load to see)
+# clean        💾 Disk    890.50 MB    (load to see)
+# result       🟢 RAM     256 B        100 × 5
+
+# Access any DataFrame - auto-loads if on disk
+print(sf['raw'].head())
+
+# Cleanup all temp files
+sf.cleanup()
+```
+
+## 🔧 Features
+
+| Feature | Description |
+|---------|-------------|
+| **Auto-offload** | Previous DataFrames automatically saved to disk |
+| **Lazy-load** | Old DataFrames loaded only when accessed |
+| **Transparent** | Works like a regular dict - `sf['name'] = df` |
+| **Fast storage** | Uses Parquet (compressed, columnar) |
+| **Status view** | `sf.status()` shows RAM vs disk usage |
+| **Easy cleanup** | `sf.cleanup()` removes all temp files |
+| **Pin important data** | `sf.pin('name')` keeps data in RAM |
+
+## 📖 API Reference
+
+### SmartFrame
+
+```python
+SmartFrame(
+    storage_dir=None,  # Custom temp directory (default: system temp)
+    max_in_ram=1,      # Max DataFrames to keep in RAM
+    verbose=False      # Print status messages
+)
+```
+
+**Methods:**
+- `sf['name'] = df` - Store a DataFrame
+- `sf['name']` - Get a DataFrame (auto-loads from disk)
+- `del sf['name']` - Delete a DataFrame
+- `sf.status()` - Show RAM vs disk status
+- `sf.pin('name')` - Keep a DataFrame in RAM permanently
+- `sf.unpin('name')` - Allow a pinned DataFrame to be offloaded
+- `sf.cleanup()` - Delete all temp files
+- `sf.keys()` - List all DataFrame names
+
+## 🧪 Running Tests
+
+```bash
+python -m pytest tests/
+# or
+python tests/test_smartframe.py
+```
+
+## 📁 Project Structure
+
+```
+smartframe/
+├── __init__.py     # Package exports
+├── core.py         # Main SmartFrame class
+├── storage.py      # Disk storage backend
+└── utils.py        # Utility functions
+
+examples/
+└── example_usage.py  # Demo script
+
+tests/
+└── test_smartframe.py  # Unit tests
+```
+
+## 📝 License
+
+MIT License
