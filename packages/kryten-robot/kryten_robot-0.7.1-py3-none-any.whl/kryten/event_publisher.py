@@ -1,0 +1,417 @@
+"""NATS Event Publisher for CyTube Events.
+
+This module provides the EventPublisher component that bridges the CytubeConnector
+event stream with NATS publishing, consuming raw events and publishing them to
+appropriate NATS subjects.
+"""
+
+import asyncio
+import logging
+import time
+from collections.abc import Callable
+from typing import Any
+
+from .cytube_connector import CytubeConnector
+from .nats_client import NatsClient
+from .raw_event import RawEvent
+from .stats_tracker import StatsTracker
+from .subject_builder import build_event_subject
+
+
+class EventPublisher:
+    """Bridge between CytubeConnector event stream and NATS publishing.
+
+    Consumes events from a CytubeConnector's async iterator and publishes them
+    to NATS with proper subject routing, error handling, and flow control.
+
+    Attributes:
+        connector: CytubeConnector providing event stream.
+        nats_client: NatsClient for publishing to NATS.
+        logger: Logger for structured output.
+        batch_size: Number of events to batch (currently supports only 1).
+        is_running: Whether publisher is actively running.
+        stats: Publishing statistics.
+
+    Examples:
+        >>> connector = CytubeConnector(config, logger)
+        >>> nats_client = NatsClient(nats_config, logger)
+        >>> publisher = EventPublisher(connector, nats_client, logger)
+        >>>
+        >>> await connector.connect()
+        >>> await nats_client.connect()
+        >>> task = asyncio.create_task(publisher.run())
+        >>> # Publisher now bridging events
+        >>> await publisher.stop()
+    """
+
+    def __init__(
+        self,
+        connector: CytubeConnector,
+        nats_client: NatsClient,
+        logger: logging.Logger,
+        batch_size: int = 1,
+        retry_attempts: int = 3,
+        retry_delay: float = 1.0,
+    ):
+        """Initialize event publisher.
+
+        Args:
+            connector: CytubeConnector instance providing event stream.
+            nats_client: NatsClient instance for NATS publishing.
+            logger: Logger for structured logging.
+            batch_size: Events per batch (currently only 1 supported).
+            retry_attempts: Number of retry attempts for transient failures.
+            retry_delay: Initial delay between retries in seconds.
+        """
+        self.connector = connector
+        self.nats_client = nats_client
+        self.logger = logger
+        self.batch_size = batch_size
+        self.retry_attempts = retry_attempts
+        self.retry_delay = retry_delay
+
+        # State
+        self._running = False
+        self._stop_requested = False
+
+        # Kick detection callback
+        self._on_kicked: Callable[[], None] | None = None
+
+        # Statistics
+        self._events_received = 0
+        self._events_published = 0
+        self._publish_errors = 0
+        self._total_publish_time = 0.0
+
+        # Log throttling for noisy events
+        self._media_update_count = 0
+        self._media_update_publish_count = 0
+        self._media_update_log_interval = 20  # Log every N occurrences
+
+        # Rate tracking
+        self._stats_tracker = StatsTracker()
+
+    def on_kicked(self, callback: Callable[[], None]) -> None:
+        """Register callback to be called when bot is kicked from channel.
+
+        Args:
+            callback: Function to call when a kick event is detected.
+                      This should trigger graceful shutdown.
+
+        Examples:
+            >>> def handle_kick():
+            ...     app_state.shutdown_event.set()
+            >>> publisher.on_kicked(handle_kick)
+        """
+        self._on_kicked = callback
+
+    @property
+    def is_running(self) -> bool:
+        """Check if publisher is actively running.
+
+        Returns:
+            True if publisher run loop is active, False otherwise.
+
+        Examples:
+            >>> publisher = EventPublisher(connector, nats, logger)
+            >>> publisher.is_running
+            False
+            >>> # After starting run()
+            >>> publisher.is_running
+            True
+        """
+        return self._running
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        """Get publishing statistics.
+
+        Returns:
+            Dictionary with events_received, events_published, publish_errors,
+            average_publish_time_ms, success_rate, and rate information.
+
+        Examples:
+            >>> stats = publisher.stats
+            >>> print(f"Published: {stats['events_published']}")
+            >>> print(f"Success rate: {stats['success_rate']:.1%}")
+            >>> print(f"Rate (1m): {stats['rate_1min']:.2f}/sec")
+        """
+        avg_time_ms = 0.0
+        if self._events_published > 0:
+            avg_time_ms = (self._total_publish_time / self._events_published) * 1000
+
+        success_rate = 0.0
+        if self._events_received > 0:
+            success_rate = self._events_published / self._events_received
+
+        # Get rate information from StatsTracker
+        last_time, last_type = self._stats_tracker.get_last()
+
+        return {
+            "events_received": self._events_received,
+            "events_published": self._events_published,
+            "publish_errors": self._publish_errors,
+            "average_publish_time_ms": avg_time_ms,
+            "success_rate": success_rate,
+            "rate_1min": self._stats_tracker.get_rate(60),
+            "rate_5min": self._stats_tracker.get_rate(300),
+            "last_event_time": last_time,
+            "last_event_type": last_type,
+        }
+
+    async def run(self) -> None:
+        """Start publishing events from connector to NATS.
+
+        Runs until stop() is called or an unrecoverable error occurs.
+        Consumes events from connector's recv_events() iterator and publishes
+        each to NATS with appropriate subject routing.
+
+        Raises:
+            asyncio.CancelledError: If task is cancelled.
+            Exception: If connector or NATS encounters unrecoverable error.
+
+        Examples:
+            >>> task = asyncio.create_task(publisher.run())
+            >>> await asyncio.sleep(10)
+            >>> await publisher.stop()
+        """
+        if self._running:
+            self.logger.warning("Publisher already running, ignoring run() call")
+            return
+
+        self._running = True
+        self._stop_requested = False
+
+        self.logger.info(
+            "Event publisher started",
+            extra={
+                "batch_size": self.batch_size,
+                "retry_attempts": self.retry_attempts,
+            },
+        )
+
+        try:
+            async for event_name, payload in self.connector.recv_events():
+                # Check if stop requested
+                if self._stop_requested:
+                    self.logger.info("Stop requested, finishing current batch")
+                    break
+
+                self._events_received += 1
+
+                # Detect kick event - this means we were kicked from the channel
+                if event_name == "kick":
+                    kicked_user = payload.get("name", "")
+                    reason = payload.get("reason", "No reason given")
+                    self.logger.warning(
+                        f"Received kick event: user={kicked_user}, reason={reason}",
+                        extra={"kicked_user": kicked_user, "reason": reason},
+                    )
+                    # If we have a kick callback, trigger it to initiate shutdown
+                    if self._on_kicked:
+                        self.logger.warning("Bot was kicked from channel, initiating graceful shutdown")
+                        self._on_kicked()
+                        # Continue processing to publish the kick event to NATS before shutting down
+
+                # Create RawEvent wrapper
+                raw_event = RawEvent(
+                    event_name=event_name,
+                    payload=payload,
+                    channel=self.connector.config.channel,
+                    domain=self.connector.config.domain,
+                )
+
+                # Log received event (with payload for error messages)
+                if event_name == "errorMsg":
+                    self.logger.error(
+                        f"Received CyTube error: {payload}",
+                        extra={
+                            "event_name": event_name,
+                            "error_payload": payload,
+                            "correlation_id": raw_event.correlation_id,
+                        },
+                    )
+                elif event_name == "queueFail":
+                    self.logger.error(
+                        f"Queue failed: {payload}",
+                        extra={
+                            "event_name": event_name,
+                            "error_payload": payload,
+                            "correlation_id": raw_event.correlation_id,
+                        },
+                    )
+                else:
+                    # Throttle logging for noisy events like mediaUpdate
+                    if event_name == "mediaUpdate":
+                        self._media_update_count += 1
+                        if self._media_update_count % self._media_update_log_interval == 1:
+                            self.logger.info(
+                                f"Received event: {event_name} (#{self._media_update_count}, logging every {self._media_update_log_interval})",
+                                extra={
+                                    "event_name": event_name,
+                                    "correlation_id": raw_event.correlation_id,
+                                    "count": self._media_update_count,
+                                },
+                            )
+                    else:
+                        self.logger.info(
+                            f"Received event: {event_name}",
+                            extra={
+                                "event_name": event_name,
+                                "correlation_id": raw_event.correlation_id,
+                            },
+                        )
+
+                # Build NATS subject
+                try:
+                    subject = build_event_subject(raw_event)
+                except ValueError as e:
+                    # Log the problematic event and skip it
+                    self.logger.warning(
+                        f"Skipping event with invalid name: {e}",
+                        extra={
+                            "event_name": event_name,
+                            "raw_event_name": event_name,
+                            "payload_preview": str(payload)[:200],
+                            "correlation_id": raw_event.correlation_id,
+                        },
+                    )
+                    continue
+
+                # Publish to NATS with retry
+                await self._publish_with_retry(subject, raw_event)
+
+        except asyncio.CancelledError:
+            self.logger.info("Publisher cancelled")
+            raise
+
+        except Exception as e:
+            self.logger.error(
+                f"Publisher failed with error: {e}",
+                extra={"error": str(e), "type": type(e).__name__},
+                exc_info=True,
+            )
+            raise
+
+        finally:
+            self._running = False
+            self.logger.info(
+                "Event publisher stopped",
+                extra=self.stats,
+            )
+
+    async def stop(self) -> None:
+        """Gracefully stop the publisher.
+
+        Requests stop and waits for current batch to complete.
+        Safe to call multiple times.
+
+        Examples:
+            >>> await publisher.stop()
+            >>> assert not publisher.is_running
+        """
+        if not self._running:
+            self.logger.debug("Publisher not running, stop() is a no-op")
+            return
+
+        self.logger.info("Requesting publisher stop")
+        self._stop_requested = True
+
+        # Wait for run loop to finish (with timeout)
+        timeout = 5.0
+        start_time = time.time()
+        while self._running and (time.time() - start_time) < timeout:
+            await asyncio.sleep(0.1)
+
+        if self._running:
+            self.logger.warning("Publisher did not stop within timeout")
+
+    async def _publish_with_retry(self, subject: str, event: RawEvent) -> None:
+        """Publish event to NATS with retry logic.
+
+        Args:
+            subject: NATS subject string.
+            event: RawEvent to publish.
+
+        Logs errors and updates statistics.
+        """
+        attempt = 0
+        last_error: Exception | None = None
+
+        while attempt <= self.retry_attempts:
+            try:
+                start_time = time.time()
+
+                # Serialize and publish
+                event_bytes = event.to_bytes()
+                await self.nats_client.publish(subject, event_bytes)
+
+                # Track timing
+                elapsed = time.time() - start_time
+                self._total_publish_time += elapsed
+
+                # Update stats
+                self._events_published += 1
+                self._stats_tracker.record(event.event_name)
+
+                # Log success (throttled for noisy events like mediaUpdate)
+                if event.event_name == "mediaUpdate":
+                    self._media_update_publish_count += 1
+                    if self._media_update_publish_count % self._media_update_log_interval == 1:
+                        self.logger.info(
+                            f"Published event '{event.event_name}' to NATS subject: {subject} (#{self._media_update_publish_count}, logging every {self._media_update_log_interval})",
+                            extra={
+                                "subject": subject,
+                                "event_name": event.event_name,
+                                "correlation_id": event.correlation_id,
+                                "size": len(event_bytes),
+                                "elapsed_ms": elapsed * 1000,
+                                "count": self._media_update_publish_count,
+                            },
+                        )
+                else:
+                    self.logger.info(
+                        f"Published event '{event.event_name}' to NATS subject: {subject}",
+                        extra={
+                            "subject": subject,
+                            "event_name": event.event_name,
+                            "correlation_id": event.correlation_id,
+                            "size": len(event_bytes),
+                            "elapsed_ms": elapsed * 1000,
+                        },
+                    )
+
+                return  # Success!
+
+            except Exception as e:
+                last_error = e
+                attempt += 1
+
+                if attempt <= self.retry_attempts:
+                    # Retry with exponential backoff
+                    delay = self.retry_delay * (2 ** (attempt - 1))
+                    self.logger.warning(
+                        f"Publish failed, retrying in {delay}s (attempt {attempt}/{self.retry_attempts})",
+                        extra={
+                            "subject": subject,
+                            "event_name": event.event_name,
+                            "error": str(e),
+                        },
+                    )
+                    await asyncio.sleep(delay)
+
+        # All retries exhausted
+        self._publish_errors += 1
+        self.logger.error(
+            "Publish failed permanently after retries",
+            extra={
+                "subject": subject,
+                "event_name": event.event_name,
+                "correlation_id": event.correlation_id,
+                "attempts": self.retry_attempts + 1,
+                "error": str(last_error),
+            },
+        )
+
+
+__all__ = ["EventPublisher"]
