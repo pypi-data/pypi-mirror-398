@@ -1,0 +1,56 @@
+<launch>
+
+  <!-- basic set-up which progrmas should run -->
+  <arg name="gazebo" default="true"/>
+  
+  <!-- which inertia parameters should be loaded -->
+  <arg name="inertia_param" default="original"/>
+  <arg name="kinematic_param" default="original"/>
+
+  <!-- gazebo cofiguration parameters -->
+  <arg name="paused" default="false"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="gui" default="true"/>
+  <arg name="headless" default="false"/>
+  <arg name="debug" default="false"/>
+  <arg name="physics" default="ode"/>
+  <arg name="verbose" default="false"/>
+  <arg name="extra_gazebo_args" default=""/>
+
+
+
+
+  <!-- from where the simulation enviornment will be loaded:
+       WARNING: exactly one parameter has to be true, otherwise simulation behaviour is undefined -->
+  <arg name="world_name" default="$(find walkman_final_demo_field)/walkman_final_demo.world"/>
+
+  <!-- Internal arguments, rewrite human-readable gazebo arguments to it's internal arguments -->
+  <arg unless="$(arg paused)" name="command_arg1" value=""/>
+  <arg     if="$(arg paused)" name="command_arg1" value="-u"/>
+  <arg unless="$(arg headless)" name="command_arg2" value=""/>
+  <arg     if="$(arg headless)" name="command_arg2" value="-r"/>
+  <arg unless="$(arg verbose)" name="command_arg3" value=""/>
+  <arg     if="$(arg verbose)" name="command_arg3" value="--verbose"/>
+  <arg unless="$(arg debug)" name="script_type" value="gzserver"/>
+  <arg     if="$(arg debug)" name="script_type" value="debug"/>
+
+  <!-- Load the URDF/SRDF into the ROS Parameter Server -->
+  <param name="robot_description" textfile="$(find walkman_urdf)/urdf/_walkman_robot.urdf"/>
+
+  <param name="robot_semantic_description" textfile="$(find walkman_srdf)/srdf/walkman.srdf"/>
+
+  <!-- run gazebo -->
+  <group if="$(arg gazebo)">
+  <!-- start gazebo server-->
+    <node name="gazebo" pkg="gazebo_ros" type="$(arg script_type)" respawn="false" output="screen"
+    args="$(arg command_arg1) $(arg command_arg2) $(arg command_arg3) -e $(arg physics) $(arg extra_gazebo_args) $(arg world_name) -namespace walkman" />
+
+    <!-- start gazebo client -->
+      <node name="gazebo_gui" pkg="gazebo_ros" type="gzclient" respawn="false" output="screen" if="$(arg gui)"/>
+
+<node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+    args="-urdf -param robot_description -model walkman -x -1.5 -y 0.0 -z 0.0 -R 0 -P 0 -Y -0.0"/>
+
+  </group>
+
+</launch>

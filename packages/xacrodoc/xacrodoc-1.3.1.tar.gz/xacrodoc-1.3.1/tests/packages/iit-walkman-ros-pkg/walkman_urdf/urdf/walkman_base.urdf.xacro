@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="walkman">
+<!-- 
+  ROS urdf definition of the WALK-MAN humanoid robot by Istituto Italiano di Tecnologia
+  
+  DO NOT INCLUDE THIS FILE DIRECTLY! USE bigman_robot.urdf.xacro INSTEAD!
+
+  Author: Enrico Mingo Hoffman
+
+  Inertial matrix has to be in CoM frame (URDF specs)
+
+-->
+<xacro:property name="mmTom" value="0.001" />
+<xacro:property name="mm2Tom2" value="${0.001*0.001}" />
+<xacro:property name="tonsToKg" value="1000.0" />
+<xacro:property name="PI" value="3.14159265359" />
+<!--
+The coordinate frame called base_link is rigidly attached to the robot root body. It is recommended to choose the robot waist as its root body. The base_link can be attached to the root in any arbitrary position or orientation; for every hardware platform there will be a different place on the base that provides an obvious point of reference. Note that REP 103 [1] specifies a preferred orientation for frames. -->
+<link name="base_link"/>
+
+<!-- Here some masses are missing! -->
+<link name="Waist">
+    <inertial>
+      <origin xyz="${2.7038986e+01*mmTom} ${-5.1554922e-03*mmTom} ${-6.4188178e+01*mmTom}" rpy="0.0 0.0 0.0"/>
+      <mass value="2.9259094"/> 
+      <inertia ixx="${2.5713610e+04*mm2Tom2}"  ixy="${9.5008024e+00*mm2Tom2}"  ixz="${4.3519496e+03*mm2Tom2}" iyy="${2.4949190e+04*mm2Tom2}" iyz="${4.5439311e+00*mm2Tom2}" izz="${2.4920120e+04*mm2Tom2}" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry name="Waist_visual">
+        <mesh filename="package://walkman_urdf/meshes/Waist.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="grey"/>
+    </visual> 
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry name="Waist_collision">
+        <mesh filename="package://walkman_urdf/meshes/simple/Waist.STL" scale="0.001 0.001 0.001"/>
+      </geometry>             
+    </collision>   
+</link>
+
+<joint name="base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="Waist"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+</joint>
+
+<xacro:include filename="$(find walkman_urdf)/urdf/parts/legs.urdf.xacro" />
+
+<link name="l_ankle"/>
+<link name="r_ankle"/>
+
+<link name="l_sole"/>
+<link name="r_sole"/>
+
+
+
+<joint name="l_ankle_joint" type="fixed">
+     <parent link="LFoot"/>
+     <child link="l_ankle"/>
+     <origin xyz="0 0 0" rpy="0 0 0" />
+ </joint>
+
+<joint name="r_ankle_joint" type="fixed">
+       <parent link="RFoot"/>
+       <child link="r_ankle"/>
+       <origin xyz="0 0 0" rpy="0 0 0" />
+</joint>
+
+<joint name="l_sole_joint" type="fixed">
+       <parent link="LFoot"/>
+       <child link="l_sole"/>
+       <origin xyz="0 0 -0.1435" rpy="0 0 0" />
+</joint>
+
+<joint name="r_sole_joint" type="fixed">
+       <parent link="RFoot"/>
+       <child link="r_sole"/>
+       <origin xyz="0 0 -0.1435" rpy="0 0 0" />
+</joint>
+
+<xacro:include filename="$(find walkman_urdf)/urdf/parts/foot_reference_frame.urdf.xacro" />
+
+
+<xacro:include filename="$(find walkman_urdf)/urdf/parts/torso.urdf.xacro" />
+
+<xacro:include filename="$(find walkman_urdf)/urdf/parts/neck.urdf.xacro" />
+
+<link name="gaze"/>
+<joint name="gaze_joint" type="fixed">
+       <parent link="NeckPitch"/>
+       <child link="gaze"/>
+       <origin xyz="0 ${-34.25*mmTom} 0" rpy="0 0 0" />
+</joint>
+  
+
+
+<xacro:include filename="$(find walkman_urdf)/urdf/parts/arms.urdf.xacro" />
+
+<link name="l_wrist">
+    <inertial>
+      <origin xyz="${8.2161929e-02*mmTom} ${2.6334189*mmTom} ${-1.6465877e+01*mmTom}" rpy="0 0 0"/>
+      <mass value="3.7827821e-01"/>
+      <inertia ixx="${2.3321716e+02*mm2Tom2}"  ixy="${2.3681435*mm2Tom2}"  ixz="${-1.8039102*mm2Tom2}" iyy="${2.0626291e+02*mm2Tom2}" iyz="${3.1588290e+01*mm2Tom2}" izz="${2.7399881e+02*mm2Tom2}" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="${PI} 0 0"/>
+      <geometry name="LShp_visual">
+        <mesh filename="package://walkman_urdf/meshes/Wrist.STL" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="${PI} 0 0"/>
+      <geometry name="LShp_collision">
+        <mesh filename="package://walkman_urdf/meshes/simple/Wrist.STL" scale="0.001 -0.001 0.001" />
+      </geometry>             
+    </collision>
+</link>
+
+<link name="r_wrist">
+    <inertial>
+      <origin xyz="${8.2161929e-02*mmTom} ${-2.6334189*mmTom} ${-1.6465877e+01*mmTom}" rpy="0 0 0"/>
+      <mass value="3.7827821e-01"/>
+      <inertia ixx="${2.3321716e+02*mm2Tom2}"  ixy="${-2.3681435*mm2Tom2}"  ixz="${-1.8039102*mm2Tom2}" iyy="${2.0626291e+02*mm2Tom2}" iyz="${-3.1588290e+01*mm2Tom2}" izz="${2.7399881e+02*mm2Tom2}" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="${PI} 0 0"/>
+      <geometry name="RShp_visual">
+        <mesh filename="package://walkman_urdf/meshes/Wrist.STL" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="${PI} 0 0"/>
+      <geometry name="RShp_collision">
+        <mesh filename="package://walkman_urdf/meshes/simple/Wrist.STL" scale="0.001 0.001 0.001" />
+      </geometry>             
+    </collision>
+</link>
+
+<joint name="l_wrist_joint" type="fixed">
+       <parent link="LWrMot3"/>
+       <child link="l_wrist"/>
+       <origin xyz="0 0 0" rpy="0 0 0" />
+</joint>
+
+<joint name="r_wrist_joint" type="fixed">
+       <parent link="RWrMot3"/>
+       <child link="r_wrist"/>
+       <origin xyz="0 0 0" rpy="0 0 0" />
+</joint>
+
+<xacro:include filename="$(find walkman_urdf)/urdf/parts/soft_hand.urdf.xacro" />
+
+
+</robot>
+
