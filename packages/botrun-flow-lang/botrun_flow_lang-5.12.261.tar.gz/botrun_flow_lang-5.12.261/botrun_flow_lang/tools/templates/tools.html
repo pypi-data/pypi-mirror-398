@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReAct Agent Tools Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css" rel="stylesheet">
+    <style>
+        .tool-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        .tool-name {
+            color: #0d6efd;
+            margin-bottom: 1rem;
+            padding-top: 60px;  /* 為固定導航欄留出空間 */
+            margin-top: -60px;  /* 抵消 padding-top */
+        }
+        .param-table {
+            margin-top: 1rem;
+        }
+        .doc-content {
+            white-space: pre-wrap;
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #dee2e6;
+        }
+        #main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        .nav-link {
+            color: #0d6efd;
+            padding: 5px 0;
+        }
+        .nav-link:hover {
+            background-color: #e9ecef;
+        }
+        .nav-link.active {
+            font-weight: bold;
+            background-color: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h5 class="mb-3">Tools</h5>
+        <nav class="nav flex-column">
+            {% for tool in tools %}
+            <a class="nav-link" href="#{{ tool.name }}">{{ tool.name }}</a>
+            {% endfor %}
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <h1 class="mb-4">ReAct Agent Tools Documentation</h1>
+        
+        <div class="row">
+            <div class="col-12">
+                {% for tool in tools %}
+                <div class="tool-section" id="{{ tool.name }}">
+                    <h2 class="tool-name">@tool {{ tool.name }}</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">{{ tool.doc }}</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for param in tool.parameters %}
+                            <tr>
+                                <td>{{ param.name }}</td>
+                                <td><code>{{ param.annotation }}</code></td>
+                                <td>{% if param.default != None %}<code>{{ param.default }}</code>{% else %}-{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code>{{ tool.return_annotation }}</code>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script>
+        // 高亮當前選中的導航項
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            // 監聽滾動事件
+            window.addEventListener('scroll', function() {
+                let currentSection = '';
+                const sections = document.querySelectorAll('.tool-section');
+                
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (pageYOffset >= sectionTop - 100) {
+                        currentSection = section.getAttribute('id');
+                    }
+                });
+                
+                // 更新導航項的激活狀態
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').substring(1) === currentSection) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+            
+            // 平滑滾動
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href').substring(1);
+                    const targetElement = document.getElementById(targetId);
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 20,
+                        behavior: 'smooth'
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html> 
