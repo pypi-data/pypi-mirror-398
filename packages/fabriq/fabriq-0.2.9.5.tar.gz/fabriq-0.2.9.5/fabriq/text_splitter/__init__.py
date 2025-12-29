@@ -1,0 +1,1 @@
+from fabriq.text_splitter.text_splitter import TextSplitter

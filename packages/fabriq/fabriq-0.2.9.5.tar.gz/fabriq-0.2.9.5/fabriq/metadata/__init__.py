@@ -1,0 +1,1 @@
+from fabriq.metadata.metadata_enrich import DenseMetadataEnricher

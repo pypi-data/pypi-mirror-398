@@ -1,0 +1,1 @@
+from fabriq.embeddings.embeddings import EmbeddingModel

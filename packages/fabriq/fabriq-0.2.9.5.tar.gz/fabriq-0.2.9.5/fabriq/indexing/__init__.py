@@ -1,0 +1,1 @@
+from fabriq.indexing.indexing import DocumentIndexer

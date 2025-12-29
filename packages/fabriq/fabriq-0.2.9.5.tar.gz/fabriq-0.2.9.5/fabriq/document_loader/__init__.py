@@ -1,0 +1,1 @@
+from fabriq.document_loader.document_loader import DocumentLoader
