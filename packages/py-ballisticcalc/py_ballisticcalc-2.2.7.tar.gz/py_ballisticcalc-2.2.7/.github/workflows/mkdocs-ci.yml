@@ -1,0 +1,41 @@
+name: Build and deploy docs
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # required for setuptools-scm
+
+      - name: Configure Git Credentials
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        shell: bash
+
+      - name: Install uv and set Python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          github-token: ${{ github.token }}
+
+      - name: Install dependencies
+        run: uv sync --extra docs --extra exts
+        shell: bash
+
+      - name: Deploy
+        run: |
+          VERSION=$(python -m setuptools_scm)
+          echo "Deploying docs from branch: $VERSION"
+          mike deploy --push --update-aliases $VERSION latest
+        shell: bash

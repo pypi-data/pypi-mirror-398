@@ -1,0 +1,115 @@
+# .github/workflows/reusable-test.yml
+name: Reusable Test Workflow
+
+# This 'on' section specifies that this workflow can only be called by other workflows.
+# It defines the 'inputs' (parameters) that a calling workflow must provide.
+on:
+  workflow_call:
+    inputs:
+      os: # Input for the operating system (e.g., ubuntu-latest)
+        required: true # This input is mandatory
+        type: string
+      python_version: # Input for the Python version (e.g., "3.10")
+        required: true # This input is mandatory
+        type: string
+      engine_name: # Input for the engine type to test with (e.g., "euler_engine")
+        required: true # This input is mandatory
+        type: string
+      stress_test: # Input to manually enable stress tests
+        required: false # Stress tests are optional
+        type: boolean
+        default: false # Disabled by default
+      build_wheels:
+        required: false
+        type: boolean
+        default: false
+
+
+jobs:
+  run_single_test_combination: # This is the job that will execute for each specific test combination
+    # This 'name' will appear clearly in the GitHub Actions UI for each individual test run.
+    # For example: "Python 3.10 on macos-15 with rk4_engine"
+    name: Python ${{ inputs.python_version }} on ${{ inputs.os }} with ${{ inputs.engine_name }}
+    runs-on: ${{ inputs.os }} # The runner's OS is provided by the 'os' input
+
+    steps:
+      - uses: actions/checkout@v5
+        name: Checkout Repository Code # A clear name for this foundational step
+        with:
+          fetch-depth: 0 # Required for setuptools-scm
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ inputs.python_version }} # Use the Python version passed via inputs
+          activate-environment: "true"
+          github-token: ${{ github.token }}
+
+      - name: Ensure CI helper scripts executable
+        run: chmod +x .github/scripts/ci-helpers.sh
+        shell: bash
+
+      - name: Install system dependencies
+        run: .github/scripts/ci-helpers.sh install-system-deps ${{ inputs.python_version }} ${{ runner.os }}
+        shell: bash
+
+      - name: Install project dependencies
+        run: .github/scripts/ci-helpers.sh install-project ${{ inputs.python_version }} ${{ inputs.engine_name }}
+        shell: bash
+
+      - name: Test Cythonized code (if applicable)
+        if: startsWith(inputs.engine_name, 'cythonized_')
+        run: |
+          echo "Detected Cythonized engine. Testing extensions..."
+          .github/scripts/ci-helpers.sh test ./py_ballisticcalc.exts/tests ${{ inputs.engine_name }}
+
+        shell: bash
+
+      - name: Run main tests with ${{ inputs.engine_name }}
+        run: .github/scripts/ci-helpers.sh test tests ${{ inputs.engine_name }}
+        shell: bash
+
+      - name: Run stress tests
+        id: stress_test_run
+        if: ${{ inputs.stress_test == true && startsWith(inputs.engine_name, 'cythonized_') }}
+        run: .github/scripts/ci-helpers.sh stress
+        shell: bash
+        continue-on-error: true
+
+      - name: Upload Valgrind log artifact 📤
+        uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.stress_test == true && startsWith(inputs.engine_name, 'cythonized_') }}
+        with:
+          name: valgrind-stress-test-log-${{ inputs.os }}-py${{ inputs.python_version }}-${{ inputs.engine_name }}
+          path: valgrind.log
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # New section to build artifact
+      - name: Build artifacts with uv 📦
+        if: success() && inputs.build_wheels == true
+        run: |
+          set -e
+
+          echo "Cleaning dist directory..."
+          rm -rf dist/
+          mkdir -p dist
+
+          echo "Building sdist + wheel (root package)..."
+          uv build --out-dir dist
+
+          echo "Building wheel (extensions package)..."
+          uv build ./py_ballisticcalc.exts --wheel --out-dir dist
+
+          echo "Resulting artifacts:"
+          ls -l dist
+        shell: bash
+
+      - name: Upload build artifacts 📤
+        if: success() && inputs.build_wheels == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ inputs.os }}-py${{ inputs.python_version }}
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
