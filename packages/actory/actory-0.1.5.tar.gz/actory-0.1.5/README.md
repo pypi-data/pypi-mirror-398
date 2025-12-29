@@ -1,0 +1,113 @@
+# Actory Python SDK
+
+Official Python client for the Actory Agent Commerce Protocol (ACP) API.
+
+## Installation
+
+```bash
+pip install actory
+```
+
+## Quick Start
+
+```python
+from actory import Actory
+
+# Initialize with your API key
+client = Actory(api_key="act_sk_your_key_here")
+
+# Search for products
+results = client.search("red shoes", max_price=100, in_stock=True)
+print(f"Found {results.total} products")
+
+for product in results.products:
+    print(f"  {product.title}: {product.currency} {product.price:.2f}")
+```
+
+## Features
+
+### Search Products
+
+```python
+# Basic search
+results = client.search("shoes")
+
+# With filters
+results = client.search(
+    "shoes",
+    in_stock=True,
+    min_price=20,
+    max_price=100,
+    vendor="Nike",
+    category="footwear",
+    limit=50,
+    page=1
+)
+```
+
+### Natural Language Search
+
+```python
+# Parse natural language queries
+results = client.nl_search("red shoes under $50 in stock")
+# Automatically extracts: color=red, maxPrice=50, inStock=true
+```
+
+### Get Product Details
+
+```python
+product = client.get_product("product_id_here")
+print(f"{product.title}: {product.currency} {product.price:.2f}")
+print(f"In Stock: {product.in_stock}")
+```
+
+### List Merchants
+
+```python
+merchants = client.list_merchants()  # or client.get_merchants()
+for m in merchants:
+    print(f"{m.name} ({m.domain}): {m.product_count} products")
+```
+
+### List Categories & Vendors
+
+```python
+categories = client.list_categories()
+vendors = client.list_vendors()
+```
+
+## Error Handling
+
+```python
+from actory import Actory, AuthenticationError, RateLimitError, ActoryError
+
+try:
+    client = Actory(api_key="invalid_key")
+    results = client.search("test")
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError:
+    print("Too many requests, slow down")
+except ActoryError as e:
+    print(f"API error: {e}")
+```
+
+## Configuration
+
+```python
+# Custom base URL (for local development)
+client = Actory(
+    api_key="act_sk_...",
+    base_url="http://localhost:3000"
+)
+```
+
+## Get an API Key
+
+1. Visit [app.actory.ai](https://app.actory.ai)
+2. Navigate to API Keys
+3. Create a new API key and use in your application
+
+## License
+
+MIT
