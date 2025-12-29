@@ -1,0 +1,33 @@
+# docker-compose.yml template
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "{{ port | default(8000) }}:{{ port | default(8000) }}"
+    volumes:
+      - .:/app
+    command: {{ command }}
+    {% if database == 'postgres' %}
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://{{ db_user | default('user') }}:{{ db_password | default('password') }}@db:5432/{{ db_name | default('appdb') }}
+    {% endif %}
+
+  {% if database == 'postgres' %}
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER={{ db_user | default('user') }}
+      - POSTGRES_PASSWORD={{ db_password | default('password') }}
+      - POSTGRES_DB={{ db_name | default('appdb') }}
+  {% endif %}
+
+volumes:
+  {% if database == 'postgres' %}
+  postgres_data:
+  {% endif %}
