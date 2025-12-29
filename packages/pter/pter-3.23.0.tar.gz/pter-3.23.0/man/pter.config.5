@@ -1,0 +1,1536 @@
+.\" Man page generated from reStructuredText
+.\" by the Docutils 0.22.4 manpage writer.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "pter" "" "" ""
+.SH Name
+pter \- Personal Task Entropy Reducer
+.sp
+This help describes the configuration files for both pter and qpter.
+.SH Configuration Files
+.sp
+Aside from the data files in the todo.txt format (see Conforming to),
+pter\(aqs behaviour can be configured through a configuration file.
+.sp
+The configuration file\(aqs default location is at \fB~/.config/pter/pter.conf\fP\&.
+.sp
+There should have been an example configuration file, \fBexample.conf\fP
+distributed with your copy of pter that can give you an idea on how that
+works. In this documentation you will find the full explanation.
+.sp
+Note that the configuration file content is case\-sensitive!
+.sp
+The configuration file is entirely optional and each option has a default
+value. That allows you to run pter just fine without ever configuring
+anything.
+.sp
+The configuration file has these four sections:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+General, for general behaviour,
+.IP \(bu 2
+Symbols, for icons used in the (task) display,
+.IP \(bu 2
+Keys, to override default keyboard controls in lists,
+.IP \(bu 2
+Editor:Keys, to override the default keyboard controls in edit fields (detailed in Keys),
+.IP \(bu 2
+Colors, for coloring the TUI,
+.IP \(bu 2
+GUI:Colors, for coloring the tasks in the GUI,
+.IP \(bu 2
+Highlight, for coloring specific tags of tasks,
+.IP \(bu 2
+GUI:Highlight, for coloring specific tags of tasks (GUI version, see Highlight).
+.IP \(bu 2
+GUI, for other GUI specific options
+.IP \(bu 2
+Hooks, for calling external programs at times from within pter
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+This help also includes details on these topics:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+How to include additional configuration files, see Include,
+.IP \(bu 2
+Use an external program for Time Tracking\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH General
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.TP
+.B \fBuse\-colors\fP
+Whether or not to use colors. Defaults to \(aqyes\(aq.
+.TP
+.B \fBscroll\-margin\fP
+How many lines to show at the lower and upper margin of lists. Defaults
+to \(aq5\(aq.
+.TP
+.B \fBsafe\-save\fP
+Safe save means that changes are written to a temporary file and that
+file is moved over the actual file after writing was completed.
+Defaults to \(aqyes\(aq.
+.sp
+This can be problematic if your files are in folders synchronised with
+cloud services.
+.TP
+.B \fBsearch\-case\-sensitive\fP
+Can be set to \fByes\fP (the default), \fBno\fP (make all searches ignore upper/lower case), or
+\fBsmart\fP\&. Please consult the section \(dqSmart case\-sensitive search\(dq in the pter/qpter documentation
+for details.
+.TP
+.B \fBauto\-template\-case\-sensitive\fP
+Can be set to \fByes\fP (the default), \fBno\fP (auto template matching is case insensitive), or
+\fBsmart\fP (if the auto template text has upper case characters, matching this one will be
+case sensitive).
+.TP
+.B \fBhuman\-friendly\-dates\fP
+Here you can define what fields of a task, that are known to contain a
+date, should be displayed in a more human\-friendly way. By default no
+dates are translated.
+.sp
+Human\-friendly means that instead of a \(aqYYYY\-MM\-DD\(aq format it might
+show \(aqnext wednesday\(aq, \(aqtomorrow\(aq, or \(aqin 2 weeks\(aq. It means that
+dates, that are further away (in the future or the past) will be less
+precise.
+.sp
+Possible values are \fBdue\fP (for due dates), \fBt\fP (for the
+threshold/tickler dates), \fBcompleted\fP (for completion dates),
+\fBcreated\fP (for creation dates), or \fBall\fP (for all of the above).
+You can also combine these values by comma separating them like this:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.EX
+[General]
+human\-friendly\-dates = due, t
+.EE
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBtask\-format\fP
+The format string to use for displaying tasks. Defaults to \(dq\fB{selection: >} {nr: >} {done} {tracking }{due }{(pri) }{description}\fP\(dq.
+.sp
+See Task Format below for more details.
+.TP
+.B \fBclear\-contexts\fP
+A list of comma separated contexts (without the leading \fB@\fP) to remove from a task
+when it is being marked as done.
+.sp
+For example, you might want to remove the \fB@in\fP context or any
+\fB@today\fP tags when marking a task as done. In that case
+\fBclear\-contexts\fP should be set to \fBin, today\fP\&.
+.TP
+.B \fBdefault\-threshold\fP
+The default \fBt:\fP search value to use, even when no other search has
+been defined. Defaults to \(aqtoday\(aq.
+.sp
+This option supports Relative Dates (see pter documentation).
+.TP
+.B \fBdelegation\-marker\fP
+Marker to add to a task when delegating it. Defaults to \fB@delegated\fP\&.
+.TP
+.B \fBdelegation\-action\fP
+Action to take when delegating a task.
+One of \(aqnone\(aq, or \(aqmail\-to\(aq (defaulting to \(aqmail\-to\(aq).
+.sp
+\(aqnone\(aq does nothing, but \(aqmail\-to\(aq will attempt to start your email
+program to write an email. If your task has a \(aqto:\(aq attribute (or
+whatever you set up for \fBdelegation\-to\fP, it will be used as the
+recipient for the email.
+.TP
+.B \fBdelegation\-to\fP
+Attribute name to use when delegating a task via email. Defaults to
+\fBto\fP\&. Eg. \(dqclean the dishes to:bob\(dq will compose the email to \(dqbob\(dq
+when delegating a task and the delegation action is \(dqmail\-to\(dq.
+.TP
+.B \fBdue\-delta\fP
+The difference that should be used to increase/decrease the due date when
+\fBinc\-due\fP or \fBdec\-due\fP is used.
+.sp
+Defaults to \fB1d\fP\&.
+.TP
+.B \fBdue\-skip\-weekend\fP
+Whether or not to skip weekends while increasing/decreasing due dates.
+.TP
+.B \fBbusiness\-days\fP
+Define what a business day is for use with \fBb\fP in relative dates.
+.sp
+This is expected to be a comma\-separated list of ISO weekday numbers
+(1 through 7) or weekday names in english (3\-letter version or full name,
+capitalisation is ignored).
+.sp
+Valid examples are: \fBmon, Tue, wed\fP, \fBtuesday, Wednesday\fP, \fB5, 6\fP\&.
+.sp
+Defaults to \fB1,2,3,4,5\fP (Monday through Friday).
+.TP
+.B \fBeditor\fP
+The external text editor to use instead of whatever is defined in the
+\fBVISUAL\fP or \fBEDITOR\fP environment variables.
+If pter can’t find a valid editor in neither this configuration option
+nor these environment variables, it will fall back to \fBnano\fP in the
+wild hopes that it might be installed.
+.sp
+Defaults to nothing, because the environment variables should be all
+that’s required.
+.sp
+This option is ignored in \fBqpter\fP\&.
+.TP
+.B \fBviewer\fP
+The external program to use to view notes. Defaults to \fBless\fP or \fBmore\fP
+and has no effect in \fBqpter\fP\&.
+.TP
+.B \fBprotocols\fP
+What protocols should be considered when using the \(aqOpen URL\(aq function
+on a task. Defaults to \fBhttp, https, mailto, ftp, ftps\fP\&.
+.TP
+.B \fBadd\-creation\-date\fP
+Whether or not to automatically add the creation date of a task
+to it. Defaults to \fByes\fP\&.
+.TP
+.B \fBadd\-completion\-date\fP
+Whether or not to automatically add the completion date to a task
+when marking it as completed. Defaults to \fBalways\fP\&.
+.sp
+Other than \fBalways\fP you could set this to \fByes\fP, to only set a
+completion date when that task also has a creation date.
+.sp
+Note that \fBalways\fP will set a completion date for tasks that do not
+have a creation date when you mark the task as completed, but if the
+\fBfile\-format\fP is set to \fBpedantic\fP (the default),
+the completion date will not actually be saved to disk!
+.TP
+.B \fBcreate\-from\-search\fP
+If set to \fByes\fP, positive expressions (that do not refer to time or
+\fBdone\fP) of the active search (eg. \fB@context +project word\fP, but not
+\fB\-@context due:+7d done:y \-others\fP) will be added automatically to a
+newly created task. Defaults to \fBno\fP\&.
+.TP
+.B \fBauto\-id\fP
+Whether or not to automatically add an ID to newly created tasks.
+Defaults to \fBno\fP\&.
+.TP
+.B \fBhide\-sequential\fP
+Whether or not to automatically hide tasks that have uncompleted
+preceding tasks (see Task Sequences in pter documentation).
+Defaults to \fByes\fP\&.
+.TP
+.B \fBinfo\-timeout\fP
+How long should info messages remain visible in the status bar of the
+TUI application. Defaults to \fB5\fP, so 5 seconds.
+.TP
+.B \fBuse\-completion\fP
+Whether or not to use completion for contexts (\fB@\fP) and projects
+(\fB+\fP) in the search field, task creation, and task editing fields of
+the TUI. Defaults to \fByes\fP\&.
+.TP
+.B \fBdelete\-is\fP
+What behaviour the delete function is actually showing. Can be one of
+these:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBdisabled\fP, no functionality at all. There is no delete. This is
+the default.
+.IP \(bu 2
+\fBtrash\fP, deleted tasks are moved to the trash file (see
+\fBtrash\-file\fP option below).
+.IP \(bu 2
+\fBpermanent\fP, actually deletes the task.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBreduce\-distraction\fP
+Reduce distractions by hiding the task list when creating or editing a task.
+.sp
+Defaults to \fBno\fP\&.
+.TP
+.B \fBesc\-timeout\fP
+The number of ms curses should wait after \fBEsc\fP has been detected before.
+Play around with this if pter is reacting too slowly to you pressing \fBEsc\fP
+or doesn\(aqt register when you press key combinations like \fBAlt+Backspace\fP\&.
+.sp
+Defaults to \fB200\fP\&.
+.TP
+.B \fBreset\-terminal\fP
+Reset the terminal extra hard to prevent inconsistent mouse wheel interaction.
+.sp
+Defaults to \fBno\fP\&.
+.TP
+.B \fBword\-boundaries\fP
+Letters that are considered word boundaries when using functions like \fBdel\-word\-left\fP,
+\fBdel\-word\-right\fP, \fBgo\-word\-left\fP, and \fBgo\-word\-right\fP\&.
+.sp
+Defaults to \fB+\- @\fP\&.
+.sp
+You can enclose the letters with \fB\(dq\fP to ensure spaces are preserved.
+.TP
+.B \fBtrash\-file\fP
+Where your trash file is. This option is only used if \fBdelete\-is\fP is
+set to \fBtrash\fP\&. Defaults to \fB~/.config/pter/trash.txt\fP\&.
+.TP
+.B \fBarchive\-is\fP
+Defines the behaviour of the \fBarchive\fP function. Can be one of these:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBrelative\fP, the archive file is assumed to be in the same place as
+the \fBtodo.txt\fP file, but called \fBarchive.txt\fP,
+.IP \(bu 2
+\fBcentralised\fP, there is only one archive file for all \fBtodo.txt\fP
+files. Its location is controlled by \fBarchive\-file\fP,
+.IP \(bu 2
+\fBdisabled\fP, there is no archiving.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Defaults to \fBcentralised\fP\&.
+.TP
+.B \fBarchive\-file\fP
+Where your archive file is. This file will be used to receive archived
+tasks if the \fBarchive\-is\fP option is set to \fBcentralised\fP\&. Defaults
+to \fB~/.config/pter/archive.txt\fP\&.
+.TP
+.B \fBarchive\-origin\-marker\fP
+If you want to add the original filename of the todo.txt file where the
+task that you are archiving just now was coming from (especially useful
+if you use a \fBcentralised\fP archive file), set this option to the name
+of the attribute to add to the archived task.
+.sp
+For example, if you set this to \fBorigin\fP and archive a task from the
+\fBwork.txt\fP, the archived task will have the additional attribute
+\fBorigin:work.txt\fP\&.
+.sp
+By default this option is not set to anything and therefore ignored.
+.TP
+.B \fBarchive\-origin\-is\fP
+What to save as the original task file when archiving a task. Note that
+this option is ignored unless \fBarchive\-origin\-marker\fP is set.
+.sp
+Options are:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBfull\-path\fP, save the full path to the original file,
+.IP \(bu 2
+\fBname\fP, save only the name of the original file,
+.IP \(bu 2
+\fBstem\fP, save only the filename of the original file, without the suffix (which is most often \fB\&.txt\fP anyway)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+The default is \fBfull\-path\fP\&.
+.TP
+.B \fBdone\-is\fP
+Defines the behaviour of the \fBdone\fP function. Can be on of these:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBmark\fP, just mark the task as done
+.IP \(bu 2
+\fBmove\fP, move the task into the \fBdone\-file\fP
+.IP \(bu 2
+\fBmark\-move\fP, mark the task as done and move it into the \fBdone\-file\fP
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Note that in case of \fBmove\fP or \fBmark\-move\fP toggling the state of a
+task from done to not\-done will move the task back from the done file into
+\fIone of your open task files\fP (probably the first file).
+.sp
+Defaults to \fBmark\fP\&.
+.TP
+.B \fBdone\-file\fP
+Where your file for completed tasks it. This file will be used if \fBdone\-is\fP
+is set to \fBmove\fP or \fBmark\-move\fP\&.
+.sp
+Defaults to \fB~/.config/pter/done.txt\fP\&.
+.TP
+.B \fBreuse\-recurring\fP
+Reuse existing recurring task entry instead of creating a new one. If
+set, completing a task with a \fBrec:\fP (recurring) tag will be reused
+for the follow\-up task instead of creating a new task.
+.sp
+Defaults to \fBno\fP\&.
+.TP
+.B \fBrelated\-show\-self\fP
+Whether or not to show the current task, too, when showing its related
+tasks. This can be set to \fByes\fP, \fBno\fP or \fBforce\fP\&.
+.sp
+\fByes\fP means, not only the related tasks are shown, but also this one.
+.sp
+\fBforce\fP is the same as \fByes\fP, but if the current task does not have
+an \fBid:\fP attribute, it will be given one. In other words, this option
+may modify your \fBtodo.txt\fP file.
+.sp
+Defaults to \fByes\fP\&.
+.TP
+.B \fBsort\-order\fP
+The default sorting order if you don\(aqt set one in the search with the
+\fBsort:\fP keyword.
+.sp
+Defaults to \fBcompleted,due_in,priority,linenr\fP
+.TP
+.B \fBfiles\fP
+Default todo file(s) to load. This option is ignored when pter is given
+some todo.txt file(s) in the command line parameters.
+.sp
+For example: \fBfiles = ~/Documents/todo.txt\fP\&.
+.sp
+To provide multiple files, separate them with newlines, like this:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.EX
+[General]
+files =
+    ~/shared/group_todo.txt
+    ~/Documents/todo.txt
+    ~/GTD/some day maybe.txt
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The last example shows how to deal with spaces in filenames.
+.sp
+This option does not apply to qpter, which tracks opened files differently.
+.TP
+.B \fBnotes\fP
+The directories where notes should be looked for when references as \fBnote:\fP
+in a task.
+.sp
+For example: \fBnotes = ~/Documents/task_notes/\fP\&.
+.sp
+To provide multiple folder, separate them with newlines, like this:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.EX
+[General]
+notes =
+    ~/shared/group_notes/
+    ~/Documents/task_notes/
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Multiple folders will be searched in order when opening a task note. If no
+note exists, it will be created in the first given folder.
+.sp
+If this option is not provided, the folders of your selected todo.txt files
+will be used. For example, if you use run with \fBDocuments/Tasks/todo.txt\fP and
+did not set up this \fBnotes\fP option, the directory \fBDocuments/Tasks/\fP will
+be used as the default location for notes.
+.TP
+.B \fBnote\-suffix\fP
+The file extension that\(aqs used when finding notes when the file extension is not
+provided.
+.sp
+Defaults to \fB\&.txt\fP\&.
+.TP
+.B \fBnote\-naming\fP
+Defines the behaviour of pter when you edit a task\(aqs note, but no \fBnote:\fP tag
+is defined.
+.sp
+Possible options are:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBcancel\fP, don\(aqt try to edit the task\(aqs note
+.IP \(bu 2
+\fBauto\fP, create a file based on the task\(aqs ID, create a task ID if necessary
+.IP \(bu 2
+\fBuser\-input\fP, ask the user for the name of the file
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Defaults to \fBuser\-input\fP\&.
+.TP
+.B \fBtime\-tracking\fP
+What external program you want to use for time tracking. See below, Time Tracking
+for all details.
+.sp
+By default this option is not set, which means that pter\(aqs internal time tracking
+is used.
+.TP
+.B \fBhelp\-actions\fP
+A new\-line separated list of actions to show in the help bar of the main task list.
+.sp
+Defaults to the very basic functions:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.EX
+help\-actions =
+    show\-help
+    quit
+    edit\-task
+    create\-task
+    search
+    load\-search
+    save\-search
+    toggle\-done
+    jump\-to
+    next\-item
+    prev\-item
+    edit\-note
+.EE
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBinclude\fP
+Include these configuration files. May be a newline separated list of additional
+configuration files, or a single additional configuration file to load after this
+base configuration file has been processed.
+.sp
+Examples:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.EX
+[General]
+include = ~/.pter/extra.conf
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+or:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.EX
+[General]
+include =
+    ~/.pter/extra.conf
+    ~/.config/colors/pter.conf
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The additional configuration will be loaded in order and may overwrite earlier
+settings.
+.TP
+.B \fBfile\-format\fP
+There are multiple interpretations of the \fBtodo.txt\fP specification. With this
+option you can choose whether to follow the rules very pedantically or in a more
+relaxed manner when writing tasks to disk.
+.sp
+Set this to \fBpedantic\fP (the default) to be very strict about how files are written.
+.sp
+The only other alternative is \fBrelaxed\fP, which allows a few more corner cases (like
+\(dqcompleted on\(dq dates even if no \(dqcreated on\(dq date was set, or priority markers in
+completed tasks).
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH Symbols
+.sp
+The following symbols (single unicode characters or even longer strings of
+unicode characters) can be defined:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBselection\fP, what symbol or string to use to indicate the selected item of a list
+.IP \(bu 2
+\fBnot\-done\fP, what symbol or string to use for tasks that are not done
+.IP \(bu 2
+\fBdone\fP, what symbol or string to use for tasks that are done
+.IP \(bu 2
+\fBoverflow\-left\fP, what symbol or string to use to indicate that there is more text to the left
+.IP \(bu 2
+\fBoverflow\-right\fP, what symbol or string to use to indicate that there is more text to the right
+.IP \(bu 2
+\fBoverdue\fP, the symbol or string for tasks with a due date in the past
+.IP \(bu 2
+\fBdue\-today\fP, the symbol or string for tasks with a due date today
+.IP \(bu 2
+\fBdue\-tomorrow\fP, the symbol or string for tasks with a due date tomorrow
+.IP \(bu 2
+\fBtracking\fP, the symbol or string to show that this task is currently being tracked
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+If you want to use spaces around your symbols, you have to quote them either
+with \fB\(aq\fP or \fB\(dq\fP\&.
+.sp
+An example could be:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Symbols]
+not\-done = \(dq \(dq
+done = ✔
+.EE
+.UNINDENT
+.UNINDENT
+.SH Keys
+.sp
+In the configuration file you can assign keyboard shortcuts to the various
+functions in pter and qpter.
+.sp
+For details on how to setup shortcuts for qpter, please see below in
+section GUI Keys\&.
+.sp
+There are three main distinct groups of functions. The first, for general
+lists:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBcancel\fP: cancel or exit the current window or input field
+.IP \(bu 2
+\fBjump\-to\fP: enter a number to jump to that item in the list
+.IP \(bu 2
+\fBfirst\-item\fP: jump to the first item in a list
+.IP \(bu 2
+\fBlast\-item\fP: jump to the last item in a list
+.IP \(bu 2
+\fBpage\-up\fP: scroll up by one page
+.IP \(bu 2
+\fBpage\-down\fP: scroll down by one page
+.IP \(bu 2
+\fBnext\-item\fP: select the next item in a list
+.IP \(bu 2
+\fBprev\-item\fP: select the previous item in a list
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Second, there are more complex functions to edit tasks or control pter
+(for these functions you may use key sequences, see below for details):
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBquit\fP: quit the program
+.IP \(bu 2
+\fBshow\-help\fP: show the full screen help (only key bindings so far)
+.IP \(bu 2
+\fBopen\-manual\fP: open this manual in a browser
+.IP \(bu 2
+\fBcreate\-task\fP: create a new task
+.IP \(bu 2
+\fBedit\-task\fP: edit the selected task
+.IP \(bu 2
+\fBedit\-external\fP: edit the selected task in an external text editor
+.IP \(bu 2
+\fBedit\-file\-external\fP: edit the todo.txt of the selected task in an external editor
+.IP \(bu 2
+\fBduplicate\-task\fP: create a copy of the selected task (deduplicates any \fBid:\fP)
+.IP \(bu 2
+\fBdelete\-task\fP: delete the selected task or move it to trash, depends
+on the configuration option \fBdelete\-is\fP (by default not bound to any
+key)
+.IP \(bu 2
+\fBarchive\fP: move the selected task to the designated archive file
+.IP \(bu 2
+\fBedit\-note\fP: edit the first note of this task
+.IP \(bu 2
+\fBview\-note\fP: view the first note of this task
+.IP \(bu 2
+\fBload\-search\fP: show the saved searches to load one
+.IP \(bu 2
+\fBopen\-url\fP: open a URL of the selected task
+.IP \(bu 2
+\fBrefresh\-screen\fP: rebuild the GUI
+.IP \(bu 2
+\fBreload\-tasks\fP: enforce reloading of all tasks from all sources
+.IP \(bu 2
+\fBsave\-search\fP: save the current search
+.IP \(bu 2
+\fBsearch\fP: enter a new search query
+.IP \(bu 2
+\fBclear\-search\fP: clear the search query
+.IP \(bu 2
+\fBsearch\-context\fP: select a context from the selected task and search for it
+.IP \(bu 2
+\fBsearch\-project\fP: select a project from the selected task and search for it
+.IP \(bu 2
+\fBselect\-context\fP: select a context from all used contexts and search for it
+.IP \(bu 2
+\fBselect\-project\fP: select a project from all used projects and search for it
+.IP \(bu 2
+\fBshow\-related\fP: show tasks that are related to this one (by means of \fBafter:\fP or \fBref:\fP)
+.IP \(bu 2
+\fBtoggle\-done\fP: toggle the \(dqdone\(dq state of a task
+.IP \(bu 2
+\fBtoggle\-hidden\fP: toggle the \(dqhidden\(dq state of a task
+.IP \(bu 2
+\fBtoggle\-tracking\fP: start or stop time tracking for the selected task
+.IP \(bu 2
+\fBto\-clipboard\fP: copy the selected task\(aqs full text to clipboard
+.IP \(bu 2
+\fBdelegate\fP: delegate a task
+.IP \(bu 2
+\fBinc\-due\fP: increase the due date by \fBdue\-delta\fP (usually 1 day) or add a due date if there is none
+.IP \(bu 2
+\fBdec\-due\fP: decrease the due date by \fBdue\-delta\fP (usually 1 day) or add a due date if there is none
+.IP \(bu 2
+\fBclear\-due\fP: clear the due date
+.IP \(bu 2
+\fBprio\-a\fP: set the selected task\(aqs priority to \fB(A)\fP
+.IP \(bu 2
+\fBprio\-b\fP: set the selected task\(aqs priority to \fB(B)\fP
+.IP \(bu 2
+\fBprio\-c\fP: set the selected task\(aqs priority to \fB(C)\fP
+.IP \(bu 2
+\fBprio\-d\fP: set the selected task\(aqs priority to \fB(D)\fP
+.IP \(bu 2
+\fBprio\-none\fP: remove the priority from the selected task
+.IP \(bu 2
+\fBprio\-up\fP: increase the priority of the selected task
+.IP \(bu 2
+\fBprio\-down\fP: decrease the priority of the selected task
+.IP \(bu 2
+\fBnop\fP: nothing (in case you want to unbind keys)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+And finally, the list of functions for edit fields (to be set in the \fB[Editor:Keys]\fP section):
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBcancel\fP, cancel editing, leave the editor (reverts any changes)
+.IP \(bu 2
+\fBdel\-left\fP, delete the character left of the cursor
+.IP \(bu 2
+\fBdel\-right\fP, delete the character right of the cursor
+.IP \(bu 2
+\fBdel\-to\-bol\fP, delete all characters from the cursor to the beginning of the line
+.IP \(bu 2
+\fBdel\-to\-eol\fP, delete all characters from the cursor to the end of the line
+.IP \(bu 2
+\fBdel\-word\-right\fP, delete the everything right of the cursor until the end of the word
+.IP \(bu 2
+\fBdel\-word\-left\fP, delete everything left of the cursor until the end of the word
+.IP \(bu 2
+\fBgo\-bol\fP, move the cursor to the beginning of the line
+.IP \(bu 2
+\fBgo\-eol\fP, move the cursor to the end of the line
+.IP \(bu 2
+\fBgo\-left\fP, move the cursor one character to the left
+.IP \(bu 2
+\fBgo\-right\fP, move the cursor one charackter to the right
+.IP \(bu 2
+\fBgo\-word\-left\fP, move the cursor one word to the left
+.IP \(bu 2
+\fBgo\-word\-right\fP, move the cursor one word to the right
+.IP \(bu 2
+\fBgoto\-empty\fP, move the cursor to the next \fBtag:value\fP where the is no \fBvalue\fP
+.IP \(bu 2
+\fBsubmit\-input\fP, accept the changes, leave the editor (applies the changes)
+.IP \(bu 2
+\fBselect\-file\fP, when creating a new task, this allows you to select
+what todo.txt file to save the task in
+.IP \(bu 2
+\fBcomp\-next\fP, next item in the completion list
+.IP \(bu 2
+\fBcomp\-prev\fP, previous item in the completion list
+.IP \(bu 2
+\fBcomp\-use\fP, use the selected item in the completion list
+.IP \(bu 2
+\fBcomp\-close\fP, close the completion list
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Keyboard shortcuts are given by their character, for example \fBd\fP\&.
+To indicate the shift key, use the upper\-case of that letter (\fBD\fP in this
+example).
+.sp
+To express that the control key should be held down for this shortcut,
+prefix the letter with \fB^\fP, like \fB^d\fP (for control key and the letter
+\(dqd\(dq).
+.sp
+Additionally there are some special keys understood by pter:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fB<backspace>\fP
+.IP \(bu 2
+\fB<alt_backspace>\fP, alt key and backspace key
+.IP \(bu 2
+\fB<ctrl_backspace>\fP, ctrl key and backspace key
+.IP \(bu 2
+\fB<del>\fP
+.IP \(bu 2
+\fB<ctrl_del>\fP, ctrl key and del key
+.IP \(bu 2
+\fB<left>\fP left cursor key
+.IP \(bu 2
+\fB<right>\fP right cursor key
+.IP \(bu 2
+\fB<up>\fP cursor key up
+.IP \(bu 2
+\fB<down>\fP cursor key down
+.IP \(bu 2
+\fB<ctrl_left>\fP, ctrl key and left cursor key
+.IP \(bu 2
+\fB<ctrl_right>\fP, ctrl key and right cursor key
+.IP \(bu 2
+\fB<pgup>\fP page up
+.IP \(bu 2
+\fB<pgdn>\fP page down
+.IP \(bu 2
+\fB<home>\fP
+.IP \(bu 2
+\fB<end>\fP
+.IP \(bu 2
+\fB<escape>\fP
+.IP \(bu 2
+\fB<return>\fP
+.IP \(bu 2
+\fB<tab>\fP
+.IP \(bu 2
+\fB<f1>\fP through \fB<f20>\fP
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+An example could look like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Keys]
+^k = quit
+<F3> = search
+C = create\-task
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Note that due to the file format of the configuration file you have to use
+special sequences if you want to bind \fB:\fP, \fB;\fP, or \fB=\fP to functions.
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+Use \fB<colon>\fP for \fB:\fP
+.IP \(bu 2
+Use \fB<semicolon>\fP for \fB;\fP
+.IP \(bu 2
+Use \fB<equal>\fP for \fB=\fP
+.IP \(bu 2
+Use \fB<hash>\fP for \fB#\fP
+.IP \(bu 2
+Use \fB<lbrack>\fP for \fB[\fP
+.IP \(bu 2
+Use \fB<rbrack>\fP for \fB]\fP
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+For example, if you don\(aqt want to have \fBjump\-to\fP on \fB:\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Keys]
+<colon> = nop
+.EE
+.UNINDENT
+.UNINDENT
+.SS Key Sequences
+.sp
+For the functions of the second list, the more complex functions for
+editing tasks or controlling pter, you may also use key sequences. For
+example, you may want to prefix all shortcuts to manipulate the priority of
+a task with the letter \fBp\fP and define these sequences:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Keys]
+p+ = prio\-up
+p\- = prio\-down
+pa = prio\-a
+pb = prio\-b
+pc = prio\-c
+pd = prio\-d
+p0 = prio\-none
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Now to increase the priority of a task, you would type first \fBp\fP,
+followed by \fB+\fP\&.
+.sp
+The progress of a key sequence will show in the lower left of the screen,
+showing the keys that you have pressed so far. To cancel a key sequence
+type the single key shortcut for \fBcancel\fP (usually \fBEscape\fP or \fBCtrl\-C\fP)
+or just type any invalid key that\(aqs not part of the sequence (in the
+previous example, \fBpx\fP would do the trick).
+.SS GUI Keys
+.sp
+To assign shortcuts to functions in the Qt GUI, you will have to use the Qt
+style key names, see \%<https://\:doc\:.qt\:.io/\:qt-5/\:qkeysequence\:.html#\:details> .
+.sp
+The assignment is done in the group \fBGUI:Keys\fP, like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[GUI:Keys]
+new = Ctrl+N
+toggle\-done = Ctrl+D
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Available function names are:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBquit\fP, quit qpter
+.IP \(bu 2
+\fBopen\-manual\fP, open this manual
+.IP \(bu 2
+\fBopen\-file\fP, open an additional todo.txt,
+.IP \(bu 2
+\fBnew\fP, open the editor to create a new task,
+.IP \(bu 2
+\fBnew\-related\fP, open the editor to create a new task that is
+automatically related (has a \fBref:\fP attribute) to the
+currently selected task. If the currently selected task does not have an
+\fBid:\fP yet, it will be given one automatically
+.IP \(bu 2
+\fBnew\-subsequent\fP, open the editor to create a new task that is
+following the currently selected task (has an \fBafter:\fP attribute).
+If the currently selected task does not have an \fBid:\fP yet, it will
+be given one automatically.
+.IP \(bu 2
+\fBto\-clipboard\fP, copies the text of the selected task to the clipboard,
+.IP \(bu 2
+\fBedit\fP, opens the editor for the selected task,
+.IP \(bu 2
+\fBtoggle\-done\fP, toggles the completion of a task,
+.IP \(bu 2
+\fBtoggle\-tracking\fP, toggle the \(aqtracking\(aq attribute of the selected task,
+.IP \(bu 2
+\fBtoggle\-hidden\fP, toggle the \(aqhidden\(aq attribute of the selected task,
+.IP \(bu 2
+\fBsearch\fP, opens and focuses the search field,
+.IP \(bu 2
+\fBnamed\-searches\fP, opens and focuses the list of named searches,
+.IP \(bu 2
+\fBfocus\-tasks\fP, focuses the task list,
+.IP \(bu 2
+\fBdelegate\fP, delegate the selected task,
+.IP \(bu 2
+\fBdelete\-task\fP, delete the selected task (subject to the value of the configuration option \fBdelete\-is\fP)
+.IP \(bu 2
+\fBprio\-up\fP, increase the priority of the selected task
+.IP \(bu 2
+\fBprio\-down\fP, decrease the priority of the selected task
+.IP \(bu 2
+\fBprio\-none\fP, remove the priority of the selected task
+.IP \(bu 2
+\fBtoggle\-dark\-mode\fP, toggle between dark and light mode (requires qdarkstyle to be installed)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH Colors
+.sp
+Colors are defined in pairs, separated by comma: foreground and background
+color. Some color\(aqs names come with a \fBsel\-\fP prefix so you can define the
+color when it is a selected list item.
+.sp
+You may decide to only define one value, which will then be used as the text
+color. The background color will then be taken from \fBnormal\fP or \fBsel\-normal\fP
+respectively.
+.sp
+If you do not define the \fBsel\-\fP version of a color, pter will use the
+normal version and put the \fBsel\-normal\fP background to it.
+.sp
+If you specify a special background for the normal version, but none for the
+selected version, the special background of the normal version will be used
+for the selected version, too!
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBnormal\fP, any normal text and borders
+.IP \(bu 2
+\fBsel\-normal\fP, selected items in a list
+.IP \(bu 2
+\fBerror\fP, error messages
+.IP \(bu 2
+\fBoverflow\fP, \fBsel\-overflow\fP, color for the scrolling indicators when editing tasks (and when selected)
+.IP \(bu 2
+\fBoverdue\fP, \fBsel\-overdue\fP, color for a task when it’s due date is in the past (and when selected)
+.IP \(bu 2
+\fBdue\-today\fP, \fBsel\-due\-today\fP, color for a task that’s due today (and when selected)
+.IP \(bu 2
+\fBdue\-tomorrow\fP, \fBsel\-due\-tomorrow\fP, color for a task that’s due tomorrow (and when selected)
+.IP \(bu 2
+\fBcompleted\fP, \fBsel\-completed\fP, color for a task that has been completed (and when selected)
+.IP \(bu 2
+\fBinactive\fP, color for indication of inactive texts
+.IP \(bu 2
+\fBhelp\fP, help text at the bottom of the screen
+.IP \(bu 2
+\fBhelp\-key\fP, color highlighting for the keys in the help
+.IP \(bu 2
+\fBpri\-a\fP, \fBsel\-pri\-a\fP, color for priority A (and when selected)
+.IP \(bu 2
+\fBpri\-b\fP, \fBsel\-pri\-b\fP, color for priority B (and when selected)
+.IP \(bu 2
+\fBpri\-c\fP, \fBsel\-pri\-c\fP, color for priority C (and when selected)
+.IP \(bu 2
+\fBpri\-d\fP, \fBsel\-pri\-d\fP, color for priority D (and when selected)
+.IP \(bu 2
+\fBcontext\fP, \fBsel\-context\fP, color for contexts (and when selected)
+.IP \(bu 2
+\fBproject\fP, \fBsel\-project\fP, color for projects (and when selected)
+.IP \(bu 2
+\fBtracking\fP, \fBsel\-tracking\fP, color for tasks that are being tracked right now (and when selected)
+.IP \(bu 2
+\fBfile\fP, \fBsel\-file\fP, color for the \fB{file}}\fP component of \fBtask\-format\fP (and when selected)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+If you prefer a red background with green text and a blue context, you could define your
+colors like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Colors]
+normal = 2, 1
+sel\-normal = 1, 2
+context = 4
+.EE
+.UNINDENT
+.UNINDENT
+.SS Color Priorities
+.sp
+When selecting the color for a task, pter will use the configured colors in
+this order of priority:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBsel\-tracking\fP (highest priority)
+.IP \(bu 2
+\fBtracking\fP
+.IP \(bu 2
+\fBsel\-overdue\fP
+.IP \(bu 2
+\fBoverdue\fP
+.IP \(bu 2
+\fBsel\-due\-tomorrow\fP
+.IP \(bu 2
+\fBdue\-tomorrow\fP
+.IP \(bu 2
+\fBsel\-due\-today\fP
+.IP \(bu 2
+\fBdue\-today\fP
+.IP \(bu 2
+\fBsel\-completed\fP
+.IP \(bu 2
+\fBcompleted\fP
+.IP \(bu 2
+\fBsel\-normal\fP
+.IP \(bu 2
+\fBnormal\fP (lowest priority)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+In human words, if a task is due tomorrow, but you are tracking it, it will
+show the tracking color. If you also move the cursor onto that task, the
+\fBsel\-tracking\fP color will be used.
+.SH GUI:Colors
+.sp
+The GUI has a somewhat different coloring scheme. The available colors are:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBnormal\fP, any regular text in the description of a task,
+.IP \(bu 2
+\fBdone\fP, color for tasks that are done,
+.IP \(bu 2
+\fBoverdue\fP, text color for overdue tasks,
+.IP \(bu 2
+\fBdue\-today\fP, color for tasks that are due today,
+.IP \(bu 2
+\fBdue\-tomorrow\fP, color for tasks that are due tomorrow,
+.IP \(bu 2
+\fBproject\fP, color for projects,
+.IP \(bu 2
+\fBcontext\fP, color for contexts,
+.IP \(bu 2
+\fBtracking\fP, color for tasks that are currently being tracked,
+.IP \(bu 2
+\fBpri\-a\fP, color for the priority A,
+.IP \(bu 2
+\fBpri\-b\fP, color for the priority B,
+.IP \(bu 2
+\fBpri\-c\fP, color for the priority C,
+.IP \(bu 2
+\fBpri\-d\fP, color for the priority D,
+.IP \(bu 2
+\fBurl\fP, color for clickable URLs (see \fBprotocols\fP in General)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH Highlight
+.sp
+Highlights work exactly like colors, but the color name is whatever tag you
+want to have colored.
+.sp
+If you wanted to highlight the \fBdue:\fP tag of a task, you could define
+this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Highlight]
+due = 8, 0
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+For the GUI, use \fBGUI:Highlight\fP\&. The colors can be specific as hex
+values (3, or 6\-digits) or named:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[GUI:Highlight]
+due = red
+t = #4ee
+to = #03fe4b
+.EE
+.UNINDENT
+.UNINDENT
+.SH Task Format
+.sp
+The task formatting is a mechanism that allows you to configure how tasks are
+being displayed in pter. It uses placeholders for elements of a task that you can
+order and align using a mini language similar to Python’s format
+specification mini\-language \%<https://\:docs\:.python\:.org/\:library/\:string\:.html#\:formatspec>, but
+much less complete.
+.sp
+qpter uses only part of the definition, see below in the list of field
+names, if you only care for qpter.
+.sp
+If you want to show the task’s age and description, this is your
+task format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {age} {description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The space between the two fields is printed! If you don’t want a space
+between, this is your format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {age}{description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+You might want to left align the age, to make sure all task descriptions start
+below each other:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {age: <}{description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Now the age field will be left aligned and the right side is filled with
+spaces. You prefer to fill it with dots?:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {age:.<}{description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Right align works the same way, just with \fB>\fP\&. There is currently no
+centering.
+.sp
+Suppose you want to surround the age with brackets, then you would want to use
+this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {[age]:.<}{description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Even if no age is available, you will always see the \fB[...]\fP (the amount of
+periods depends on the age of the oldest visible task; in this example some
+task is at least 100 days old).
+.sp
+If you don’t want to show a field, if it does not exist, for example the
+completion date when a task is not completed, then you must not align it:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {[age]:.<}{completed}{description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+You can still add extra characters left or right to the field. They will not
+be shown if the field is missing:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+task\-format = {[age]:.<}{ completed 😃 }{description}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Now there will be an emoji next to the completion date, or none if the task has
+no completion date.
+.sp
+All that being said, qpter uses the same \fBtask\-format\fP configuration
+option to show tasks, but will disregard some fields (see below) and only
+use the field names, but not alignment or decorations.
+.SS Field Names
+.sp
+The following fields exist:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fBdescription\fP, the full description text of the task
+.IP \(bu 2
+\fBcreated\fP, the creation date (might be missing)
+.IP \(bu 2
+\fBage\fP, the age of the task in days (might be missing)
+.IP \(bu 2
+\fBcompleted\fP, the completion date (might be missing, even if the task is completed)
+.IP \(bu 2
+\fBdone\fP, the symbol for a completed or not completed task (see below)
+.IP \(bu 2
+\fBpri\fP, the character for the priority (might not be defined)
+.IP \(bu 2
+\fBdue\fP, the symbol for the due status (overdue, due today, due tomorrow; might not be defined)
+.IP \(bu 2
+\fBduedays\fP, in how many days a task is due (negative number when overdue tasks)
+.IP \(bu 2
+\fBselection\fP, the symbol that’s shown when this task is selected in the list (disregarded in qpter)
+.IP \(bu 2
+\fBnr\fP, the number of the task in the list (disregarded in qpter)
+.IP \(bu 2
+\fBtracking\fP, the symbol to indicate that you started time tracking of this task (might not be there)
+.IP \(bu 2
+\fBfile\fP, the filename of this tasks’s todo.txt file
+.IP \(bu 2
+\fBspent\fP, the total time spent on the task (sum of all \fBspent:\fP tags)
+.IP \(bu 2
+\fBnote\fP, the first \fBnote:\fP tag
+.IP \(bu 2
+\fBcontexts\fP, all context tags
+.IP \(bu 2
+\fBprojects\fP, all project tags
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fBdescription\fP is potentially consuming the whole line, so you might want to
+put it last in your \fBtask\-format\fP\&.
+.SH GUI
+.sp
+The GUI specific options are defined in the \fB[GUI]\fP section:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.TP
+.B \fBfont\fP
+The name of the font to use for the task list.
+.TP
+.B \fBfont\-size\fP
+The font size to use for the task list. You can specify the size either
+in pixel (eg. \fB12px\fP) or point size (eg. \fB14pt\fP). Unlike pixel
+sizes, point sizes may be a non\-integer number, eg. \fB16.8pt\fP\&.
+.TP
+.B \fBsingle\-instance\fP
+Whether or not qpter may only be started once.
+.TP
+.B \fBclickable\fP
+If enabled, this allows you to click on URLs (see option \fBprotocols\fP
+in General) to open them in a webbrowser, and to click on contexts
+and projects to add them to the current search. Disabling this option
+may improve performance. The default is \fByes\fP, ie. URLs, contexts,
+and projects are clickable.
+.TP
+.B \fBdaily\-reload\fP
+The time (in format HH:MM) when qpter will automatically reload upon
+passing midnight. Defaults to 00:00.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH Hooks
+.sp
+Hooks are a mechanism to call external programs under certain conditions from within pter (\fInot\fP qpter).
+Hooks are defined in their own \fB[Hooks]\fP section, like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+[Hooks]
+on\-select = echo {{full}} > ~/current\-task.txt
+on\-quit = rm \-f ~/current\-task.txt
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The following hooks exist:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.TP
+.B \fBon\-start\fP
+Is run when pter starts.
+.TP
+.B \fBon\-select\fP
+Is run when the selection of the current task changes.
+.TP
+.B \fBon\-new\fP
+Is run when a task has been created.
+.TP
+.B \fBon\-tracking\fP
+Is run when the user starts tracking a task.
+.TP
+.B \fBon\-change\fP
+Is run when a task has been modified by the user (changed priority, description, marked as completed, etc).
+It will not be run if a task is being created, archived, or deleted.
+.TP
+.B \fBon\-done\fP
+Is run when a task is marked as done.
+.TP
+.B \fBon\-archive\fP
+Is run when a task has been archived.
+.TP
+.B \fBon\-delete\fP
+Is run when a task has been deleted.
+.TP
+.B \fBon\-quit\fP
+Is run when pter quits.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Some of these hooks will be run at the same conditions. For example, if \fBon\-start\fP and
+\fBon\-select\fP are both defined, both will be run at the start of pter (if there\(aqs a task that can be selected).
+In these cases, the order of hook execution is the order that they are listed above. I.e. \fBon\-start\fP will be
+run before \fBon\-select\fP, \fBon\-tracking\fP will be run before \fBon\-change\fP\&.
+.sp
+Even though \fBon\-tracking\fP may appear to have the same functionality as \fBtracking\fP (using an external time
+tracker, see below), the difference is that \fBon\-tracking\fP will always be called, even when there is no
+external time tracker defined. That also means both, the external time tracker and \fBon\-tracking\fP will be called
+if both are defined. \fBon\-tracking\fP will be run after calling the external time tracker.
+.SS Parameter format
+.sp
+You can use several special values to transfer values from the selected task to
+the external program:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+\fB{{description}}\fP, the bare description without attributes, contexts, or projects
+.IP \(bu 2
+\fB{{full}}\fP, the full description (without dates or priority)
+.IP \(bu 2
+\fB{{raw}}\fP, the task in its raw todo.txt representation with dates and priority
+.IP \(bu 2
+\fB{{id}}\fP, the \fBid:\fP attribute (this may be empty if there is no id)
+.IP \(bu 2
+\fB{{project}}\fP, the first project (marked with \fB+\fP)
+.IP \(bu 2
+\fB{{projects}}\fP or \fB{{*projects}}\fP, all projects
+.IP \(bu 2
+\fB{{context}}\fP, the first context (marked with \fB@\fP)
+.IP \(bu 2
+\fB{{contexts}}\fP or \fB{{*contexts}}\fP, all contexts
+.IP \(bu 2
+\fB{{note}}\fP, the first \fBnote:\fP attribute (this may be an empty string if there is no such attribute)
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+You can also add texts before and after the keywords. For example, if the external program
+receives a parameter \fB\-\-label\fP for each context that you would like to add, you could set it up like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+on\-select = external_program {\-\-label {context}}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+This would only add the \fB\-\-label\fP if the selected task actually has a context.
+.sp
+When adding the description, pter will automatically add the quotes, so this will work:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+on\-delete = report_deleted {{project}} {\-\-description {description}} {\-\-label {context}}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+In case you wish to add all contexts or projects as parameters to the external program, you
+have two options, depending on how multiple values are accepted:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+on\-done = track_completed_tasks {\-\-project {projects}}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+or:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+on\-done = track_completed_tasks {\-\-project {*projects}}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The first option will repeat the \fB\-\-project\fP parameter together with each
+project tag (like \fB\-\-project p1 \-\-project p2\fP).
+The second option will set the \fB\-\-project\fP prefix only once and then add all
+project tags (e.g. \fB\-\-project p1 p2\fP).
+.SH Time Tracking
+.sp
+The \fBtime\-tracking\fP option can be used to use an external program for time
+tracking instead of pter.
+.sp
+If you set this option, pter will call the configured external program when you
+start tracking a task (which is by default on the key \fBt\fP).
+.sp
+In these examples the documentation will refer to a hypothetical time tracking
+program, \fBthe_accountant\fP\&.
+.sp
+The \fBtime\-tracking\fP option is expected to have the name of the program to
+call first, followed by its parameters. For example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+time\-tracking = the_accountant \-\-start my\-project
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Parameter expansion works exactly the same way as with hooks (see above).
+.SS Integration tricks
+.sp
+Note that pter can only communicate that you \fIstart\fP working on a task. If your
+time tracking program allows tracking of multiple activities at the same time or
+you have to tell it to stop tracking a task before starting with another,
+you might have to write a small script that stops tracking and then starts
+tracking the task that you selected in pter.
+.sp
+For example, if \fBthe_accountant\fP required such extras, a simple shell script
+to first stop tracking and then start could look like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+#!/bin/sh
+
+the_accountant stop
+exec the_accountant start \(dq@$\(dq
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Instead of using \fBthe_accountant\fP directly for \fBtime\-tracking\fP, you would then use
+this shell script.
+.SH Include
+.sp
+You can specify additional configuration files by specifying the \fBinclude\fP
+option in the \fB[General]\fP section, see above.
+.sp
+The previous method to include a secondary configuration file by means of
+the \fB[Include]\fP section is deprecated.
+.SH Conforming To
+.sp
+pter config files are read using Python\(aqs \fBConfigParser\fP and therefore follow its syntax. For more details, see
+\%<https://\:docs\:.python\:.org/\:3/\:library/\:configparser\:.html>\&.
+.SH See Also
+.sp
+pter(1) \%<man:pter>, qpter(1) \%<man:qpter>
+.\" End of generated man page.
