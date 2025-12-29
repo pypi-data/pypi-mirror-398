@@ -1,0 +1,127 @@
+title: "K8s Kubespray Inventory"
+inherit_schema: qemu_schema_base.yaml
+description: "Inventory for deploying k8s clusters via kubespray on PVE."
+required:
+  - cluster_cert_entries
+  - static_includes
+  - qemus
+properties:
+  extra_control_plane_sans:
+    type: array
+    description: |
+      Extra sans that kubespray will put in kubeapi generated certificates. Original kubespray variable is named supplementary_addresses_in_ssl_keys, 
+      but is set via pve cloud kubespray custom inventory. Read the kubernetes page in pve cloud docs for more details.
+    items:
+      type: string
+  external_domains:
+    type: array
+    description: "Domains that will be exposed to the public/external haproxy floating ip via haproxy sni matching to this cluster."
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - zone
+        - names
+      properties:
+        zone:
+          type: string
+          description: "DNS parent zone, should also be the zone that external records are made under in AWS for example."
+        expose_apex:
+          type: boolean
+          description: "Expose the apex zone itself. For example if you have zone example.com then example.com will be routed to this cluster."
+        names:
+          type: array
+          items:
+            type: string
+            description: "Names of the zone that should be exposed."
+            examples:
+              - '*'
+              - example-service
+              - '*.subzone'
+  cluster_cert_entries:
+    type: array
+    description: "Content for the clusters acme tls certificate. If you have multiple proxmox clusters they need their own haproxy instances for ingress dns to work."
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - zone
+        - names
+      properties:
+        zone:
+          type: string
+          description: "DNS parent zone, should be the apex zone in ionos/route53 for dns01 challenge."
+        names:
+          type: array
+          items:
+            type: string
+            description: "SANs included in the certificate and basis for dns01 challenge."
+            examples:
+              - '*'
+              - example-service
+              - '*.subzone'
+        authoritative_zone:
+          type: boolean
+          description: "This will cause the specified apex zone to be created as an authoritative zone in the proxmox clouds dns server. Ingress dns will only work for authoritative zones."
+        apex_zone_san:
+          type: boolean
+          description: "Creates additional SAN for the zone, if you have *.example.com you will also get example.com in your certificate. Defaults to false."
+  static_includes:
+    type: object
+    additionalProperties: false
+    # all from base are required for k8s
+    required:
+      - dhcp_stack
+      - proxy_stack
+      - postgres_stack
+      - bind_stack
+    properties:
+      cache_stack:
+        type: string
+        description: "Cache stack to mount nfs for kubespray cache and apt cache. Assumes the cache lxc to have the hostname \"main\". WIP!"
+
+  # inherits this config from the qemu inv, only adds k8s_roles
+  qemus:
+    description: "Nodes for the cluster in form of qemu vms."
+    items:
+      required:
+        - k8s_roles
+      properties:
+        k8s_roles:
+          type: array
+          description: "String array of k8s roles."
+          items:
+            type: string
+            enum:
+              - master
+              - worker
+  ceph_csi_sc_pools:
+    type: array
+    description: "Ceph pools that will be made available to the clusters Ceph CSI driver (optional)."
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - default
+        - mount_options
+      properties:
+        name:
+          type: string
+          description: "Name of the pool in the ceph of our PVE cluster."
+        default:
+          type: boolean
+          description: "Whether or not the pool is the default storage class."
+        mount_options:
+          type: array
+          description: "String array of mount options that will be set in the storage class and applied to pvs."
+
+  acme_staging:
+    type: boolean
+    description: "If set to true will use acme staging directory for issueing certs."
+  plugin:
+    type: string
+    description: Id of ansible inventory plugin.
+    enum:
+      - pxc.cloud.kubespray_inv
+

@@ -1,0 +1,56 @@
+title: "VM Inventory"
+inherit_schema: qemu_schema_base.yaml
+description: "Inventory for deploying qemu VMs on PVE."
+additionalProperties: false
+properties:
+  ingress_domains:
+    type: array
+    description: |
+      Specific non ingress routing, via hostname lookup inside the proxy. This allows easy integration of 
+      standalone services like mailcow or other standalone deployments that do their own ingress termination.
+    items:
+      type: object
+      properties:
+        zone:
+          type: string
+          description: |
+            Internal zone that is registered in bind. In this case the playbooks will make records in bind
+            pointing to the vms of the stack.
+        names:
+          type: array
+          description: "Names of the zone that will be routed to vms of this stack."
+          items:
+            type: string
+        external:
+          type: boolean
+          description: |
+            Whether or not the routing will also bind to the external floating ip of our haproxy.
+            
+# when using tcp_proxies we need certain stacks included
+# into the sync playbooks for setup. for kubespray inv they are always required
+allOf:
+  - if:
+      required:
+        - tcp_proxies
+    then:
+      required:
+        - static_includes
+      properties:
+        static_includes:
+          required:
+            - dhcp_stack
+            - proxy_stack
+            - postgres_stack
+  - if:
+      required:
+        - ingress_domains
+    then:
+      required:
+        - static_includes
+      properties:
+        static_includes:
+          required:
+            - dhcp_stack
+            - proxy_stack
+            - postgres_stack
+            - bind_stack

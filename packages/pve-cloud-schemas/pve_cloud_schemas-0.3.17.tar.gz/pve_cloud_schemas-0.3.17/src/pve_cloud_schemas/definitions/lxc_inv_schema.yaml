@@ -1,0 +1,70 @@
+
+title: "LXC Inventory"
+description: "Inventory for creating lxcs on PVE."
+inherit_schema: vm_schema_base.yaml
+required:
+  - lxcs
+properties:
+  lxcs:
+    type: array
+    description: "List of lxcs that will be created for the stack."
+    items:
+      type: object
+      required:
+        - parameters
+      properties:
+        hostname:
+          type: string
+          description: "Optional unique hostname for this lxc, otherwise pet name random name will be generated."
+        target_host:
+          type: string
+          description: "Pve host to tie this vm to. This is useful to always deploy specifically on a proxmox host."
+        vars:
+          type: object
+          description: "Custom variables for this lxc specifically. Will be usable in playbooks."
+        parameters:
+          type: object
+          description: "Parameters that will be passed to pve pct cli tool for lxc creation."
+          required:
+            - rootfs
+            - cores
+            - memory
+            - net0
+          properties:
+            rootfs:
+              type: string
+              description: "PVE storage for the container disk."
+            cores:
+              type: integer
+              description: "Number of virtual CPU cores."
+            memory:
+              type: integer
+              description: "Memory in bytes, use POW 2."
+            net0:
+              type: string
+              description: "Configuration for primary network interface."
+              examples:
+                - "name=eth0,bridge=vmbr0,tag=120,firewall=1,ip=dhcp"
+  lxc_global_vars:
+    type: object
+    description: "Variables that will be applied to all lxc hosts and are available in playbooks."
+    properties:
+      use_alternate_ssh_port:
+        type: boolean
+        description: "Will use 2222 instead of 22 for ssh."
+      install_prom_systemd_exporter:
+        type: boolean
+        description: "Will install prometheus metrics exporter for systemd. This implements with pve cloud terraform monitoring modules."
+    additionalProperties: true
+  lxc_base_parameters:
+    type: object
+    description: "PVE pct cli parameters that will be used for all lxcs."
+  lxc_os_template:
+    type: string
+    description: "`pveam available --section system` / run `pveam update` for newest, PVE available LXC template (will be downloaded)."
+    example: debian-11-standard_11.7-1_amd64.tar.zst
+  plugin:
+    type: string
+    description: Id of ansible inventory plugin.
+    enum:
+      - pxc.cloud.lxc_inv
