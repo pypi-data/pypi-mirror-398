@@ -1,0 +1,3 @@
+{% macro rabbitbigquery__drop_relation(relation) -%}
+    {% do adapter.drop_relation(relation) %}
+{% endmacro %}
