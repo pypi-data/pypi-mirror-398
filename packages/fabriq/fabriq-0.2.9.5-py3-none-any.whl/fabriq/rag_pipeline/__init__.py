@@ -1,0 +1,1 @@
+from fabriq.rag_pipeline.rag_pipeline import RAGPipeline
