@@ -1,0 +1,193 @@
+from typing import TypeVar
+
+from fastapi import status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+
+from auditize.exceptions import (
+    AuditizeException,
+    AuthenticationFailure,
+    ConstraintViolation,
+    InternalError,
+    NotFoundError,
+    PayloadTooLarge,
+    PermissionDenied,
+    ValidationError,
+)
+from auditize.i18n import Lang, t
+
+
+class ApiErrorResponse(BaseModel):
+    message: str = Field(
+        description="The error message (always in English)",
+        json_schema_extra={"example": "An error occurred"},
+    )
+    localized_message: str | None = Field(
+        description="The localized error message (if available)",
+        json_schema_extra={"example": "Une erreur est survenue"},
+    )
+
+    # NB: we use a "build" method instead of directly using the Model constructor
+    # to better handle optional fields and subclassing
+    @classmethod
+    def build(cls, message: str, localized_message: str = None):
+        return cls(message=message, localized_message=localized_message)
+
+    @classmethod
+    def from_exception(cls, exc: Exception, default_message: str, lang: Lang):
+        if isinstance(exc, AuditizeException):
+            if (
+                len(exc.args) == 1
+                and isinstance(exc.args[0], (list, tuple))
+                and len(exc.args[0]) in (1, 2)
+            ):
+                return cls.build(
+                    message=t(*exc.args[0]),
+                    localized_message=t(*exc.args[0], lang=lang),
+                )
+
+        return cls.build(message=str(exc) or default_message)
+
+
+class ApiValidationErrorResponse(ApiErrorResponse):
+    class ValidationErrorDetail(BaseModel):
+        field: str | None = Field()
+        message: str
+
+        @classmethod
+        def from_dict(cls, error: dict[str, any]):
+            if len(error["loc"]) > 1:
+                return cls(
+                    field=".".join(map(str, error["loc"][1:])), message=error["msg"]
+                )
+            else:
+                return cls(field=None, message=error["msg"])
+
+    validation_errors: list[ValidationErrorDetail] = Field()
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Invalid request",
+                "validation_errors": [
+                    {"field": "field1", "message": "Error message 1"},
+                    {"field": "field2", "message": "Error message 2"},
+                ],
+            }
+        }
+    )
+
+    @classmethod
+    def build(
+        cls,
+        message: str,
+        localized_message: str = None,
+        validation_errors: list[ValidationErrorDetail] = None,
+    ):
+        return cls(
+            message=message,
+            localized_message=localized_message,
+            validation_errors=validation_errors or [],
+        )
+
+    @classmethod
+    def from_exception(cls, exc: Exception, default_message: str, lang: Lang):
+        if isinstance(exc, RequestValidationError):
+            errors = exc.errors()
+            if len(errors) == 0:
+                # This should never happen
+                return cls.build(message=default_message)
+            elif len(errors) == 1 and len(errors[0]["loc"]) == 1:
+                # Make a special case for single top-level errors affecting the whole request
+                return cls.build(message=errors[0]["msg"])
+            return cls.build(
+                # Common case
+                message="Invalid request",
+                validation_errors=list(
+                    map(cls.ValidationErrorDetail.from_dict, exc.errors())
+                ),
+            )
+        return super().from_exception(exc, default_message, lang)
+
+
+_EXCEPTION_RESPONSES = {
+    ValidationError: (
+        status.HTTP_400_BAD_REQUEST,
+        "Invalid request",
+        ApiValidationErrorResponse,
+    ),
+    RequestValidationError: (
+        status.HTTP_400_BAD_REQUEST,
+        "Invalid request",
+        ApiValidationErrorResponse,
+    ),
+    AuthenticationFailure: (
+        status.HTTP_401_UNAUTHORIZED,
+        "Unauthorized",
+        ApiErrorResponse,
+    ),
+    PermissionDenied: (status.HTTP_403_FORBIDDEN, "Forbidden", ApiErrorResponse),
+    NotFoundError: (status.HTTP_404_NOT_FOUND, "Not found", ApiErrorResponse),
+    ConstraintViolation: (
+        status.HTTP_409_CONFLICT,
+        "Resource already exists",
+        ApiErrorResponse,
+    ),
+    PayloadTooLarge: (
+        status.HTTP_413_CONTENT_TOO_LARGE,
+        "Payload too large",
+        ApiErrorResponse,
+    ),
+    InternalError: (
+        status.HTTP_500_INTERNAL_SERVER_ERROR,
+        "Internal server error",
+        ApiErrorResponse,
+    ),
+}
+_DEFAULT_EXCEPTION_RESPONSE = (
+    status.HTTP_500_INTERNAL_SERVER_ERROR,
+    "Internal server error",
+    ApiErrorResponse,
+)
+
+E = TypeVar("E", bound=Exception)
+
+_STATUS_CODE_TO_RESPONSE = {
+    status.HTTP_400_BAD_REQUEST: (ApiValidationErrorResponse, "Bad request"),
+    status.HTTP_401_UNAUTHORIZED: (ApiErrorResponse, "Unauthorized"),
+    status.HTTP_403_FORBIDDEN: (ApiErrorResponse, "Forbidden"),
+    status.HTTP_404_NOT_FOUND: (ApiErrorResponse, "Not found"),
+    status.HTTP_409_CONFLICT: (ApiErrorResponse, "Constraint violation"),
+    status.HTTP_413_CONTENT_TOO_LARGE: (ApiErrorResponse, "Payload too large"),
+    status.HTTP_500_INTERNAL_SERVER_ERROR: (ApiErrorResponse, "Internal server error"),
+}
+
+
+def error_responses(*status_codes: int):
+    return {
+        status_code: {
+            "description": _STATUS_CODE_TO_RESPONSE[status_code][1],
+            "model": _STATUS_CODE_TO_RESPONSE[status_code][0],
+        }
+        for status_code in status_codes
+    }
+
+
+def make_error_response_from_model(
+    model: ApiErrorResponse, status_code: int
+) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content=model.model_dump())
+
+
+def make_error_response_from_exception(exc: E, lang: Lang) -> JSONResponse:
+    if exc.__class__ not in _EXCEPTION_RESPONSES:
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        error = ApiErrorResponse.build("Internal server error")
+    else:
+        status_code, default_error_message, error_response_class = _EXCEPTION_RESPONSES[
+            exc.__class__
+        ]
+        error = error_response_class.from_exception(exc, default_error_message, lang)
+
+    return make_error_response_from_model(error, status_code)
