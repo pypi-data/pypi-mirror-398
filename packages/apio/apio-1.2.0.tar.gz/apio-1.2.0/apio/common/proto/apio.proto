@@ -1,0 +1,212 @@
+// Protocol buffers definitions used by apio.  Currently we use them just
+// for passing parameters from the apio process to the scons process.
+
+// IMPORTANT: After making changes in this file, run the command 'update-proto.sh' 
+// to propagate them to the python stubs. Otherwise they do not take affect.
+
+// Online proto formatter at https://formatter.org/protobuf-formatter
+
+// NOTE: Since we use the the serialized proto data within a single invocation
+// of apio, protocol buffers text mode and binary mode backward compatibility
+// considerations do not apply.
+
+// Using proto2 for features such as 'has' and 'required'. 
+syntax = "proto2";
+
+ 
+package apio.common.proto;
+
+// The supported FPGA architectures, each with its own handler.
+enum ApioArch {
+  ARCH_UNSPECIFIED = 0;
+  ICE40 = 1;
+  ECP5 = 2;
+  GOWIN = 3;
+}
+
+enum TerminalMode {
+  TERMINAL_UNSPECIFIED = 0;
+  AUTO_TERMINAL = 1;
+  FORCE_TERMINAL = 2;
+  FORCE_PIPE = 3;
+}
+
+// Ice40 specific fpga attributes.
+message Ice40FpgaInfo {
+  required string type = 1;
+  required string pack = 2;
+}
+
+// Ecp5 specific fpga attributes.
+message Ecp5FpgaInfo {
+  required string type = 4;
+  required string pack = 5;
+  required string speed = 6;
+}
+
+// Gowin specific fpga attributes.
+message GowinFpgaInfo {
+  required string family = 4;
+}
+
+// General fpga info.
+message FpgaInfo {
+  // Common fpga attributes.
+  required string fpga_id = 1;
+  required string part_num = 2;
+  required string size = 3;
+  // Architecture specific fpga attributes.
+  oneof arch {
+    Ice40FpgaInfo ice40 = 10;
+    Ecp5FpgaInfo ecp5 = 11;
+    GowinFpgaInfo gowin = 12;
+  }
+}
+
+// Verbosity levels.
+message Verbosity {
+  // If true, enable general verbosity.
+  optional bool all = 1 [default = false];
+  // If true, enable synthesis verbosity.
+  optional bool synth = 2 [default = false];
+  // If true, enable place-and-route verbosity.
+  optional bool pnr = 3 [default = false];
+}
+
+// Information about the environment.
+message Environment {
+  // The underlying platform id as it appears in platforms.jsonc.
+  required string platform_id = 1;
+  required bool is_windows = 2;
+
+  // The terminal mode to apply to apio_console.
+  required TerminalMode terminal_mode = 3;
+
+  // The apio_console theme name.
+  required string theme_name = 4;
+
+  // The apio debug level. Value of 0 indicates no debug info.
+  required int32 debug_level = 5;
+
+  // Paths to oss-cad-suite libraries.
+  required string yosys_path = 6;
+  required string trellis_path = 7;
+
+  // The default shell id. This is the shell that scons
+  // is expected to use. See ApioContext for values.
+  required string scons_shell_id = 8;
+}
+
+// Information about the expanded active env from apio.ini.
+message ApioEnvParams {
+  // The name of the apio.ini env used.
+  required string env_name = 1;
+  // The board id. E.g. 'alhambra-ii'.
+  required string board_id = 2;
+  // The name of the top verilog module, e.g. 'main'.
+  required string top_module = 3;
+  // The optional values of 'defines' option in apio.ini.
+  repeated string defines = 4;
+  // The optional value of 'yosys-synth-extra-options' option in apio.ini.
+  repeated string yosys_synth_extra_options = 5;
+  // The optional value of 'nextpnr-extra-options' option in apio.ini.
+  repeated string nextpnr_extra_options = 6;
+  // The optional value of the 'constraint-file' option in apio.ini.
+  optional string constraint_file = 7 [default = ''];
+}
+
+// Lint target specific params.
+message LintParams {
+  optional string top_module = 1 [default = ""];
+  optional bool verilator_all = 2 [default = false];
+  optional bool verilator_no_style = 3 [default = false];
+  repeated string verilator_no_warns = 4;
+  repeated string verilator_warns = 5;
+}
+
+// Graph target specific params.
+
+enum GraphOutputType {
+  TYPE_UNSPECIFIED = 0;
+  SVG = 1;
+  PNG = 2;
+  PDF = 3;
+}
+
+message GraphParams {
+  required GraphOutputType output_type = 1;
+  optional string top_module = 2;
+  required bool open_viewer = 3;
+}
+
+// Sim target specific params.
+message SimParams {
+  // If not specified, scons will run if it finds a single testbench
+  // file or exit with error if none or more than one.
+  optional string testbench = 1 [default = ""];
+
+  // Force rerun of simulation, even if not change from previous
+  // run.
+  required bool force_sim = 2;
+
+  // Perform the simulation but skip opening GTKWave
+  required bool no_gtkwave = 3;
+
+  // If true, gtkwave is launched as a independent app and apio continues
+  // without waiting for it to close.
+  required bool detach_gtkwave = 4;
+}
+
+// Test target specific params. Originally called TestParams but this
+// confused pytest.
+message ApioTestParams {
+  // If not specified, all the testbenches in the project are tested.
+  optional string testbench = 1 [ default = ""];
+}
+
+// Upload target specific params.
+message UploadParams {
+  optional string programmer_cmd = 1;
+}
+
+// Some scons targets requires additional params.
+message TargetParams {
+  oneof target {
+    LintParams lint = 10;
+    GraphParams graph = 11;
+    SimParams sim = 12;
+    ApioTestParams test = 13;
+    UploadParams upload = 14;
+  }
+}
+
+
+
+// The top level messages that is passed from the apio process to
+// the scons process.
+message SconsParams {
+  // An arbitrary timestamp string that we pass also as an scons argument
+  // to verify that scons reads the correct versions of the params file.
+  required string timestamp = 1;
+
+  // The apio architecture of this project. Used to select the scons
+  // architecture plugin.
+  required ApioArch arch = 2;
+
+  // Information about the FPGA used in the project. From fpgas.jsonc.
+  required FpgaInfo fpga_info = 3;
+
+  // Verbosity flags.
+  optional Verbosity verbosity = 4;
+
+  // General information about the environment.
+  required Environment environment = 5;
+
+  // General information about the project
+  required ApioEnvParams apio_env_params = 6;
+
+  // Additional params for for scons targets that need it.
+  optional TargetParams target = 7;
+
+
+}

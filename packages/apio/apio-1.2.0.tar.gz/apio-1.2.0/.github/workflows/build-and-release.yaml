@@ -1,0 +1,311 @@
+name: build-and-release
+
+on:
+  # Runs daily at UTC midnight to minimize risk of overstepping
+  # manual builds of same date.
+  schedule:
+    - cron: "0 0 * * *"
+
+  # Allow manual activations.
+  workflow_dispatch:
+    inputs:
+      apio_repo:
+        description: "[Optional] Apio source repo (this repo)"
+        required: false
+      apio_branch:
+        description: "[Optional] Apio source branch (main)"
+        required: false
+      commit_sha:
+        description: "[Optional] Apio source commit SHA to build (latest)"
+        required: false
+
+permissions:
+  # Allow release creation
+  contents: write
+
+env:
+  # The Python version of the pyinstaller binaries.
+  PYTHON_VERSION: "3.14"
+
+  # Apio github repo to use.
+  APIO_REPO: ${{github.event.inputs.apio_repo || github.repository}}
+
+  # Apio repo branch to use.
+  APIO_TARGET_BRANCH: ${{github.event.inputs.apio_branch || 'main'}}
+
+  # These are set later.
+  RELEASE_TAG: ""
+  PACKAGE_TAG: ""
+  APIO_COMMIT: ""
+  APIO_VERSION: ""
+  BUILDER_BRANCH: ""
+  BUILDER_COMMIT: ""
+
+jobs:
+  # ----- Parameters collection job
+
+  prepare:
+    runs-on: ubuntu-latest
+
+    # outputs:
+    #   python_version: ${{ steps.set-output.outputs.python_version }}
+
+    steps:
+      - name: Checkout this repo (for builder)
+        uses: actions/checkout@v4
+
+      - name: Get release and package tags
+        uses: fpgawars/apio-workflows/.github/actions/get-release-and-package-tags@main
+        with:
+          release-tag-var: RELEASE_TAG
+          package-tag-var: PACKAGE_TAG
+
+      - name: Ensure no conflicting release
+        uses: fpgawars/apio-workflows/.github/actions/ensure-no-conflicting-release@main
+        with:
+          release-tag: ${{ env.RELEASE_TAG }}
+
+      - name: Checkout apio repo (for source)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{env.APIO_REPO}}
+          ref: ${{env.APIO_TARGET_BRANCH}}
+          path: apio-repo
+          fetch-depth: 0
+
+      - name: Determine Apio source commit to use
+        run: |
+          apio_latest_commit=$(git -C apio-repo rev-parse HEAD)
+
+          echo "APIO_LATEST_COMMIT=$apio_latest_commit"
+          echo "APIO_LATEST_COMMIT=$apio_latest_commit" >> $GITHUB_ENV
+
+          # Strip leading and trailing spaces
+          sha="$(echo "${{github.event.inputs.commit_sha}}" | xargs)"
+
+          # User specified commit SHA.
+          if [ -n "$sha" ]; then
+            echo "APIO_TARGET_COMMIT=$sha"
+            echo "APIO_TARGET_COMMIT=$sha" >> $GITHUB_ENV
+
+            echo "COMMIT_NOTE=Using manual Apio commit"
+            echo "COMMIT_NOTE=Using manual Apio commit" >> $GITHUB_ENV
+
+          # Default behavior, use latest commit.
+          else
+            echo "APIO_TARGET_COMMIT=$apio_latest_commit"
+            echo "APIO_TARGET_COMMIT=$apio_latest_commit" >> $GITHUB_ENV
+
+            echo "COMMIT_NOTE=Using latest Apio commit"
+            echo "COMMIT_NOTE=Using latest Apio commit" >> $GITHUB_ENV
+          fi
+
+      # Now that we know what SHA we need, we can select it from the
+      # apio repo we fetched earlier.
+      - name: Checkout selected Apio source commit
+        run: |
+          git -C apio-repo fetch origin
+          git -C apio-repo checkout "$APIO_TARGET_COMMIT"
+
+          echo "$COMMIT_NOTE"
+          echo "Selected: $APIO_TARGET_COMMIT"
+          echo "Latest:   $APIO_LATEST_COMMIT"
+
+      - name: Get apio repo info
+        uses: fpgawars/apio-workflows/.github/actions/get-repo-info@main
+        with:
+          repo-dir: apio-repo
+          commit-var: APIO_COMMIT
+
+      - name: Get builder repo info
+        uses: fpgawars/apio-workflows/.github/actions/get-repo-info@main
+        with:
+          repo-dir: .
+          branch-var: BUILDER_BRANCH
+          commit-var: BUILDER_COMMIT
+
+      - name: Get Apio version
+        uses: fpgawars/apio-workflows/.github/actions/get-apio-version@main
+        with:
+          apio-repo-root: apio-repo
+          env-var-name: APIO_VERSION
+
+      # Create the build configuration that we will pass to the other jobs.
+      - name: Create build info
+        run: |
+          # Collect values
+          # builder_commit=$(git rev-parse HEAD)
+          # apio_commit=$(git -C apio-repo rev-parse HEAD)
+          # apio_branch=$(git -C apio-repo rev-parse --abbrev-ref HEAD)
+
+          # apio_version="$(pip show apio | grep Version: | cut -d ' ' -f2)"
+          # release_tag="$(date +'%Y-%m-%d')"
+          # package_tag="${release_tag//-/}"
+
+          # Generate build-info.json
+          cat > build-info.json <<EOF
+          {
+            "package-name":  "apio",
+            "description" : "FPGA design tool",
+            "python-version" : "$PYTHON_VERSION",
+            "apio-repo":  "${{env.APIO_REPO}}",
+            "requested-apio-commit" : "${{github.event.inputs.commit_sha}}",
+            "apio-commit":  "$APIO_COMMIT",
+            "apio-version": "$APIO_VERSION",
+            "release-tag":  "$RELEASE_TAG",
+            "package-tag":  "$PACKAGE_TAG",
+            "build-time":  "$(date +'%Y-%m-%d %H:%M:%S %Z')",
+            "builder-repo":  "${{github.repository}}",
+            "builder-workflow":  "${{ github.workflow }}",
+            "builder-commit":  "$BUILDER_COMMIT",
+            "workflow-run-id":  "${{github.run_id}}",
+            "workflow-run-number": "${{github.run_number}}"
+          }
+          EOF
+
+          cat -n build-info.json
+
+      - name: Format build info json file in-place
+        uses: fpgawars/apio-workflows/.github/actions/format-json-file@main
+        with:
+          json-file: build-info.json
+
+      - name: Upload the build info artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: build-info
+          path: build-info.json
+
+  # ----- Children build jobs
+
+  # We dispatch separate child workflows because each pyinstaller builder
+  # needs to run on it's target architecture and have specific installer
+  # configuration.
+
+  build-darwin-arm64:
+    needs: prepare
+    uses: ./.github/workflows/build-darwin-arm64.yaml
+    secrets: inherit
+
+  build-linux-x86-64:
+    needs: prepare
+    uses: ./.github/workflows/build-linux-x86-64.yaml
+    secrets: inherit
+
+  build-windows-amd64:
+    needs: prepare
+    uses: ./.github/workflows/build-windows-amd64.yaml
+    secrets: inherit
+
+  # # ----- Release creation job
+
+  release:
+    needs:
+      [prepare, build-darwin-arm64, build-linux-x86-64, build-windows-amd64]
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout this repo (for builder)
+        uses: actions/checkout@v4
+
+      - name: Download the artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: _artifacts
+
+      - name: Scan the packages for viruses
+        uses: fpgawars/apio-workflows/.github/actions/scan-files-for-viruses@main
+        with:
+          file-patterns: |
+            _artifacts/apio-*.*
+
+      - name: Move build info
+        run: |
+          find _artifacts
+          mv _artifacts/build-info.json .
+          cat -n build-info.json
+
+      - name: Set env vars from JSON
+        uses: fpgawars/apio-workflows/.github/actions/set-env-from-json@main
+        with:
+          json-file: build-info.json
+          mappings: >-
+            APIO_REPO     apio-repo
+            APIO_COMMIT   apio-commit
+            APIO_VERSION  apio-version
+            RELEASE_TAG   release-tag
+            PACKAGE_TAG   package-tag
+
+      - name: Convert json build info to text
+        uses: fpgawars/apio-workflows/.github/actions/json-to-text@main
+        with:
+          input-json: build-info.json
+          output-text: build-info.txt
+
+      # Summary for the run page.
+      - name: Prepare run summary
+        run: |
+          cat  > RUN-SUMMARY.txt <<EOF
+          Build info:
+          \`\`\`
+          $(cat build-info.txt)
+          \`\`\`
+
+          [Cutoff commit](https://github.com/${{env.APIO_REPO}}/commit/${{env.APIO_COMMIT}})
+          EOF
+
+          ls -al
+          cat -n RUN-SUMMARY.txt
+
+      - name: Add summary to run
+        run: |
+          cat RUN-SUMMARY.txt >> $GITHUB_STEP_SUMMARY
+
+      # Notes for the release page.
+      - name: Prepare release text
+        run: |
+          cat  > RELEASE-BODY.txt <<EOF
+          This is the daily build of the Apio \`$APIO_TARGET_BRANCH\` branch.
+
+          > This repository keeps only the last 5 pre-releases so to preserve
+          > a release, check off its's pre-release [] checkbox.
+
+          Build info:
+          \`\`\`
+          $(cat build-info.txt)
+          \`\`\`
+
+          Additional resources:
+          * [Installation instructions](https://fpgawars.github.io/apio/docs/quick-start)
+          EOF
+
+          cat -n RELEASE-BODY.txt
+
+      - name: Cleanup old pre-releases
+        uses: fpgawars/apio-workflows/.github/actions/cleanup-old-prereleases@main
+
+      - name: Ensure no conflicting release (again)
+        uses: fpgawars/apio-workflows/.github/actions/ensure-no-conflicting-release@main
+        with:
+          release-tag: ${{ env.RELEASE_TAG }}
+
+      
+
+      - name: Create GitHub pre-release
+        uses: fpgawars/apio-workflows/.github/actions/create-pre-release@main
+        with:
+          release_tag: ${{ env.RELEASE_TAG }}
+          body_path: RELEASE-BODY.txt
+          # We intensionally list explicitly all the expected files.
+          files: |
+            _artifacts/apio-darwin-arm64-${{env.PACKAGE_TAG}}-bundle.tgz
+            _artifacts/apio-darwin-arm64-${{env.PACKAGE_TAG}}-installer.pkg
+            _artifacts/apio-linux-x86-64-${{env.PACKAGE_TAG}}-bundle.tgz
+            _artifacts/apio-linux-x86-64-${{env.PACKAGE_TAG}}-debian.deb
+            _artifacts/apio-windows-amd64-${{env.PACKAGE_TAG}}-bundle.zip
+            _artifacts/apio-windows-amd64-${{env.PACKAGE_TAG}}-installer.exe

@@ -1,0 +1,189 @@
+name: build-windows-amd64
+
+on:
+  workflow_call:
+
+env:
+  # These are set later.
+  PYTHON_VERSION: ""
+  APIO_REPO: ""
+  APIO_COMMIT: ""
+  PACKAGE_TAG: ""
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash # Set Bash as the default shell
+
+    steps:
+      - name: Check required platform
+        uses: fpgawars/apio-workflows/.github/actions/check-platform@main
+        with:
+          os: msys
+          arch: x86_64
+
+      - name: Checkout this repo (for builder)
+        uses: actions/checkout@v4
+
+      - name: Download build-info.json artifact from main job
+        uses: actions/download-artifact@v4
+        with:
+          name: build-info
+          merge-multiple: true
+          path: _artifacts
+
+      - name: Move build info
+        run: |
+          find _artifacts
+          mv _artifacts/build-info.json .
+          cat -n build-info.json
+
+      - name: Add platform info to build info json file
+        uses: fpgawars/apio-workflows/.github/actions/write-to-json-file@main
+        with:
+          json-file: build-info.json
+          key: target-platform
+          value: windows-amd64
+
+      - name: Format build info json file
+        uses: fpgawars/apio-workflows/.github/actions/format-json-file@main
+        with:
+          json-file: build-info.json
+
+      - name: Set env vars from JSON
+        uses: fpgawars/apio-workflows/.github/actions/set-env-from-json@main
+        with:
+          json-file: build-info.json
+          mappings: >-
+            PYTHON_VERSION   python-version
+            APIO_REPO        apio-repo
+            APIO_COMMIT      apio-commit
+            APIO_VERSION     apio-version
+            RELEASE_TAG      release-tag
+            PACKAGE_TAG      package-tag
+
+      # -- This is the python that will be included in pyinstaller.
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Checkout apio repo (for source)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{env.APIO_REPO}}
+          ref: ${{env.APIO_COMMIT}}
+          path: _apio-repo
+          fetch-depth: 0
+
+      - name: Pip install apio
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e _apio-repo
+
+      - name: Pip install pyinstaller
+        run: |
+          pip install pyinstaller
+
+      - name: Set up working directories
+        run: |
+          mkdir _work
+          mkdir _dist
+          pwd
+          ls -la .
+
+      - name: Run pyinstaller
+        run: |
+          pyinstaller \
+            --log-level=DEBUG \
+            --workpath _work \
+            --distpath _dist \
+            .github/workflows/resources/apio-pyinstaller.spec
+          echo "_dist:"
+          ls -al _dist
+          echo "_dist/apio:"
+          ls -al _dist/apio
+          file _dist/apio/apio
+
+      # Pyinstaller doesn't generate symlinks for windows so we
+      # don't need to worry about them.
+      # https://github.com/orgs/pyinstaller/discussions/9166
+      - name: Check for symlinks
+        run: |
+          if find _dist -type l | grep -q .; then
+              echo "PyInstaller files contain symlinks"
+              exit 1
+          else
+              echo "No symlinks"
+          fi
+
+      - name: Add the build info file
+        run: |
+          cp build-info.json _dist/apio/BUILD-INFO.json
+          cat -n _dist/apio/BUILD-INFO.json
+
+      - name: Add the LICENSE file
+        run: |
+          cp _apio-repo/LICENSE _dist/apio
+          cat _dist/apio/LICENSE
+
+      - name: Add the 'readme' file
+        run: |
+          cat <<EOF > _dist/apio/README.txt
+          This is the Apio file bundle for Windows x86-64 (aka amd64)
+
+          For installation instructions see
+          https://fpgawars.github.io/apio/installing-apio/#windows-x86-64-bundle
+
+          For bundle information see BUILD-INFO.json.
+          EOF
+
+      - name: List the bundle files
+        run: |
+          find _dist
+
+      - name: Zip the pyinstaller bundle
+        shell: powershell
+        run: |
+          # The github window bash doesn't have 'zip' so we use powershell instead.
+          Push-Location _dist
+          $bundle = "apio-windows-amd64-${{env.PACKAGE_TAG}}-bundle.zip"
+          Compress-Archive -Path apio -DestinationPath ../${bundle}
+          Pop-Location
+          Get-ChildItem -Force
+
+      - name: Create innosetup.iss
+        run: |
+          out="innosetup.iss"
+          sed "s/\[APIO_VERSION\]/${APIO_VERSION}/g" .github/workflows/resources/windows/innosetup.template > ${out}
+          ls -al
+          cat -n ${out}
+
+      # Build the windows installer.
+      - name: Run innosetup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
+        with:
+          path: innosetup.iss
+
+      - name: Rename innosetup installer
+        run: |
+          ls -al
+          mv innosetup-installer.exe "apio-windows-amd64-${PACKAGE_TAG}-installer.exe"
+          ls -al
+
+      - name: Export the pyinstaller bundle as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: "apio-windows-amd64-bundle"
+          path: "apio-windows-amd64-${{env.PACKAGE_TAG}}-bundle.zip"
+
+      - name: Export the installer file as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: "apio-windows-amd64-installer"
+          path: "apio-windows-amd64-${{env.PACKAGE_TAG}}-installer.exe"

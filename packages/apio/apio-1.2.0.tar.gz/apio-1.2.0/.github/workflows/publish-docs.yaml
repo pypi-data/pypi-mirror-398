@@ -1,0 +1,109 @@
+# A periodic workflow to publish the apio mkDocs at /docs dir to the github
+# Pages of this repo.
+
+name: publish-docs
+
+on:
+  # Run on any push to branch 'main'
+  push:
+    branches:
+      - main
+
+  # Run daily at UTC midnight.
+  schedule:
+    - cron: "0 0 * * *"
+
+  # Enables manual trigger via GitHub UI
+  workflow_dispatch:
+
+jobs:
+  publish-mkdocs-docs:
+    runs-on: ubuntu-latest
+
+    environment: github-pages
+
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout apio repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dev tools
+        run: |
+          pip install invoke
+          invoke install-deps
+
+      - name: Install apio
+        run: |
+          invoke install-apio
+
+      - name: Generate boards page
+        run: |
+          ls docs/supported-boards.md
+          apio boards --docs > docs/supported-boards.md
+          cat docs/supported-boards.md
+
+      - name: Generate fpgas page
+        run: |
+          ls docs/supported-fpgas.md
+          apio fpgas --docs > docs/supported-fpgas.md
+          cat docs/supported-fpgas.md
+
+      - name: Generate commands list page
+        run: |
+          ls docs/commands-list.md
+          apio info commands --docs > docs/commands-list.md
+          cat docs/commands-list.md
+
+      - name: Generate examples list page
+        run: |
+          ls docs/apio-examples.md
+          apio examples list --docs > docs/apio-examples.md
+          cat docs/apio-examples.md
+
+      - name: Build mkDocs pages
+        run: |
+          mkdocs build --strict --site-dir site/docs
+
+      - name: Add redirector from root dir to docs
+        run: |
+          cat > site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html><head>
+            <meta http-equiv="refresh" content="0; url=docs/">
+            <link rel="canonical" href="https://${{ github.repositoryUrl }}/docs/">
+            <title>Redirecting…</title>
+            <style>
+              body{font-family:system-ui;background:#fff;color:#333;text-align:center;padding:5rem}
+              a{color:#0366d6;text-decoration:none;font-weight:600}
+            </style>
+          </head>
+          <body>
+            <p>📚 Docs loading… <a href="docs/">click here if not automatic</a></p>
+          </body></html>
+          EOF
+
+      - name: Run test coverage
+        run: |
+          invoke test-coverage --no-viewer
+
+      - name: Move test coverage to site
+        run: |
+          ls -al
+          mv _pytest-coverage site/coverage
+
+      - name: Upload new site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
