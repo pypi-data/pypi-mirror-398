@@ -1,0 +1,2 @@
+class NotValidKafkaMessageException(Exception):
+    None
