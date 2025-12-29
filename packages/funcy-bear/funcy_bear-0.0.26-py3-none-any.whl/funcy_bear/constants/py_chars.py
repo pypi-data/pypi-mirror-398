@@ -1,0 +1,20 @@
+"""Characters related to Python syntax."""
+
+from typing import Final
+
+TYPE_CHECKING_STR: Final = "TYPE_CHECKING"
+CLASS_VAR_STR: Final = "ClassVar"
+LITERAL_STR: Final = "Literal"
+DEF_STR: Final = "def"
+CLASS_STR: Final = "class"
+FOR_STR: Final = "for"
+IN_STR: Final = "in"
+IF_STR: Final = "if"
+ELIF_STR: Final = "elif"
+ELSE_STR: Final = "else"
+WITH_STR: Final = "with"
+AS_STR: Final = "as"
+TRY_STR: Final = "try"
+EXCEPT_STR: Final = "except"
+FINALLY_STR: Final = "finally"
+AUTO_STR: Final = "auto"
