@@ -1,0 +1,194 @@
+{% extends "admin/base.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block breadcrumbs %}
+{% endblock %}
+
+{% block content_title %}
+    {% if add %}
+        {% blocktrans with name=opts.verbose_name %}Add {{ name }}{% endblocktrans %}
+    {% else %}
+        {% blocktrans with name=opts.verbose_name %}Change {{ name }}{% endblocktrans %}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {# Object Tools (History, View on Site) #}
+    {% if change and not is_popup %}
+    <div class="mb-6 flex items-center justify-end space-x-3">
+        <a href="{% url opts|admin_urlname:'history' original.pk|admin_urlquote %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium text-sm transition-colors">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {% trans 'History' %}
+        </a>
+        {% if has_absolute_url %}
+        <a href="{{ absolute_url }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors" target="_blank">
+            {% trans 'View on site' %}
+            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <form method="post" id="{{ opts.model_name }}_form" enctype="multipart/form-data" class="space-y-6">
+    {% csrf_token %}
+    
+    {# Form Errors #}
+    {% if errors %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+            <div>
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+                    {% trans "Please correct the errors below." %}
+                </h3>
+                {{ adminform.form.non_field_errors }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {# Main Form Fieldsets #}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        {% block field_sets %}
+        {% for fieldset in adminform %}
+        <fieldset class="module {% if fieldset.classes %}{{ fieldset.classes }}{% endif %}{% if not forloop.first %} border-t border-gray-200 dark:border-gray-700{% endif %}">
+            
+            {% if fieldset.name %}
+            {# Collapsible Header #}
+            <h2 class="fieldset-header flex items-center gap-2 px-6 py-4 bg-gray-50 dark:bg-gray-750 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                onclick="toggleFieldset(this)">
+                <svg class="collapse-icon w-4 h-4 text-gray-500 transform transition-transform duration-200 -rotate-90" 
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+                <span class="text-lg font-semibold text-gray-900 dark:text-white">
+                    {{ fieldset.name }}
+                </span>
+            </h2>
+            {% if fieldset.description %}
+            <p class="fieldset-description px-6 pb-2 text-sm text-gray-600 dark:text-gray-400 hidden">
+                {{ fieldset.description|safe }}
+            </p>
+            {% endif %}
+            {% endif %}
+            
+            {# Fieldset Content #}
+            <div class="fieldset-content px-6 py-6 space-y-6{% if fieldset.name %} hidden{% endif %}">
+                {% for line in fieldset %}
+                <div class="{% if line.fields|length > 1 %}grid grid-cols-1 md:grid-cols-{{ line.fields|length }} gap-6{% endif %}">
+                    {% for field in line %}
+                    <div class="{% if field.is_readonly %}opacity-75{% endif %}">
+                        <label for="{{ field.field.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ field.field.label }}
+                            {% if field.field.field.required %}
+                            <span class="text-red-600 dark:text-red-400">*</span>
+                            {% endif %}
+                        </label>
+                        
+                        {% if field.is_readonly %}
+                        <div class="px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100">
+                            {{ field.contents }}
+                        </div>
+                        {% else %}
+                        {{ field.field }}
+                        {% endif %}
+                        
+                        {% if field.field.help_text %}
+                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            {{ field.field.help_text|safe }}
+                        </p>
+                        {% endif %}
+                        
+                        {% if field.field.errors %}
+                        <div class="mt-2 text-sm text-red-600 dark:text-red-400">
+                            {{ field.field.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </fieldset>
+        {% endfor %}
+        {% endblock %}
+    </div>
+    
+    {# Inline Forms - Uses stacked.html or tabular.html templates #}
+    {% block inline_field_sets %}
+    {% for inline_admin_formset in inline_admin_formsets %}
+        {% include inline_admin_formset.opts.template %}
+    {% endfor %}
+    {% endblock %}
+    
+    {# Submit Buttons #}
+    {% block submit_buttons_bottom %}
+    {% include "admin/submit_line.html" %}
+    {% endblock %}
+    
+    </form>
+{% endblock %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    {{ adminform.form.media.css }}
+{% endblock %}
+
+{% block extrajs %}
+    {{ block.super }}
+    <script src="{% url 'admin:jsi18n' %}"></script>
+    <script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'admin/js/jquery.init.js' %}"></script>
+    <script src="{% static 'admin/js/urlify.js' %}"></script>
+    <script src="{% static 'admin/js/prepopulate.js' %}"></script>
+    <script src="{% static 'admin/js/vendor/xregexp/xregexp.min.js' %}"></script>
+    <script src="{% static 'admin/js/inlines.js' %}"></script>
+    <script src="{% static 'admin/js/admin/RelatedObjectLookups.js' %}"></script>
+    {{ media.js }}
+    {% if add %}{% prepopulated_fields_js %}{% endif %}
+    
+    <script>
+    function toggleFieldset(header) {
+        const fieldset = header.closest('fieldset');
+        const content = fieldset.querySelector('.fieldset-content');
+        const description = fieldset.querySelector('.fieldset-description');
+        const icon = header.querySelector('.collapse-icon');
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            if (description) description.classList.remove('hidden');
+            icon.classList.remove('-rotate-90');
+        } else {
+            content.classList.add('hidden');
+            if (description) description.classList.add('hidden');
+            icon.classList.add('-rotate-90');
+        }
+    }
+    
+    // Auto-expand fieldsets that contain validation errors
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('fieldset.module').forEach(function(fieldset) {
+            // Check if this fieldset contains any error messages
+            const hasErrors = fieldset.querySelector('.text-red-600, .text-red-400, .errorlist');
+            if (hasErrors) {
+                const content = fieldset.querySelector('.fieldset-content');
+                const description = fieldset.querySelector('.fieldset-description');
+                const icon = fieldset.querySelector('.collapse-icon');
+                
+                if (content && content.classList.contains('hidden')) {
+                    content.classList.remove('hidden');
+                    if (description) description.classList.remove('hidden');
+                    if (icon) icon.classList.remove('-rotate-90');
+                }
+            }
+        });
+    });
+    </script>
+
+{% endblock %}
