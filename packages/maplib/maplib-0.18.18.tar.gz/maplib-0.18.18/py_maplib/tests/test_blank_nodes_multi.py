@@ -1,0 +1,295 @@
+import polars as pl
+import pytest
+import rdflib
+from polars.testing import assert_frame_equal
+import pathlib
+from maplib import Model, RDFType
+
+pl.Config.set_fmt_str_lengths(300)
+
+PATH_HERE = pathlib.Path(__file__).parent
+TESTDATA_PATH = PATH_HERE / "testdata"
+
+
+@pytest.fixture(scope="function")
+def blank_person_model() -> Model:
+    # The following example comes from https://primer.ottr.xyz/01-basics.html
+
+    doc = """
+    @prefix rdf: 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#> . 
+    @prefix rdfs: 	<http://www.w3.org/2000/01/rdf-schema#> . 
+    @prefix owl: 	<http://www.w3.org/2002/07/owl#> . 
+    @prefix xsd: 	<http://www.w3.org/2001/XMLSchema#> . 
+    @prefix foaf: 	<http://xmlns.com/foaf/0.1/> . 
+    @prefix dbp: 	<http://dbpedia.org/ontology/> . 
+    @prefix ex: 	<http://example.com/ns#> . 
+    @prefix ottr: 	<http://ns.ottr.xyz/0.4/> . 
+    @prefix ax: 	<http://tpl.ottr.xyz/owl/axiom/0.1/> . 
+    @prefix rstr: 	<http://tpl.ottr.xyz/owl/restriction/0.1/> .
+    ex:Person[ ?firstName, ?lastName, ottr:IRI ?email ] :: {
+      ottr:Triple(_:person, rdf:type, foaf:Person ),
+      ottr:Triple(_:person, foaf:firstName, ?firstName ),
+      ottr:Triple(_:person, foaf:lastName, ?lastName ),
+      ottr:Triple(_:person, foaf:mbox, ?email )
+    } .
+    """
+    m = Model()
+    m.add_template(doc)
+    df = pl.DataFrame(
+        {
+            "firstName": ["Ann", "Bob"],
+            "lastName": ["Strong", "Brite"],
+            "email": ["mailto:ann.strong@example.com", "mailto:bob.brite@example.com"],
+        }
+    )
+    m.map("ex:Person", df)
+    return m
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_simple_query_no_error(blank_person_model, streaming):
+    qres = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?firstName ?lastName WHERE {
+        ?p a foaf:Person .
+        ?p foaf:lastName ?lastName .
+        ?p foaf:firstName ?firstName .
+        } ORDER BY ?firstName ?lastName
+        """,
+        streaming=streaming,
+    ).sort(["firstName", "lastName"])
+    expected_df = pl.DataFrame(
+        {"firstName": ["Ann", "Bob"], "lastName": ["Strong", "Brite"]}
+    )
+
+    assert_frame_equal(qres, expected_df)
+
+
+def test_simple_query_blank_node_output_no_error(blank_person_model):
+    blank_person_model.write("out.nt", format="ntriples")
+    gr = rdflib.Graph()
+    gr.parse("out.nt", format="ntriples")
+    res = gr.query(
+        """
+            PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+            SELECT ?firstName ?lastName WHERE {
+            ?p a foaf:Person .
+            ?p foaf:lastName ?lastName .
+            ?p foaf:firstName ?firstName .
+            } ORDER BY ?firstName ?lastName
+            """,
+    )
+    assert len(res) == 2
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_query_no_error(blank_person_model, streaming):
+    sm = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?v ?o WHERE {
+        ?s ?v ?o .
+        } 
+        """,
+        include_datatypes=True,
+        streaming=streaming,
+    )
+    by = ["s", "v", "o"]
+    df = sm.mappings.sort(by=by)
+    assert sm.rdf_types == {
+        "o": RDFType.Multi(
+            [RDFType.IRI(), RDFType.Literal("http://www.w3.org/2001/XMLSchema#string")]
+        ),
+        "s": RDFType.BlankNode(),
+        "v": RDFType.IRI(),
+    }
+    filename = TESTDATA_PATH / "multi_datatype_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_union_query_no_error(blank_person_model, streaming):
+    res = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?o WHERE {
+        {?s foaf:firstName ?o .}
+        UNION {
+        ?s a ?o .
+        }
+        } 
+        """,
+        streaming=streaming,
+    )
+    by = ["s", "o"]
+    df = res.sort(by=by)
+    filename = TESTDATA_PATH / "multi_datatype_union_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_union_sort_query(blank_person_model, streaming):
+    df = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?o WHERE {
+        {?s foaf:firstName ?o .}
+        UNION {
+        ?s a ?o .
+        }
+        } ORDER BY ?o ?s
+        """,
+        streaming=streaming,
+    )
+    filename = TESTDATA_PATH / "multi_datatype_union_sort_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_union_sort_desc1_query(blank_person_model, streaming):
+    df = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?o WHERE {
+        {?s foaf:firstName ?o .}
+        UNION {
+        ?s a ?o .
+        }
+        } ORDER BY DESC(?o) ?s
+        """,
+        streaming=streaming,
+    )
+    filename = TESTDATA_PATH / "multi_datatype_union_sort_desc1_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_union_query_native_df(blank_person_model, streaming):
+    res = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?o WHERE {
+        {?s foaf:firstName ?o .}
+        UNION {
+        ?s a ?o .
+        }
+        } 
+        """,
+        native_dataframe=True,
+        streaming=streaming,
+    )
+    by = ["s", "o"]
+    df = res.sort(by=by)
+    filename = TESTDATA_PATH / "multi_datatype_union_query_native_df.parquet"
+    # df.write_parquet(filename)
+    expected_df = pl.scan_parquet(filename).sort(by).collect()
+    # We are forgiving of ordering of fields in struct.
+    assert_frame_equal(df, expected_df, check_exact=False)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_left_join_query_no_error(blank_person_model, streaming):
+    res = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?o WHERE {
+        ?s foaf:firstName ?o .
+        OPTIONAL {
+        ?s a ?o .
+        }
+        } 
+        """,
+        streaming=streaming,
+    )
+    by = ["s", "o"]
+    df = res.sort(by=by)
+    filename = TESTDATA_PATH / "multi_datatype_leftjoin_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_join_query_two_vars_no_error(blank_person_model, streaming):
+    res = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?o WHERE {
+        ?s foaf:firstName ?o .
+        {
+        {?s foaf:firstName ?o }
+        UNION
+        {?s a ?o }.
+        }
+        } 
+        """,
+        streaming=streaming,
+    )
+    by = ["s", "o"]
+    df = res.sort(by=by)
+    filename = TESTDATA_PATH / "multi_datatype_join_query_two_vars.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_join_query_no_error(blank_person_model, streaming):
+    res = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s1 ?s2 ?o WHERE {
+        ?s1 foaf:firstName ?o .
+        {
+        {?s2 foaf:firstName ?o }
+        UNION
+        {?s2 a ?o }.
+        }
+        } 
+        """,
+        streaming=streaming,
+    )
+    by = ["s1", "s2", "o"]
+    df = res.sort(by=by)
+    filename = TESTDATA_PATH / "multi_datatype_join_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_multi_datatype_query_sorting_sorting(blank_person_model, streaming):
+    res = blank_person_model.query(
+        """
+        PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+
+        SELECT ?s ?v ?o WHERE {
+        ?s ?v ?o .
+        } ORDER BY ?s ?v ?o
+        """,
+        streaming=streaming,
+    ).sort(["s", "v", "o"])
+    # TODO: Fix multitype sorting
+    filename = TESTDATA_PATH / "multi_datatype_query_sorting.csv"
+    # res.write_csv(filename)
+    expected_df = pl.scan_csv(filename).collect()
+    assert_frame_equal(res, expected_df)

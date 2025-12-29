@@ -1,0 +1,177 @@
+use crate::expressions::expr_is_null_workaround;
+use oxrdf::vocab::xsd;
+use polars::datatypes::DataType;
+use polars::prelude::{any_horizontal, col, Expr};
+use representation::query_context::Context;
+use representation::solution_mapping::SolutionMappings;
+use representation::{BaseRDFNodeType, RDFNodeState};
+use std::collections::HashMap;
+
+pub struct AggregateReturn {
+    pub solution_mappings: SolutionMappings,
+    pub expr: Expr,
+    pub context: Option<Context>,
+    pub rdf_node_type: RDFNodeState,
+}
+
+pub fn count_with_expression(column_context: &Context, distinct: bool) -> (Expr, RDFNodeState) {
+    let out_expr = if distinct {
+        col(column_context.as_str()).n_unique()
+    } else {
+        col(column_context.as_str()).count()
+    };
+    (
+        out_expr,
+        BaseRDFNodeType::Literal(xsd::UNSIGNED_INT.into_owned())
+            .into_default_input_rdf_node_state(),
+    )
+}
+
+pub fn count_without_expression(
+    distinct: bool,
+    rdf_node_types: &HashMap<String, RDFNodeState>,
+) -> (Expr, RDFNodeState) {
+    let out_expr = if distinct {
+        todo!("Try count without distinct")
+    } else {
+        let mut is_not_null = vec![];
+        for (c, s) in rdf_node_types {
+            is_not_null.push(expr_is_null_workaround(col(c), s).not())
+        }
+        any_horizontal(is_not_null).unwrap().sum()
+    };
+    (
+        out_expr,
+        BaseRDFNodeType::Literal(xsd::UNSIGNED_INT.into_owned())
+            .into_default_input_rdf_node_state(),
+    )
+}
+
+pub fn sum(
+    solution_mappings: &SolutionMappings,
+    column_context: &Context,
+    distinct: bool,
+) -> (Expr, RDFNodeState) {
+    let expr_rdf_node_type = rdf_node_type_from_context(column_context, solution_mappings);
+    let out_rdf_node_type = if expr_rdf_node_type.is_bool() {
+        BaseRDFNodeType::Literal(xsd::UNSIGNED_LONG.into_owned())
+            .into_default_input_rdf_node_state()
+    } else {
+        expr_rdf_node_type.clone()
+    };
+
+    let out_expr = if distinct {
+        col(column_context.as_str()).unique().sum()
+    } else {
+        col(column_context.as_str()).sum()
+    };
+    (out_expr, out_rdf_node_type)
+}
+
+pub fn avg(
+    solution_mappings: &SolutionMappings,
+    column_context: &Context,
+    distinct: bool,
+) -> (Expr, RDFNodeState) {
+    let expr_rdf_node_type = rdf_node_type_from_context(column_context, solution_mappings);
+    let out_rdf_node_type = if expr_rdf_node_type.is_bool() {
+        BaseRDFNodeType::Literal(xsd::UNSIGNED_LONG.into_owned())
+            .into_default_input_rdf_node_state()
+    } else {
+        expr_rdf_node_type.clone()
+    };
+
+    let out_expr = if distinct {
+        col(column_context.as_str()).unique().mean()
+    } else {
+        col(column_context.as_str()).mean()
+    };
+    (out_expr, out_rdf_node_type)
+}
+
+pub fn min(solution_mappings: &SolutionMappings, column_context: &Context) -> (Expr, RDFNodeState) {
+    let expr_rdf_node_type = rdf_node_type_from_context(column_context, solution_mappings);
+    let out_rdf_node_type = if expr_rdf_node_type.is_bool() {
+        BaseRDFNodeType::Literal(xsd::UNSIGNED_LONG.into_owned())
+            .into_default_input_rdf_node_state()
+    } else {
+        expr_rdf_node_type.clone()
+    };
+
+    let out_expr = col(column_context.as_str()).min();
+
+    (out_expr, out_rdf_node_type)
+}
+
+pub fn max(solution_mappings: &SolutionMappings, column_context: &Context) -> (Expr, RDFNodeState) {
+    let expr_rdf_node_type = rdf_node_type_from_context(column_context, solution_mappings);
+    let out_rdf_node_type = if expr_rdf_node_type.is_bool() {
+        BaseRDFNodeType::Literal(xsd::UNSIGNED_LONG.into_owned())
+            .into_default_input_rdf_node_state()
+    } else {
+        expr_rdf_node_type.clone()
+    };
+
+    let out_expr = col(column_context.as_str()).max();
+
+    (out_expr, out_rdf_node_type)
+}
+
+pub fn group_concat(
+    column_context: &Context,
+    separator: &Option<String>,
+    distinct: bool,
+) -> (Expr, RDFNodeState) {
+    let out_rdf_node_type =
+        BaseRDFNodeType::Literal(xsd::STRING.into_owned()).into_default_input_rdf_node_state();
+
+    let use_sep = if let Some(sep) = separator {
+        sep.to_string()
+    } else {
+        "".to_string()
+    };
+    let out_expr = if distinct {
+        col(column_context.as_str())
+            .cast(DataType::String)
+            .unique_stable()
+            .str()
+            .join(use_sep.as_str(), true)
+    } else {
+        col(column_context.as_str())
+            .cast(DataType::String)
+            .str()
+            .join(use_sep.as_str(), true)
+    };
+    (out_expr, out_rdf_node_type)
+}
+
+pub fn sample(
+    solution_mappings: &SolutionMappings,
+    column_context: &Context,
+) -> (Expr, RDFNodeState) {
+    let out_rdf_node_type = rdf_node_type_from_context(column_context, solution_mappings).clone();
+
+    let out_expr = col(column_context.as_str()).first();
+    (out_expr, out_rdf_node_type)
+}
+
+fn rdf_node_type_from_context<'a>(
+    context: &'_ Context,
+    solution_mappings: &'a SolutionMappings,
+) -> &'a RDFNodeState {
+    let datatype = solution_mappings
+        .rdf_node_types
+        .get(context.as_str())
+        .unwrap();
+    datatype
+}
+
+pub fn list_aggregation(
+    solution_mappings: &SolutionMappings,
+    column_context: &Context,
+) -> (Expr, RDFNodeState) {
+    //Todo: add list types..
+    let out_rdf_node_type = rdf_node_type_from_context(column_context, solution_mappings).clone();
+    let out_expr = col(column_context.as_str());
+    (out_expr, out_rdf_node_type)
+}

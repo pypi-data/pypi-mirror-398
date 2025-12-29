@@ -1,0 +1,50 @@
+[package]
+name = "py_maplib"
+version = "0.18.18"
+edition = "2021"
+readme = "README.md"
+
+[features]
+abi3 = [ "pyo3/abi3-py310" ]
+
+[dependencies]
+maplib = { path = "../lib/maplib", features = [ "pyo3" ] }
+triplestore = { path = "../lib/triplestore", features = [ "pyo3" ] }
+representation = { path = "../lib/representation" }
+shacl = { path = "../lib/shacl", features = [ "pyo3" ] }
+pydf_io = { path = "../lib/pydf_io" }
+report_mapping = {path = "../lib/report_mapping"}
+templates = {path= "../lib/templates"}
+cimxml = {path = "../lib/cimxml", features = [ "pyo3" ]}
+datalog = {path = "../lib/datalog"}
+
+pyo3.workspace = true
+oxrdf.workspace = true
+oxrdfio.workspace = true
+thiserror.workspace = true
+polars = { workspace = true, features = [
+    "simd","nightly", "performant", "cse",
+    "dtype-array", "dtype-date",
+    "dtype-datetime", "dtype-decimal", "dtype-duration",
+    "dtype-i8", "dtype-i16", "dtype-struct",
+    "dtype-time", "dtype-u8", "dtype-u16"] }
+uuid.workspace = true
+chrono.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "maplib"
+crate-type = ["cdylib"]
+
+# Conditional dependency specification of mimalloc and jemallocator copied from: https://github.com/pola-rs/polars/blob/main/py-polars/Cargo.toml
+# Licence in /licensing/POLARS_LICENSE
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+mimalloc = { version = "0.1", default-features = false }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemallocator = { version = "*", features = ["disable_initial_exec_tls"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("gil-refs", "rdf-star"))'] }

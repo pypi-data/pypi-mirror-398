@@ -1,0 +1,46 @@
+use super::Triplestore;
+use crate::errors::TriplestoreError;
+use crate::sparql::QuerySettings;
+use oxrdf::vocab::rdf;
+use representation::dataset::NamedGraph;
+
+const SUBCLASS_INFERENCING: &str = r#"
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+CONSTRUCT { ?a a ?b }
+WHERE {
+    ?c rdfs:subClassOf+ ?b .
+    ?a a ?c .
+}
+"#;
+
+impl Triplestore {
+    pub fn rdfs_class_inheritance(&mut self, graph: &NamedGraph) -> Result<(), TriplestoreError> {
+        let qs = QuerySettings {
+            include_transient: false,
+            max_rows: None,
+            strict_project: false,
+        };
+        self.insert(
+            SUBCLASS_INFERENCING,
+            &None,
+            true,
+            false,
+            &qs,
+            graph,
+            None,
+            false,
+        )
+        .map_err(|x| TriplestoreError::RDFSClassInheritanceError(x.to_string()))?;
+        Ok(())
+    }
+
+    pub fn drop_rdfs_class_inheritance(
+        &mut self,
+        graph: &NamedGraph,
+    ) -> Result<(), TriplestoreError> {
+        if let Some(t) = self.graph_transient_triples_map.get_mut(graph) {
+            t.remove(&rdf::TYPE.into_owned());
+        }
+        Ok(())
+    }
+}

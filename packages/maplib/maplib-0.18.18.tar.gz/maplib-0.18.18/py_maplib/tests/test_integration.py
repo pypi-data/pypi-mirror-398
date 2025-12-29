@@ -1,0 +1,730 @@
+from maplib import Model, IndexingOptions
+import pytest
+from polars.testing import assert_frame_equal
+import polars as pl
+from math import floor
+import pathlib
+import time
+
+from pyparsing import stringStart
+
+pl.Config.set_fmt_str_lengths(300)
+
+PATH_HERE = pathlib.Path(__file__).parent
+TESTDATA_PATH = PATH_HERE / "testdata"
+
+
+@pytest.fixture(scope="function", params=[True, False])
+def windpower_model(request):
+    print(request)
+    instance_mapping = """
+    @prefix tpl:<https://github.com/magbak/chrontext/templates#>.
+    @prefix rds:<https://github.com/magbak/chrontext/rds_power#>.
+    @prefix ct:<https://github.com/magbak/chrontext#>.
+    @prefix rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+    @prefix rdfs:<http://www.w3.org/2000/01/rdf-schema#>.
+    
+    tpl:Site [?SiteIRI, ?SiteName] :: {
+        ottr:Triple(?SiteIRI, rdfs:label, ?SiteName),
+        ottr:Triple(?SiteIRI, rdf:type, rds:Site)
+        } .
+    
+    tpl:FunctionalAspect [?SourceIRI, ?TargetIRI, ?TargetAspectNodeIRI, ?Label] :: {
+        ottr:Triple(?SourceIRI, rds:hasFunctionalAspect, ?TargetAspectNodeIRI),
+        ottr:Triple(?TargetIRI, rds:hasFunctionalAspectNode, ?TargetAspectNodeIRI),
+        ottr:Triple(?TargetAspectNodeIRI, rdfs:label, ?Label)
+    } .
+    
+    tpl:RDSSystem [?SystemIRI, ottr:IRI ?RDSType, ?Label] :: {
+        ottr:Triple(?SystemIRI, rdf:type, ?RDSType),
+        ottr:Triple(?SystemIRI, rdfs:label, ?Label)
+    } .
+    
+    tpl:StaticProperty [?ParentIRI, ottr:IRI ?ValueNodeIRI, ?Label, ?Value] :: {
+        ottr:Triple(?ParentIRI, ct:hasStaticProperty, ?ValueNodeIRI),
+        ottr:Triple(?ValueNodeIRI, rdfs:label, ?Label),
+        ottr:Triple(?ValueNodeIRI, ct:hasStaticValue, ?Value)
+    } .
+    
+    tpl:Timeseries [?ParentIRI, ottr:IRI ?TimeseriesNodeIRI, ?Label, ?ExternalId, ottr:IRI ?Datatype] :: {
+        ottr:Triple(?ParentIRI, ct:hasTimeseries, ?TimeseriesNodeIRI),
+        ottr:Triple(?TimeseriesNodeIRI, ct:hasExternalId, ?ExternalId),
+        ottr:Triple(?TimeseriesNodeIRI, ct:hasDatatype, ?Datatype),
+        ottr:Triple(?TimeseriesNodeIRI, rdfs:label, ?Label)
+    } .
+    """
+
+    n = 40
+
+    model = Model()
+    model.add_template(instance_mapping)
+    # Used as a prefix
+    wpex = "https://github.com/magbak/chrontext/windpower_example#"
+    rds = "https://github.com/magbak/chrontext/rds_power#"
+    site_iris = [wpex + "Site" + str(i) for i in range(4)]
+    sites = pl.DataFrame(
+        {
+            "SiteName": [
+                "Wind Mountain",
+                "Gale Valley",
+                "Gusty Plains",
+                "Breezy Field",
+            ],
+            "SiteIRI": site_iris,
+        }
+    )
+    model.map("tpl:Site", sites)
+
+    wind_turbine_iris = [wpex + "WindTurbine" + str(i) for i in range(1, n + 1)]
+    wind_turbines = pl.DataFrame(
+        {
+            "RDSType": [rds + "A"] * n,
+            "Label": ["Wind turbine " + str(i) for i in range(1, n + 1)],
+            "SystemIRI": wind_turbine_iris,
+        }
+    )
+
+    model.map("tpl:RDSSystem", wind_turbines)
+    operating_external_ids = ["oper" + str(i) for i in range(1, n + 1)]
+    operating = pl.DataFrame(
+        {
+            "Label": ["Operating"] * n,
+            "ParentIRI": wind_turbine_iris,
+            "ExternalId": operating_external_ids,
+            "Datatype": ["http://www.w3.org/2001/XMLSchema#boolean"] * n,
+        }
+    )
+    operating = operating.with_columns(
+        pl.Series("TimeseriesNodeIRI", [wpex] * operating.height)
+        + operating["ExternalId"]
+    )
+    model.map("tpl:Timeseries", operating)
+    maximum_power_values = [
+        [5_000_000, 10_000_000, 15_000_000][i % 3] for i in range(1, n + 1)
+    ]
+    maximum_power_node_iri = [
+        wpex + "WindTurbineMaximumPower" + str(i) for i in range(1, n + 1)
+    ]
+    maximum_power = pl.DataFrame(
+        {
+            "Label": ["MaximumPower"] * n,
+            "Value": maximum_power_values,
+            "ParentIRI": wind_turbine_iris,
+            "ValueNodeIRI": maximum_power_node_iri,
+        }
+    )
+    model.map("tpl:StaticProperty", df=maximum_power)
+
+    def add_aspect_labeling_by_source(df: pl.DataFrame, prefix: str) -> pl.DataFrame:
+        label_df = df.group_by("SourceIRI", maintain_order=True).map_groups(
+            lambda x: pl.DataFrame(
+                {"Label": [prefix + str(i) for i in range(1, x.height + 1)]}
+            )
+        )
+        df = df.with_columns(label_df["Label"])
+        return df
+
+    target_aspect_node_iri = [
+        wpex + "WindTurbineFunctionalAspect" + str(i) for i in range(1, n + 1)
+    ]
+
+    site_has_wind_turbine = pl.DataFrame(
+        {
+            "SourceIRI": [
+                site_iris[floor(i / (n / sites.height))] for i in range(0, n)
+            ],
+            "TargetIRI": wind_turbine_iris,
+            "TargetAspectNodeIRI": target_aspect_node_iri,
+        }
+    )
+    site_has_wind_turbine = add_aspect_labeling_by_source(site_has_wind_turbine, "A")
+    model.map("tpl:FunctionalAspect", site_has_wind_turbine)
+
+    generator_system_iris = [wpex + "GeneratorSystem" + str(i) for i in range(1, n + 1)]
+    generator_systems = pl.DataFrame(
+        {
+            "SystemIRI": generator_system_iris,
+            "Label": ["Generator system"] * n,
+            "RDSType": [rds + "RA"] * n,
+        }
+    )
+    model.map("tpl:RDSSystem", generator_systems)
+    wind_turbine_has_generator_system = pl.DataFrame(
+        {
+            "SourceIRI": wind_turbine_iris,
+            "TargetIRI": generator_system_iris,
+            "TargetAspectNodeIRI": [
+                wpex + "GeneratorSystemFunctionalAspect" + str(i)
+                for i in range(1, n + 1)
+            ],
+        }
+    )
+    wind_turbine_has_generator_system = add_aspect_labeling_by_source(
+        wind_turbine_has_generator_system, "RA"
+    )
+    model.map("tpl:FunctionalAspect", wind_turbine_has_generator_system)
+
+    generator_iris = [wpex + "Generator" + str(i) for i in range(1, n + 1)]
+    generators = pl.DataFrame(
+        {
+            "SystemIRI": generator_iris,
+            "RDSType": [rds + "GAA"] * n,
+            "Label": ["Generator"] * n,
+        }
+    )
+    model.map("tpl:RDSSystem", generators)
+    energy_production_external_ids = ["ep" + str(i) for i in range(1, n + 1)]
+    energy_production = pl.DataFrame(
+        {
+            "Label": ["Production"] * n,
+            "ParentIRI": generator_iris,
+            "ExternalId": energy_production_external_ids,
+            "Datatype": ["http://www.w3.org/2001/XMLSchema#double"] * n,
+        }
+    )
+    energy_production = energy_production.with_columns(
+        pl.Series("TimeseriesNodeIRI", [wpex] * energy_production.height)
+        + energy_production["ExternalId"]
+    )
+    model.map("tpl:Timeseries", energy_production)
+    generator_system_has_generator = pl.DataFrame(
+        {
+            "SourceIRI": generator_system_iris,
+            "TargetIRI": generator_iris,
+            "TargetAspectNodeIRI": [
+                wpex + "GeneratorFunctionalAspect" + str(i) for i in range(1, n + 1)
+            ],
+        }
+    )
+    generator_system_has_generator = add_aspect_labeling_by_source(
+        generator_system_has_generator, "GAA"
+    )
+
+    model.map("tpl:FunctionalAspect", generator_system_has_generator)
+
+    wms_iris = [wpex + "WeatherMeasuringSystem" + str(i) for i in range(1, n + 1)]
+    wms = pl.DataFrame(
+        {
+            "SystemIRI": wms_iris,
+            "RDSType": [rds + "LE"] * n,
+            "Label": ["Weather Measuring System"] * n,
+        }
+    )
+    model.map("tpl:RDSSystem", wms)
+    wind_speed_external_ids = ["wsp" + str(i) for i in range(1, n + 1)]
+    wind_speed = pl.DataFrame(
+        {
+            "Label": ["Windspeed"] * n,
+            "ParentIRI": wms_iris,
+            "ExternalId": wind_speed_external_ids,
+            "Datatype": ["http://www.w3.org/2001/XMLSchema#double"] * n,
+        }
+    )
+    wind_speed = wind_speed.with_columns(
+        pl.Series("TimeseriesNodeIRI", [wpex] * wind_speed.height)
+        + wind_speed["ExternalId"]
+    )
+
+    model.map("tpl:Timeseries", wind_speed)
+    wind_direction_external_ids = ["wdir" + str(i) for i in range(1, n + 1)]
+    wind_direction = pl.DataFrame(
+        {
+            "Label": ["WindDirection"] * n,
+            "ParentIRI": wms_iris,
+            "ExternalId": wind_direction_external_ids,
+            "Datatype": ["http://www.w3.org/2001/XMLSchema#double"] * n,
+        }
+    )
+    wind_direction = wind_direction.with_columns(
+        pl.Series("TimeseriesNodeIRI", [wpex] * wind_direction.height)
+        + wind_direction["ExternalId"]
+    )
+
+    model.map("tpl:Timeseries", wind_direction)
+    wind_turbine_has_wms = pl.DataFrame(
+        {
+            "SourceIRI": wind_turbine_iris,
+            "TargetIRI": wms_iris,
+            "TargetAspectNodeIRI": [
+                wpex + "WMSFunctionalAspect" + str(i) for i in range(1, n + 1)
+            ],
+        }
+    )
+    wind_turbine_has_wms = add_aspect_labeling_by_source(wind_turbine_has_wms, "LE")
+
+    model.map("tpl:FunctionalAspect", df=wind_turbine_has_wms)
+    return model
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_simple_query(windpower_model, streaming):
+    df = windpower_model.query(
+        "SELECT ?a ?b WHERE {?a a ?b}", streaming=streaming
+    ).sort(["a", "b"])
+    filename = TESTDATA_PATH / "simple_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(["a", "b"]).collect()
+    pl.testing.assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_everything_from_subject_query(windpower_model, streaming):
+    query = """
+SELECT ?b ?c WHERE {
+    <https://github.com/magbak/chrontext/windpower_example#Generator31> ?b ?c .
+} ORDER BY ?b ?c"""
+    windpower_model.query(query, streaming=streaming)
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_types(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?n ?t WHERE {
+    ?n a ?t .
+}"""
+    df = windpower_model.query(query, streaming=streaming)
+    print(df)
+    assert df.height == 164
+
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_missing_predicate(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?n ?asp WHERE {
+    ?n rds:hasFunctionalAspect ?asp .
+}"""
+    df = windpower_model.query(query, streaming=streaming)
+    print(df)
+    assert df.height == 160
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_missing_predicate2(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?wtur ?wtur_asp WHERE {
+        ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+
+}"""
+    df = windpower_model.query(query, streaming=streaming)
+    print(df)
+    assert df.height == 160
+
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_larger_query_simplified(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?wtur_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label ?wtur_label .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    FILTER(?wtur_label = "A1" && ?site_label = "Wind Mountain") .
+}"""
+    df = windpower_model.query(query, streaming=streaming)
+    print(df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_larger_query(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?wtur_label ?ts ?ts_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label ?wtur_label .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    ?wtur rds:hasFunctionalAspect ?gensys_asp .
+    ?wtur a rds:A .
+    ?gensys rds:hasFunctionalAspectNode ?gensys_asp .
+    ?gensys a rds:RA .
+    ?gensys rds:hasFunctionalAspect ?generator_asp .
+    ?generator rds:hasFunctionalAspectNode ?generator_asp .
+    ?generator a rds:GAA .
+    ?generator ct:hasTimeseries ?ts .
+    ?ts rdfs:label ?ts_label .
+    FILTER(?wtur_label = "A1" && ?site_label = "Wind Mountain") .
+}"""
+    by = ["site_label", "wtur_label", "ts", "ts_label"]
+    df = windpower_model.query(query, streaming=streaming).sort(by)
+    filename = TESTDATA_PATH / "larger_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    # Important assert for checking indexing by object string
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_bad_pushdown(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?ts ?ts_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label 1 .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    ?wtur rds:hasFunctionalAspect ?gensys_asp .
+    ?wtur a rds:A .
+    ?gensys rds:hasFunctionalAspectNode ?gensys_asp .
+    ?gensys a rds:RA .
+    ?gensys rds:hasFunctionalAspect ?generator_asp .
+    ?generator rds:hasFunctionalAspectNode ?generator_asp .
+    ?generator a rds:GAA .
+    ?generator ct:hasTimeseries ?ts .
+    ?ts rdfs:label ?ts_label .
+    FILTER(?site_label = "Wind Mountain") .
+}"""
+    df = windpower_model.query(query, streaming=streaming)
+    assert df.shape == (0, 3)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_larger_ordered_query(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?wtur_label ?ts ?ts_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label ?wtur_label .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    ?wtur rds:hasFunctionalAspect ?gensys_asp .
+    ?wtur a rds:A .
+    ?gensys rds:hasFunctionalAspectNode ?gensys_asp .
+    ?gensys a rds:RA .
+    ?gensys rds:hasFunctionalAspect ?generator_asp .
+    ?generator rds:hasFunctionalAspectNode ?generator_asp .
+    ?generator a rds:GAA .
+    ?generator ct:hasTimeseries ?ts .
+    ?ts rdfs:label ?ts_label .
+} ORDER BY ?site_label ?wtur_label ?ts ?ts_label"""
+    df = windpower_model.query(query, streaming=streaming)
+    filename = TESTDATA_PATH / "larger_ordered_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_larger_ordered_query_debug(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?wtur_label ?ts ?ts_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label ?wtur_label .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    ?wtur rds:hasFunctionalAspect ?gensys_asp .
+    ?wtur a rds:A .
+    ?gensys rds:hasFunctionalAspectNode ?gensys_asp .
+    ?gensys a rds:RA .
+    #This one bad:
+    ?gensys rds:hasFeunctionalAspect ?generator_asp .
+    ?generator rds:hasFunctionalAspectNode ?generator_asp .
+    ?generator a rds:GAA .
+    ?generator ct:hasTimeseries ?ts .
+    ?ts rdfs:label ?ts_label .
+} ORDER BY ?site_label ?wtur_label ?ts ?ts_label"""
+    sm = windpower_model.query(query, streaming=streaming, debug=True)
+    print(sm.debug)
+    assert "hasFeunc" in sm.debug
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_larger_ordered_query_debug_badfilter(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?wtur_label ?ts ?ts_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label ?wtur_label .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    ?wtur rds:hasFunctionalAspect ?gensys_asp .
+    ?wtur a rds:A .
+    ?gensys rds:hasFunctionalAspectNode ?gensys_asp .
+    ?gensys a rds:RA .
+    ?gensys rds:hasFunctionalAspect ?generator_asp .
+    ?generator rds:hasFunctionalAspectNode ?generator_asp .
+    ?generator a rds:GAA .
+    ?generator ct:hasTimeseries ?ts .
+    ?ts rdfs:label ?ts_label .
+    FILTER(?ts_label = "HALLO")
+} ORDER BY ?site_label ?wtur_label ?ts ?ts_label"""
+    sm = windpower_model.query(query, streaming=streaming, debug=True)
+    print(sm.debug)
+    assert "HALLO" in sm.debug
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_larger_ordered_query_debug_but_no_error(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?wtur_label ?ts ?ts_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect ?wtur_asp .
+    ?wtur_asp rdfs:label ?wtur_label .
+    ?wtur rds:hasFunctionalAspectNode ?wtur_asp .
+    ?wtur rds:hasFunctionalAspect ?gensys_asp .
+    ?wtur a rds:A .
+    ?gensys rds:hasFunctionalAspectNode ?gensys_asp .
+    ?gensys a rds:RA .
+    ?gensys rds:hasFunctionalAspect ?generator_asp .
+    ?generator rds:hasFunctionalAspectNode ?generator_asp .
+    ?generator a rds:GAA .
+    ?generator ct:hasTimeseries ?ts .
+    ?ts rdfs:label ?ts_label .
+} ORDER BY ?site_label ?wtur_label ?ts ?ts_label"""
+    sm = windpower_model.query(query, streaming=streaming, debug=True)
+    assert "has at least one" in sm.debug
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_simple_property_path_query(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?node WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site rds:hasFunctionalAspect / ^rds:hasFunctionalAspectNode ?node .
+}"""
+    by = ["site_label", "node"]
+    df = windpower_model.query(query, streaming=streaming).sort(by)
+    filename = TESTDATA_PATH / "simple_property_path_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    pl.testing.assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_iterated_property_path_query(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?node WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site (rds:hasFunctionalAspect / ^rds:hasFunctionalAspectNode)+ ?node .
+}"""
+    by = ["site_label", "node"]
+    df = windpower_model.query(query, streaming=streaming).sort(by)
+    filename = TESTDATA_PATH / "iterated_property_path_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    pl.testing.assert_frame_equal(df, expected_df)
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_iterated_property_path_constant_object_query(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site (rds:hasFunctionalAspect / ^rds:hasFunctionalAspectNode)+ <https://github.com/magbak/chrontext/windpower_example#Generator40> .
+}"""
+    by = ["site_label"]
+    df = windpower_model.query(query, streaming=streaming).sort(by)
+    filename = TESTDATA_PATH / "iterated_property_path_constant_object_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    pl.testing.assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_iterated_property_path_constant_subject_query(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?node WHERE {
+    <https://github.com/magbak/chrontext/windpower_example#Site3> (rds:hasFunctionalAspect / ^rds:hasFunctionalAspectNode)+ ?node .
+}"""
+    by = ["node"]
+    start = time.time()
+    df = windpower_model.query(query, streaming=streaming).sort(by)
+    end = time.time()
+    print(f"Took {round(end-start, 3)}")
+    filename = TESTDATA_PATH / "iterated_property_path_constant_subject_query.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    pl.testing.assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_iterated_property_path_query_with_bug(windpower_model, streaming):
+    query = """PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX ct:<https://github.com/magbak/chrontext#>
+PREFIX wp:<https://github.com/magbak/chrontext/windpower_example#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rds:<https://github.com/magbak/chrontext/rds_power#>
+SELECT ?site_label ?node_label WHERE {
+    ?site a rds:Site .
+    ?site rdfs:label ?site_label .
+    ?site (rds:hasFunctionalAspect / ^rds:hasFunctionalAspectNode)+ ?node .
+    ?node rdfs:label ?node_label .
+}"""
+    by = ["site_label", "node_label"]
+    start = time.time()
+    df = windpower_model.query(query, streaming=streaming).sort(by)
+    end = time.time()
+    print(f"Took {round(end-start, 3)}")
+    filename = TESTDATA_PATH / "iterated_property_path_query_with_bug.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(by).collect()
+    assert_frame_equal(df, expected_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_simple_construct_query(windpower_model, streaming):
+    dfs = windpower_model.query(
+        """
+    PREFIX ct:<https://github.com/magbak/chrontext#>
+    CONSTRUCT {
+    ?a a ct:something.
+    ?b a ct:nothing. 
+    } WHERE {?a a ?b}""",
+        streaming=streaming,
+    )
+    something = dfs[0].sort(["subject", "object"])
+    nothing = dfs[1].sort(["subject", "object"])
+    filename_something = TESTDATA_PATH / "simple_construct_query_something.csv"
+    # something.write_csv(filename_something)
+    filename_nothing = TESTDATA_PATH / "simple_construct_query_nothing.csv"
+    # nothing.write_csv(filename_nothing)
+    expected_something_df = (
+        pl.scan_csv(filename_something).sort(["subject", "object"]).collect()
+    )
+    assert_frame_equal(something, expected_something_df)
+    expected_nothing_df = (
+        pl.scan_csv(filename_nothing).sort(["subject", "object"]).collect()
+    )
+    assert_frame_equal(nothing, expected_nothing_df)
+
+
+# No idempotency means no streaming parameter.
+def test_simple_insert_construct_query(windpower_model):
+    windpower_model.insert(
+        """
+    PREFIX ct:<https://github.com/magbak/chrontext#>
+    CONSTRUCT {
+    ?a a ct:somethingTestit.
+    ?b a ct:nothingTestit. 
+    } WHERE {?a a ?b}""",
+    )
+
+    something = windpower_model.query(
+        """
+        PREFIX ct:<https://github.com/magbak/chrontext#>
+        SELECT ?a
+        WHERE {
+        ?a a ct:somethingTestit .
+        }
+    """,
+    ).sort(["a"])
+    nothing = windpower_model.query(
+        """
+            PREFIX ct:<https://github.com/magbak/chrontext#>
+            SELECT ?a
+            WHERE {
+            ?a a ct:nothingTestit .
+            }
+        """,
+    ).sort(["a"])
+    filename_something = TESTDATA_PATH / "simple_insert_query_something.csv"
+    # something.write_csv(filename_something)
+    filename_nothing = TESTDATA_PATH / "simple_insert_query_nothing.csv"
+    # nothing.write_csv(filename_nothing)
+    expected_something_df = pl.scan_csv(filename_something).sort(["a"]).collect()
+    assert_frame_equal(something, expected_something_df)
+    expected_nothing_df = pl.scan_csv(filename_nothing).sort(["a"]).collect()
+    assert_frame_equal(nothing, expected_nothing_df)
+
+
+@pytest.mark.parametrize("streaming", [True, False])
+def test_str_functions(windpower_model, streaming):
+    pl.Config.set_tbl_rows(20)
+    df = windpower_model.query(
+        """
+        PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+        SELECT 
+            ?label
+            (STRSTARTS(?label, "Wind turbine 3") AS ?strStarts)
+            (STRENDS(?label, "11") AS ?strEnds)
+            (CONTAINS(?label, "ind turbine 24") AS ?contains)
+            (STRBEFORE(?label, "urbine 24") AS ?strBefore)
+            (STRAFTER(?label, "Wind t") AS ?strAfter)
+        WHERE {
+        ?a rdfs:label ?label .
+        }
+        """,
+        streaming=streaming,
+    )
+    df = df.filter(pl.col("strStarts") | pl.col("strEnds") | pl.col("contains")).sort(
+        ["label"]
+    )
+    filename = TESTDATA_PATH / "stringfuncs.csv"
+    # df.write_csv(filename)
+    expected_df = pl.scan_csv(filename).sort(["label"]).collect()
+    assert_frame_equal(df, expected_df)
