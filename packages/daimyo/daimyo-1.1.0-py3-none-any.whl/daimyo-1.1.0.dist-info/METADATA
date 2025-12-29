@@ -1,0 +1,428 @@
+Metadata-Version: 2.4
+Name: daimyo
+Version: 1.1.0
+Summary: Rules server for agents with REST and MCP interfaces
+Project-URL: Homepage, https://gitlab.com/Kencho1/daimyo
+Project-URL: Repository, https://gitlab.com/Kencho1/daimyo
+Project-URL: Issues, https://gitlab.com/Kencho1/daimyo/-/issues
+Project-URL: Changelog, https://gitlab.com/Kencho1/daimyo/-/blob/main/CHANGELOG.md
+Author: Jesús Alonso Abad
+License: MIT
+License-File: LICENSE
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: >=3.11
+Requires-Dist: cachetools~=5.3
+Requires-Dist: dynaconf~=3.2
+Requires-Dist: fastapi~=0.127
+Requires-Dist: fastmcp~=2.14
+Requires-Dist: httpx~=0.28
+Requires-Dist: loguru~=0.7
+Requires-Dist: pydantic~=2.10
+Requires-Dist: pyyaml~=6.0
+Requires-Dist: typer~=0.15
+Requires-Dist: uvicorn[standard]~=0.32
+Provides-Extra: dev
+Requires-Dist: mypy~=1.13; extra == 'dev'
+Requires-Dist: pytest-asyncio~=0.24; extra == 'dev'
+Requires-Dist: pytest-cov~=6.0; extra == 'dev'
+Requires-Dist: pytest-httpx~=0.35; extra == 'dev'
+Requires-Dist: pytest~=8.3; extra == 'dev'
+Requires-Dist: ruff~=0.8; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Daimyo - Rules Server for Agents
+
+A Python server providing rules to AI agents through REST and MCP interfaces. Supports scope-based rules with inheritance, categories for filtering, and server federation for distributed rule management.
+
+## Features
+
+- **Multiple Interfaces**: REST API, MCP (Model Context Protocol), and CLI
+- **Scope Inheritance**: Single and multiple parent inheritance with priority-based conflict resolution
+- **Rule Types**: Commandments (MUST) and Suggestions (SHOULD)
+- **Categories**: Organize rules into hierarchical categories for selective retrieval
+- **Server Federation**: Distribute scopes across multiple servers with automatic merging
+- **Multiple Formats**: Output as YAML, JSON, or Markdown
+- **Clean Architecture**: Domain-driven design with clear separation of concerns
+
+## Installation
+
+```bash
+pip install daimyo
+```
+
+Or install from source:
+
+```bash
+git clone https://gitlab.com/Kencho1/daimyo.git
+cd daimyo
+pip install -e .
+```
+
+## Quick Start
+
+### 1. Set Up Your Rules
+
+```bash
+cp -r example-daimyo-rules daimyo-rules
+```
+
+### 2. Start the Server
+
+```bash
+daimyo serve
+```
+
+### 3. Access the API
+
+Visit http://localhost:8000/docs for interactive API documentation.
+
+```bash
+curl http://localhost:8000/api/v1/scopes/python-general/rules
+```
+
+## Core Concepts
+
+### Scopes
+
+Scopes represent organizational contexts (company, team, project). Each scope is a directory containing:
+
+- `metadata.yml` - Scope configuration and parent references
+- `commandments.yml` - Mandatory rules (MUST)
+- `suggestions.yml` - Recommended rules (SHOULD)
+
+```text
+daimyo-rules/
+├── python-general/
+│   ├── metadata.yml
+│   ├── commandments.yml
+│   └── suggestions.yml
+└── team-backend/
+    ├── metadata.yml
+    ├── commandments.yml
+    └── suggestions.yml
+```
+
+### Metadata Format
+
+```yaml
+name: scope-name
+description: Human-readable description
+parents:
+  - parent-scope-1
+  - parent-scope-2
+tags:
+  team: backend
+  language: python
+```
+
+**Fields:**
+
+- `name`: Scope identifier (must match directory name)
+- `description`: Human-readable description
+- `parents`: List of parent scopes (first = highest priority)
+- `tags`: Key-value pairs for categorization
+
+### Categories
+
+Categories are hierarchical subdivisions within rules:
+
+```yaml
+python.web.testing:
+  when: When testing web interfaces
+  ruleset:
+    - Use playwright for acceptance tests
+    - Use pytest fixtures for test setup
+```
+
+### Rule Types
+
+**Commandments (MUST)**: Mandatory rules that accumulate through inheritance
+
+**Suggestions (SHOULD)**: Recommended rules that can be overridden or appended with `+` prefix
+
+## Usage
+
+### REST API
+
+Start the server:
+
+```bash
+daimyo serve
+daimyo serve --host 0.0.0.0 --port 8080
+```
+
+Get rules:
+
+```bash
+curl http://localhost:8000/api/v1/scopes/python-general/rules
+
+curl -H "Accept: application/json" \
+  http://localhost:8000/api/v1/scopes/python-general/rules
+
+curl -H "Accept: text/markdown" \
+  http://localhost:8000/api/v1/scopes/python-general/rules
+```
+
+Filter by categories:
+
+```bash
+curl "http://localhost:8000/api/v1/scopes/team-backend/rules?categories=python.web,python.testing"
+```
+
+### MCP Server
+
+Start the MCP server:
+
+```bash
+# Using stdio transport (default)
+daimyo mcp
+
+# Using HTTP transport
+daimyo mcp --transport http
+
+# Using HTTP with custom host and port
+daimyo mcp --transport http --host 127.0.0.1 --port 8002
+```
+
+Available tools:
+
+- `get_rules(scope_name, categories?)` - Get formatted rules
+- `list_scopes()` - List available scopes
+- `apply_scope_rules(scope_name, categories?)` - Get prompt template with rules
+
+### CLI Commands
+
+```bash
+daimyo list-scopes
+daimyo show python-general
+daimyo --version
+```
+
+## Configuration
+
+Configuration is managed via `config/settings.toml` or environment variables.
+
+### Configuration Parameters
+
+All configuration parameters with their defaults and descriptions:
+
+#### Rules Directory
+
+- **`rules_path`** (default: `"./daimyo-rules"`)
+  - Path to the directory containing scope definitions
+  - Environment variable: `DAIMYO_RULES_PATH`
+
+#### Logging
+
+- **`console_log_level`** (default: `"WARNING"`)
+  - Log level for console output: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+  - Environment variable: `DAIMYO_CONSOLE_LOG_LEVEL`
+
+- **`file_log_level`** (default: `"INFO"`)
+  - Log level for file output: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+  - Environment variable: `DAIMYO_FILE_LOG_LEVEL`
+
+- **`log_file`** (default: `"logs/daimyo.log"`)
+  - Path to the main log file
+  - Environment variable: `DAIMYO_LOG_FILE`
+
+- **`log_json_file`** (default: `"logs/daimyo.jsonl"`)
+  - Path to the JSON-formatted log file
+  - Environment variable: `DAIMYO_LOG_JSON_FILE`
+
+#### Scope Resolution
+
+- **`max_inheritance_depth`** (default: `10`, range: `1-100`)
+  - Maximum depth for scope inheritance chain to prevent infinite loops
+  - Environment variable: `DAIMYO_MAX_INHERITANCE_DEPTH`
+
+#### Remote Server (Federation)
+
+- **`master_server_url`** (default: `""`)
+  - URL of master server for scope federation (e.g., `"http://master.example.com:8000"`)
+  - Leave empty to disable federation
+  - Environment variable: `DAIMYO_MASTER_SERVER_URL`
+
+- **`remote_timeout_seconds`** (default: `5`, range: `1-60`)
+  - Timeout in seconds for remote server requests
+  - Environment variable: `DAIMYO_REMOTE_TIMEOUT_SECONDS`
+
+- **`remote_max_retries`** (default: `3`, range: `0-10`)
+  - Maximum number of retry attempts for failed remote requests
+  - Environment variable: `DAIMYO_REMOTE_MAX_RETRIES`
+
+#### REST API Server
+
+- **`rest_host`** (default: `"0.0.0.0"`)
+  - Host address to bind the REST API server
+  - Environment variable: `DAIMYO_REST_HOST`
+
+- **`rest_port`** (default: `8000`, range: `1-65535`)
+  - Port number for the REST API server
+  - Environment variable: `DAIMYO_REST_PORT`
+
+#### MCP Server
+
+- **`mcp_transport`** (default: `"stdio"`, options: `"stdio"`, `"http"`)
+  - Transport type for MCP server
+  - `stdio`: Standard input/output (for CLI integrations)
+  - `http`: HTTP server (for HTTP-based integrations)
+  - Environment variable: `DAIMYO_MCP_TRANSPORT`
+
+- **`mcp_host`** (default: `"0.0.0.0"`)
+  - Host address to bind the MCP server when using HTTP transport
+  - Only applies when `mcp_transport="http"`
+  - Environment variable: `DAIMYO_MCP_HOST`
+
+- **`mcp_port`** (default: `8001`, range: `1-65535`)
+  - Port number for the MCP server when using HTTP transport
+  - Only applies when `mcp_transport="http"`
+  - Environment variable: `DAIMYO_MCP_PORT`
+
+### Configuration File Example
+
+```toml
+[default]
+# Rules directory configuration
+rules_path = "./daimyo-rules"
+
+# Logging configuration
+console_log_level = "WARNING"
+file_log_level = "INFO"
+log_file = "logs/daimyo.log"
+log_json_file = "logs/daimyo.jsonl"
+
+# Scope resolution configuration
+max_inheritance_depth = 10
+
+# Remote server configuration
+master_server_url = ""
+remote_timeout_seconds = 5
+remote_max_retries = 3
+
+# REST API configuration
+rest_host = "0.0.0.0"
+rest_port = 8000
+
+# MCP configuration
+mcp_transport = "stdio"
+mcp_host = "0.0.0.0"
+mcp_port = 8001
+
+[development]
+console_log_level = "DEBUG"
+rest_port = 8001
+
+[production]
+console_log_level = "WARNING"
+```
+
+### Environment Variables
+
+Override any configuration parameter using environment variables with the `DAIMYO_` prefix:
+
+```bash
+# Rules path
+export DAIMYO_RULES_PATH="/custom/rules/path"
+
+# Logging
+export DAIMYO_CONSOLE_LOG_LEVEL="DEBUG"
+export DAIMYO_FILE_LOG_LEVEL="INFO"
+
+# Server federation
+export DAIMYO_MASTER_SERVER_URL="http://master.example.com:8000"
+
+# REST API
+export DAIMYO_REST_HOST="127.0.0.1"
+export DAIMYO_REST_PORT="9000"
+
+# MCP Server
+export DAIMYO_MCP_TRANSPORT="http"
+export DAIMYO_MCP_HOST="0.0.0.0"
+export DAIMYO_MCP_PORT="8001"
+```
+
+## Examples
+
+The `example-daimyo-rules/` directory contains working examples:
+
+### python-general
+
+Base Python development rules with categories for core practices, testing, security, and documentation.
+
+### python-fastapi
+
+FastAPI framework rules extending `python-general` with routing, async patterns, and performance optimization.
+
+### team-backend
+
+Backend team rules extending `python-general` with REST API patterns, database access, and deployment considerations.
+
+### project-api
+
+Demonstrates multiple parent inheritance with `parents: [team-backend, python-fastapi]`:
+
+- Combines team-specific and technology-specific rules
+- Shows priority-based conflict resolution
+- Uses `+` prefix to append to parent rules
+
+## Advanced Topics
+
+### Multiple Parent Inheritance
+
+```yaml
+parents:
+  - high-priority
+  - low-priority
+```
+
+**Commandments**: All rules from all parents are combined (additive)
+
+**Suggestions**: First parent wins in conflicts; use `+` prefix to append instead of replace
+
+### Server Federation
+
+Configure a master server for distributed scope management:
+
+```bash
+export DAIMYO_MASTER_SERVER_URL="http://master.example.com:8000"
+```
+
+The system will:
+
+1. Look for scopes locally
+2. Look for scopes on the master server
+3. Merge both if found in both locations (local extends remote)
+
+### Scope Sharding
+
+The same scope name can exist on both master server and locally. When both exist, they are merged with the remote version as the base and the local version extending it.
+
+## Development
+
+### Running Tests
+
+```bash
+pip install -e ".[dev]"
+pytest
+pytest --cov=daimyo
+```
+
+### Code Quality
+
+```bash
+mypy daimyo
+ruff check daimyo
+ruff format daimyo
+```
+
+## License
+
+MIT
