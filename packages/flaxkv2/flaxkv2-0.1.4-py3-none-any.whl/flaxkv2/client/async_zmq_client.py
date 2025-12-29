@@ -1,0 +1,752 @@
+"""
+异步 ZeroMQ 客户端（使用 asyncio，无需线程锁）
+
+相比同步客户端的优势：
+1. 无需 socket_lock - asyncio 天然单线程
+2. 更清晰的并发模型 - async/await
+3. 更好的性能 - 减少线程上下文切换
+"""
+
+import asyncio
+import zmq
+import zmq.asyncio
+import msgpack
+from typing import Dict, Any, Optional, List, Tuple
+from loguru import logger
+
+from flaxkv2.serialization import encoder, decoder
+from flaxkv2.serialization.value_meta import ValueWithMeta
+from flaxkv2.display import DisplayMixin
+
+# 尝试导入LZ4压缩
+try:
+    import lz4.frame
+    LZ4_AVAILABLE = True
+except ImportError:
+    LZ4_AVAILABLE = False
+
+
+class AsyncRemoteDBDict(DisplayMixin):
+    """
+    异步远程数据库客户端（基于 ZeroMQ + asyncio）
+
+    用法:
+        async with AsyncRemoteDBDict('default_db', 'tcp://127.0.0.1:25555',
+                                      password='yao') as db:
+            await db.set('key', 'value')
+            value = await db.get('key')
+
+            # 批量写入
+            await db.batch_set({'key1': 'val1', 'key2': 'val2'})
+    """
+
+    # 命令常量
+    CMD_CONNECT = b'CONNECT'
+    CMD_DISCONNECT = b'DISCONNECT'
+    CMD_GET = b'GET'
+    CMD_SET = b'SET'
+    CMD_DELETE = b'DELETE'
+    CMD_BATCH_WRITE = b'BATCH_WRITE'
+    CMD_KEYS = b'KEYS'
+    CMD_PING = b'PING'
+    # 核心命令（之前客户端缺失）
+    CMD_CONTAINS = b'CONTAINS'
+    CMD_LEN = b'LEN'
+    CMD_VALUES = b'VALUES'
+    CMD_ITEMS = b'ITEMS'
+    CMD_UPDATE = b'UPDATE'
+    # SCAN 命令：分页迭代
+    CMD_SCAN_KEYS = b'SCAN_KEYS'
+    CMD_SCAN_VALUES = b'SCAN_VALUES'
+    CMD_SCAN_ITEMS = b'SCAN_ITEMS'
+
+    # 响应状态
+    STATUS_OK = b'OK'
+    STATUS_ERROR = b'ERROR'
+    STATUS_NOT_FOUND = b'NOT_FOUND'
+
+    def __init__(
+        self,
+        db_name: str,
+        url: str,
+        timeout: int = 30000,
+        connect_timeout: int = 5000,
+        enable_encryption: bool = False,
+        password: Optional[str] = None,
+        server_public_key: Optional[str] = None,
+        derive_from_password: bool = True
+    ):
+        """
+        初始化异步客户端
+
+        Args:
+            db_name: 数据库名称
+            url: 服务器地址 (tcp://host:port)
+            timeout: 数据请求超时时间（毫秒，0表示无限制，默认30秒）
+            connect_timeout: 连接超时时间（毫秒，默认5秒）
+            enable_encryption: 是否启用加密
+            password: 加密密码
+            server_public_key: 服务器公钥（可选，从密码派生）
+            derive_from_password: 是否从密码派生密钥
+        """
+        self.db_name = db_name
+        self.url = url
+        self.timeout = timeout
+        self.connect_timeout = connect_timeout
+        self.enable_encryption = enable_encryption
+        self.password = password
+        self.server_public_key = server_public_key
+        self.derive_from_password = derive_from_password
+
+        # ZMQ 异步上下文
+        self.context = zmq.asyncio.Context()
+        self.socket: Optional[zmq.asyncio.Socket] = None
+
+        # 客户端密钥（如果启用加密）
+        self.client_public_key = None
+        self.client_secret_key = None
+
+        self._closed = False
+
+        # 请求ID机制（替代锁，实现真正的并发）
+        self._request_id = 0
+        self._pending_requests: Dict[int, asyncio.Future] = {}
+        self._receive_task: Optional[asyncio.Task] = None
+
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器退出"""
+        await self.close()
+
+    async def connect(self):
+        """连接到服务器"""
+        if self.socket is not None:
+            return
+
+        # 创建异步 DEALER socket
+        self.socket = self.context.socket(zmq.DEALER)
+        self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.setsockopt(zmq.RCVTIMEO, self.timeout)
+        self.socket.setsockopt(zmq.SNDTIMEO, self.timeout)
+
+        # 性能优化：增大发送/接收缓冲区，提升大文件传输吞吐量
+        self.socket.setsockopt(zmq.SNDBUF, 10 * 1024 * 1024)  # 10MB发送缓冲区
+        self.socket.setsockopt(zmq.RCVBUF, 10 * 1024 * 1024)  # 10MB接收缓冲区
+
+        # 注意：TCP_NODELAY在ZMQ 4.2+中默认启用，无需手动设置
+
+        # 配置加密
+        if self.enable_encryption:
+            await self._setup_encryption()
+
+        # 连接
+        self.socket.connect(self.url)
+        logger.debug(f"Connected to {self.url}")
+
+        # 启动后台接收循环（实现真正的并发）
+        self._receive_task = asyncio.create_task(self._receive_loop())
+
+        # 发送 CONNECT 命令（使用连接超时）
+        request = [self.CMD_CONNECT, self.db_name.encode('utf-8')]
+        status, result = await self._send_request(request, timeout=self.connect_timeout)
+
+        if status != self.STATUS_OK:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise ConnectionError(f"Failed to connect to database: {error_msg}")
+
+    async def _setup_encryption(self):
+        """设置 CurveZMQ 加密"""
+        # 生成客户端密钥对
+        self.client_public_key, self.client_secret_key = zmq.curve_keypair()
+
+        # 派生服务器公钥（如果需要）
+        if self.server_public_key is None and self.derive_from_password:
+            from flaxkv2.utils.key_manager import get_keypair_from_password
+            keypair = get_keypair_from_password(self.password, derive_from_password=True)
+            self.server_public_key = keypair['public_key']
+
+        if self.server_public_key is None:
+            raise ValueError("Server public key is required for encryption")
+
+        # 配置 socket
+        self.socket.curve_secretkey = self.client_secret_key
+        self.socket.curve_publickey = self.client_public_key
+        self.socket.curve_serverkey = self.server_public_key.encode('utf-8')
+
+        logger.debug("CurveZMQ encryption configured")
+
+    def _compress_data(self, data: bytes) -> bytes:
+        """添加压缩标志（暂不支持压缩）"""
+        return b'\x00' + data  # 0x00 = 未压缩
+
+    def _decompress_data(self, data: bytes) -> bytes:
+        """解压缩数据（如果需要）"""
+        if len(data) == 0:
+            return data
+
+        compression_flag = data[0]
+        payload = data[1:]
+
+        if compression_flag == 0x01:  # LZ4压缩
+            if not LZ4_AVAILABLE:
+                raise RuntimeError("Received LZ4 compressed data but lz4 package not installed")
+            return lz4.frame.decompress(payload)
+        else:  # 未压缩
+            return payload
+
+    async def _receive_loop(self):
+        """
+        后台接收循环 - 持续接收响应并分发到对应的Future
+
+        这是实现真正并发的关键：
+        - 不再需要锁
+        - 多个请求可以同时发送
+        - 响应根据request_id自动路由到正确的等待者
+        """
+        try:
+            while not self._closed:
+                try:
+                    # 接收响应
+                    response_data_compressed = await self.socket.recv()
+
+                    # 移除压缩标志
+                    response_data = self._decompress_data(response_data_compressed)
+
+                    # 解包响应 [request_id, status, result]
+                    response = msgpack.unpackb(response_data, raw=True)
+
+                    request_id = response[0]
+                    status = response[1]
+                    result = response[2] if len(response) > 2 else None
+
+                    # 根据request_id找到对应的Future并设置结果
+                    if request_id in self._pending_requests:
+                        future = self._pending_requests.pop(request_id)
+                        if not future.done():
+                            future.set_result((status, result))
+                    else:
+                        logger.warning(f"Received response for unknown request_id: {request_id}")
+
+                except zmq.Again:
+                    # 超时，继续循环
+                    continue
+                except asyncio.CancelledError:
+                    # 正常关闭
+                    break
+                except Exception as e:
+                    if not self._closed:
+                        logger.error(f"Error in receive loop: {e}")
+                    break
+        finally:
+            logger.debug("Receive loop stopped")
+
+    async def _send_request(self, request, timeout=None):
+        """
+        发送请求并等待响应（使用请求ID，无锁并发）
+
+        Args:
+            request: 请求列表 [command, ...]
+            timeout: 请求超时时间（毫秒），None表示使用默认timeout
+
+        Returns:
+            (status, result) 元组
+        """
+        if self._closed:
+            raise ConnectionError("Connection is closed")
+
+        # 分配请求ID
+        request_id = self._request_id
+        self._request_id += 1
+
+        # 创建Future等待响应
+        future = asyncio.Future()
+        self._pending_requests[request_id] = future
+
+        try:
+            # 序列化请求（在请求前加上request_id）
+            request_with_id = [request_id] + request
+            request_data = msgpack.packb(request_with_id, use_bin_type=True)
+
+            # 添加压缩标志
+            request_data_compressed = self._compress_data(request_data)
+
+            # 发送请求（异步，无需等待响应）
+            await self.socket.send(request_data_compressed)
+
+            # 确定超时时间
+            if timeout is None:
+                timeout = self.timeout
+
+            # 等待后台接收循环设置结果
+            if timeout > 0:
+                # 有超时限制
+                status, result = await asyncio.wait_for(future, timeout=timeout / 1000)
+            else:
+                # 无超时限制
+                status, result = await future
+
+            return status, result
+
+        except asyncio.TimeoutError:
+            # 超时，清理Future
+            self._pending_requests.pop(request_id, None)
+            raise TimeoutError(f"Request {request_id} timed out")
+        except Exception as e:
+            # 其他错误，清理Future
+            self._pending_requests.pop(request_id, None)
+            raise
+
+    async def get(self, key: Any) -> Any:
+        """
+        异步获取值
+
+        Args:
+            key: 键
+
+        Returns:
+            值
+
+        Raises:
+            KeyError: 如果键不存在
+        """
+        key_bytes = encoder.encode_key(key)
+        request = [self.CMD_GET, self.db_name.encode('utf-8'), key_bytes]
+
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_NOT_FOUND:
+            raise KeyError(key)
+        elif status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Get failed: {error_msg}")
+
+        # 解码值
+        value, expire_time, is_expired = ValueWithMeta.decode_value(result)
+
+        if is_expired:
+            # 已过期，抛出KeyError
+            raise KeyError(key)
+
+        return value
+
+    async def set(self, key: Any, value: Any, ttl: Optional[int] = None):
+        """
+        异步设置值
+
+        Args:
+            key: 键
+            value: 值
+            ttl: 过期时间（秒）
+        """
+        key_bytes = encoder.encode_key(key)
+        value_bytes = ValueWithMeta.encode_value(value, ttl_seconds=ttl)
+
+        request = [self.CMD_SET, self.db_name.encode('utf-8'), key_bytes, value_bytes]
+
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Set failed: {error_msg}")
+
+    async def delete(self, key: Any):
+        """
+        异步删除键
+
+        Args:
+            key: 键
+        """
+        key_bytes = encoder.encode_key(key)
+        request = [self.CMD_DELETE, self.db_name.encode('utf-8'), key_bytes]
+
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Delete failed: {error_msg}")
+
+    async def batch_set(self, items: Dict[Any, Any], ttl: Optional[int] = None):
+        """
+        异步批量设置（使用 WriteBatch）
+
+        Args:
+            items: 字典 {key: value, ...}
+            ttl: 统一的过期时间（秒）
+        """
+        if not items:
+            return
+
+        # 序列化所有数据
+        serialized_writes = {}
+        for key, value in items.items():
+            key_bytes = encoder.encode_key(key)
+            value_bytes = ValueWithMeta.encode_value(value, ttl_seconds=ttl)
+            serialized_writes[key_bytes] = value_bytes
+
+        # 发送批量写入请求
+        request = [
+            self.CMD_BATCH_WRITE,
+            self.db_name.encode('utf-8'),
+            serialized_writes,
+            []  # 空的删除列表
+        ]
+
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Batch set failed: {error_msg}")
+
+        logger.debug(f"Batch set completed: {len(items)} items")
+
+    def _is_internal_key(self, key: Any) -> bool:
+        """检查是否是内部键"""
+        if isinstance(key, str):
+            return (key.startswith('__ttl_info__:') or
+                    key.startswith('__nested__:') or
+                    key.startswith('__list__:'))
+        return False
+
+    async def keys(self):
+        """异步获取所有键"""
+        request = [self.CMD_KEYS, self.db_name.encode('utf-8')]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Keys failed: {error_msg}")
+
+        # 解码键，并过滤内部键
+        keys = []
+        for k in result:
+            key = decoder.decode_key(k)
+            # 过滤内部键（TTL信息键、嵌套标记键等）
+            if self._is_internal_key(key):
+                continue
+            keys.append(key)
+        return keys
+
+    # ========== 核心方法（之前缺失） ==========
+
+    async def contains(self, key: Any) -> bool:
+        """检查键是否存在（单次请求，比 get+异常 更高效）"""
+        key_bytes = encoder.encode_key(key)
+        request = [self.CMD_CONTAINS, self.db_name.encode('utf-8'), key_bytes]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Contains failed: {error_msg}")
+
+        return result is True
+
+    async def length(self) -> int:
+        """获取数据库中键的数量（单次请求）"""
+        request = [self.CMD_LEN, self.db_name.encode('utf-8')]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Length failed: {error_msg}")
+
+        return result
+
+    async def update(self, items: Dict[Any, Any]):
+        """批量更新（单次请求，比循环 set 更高效）"""
+        if not items:
+            return
+
+        items_list = []
+        for k, v in items.items():
+            key_bytes = encoder.encode_key(k)
+            # 使用 ValueWithMeta 编码（与 set 方法一致）
+            value_bytes = ValueWithMeta.encode_value(v, ttl_seconds=None)
+            items_list.append([key_bytes, value_bytes])
+
+        request = [self.CMD_UPDATE, self.db_name.encode('utf-8'), items_list]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Update failed: {error_msg}")
+
+    # ========== SCAN 分页迭代 ==========
+
+    async def scan_keys(self, start_key: Any = None, limit: int = 1000) -> Tuple[List[Any], Any]:
+        """
+        分页获取键（返回原始数据，不过滤内部键）
+
+        Args:
+            start_key: 起始键（None 表示从头开始，否则从该键之后开始）
+            limit: 每批返回的数量
+
+        Returns:
+            (keys, next_key): keys 是本批的键列表，next_key 是下一批的起始键（None 表示没有更多）
+
+        Note:
+            返回的键可能包含内部键（__ttl_info__:, __nested__: 等），
+            使用 iter_keys() 可以自动过滤这些内部键。
+        """
+        start_key_bytes = encoder.encode_key(start_key) if start_key is not None else None
+        request = [self.CMD_SCAN_KEYS, self.db_name.encode('utf-8'), start_key_bytes, limit]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Scan keys failed: {error_msg}")
+
+        keys_bytes, next_key_bytes = result
+        keys = [decoder.decode_key(k) for k in keys_bytes]
+        next_key = decoder.decode_key(next_key_bytes) if next_key_bytes is not None else None
+        return keys, next_key
+
+    async def scan_values(self, start_key: Any = None, limit: int = 1000) -> Tuple[List[Any], Any]:
+        """
+        分页获取值（返回原始数据）
+
+        Args:
+            start_key: 起始键（None 表示从头开始）
+            limit: 每批返回的数量
+
+        Returns:
+            (values, next_key): values 是本批的值列表，next_key 是下一批的起始键
+
+        Note:
+            返回的值可能包含内部键对应的值，使用 iter_values() 可以自动过滤。
+        """
+        start_key_bytes = encoder.encode_key(start_key) if start_key is not None else None
+        request = [self.CMD_SCAN_VALUES, self.db_name.encode('utf-8'), start_key_bytes, limit]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Scan values failed: {error_msg}")
+
+        values_bytes, next_key_bytes = result
+        values = []
+        for v in values_bytes:
+            # 使用 ValueWithMeta 解码（与 get 方法一致）
+            value, expire_time, is_expired = ValueWithMeta.decode_value(v)
+            if not is_expired:
+                values.append(value)
+        next_key = decoder.decode_key(next_key_bytes) if next_key_bytes is not None else None
+        return values, next_key
+
+    async def scan_items(self, start_key: Any = None, limit: int = 1000) -> Tuple[List[Tuple[Any, Any]], Any]:
+        """
+        分页获取键值对（返回原始数据，不过滤内部键）
+
+        Args:
+            start_key: 起始键（None 表示从头开始）
+            limit: 每批返回的数量
+
+        Returns:
+            (items, next_key): items 是本批的 (key, value) 列表，next_key 是下一批的起始键
+
+        Note:
+            返回的 items 可能包含内部键，使用 iter_items() 可以自动过滤。
+        """
+        start_key_bytes = encoder.encode_key(start_key) if start_key is not None else None
+        request = [self.CMD_SCAN_ITEMS, self.db_name.encode('utf-8'), start_key_bytes, limit]
+        status, result = await self._send_request(request)
+
+        if status == self.STATUS_ERROR:
+            error_msg = result.decode('utf-8') if isinstance(result, bytes) else str(result)
+            raise RuntimeError(f"Scan items failed: {error_msg}")
+
+        items_bytes, next_key_bytes = result
+        items = []
+        for k, v in items_bytes:
+            key = decoder.decode_key(k)
+            # 使用 ValueWithMeta 解码（与 get 方法一致）
+            value, expire_time, is_expired = ValueWithMeta.decode_value(v)
+            if not is_expired:
+                items.append((key, value))
+        next_key = decoder.decode_key(next_key_bytes) if next_key_bytes is not None else None
+        return items, next_key
+
+    # ========== 异步迭代器 ==========
+
+    async def iter_keys(self, batch_size: int = 1000, include_internal: bool = False):
+        """
+        异步迭代所有键（分批获取，内存友好，自动过滤内部键）
+
+        Args:
+            batch_size: 每批获取的数量
+            include_internal: 是否包含内部键（默认 False）
+
+        Yields:
+            key: 数据库中的键
+        """
+        start_key = None
+        while True:
+            keys, next_key = await self.scan_keys(start_key, batch_size)
+            for key in keys:
+                if not include_internal and self._is_internal_key(key):
+                    continue
+                yield key
+            if next_key is None:
+                break
+            start_key = next_key
+
+    async def iter_values(self, batch_size: int = 1000, include_internal: bool = False):
+        """
+        异步迭代所有值（分批获取，内存友好，自动过滤内部键对应的值）
+
+        Args:
+            batch_size: 每批获取的数量
+            include_internal: 是否包含内部键对应的值（默认 False）
+
+        Yields:
+            value: 数据库中的值
+        """
+        start_key = None
+        while True:
+            # 使用 scan_items 来获取键值对，这样可以过滤内部键
+            items, next_key = await self.scan_items(start_key, batch_size)
+            for key, value in items:
+                if not include_internal and self._is_internal_key(key):
+                    continue
+                yield value
+            if next_key is None:
+                break
+            start_key = next_key
+
+    async def iter_items(self, batch_size: int = 1000, include_internal: bool = False):
+        """
+        异步迭代所有键值对（分批获取，内存友好，自动过滤内部键）
+
+        Args:
+            batch_size: 每批获取的数量
+            include_internal: 是否包含内部键（默认 False）
+
+        Yields:
+            (key, value): 数据库中的键值对
+        """
+        start_key = None
+        while True:
+            items, next_key = await self.scan_items(start_key, batch_size)
+            for key, value in items:
+                if not include_internal and self._is_internal_key(key):
+                    continue
+                yield (key, value)
+            if next_key is None:
+                break
+            start_key = next_key
+
+    async def ping(self) -> bool:
+        """异步 ping 服务器"""
+        request = [self.CMD_PING, b'']  # 添加空的 db_name（服务器兼容性）
+        try:
+            status, result = await self._send_request(request)
+            return status == self.STATUS_OK and result == b'PONG'
+        except Exception:
+            return False
+
+    async def close(self):
+        """关闭连接"""
+        if self._closed:
+            return
+
+        # 先标记为关闭中（但不完全关闭，允许发送 DISCONNECT）
+        closing = True
+
+        try:
+            # 发送 DISCONNECT 命令（使用短超时）
+            if self.socket and not self._closed:
+                try:
+                    request = [self.CMD_DISCONNECT, self.db_name.encode('utf-8')]
+                    # 直接发送，不等待响应（避免阻塞）
+                    request_data = msgpack.packb([0] + request, use_bin_type=True)
+                    request_data_compressed = self._compress_data(request_data)
+                    await asyncio.wait_for(
+                        self.socket.send(request_data_compressed),
+                        timeout=1.0
+                    )
+                except Exception as e:
+                    logger.debug(f"Error sending disconnect: {e}")
+        finally:
+            # 现在正式标记为关闭
+            self._closed = True
+
+        # 取消所有待处理的请求（在停止接收循环之前）
+        for request_id, future in list(self._pending_requests.items()):
+            if not future.done():
+                future.set_exception(ConnectionError("Connection closed"))
+        self._pending_requests.clear()
+
+        # 停止接收循环
+        if self._receive_task and not self._receive_task.done():
+            self._receive_task.cancel()
+            try:
+                # 等待任务完成（最多2秒）
+                await asyncio.wait_for(
+                    asyncio.shield(self._receive_task),
+                    timeout=2.0
+                )
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            except Exception as e:
+                logger.debug(f"Error waiting for receive task: {e}")
+
+        # 关闭 socket
+        if self.socket:
+            try:
+                self.socket.close()
+            except Exception as e:
+                logger.debug(f"Error closing socket: {e}")
+            self.socket = None
+
+        # 清理密钥（安全考虑）
+        self.client_secret_key = None
+        self.client_public_key = None
+
+        logger.debug(f"Async client closed: {self.db_name}")
+
+    # 便捷方法（字典风格）
+    async def __getitem__(self, key):
+        """db[key] 语法"""
+        value = await self.get(key)
+        if value is None:
+            raise KeyError(key)
+        return value
+
+    async def __setitem__(self, key, value):
+        """db[key] = value 语法"""
+        await self.set(key, value)
+
+    async def __delitem__(self, key):
+        """del db[key] 语法"""
+        await self.delete(key)
+
+    # ========== 字符串表示 ==========
+
+    def _get_display_info(self) -> dict:
+        """
+        返回展示信息（供 DisplayMixin 使用）
+
+        Returns:
+            dict 包含展示所需的所有信息
+        """
+        info = {
+            'class_name': 'AsyncRemoteDBDict',
+            'name': self.db_name,
+            'location': self.url,
+            'closed': self._closed,
+            'extras': {},
+            'tags': ['remote', 'async'],
+        }
+
+        if self.enable_encryption:
+            info['tags'].append('encrypted')
+
+        return info
+
+    @property
+    def name(self) -> str:
+        """兼容 DisplayMixin 的 name 属性"""
+        return self.db_name
