@@ -1,0 +1,1 @@
+EXCEPTIONLESS_API_ROOT = "https://api.exceptionless.com/api/v2"
