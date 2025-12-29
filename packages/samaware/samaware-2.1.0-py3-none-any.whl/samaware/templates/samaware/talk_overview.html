@@ -1,0 +1,236 @@
+{% extends "orga/base.html" %}
+
+{% load event_tags %}
+{% load html_signal %}
+{% load i18n %}
+{% load rich_text %}
+{% load static %}
+{% load samaware_extras %}
+
+{% block stylesheets %}
+<link rel="stylesheet" href="{% static 'samaware/samaware.css' %}">
+{% endblock stylesheets %}
+
+{% block scripts %}
+<script src="{% static 'samaware/vendor/htmx.min.js' %}"></script>
+<script src="{% static 'samaware/samaware.js' %}" defer="defer"></script>
+{% endblock scripts %}
+
+{% block extra_title %}{{ submission.title }} :: SamAware :: {% endblock extra_title %}
+
+{% block content %}
+
+<h2 class="d-flex align-items-center">
+    <span>{{ quotation_open }}{{ submission.title }}{{ quotation_close }}</span>
+    <p class="ml-auto">
+        <a href="{{ submission.urls.public }}" class="btn btn-outline-info mt-2">
+            <i class="fa fa-calendar-o" aria-hidden="true"></i>
+            &nbsp;{% translate 'Show in Public Schedule' %}
+        </a>
+        <a href="{{ submission.orga_urls.base }}" class="btn btn-info mt-2">
+            <i class="fa fa-sticky-note" aria-hidden="true"></i>
+            &nbsp;{% translate 'Edit Session' %}
+        </a>
+    </p>
+</h2>
+
+<noscript>
+    <div class="alert alert-danger" role="alert">
+        {% blocktranslate trimmed %}
+        This page requires JavaScript to be enabled.
+        {% endblocktranslate %}
+    </div>
+</noscript>
+
+{% if not submission_is_confirmed %}
+<div class="alert alert-warning" role="alert">
+    {% with submission.get_state_display as state_display %}
+    <span>{% blocktranslate trimmed %}
+    Talk is <strong>not in state confirmed</strong>, but in state <strong>{{ state_display }}</strong>.
+    {% endblocktranslate %}</span>
+    {% endwith %}
+</div>
+{% endif %}
+
+{% if submission.pending_state %}
+<div class="alert alert-warning" role="alert">
+    {% with submission.get_state_display as current_state_display %}
+    {% with submission.get_pending_state_display as pending_state_display %}
+    <span>{% blocktranslate trimmed %}
+    Talk has a <strong>pending state change</strong> from {{ current_state_display }} to {{ pending_state_display }}.
+    {% endblocktranslate %}</span>
+    {% endwith %}
+    {% endwith %}
+</div>
+{% endif %}
+
+{% if submission_unreleased_changes %}
+<div class="alert alert-warning" role="alert">
+    {% url 'orga:schedule.release' event=submission.event.slug as schedule_release_url %}
+    <span>{% blocktranslate trimmed %}
+    There are <a href="{{ schedule_release_url }}"><strong>unreleased schedule changes</strong></a> for this talk.
+    {% endblocktranslate %}</span>
+</div>
+{% endif %}
+
+{% for message in speaker_care_messages %}
+<div class="alert alert-warning" role="alert">
+    <div class="w-100">
+        <div class="d-flex align-items-start justify-content-between">
+            <p>{% blocktranslate trimmed with speaker_name=message.speaker.name %}
+                <strong>Speaker Care Message available</strong> regarding {{ speaker_name }}:
+            {% endblocktranslate %}</p>
+
+            <a href="{{ message.get_absolute_url }}" class="btn btn-sm btn-info">
+                {% trans 'Edit or delete' %}
+            </a>
+        </div>
+
+        {{ message.text|linebreaks }}
+
+        <p><em>{% blocktranslate trimmed with author=message.author updated=message.updated|date:'SHORT_DATETIME_FORMAT' %}
+            Last updated by {{ author }} at {{ updated }}
+        {% endblocktranslate %}</em></p>
+    </div>
+</div>
+{% endfor %}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card samaware-card">
+            <div class="card-body">
+                <h3>{% translate 'Time and Location' %}</h3>
+                <ul class="list-plain">
+                    {% for slot in submission_wip_slots %}
+                    <li>{{ slot.start|date:'l, j M Y, H:i' }}, {{ slot.room.name }}</li>
+                    {% endfor %}
+                </ul>
+
+                <h3>{% translate 'Duration' %}</h3>
+                {{ submission.export_duration }}
+
+                <h3>{% translate 'Language' %}</h3>
+                <div class="d-flex align-items-center">
+                    <img src="{% static 'vendored/flags/'|add:submission.content_locale|add:'.png' %}" alt="{{ submission.content_locale }} flag" class="samaware-flag-icon" aria-labelledby="talk-language-text" />
+                    <span id="talk-language-text">&nbsp;{{ submission.get_content_locale_display }}</span>
+                </div>
+
+                {% if request.event|get_feature_flag:'use_tracks' and submission.track %}
+                <h3>{% translate 'Track' %}</h3>
+                <div class="d-flex align-items-center">
+                    <div class="color-square align-self-center" style="background-color: {{ submission.track.color }}" aria-hidden="true"></div>
+                    <span>&nbsp;{{ submission.track.name }}</span>
+                </div>
+                {% endif %}
+
+                <h3>{% translate 'Abstract' %}</h3>
+                {{ submission.abstract|rich_text }}
+            </div>
+        </div>
+
+        <div class="card samaware-card">
+            <div class="card-body">
+                <h3>{% translate 'Recording' %}</h3>
+                {% if submission.do_not_record %}
+                <span class="fa-stack" title="{% translate 'Not being streamed/recorded' %}" aria-hidden="true">
+                    <i class="fa fa-video-camera fa-stack-1x"></i>
+                    <i class="fa fa-ban fa-stack-2x text-danger"></i>
+                </span>
+                &nbsp;{% translate 'Not being streamed/recorded' %}
+                {% else %}
+                <i class="fa fa-video-camera" title="{% translate 'Being streamed/recorded' %}" aria-hidden="true"></i>
+                &nbsp;{% translate 'Being streamed/recorded' %}
+                {% endif %}
+
+                <h3>{% translate 'Tech Rider' as tech_rider_title %}</h3>
+                {% url 'plugins:samaware:tech_rider_fragment' event=request.event.slug code=submission.code as tech_rider_url %}
+                {% include 'samaware/fragments/form_or_content.html' with headline=tech_rider_title show_form=False fragment_target=tech_rider_url content=submission.tech_rider.text|rich_text only %}
+
+                {% translate 'Internal Notes' as internal_notes_title %}
+                {% url 'plugins:samaware:internal_notes_fragment' event=request.event.slug code=submission.code as internal_notes_url %}
+                {% include 'samaware/fragments/form_or_content.html' with headline=internal_notes_title show_form=False fragment_target=internal_notes_url content=submission.internal_notes|default:''|linebreaks only %}
+
+                <h3>{% translate 'Submitter Notes' %}</h3>
+                {% if submission.notes %}
+                {{ submission.notes|linebreaks }}
+                {% else %}
+                <em>{% translate 'None' %}</em>
+                {% endif %}
+
+                {% html_signal 'samaware.signals.submission_html' sender=request.event request=request submission=submission %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        {% for speaker in submission.speakers.all %}
+        {% with speaker_profile=speaker_profiles|get_item:speaker %}
+        <div class="card samaware-card">
+            <div class="card-body">
+                <div class="d-flex align-items-start">
+                    <h2>{{ speaker.name }}</h2>
+
+                    <details class="dropdown mt-3 ml-auto" role="menu" aria-haspopup="menu">
+                        <summary class="btn btn-outline-info">
+                            <i class="fa fa-caret-down" title="{% translate 'Open dropdown' %}"></i>
+                        </summary>
+                        <div class="dropdown-content dropdown-front dropdown-content-sw">
+                            <a href="{{ speaker_profile.orga_urls.base }}" class="dropdown-item" role="menuitem">
+                                <i class="fa fa-address-card" aria-hidden="true"></i>
+                                {% translate 'Edit Speaker' %}
+                            </a>
+                            <a href="{% url 'plugins:samaware:care_message_create' submission.event.slug %}?speaker={{ speaker.code }}" class="dropdown-item" role="menuitem">
+                                <i class="fa fa-plus" aria-hidden="true"></i>
+                                {% translate 'Add Speaker Care Message' %}
+                            </a>
+                        </div>
+                    </details>
+                </div>
+
+                <h3>{% translate 'Contact' %}</h3>
+                <a href="mailto:{{ speaker.email }}">{{ speaker.email }}</a>
+
+                <h3>{% translate 'Attendance' %}</h3>
+                <form action="{% url 'orga:speakers.arrived' event=submission.event.slug code=speaker.code %}" method="POST" class="samaware-arrived-form">
+                    {% csrf_token %}
+                    {% if speaker_profile.has_arrived %}
+                    <button type="submit" class="samaware-btn btn btn-sm btn-info d-none">{% translate 'Mark as arrived' %}</button>
+                    <button type="submit" class="samaware-btn btn btn-sm btn-success">{% blocktranslate %}Mark as <strong>not</strong> arrived{% endblocktranslate %}</button>
+                    {% else %}
+                    <button type="submit" class="samaware-btn btn btn-sm btn-info">{% translate 'Mark as arrived' %}</button>
+                    <button type="submit" class="samaware-btn btn btn-sm btn-success d-none">{% blocktranslate %}Mark as <strong>not</strong> arrived{% endblocktranslate %}</button>
+                    {% endif %}
+                </form>
+
+                {% if speaker_profile.talks|length > 1 %}
+                <h3>{% translate 'Other talks in this event' %}</h3>
+                <ul class="list-plain">
+                    {% for talk in speaker_profile.talks %}
+                    {% if not talk.code == submission.code %}
+                    <li><a href="{% url 'plugins:samaware:talk_overview' event=talk.event.slug code=talk.code %}">{{ talk.title }}</a></li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% with talks=other_event_talks|get_item:speaker %}
+                {% if talks %}
+                <h3>{% translate 'Talks in other events' %}</h3>
+                <ul class="list-plain">
+                    {% for talk in talks %}
+                    <li>{{ talk.event.name}}: <a href="{{ talk.urls.public }}">{{ talk.title }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endwith %}
+
+                {% html_signal 'samaware.signals.speaker_html' sender=request.event request=request user=speaker %}
+
+            </div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
