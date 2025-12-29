@@ -1,0 +1,129 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obra"
+version = "2.5.19"
+description = "Obra - Cloud-native AI orchestration platform for autonomous software development"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Proprietary - All Rights Reserved"}
+authors = [
+    {name = "Unpossible Creations, Inc."}
+]
+keywords = ["ai", "orchestration", "llm", "automation", "cloud", "workflow", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "typer>=0.9.0",             # CLI framework
+    "rich>=13.0.0",             # Rich text formatting for CLI
+    "requests>=2.31.0",          # HTTP client for Cloud Functions API
+    "pyyaml>=6.0",               # Config file parsing
+    "pydantic>=2.0.0",           # Schema validation for plan files
+    "watchdog>=3.0.0",           # File system monitoring
+    "python-dotenv>=1.0.0",      # Environment variable management
+    "textual>=0.47.0",           # TUI framework for config explorer
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+]
+dev = [
+    "obra[test]",
+    "ruff>=0.1.0",
+    "mypy>=1.6.0",
+]
+
+[project.scripts]
+obra = "obra.cli:main"
+
+[project.urls]
+Homepage = "https://obra.dev"
+Documentation = "https://obra.dev/docs"
+Repository = "https://github.com/Unpossible-Creations/Obra"
+Issues = "https://github.com/Unpossible-Creations/Obra/issues"
+
+# NOTE: This pyproject.toml builds the obra package.
+# The package source is in the same directory as this file.
+# Build from THIS directory: cd obra/ && python -m build --wheel
+
+[tool.setuptools]
+# The current directory (obra/) is treated as a namespace package root
+# Package modules are found in subdirectories (api/, auth/, config/, etc.)
+package-dir = {"obra" = "."}
+packages = [
+    "obra",
+    "obra.api",
+    "obra.agents",
+    "obra.auth",
+    "obra.cli_commands",  # Plan upload and validation commands
+    "obra.config",
+    "obra.config.explorer",
+    "obra.config.explorer.widgets",
+    "obra.display",
+    "obra.execution",
+    "obra.hybrid",
+    "obra.hybrid.handlers",
+    "obra.legal",
+    "obra.llm",
+    "obra.llm.providers",
+    "obra.schemas",  # FEAT-PLAN-VALIDATION-REDESIGN-001: Pydantic schemas
+    "obra.security",  # ISSUE-SIM-20251216-002: Add security module to package distribution
+    "obra.validation",  # FEAT-PLAN-VALIDATION-REDESIGN-001: Plan validation module
+]
+
+[tool.setuptools.package-data]
+# IMPORTANT: Update this list when adding new file types to .obra/
+# Currently includes: LLM onboarding guide + autonomous operation templates
+"obra" = [
+    "py.typed",
+    "README.md",
+    ".obra/*.md",           # LLM_ONBOARDING.md and future guides
+    ".obra/templates/*",    # All template files (yaml, md, json, etc.)
+]
+"obra.legal" = ["*.txt"]
+"obra.config.explorer" = ["styles/*.tcss"]
+
+[tool.setuptools.exclude-package-data]
+# Exclude compiled bytecode - saves ~600KB and avoids Python version issues
+"*" = ["__pycache__", "*.pyc", "*.pyo"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "DTZ", "T10", "EM", "ISC", "ICN", "PIE", "Q", "RET", "SIM", "TID", "ARG", "PTH", "PD", "PGH", "PL", "TRY", "NPY", "RUF"]
+ignore = ["E501", "B008", "TRY003", "RUF012"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["."]
