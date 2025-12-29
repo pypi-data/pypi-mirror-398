@@ -1,0 +1,3 @@
+import scap
+
+scap.main()
