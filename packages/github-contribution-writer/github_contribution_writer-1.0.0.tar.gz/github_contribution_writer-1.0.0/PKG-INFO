@@ -1,0 +1,172 @@
+Metadata-Version: 2.4
+Name: github-contribution-writer
+Version: 1.0.0
+Summary: Draw words on your GitHub contribution graph with backdated commits
+Author-email: Dinesh <info@dineshd.dev>
+License: MIT
+Project-URL: Repository, https://github.com/dinesh-git17/github-contribution-writer
+Project-URL: Documentation, https://github.com/dinesh-git17/github-contribution-writer#readme
+Keywords: github,contributions,git,cli
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Version Control :: Git
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
+# GitHub Contribution Writer
+
+A command-line tool that draws words and text on your GitHub contribution graph by generating commits with strategically backdated timestamps.
+
+## How It Works
+
+GitHub's contribution graph is a 7-row by 52-column grid representing your commit activity over the past year. Each cell corresponds to a specific day, with the color intensity reflecting the number of contributions made on that day.
+
+This tool maps text characters to a 5x7 pixel font grid, calculates the corresponding calendar dates, and generates Git commits with backdated timestamps. When pushed to GitHub, these commits render as readable text on your contribution graph.
+
+```
+█   █ █████ █     █      ███
+█   █ █     █     █     █   █
+█   █ █     █     █     █   █
+█████ ████  █     █     █   █
+█   █ █     █     █     █   █
+█   █ █     █     █     █   █
+█   █ █████ █████ █████  ███
+```
+
+## Installation
+
+### From PyPI
+
+```bash
+pip install github-contribution-writer
+```
+
+### From Source
+
+```bash
+git clone https://github.com/dinesh-git17/github-contribution-writer.git
+cd github-contribution-writer
+pip install -e .
+```
+
+## Usage
+
+### Basic Usage
+
+Preview what commits will be generated:
+
+```bash
+contribution-writer "HELLO" --year 2025 --dry-run
+```
+
+Generate commits for a word:
+
+```bash
+contribution-writer "HELLO" --year 2025
+```
+
+### Command Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `word` | The text to render (A-Z, 0-9, space) | Required |
+| `--year` | Target year for the commits | 2025 |
+| `--dry-run` | Preview without creating commits | False |
+| `--no-center` | Align text to start of year | False (centered) |
+| `--intensity` | Commits per pixel (1-10) | 5 |
+
+### Examples
+
+Render text centered on 2025:
+
+```bash
+contribution-writer "DINESH" --year 2025
+```
+
+Render text at the beginning of the year with maximum intensity:
+
+```bash
+contribution-writer "HI" --year 2025 --no-center --intensity 10
+```
+
+Preview the output before generating:
+
+```bash
+contribution-writer "CODE" --year 2025 --dry-run
+```
+
+## Pushing to GitHub
+
+After generating commits, push them to a GitHub repository:
+
+```bash
+# Create a new repository on GitHub first, then:
+git remote add origin git@github.com:USERNAME/REPO.git
+git branch -M main
+git push -u origin main
+```
+
+The contribution graph updates within a few minutes of pushing.
+
+## Technical Details
+
+### Font Specifications
+
+- Character dimensions: 5 pixels wide, 7 pixels tall
+- Character spacing: 1 pixel
+- Supported characters: A-Z, 0-9, space
+- Maximum text length: approximately 8 characters (limited by 52-week display)
+
+### Commit Generation
+
+Commits are created using Git's `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` environment variables to set custom timestamps. Each "pixel" in the rendered text corresponds to one or more commits on that date, with the intensity parameter controlling the exact count.
+
+### Date Mapping
+
+The contribution graph displays:
+- Rows: Days of the week (Sunday at top, Saturday at bottom)
+- Columns: Weeks of the year (oldest on left, newest on right)
+
+Text is rendered by mapping each pixel position to a calendar date and generating the appropriate number of commits for that date.
+
+## Project Structure
+
+```
+github-contribution-writer/
+├── src/
+│   └── contribution_writer/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── cli.py
+│       └── font.py
+├── pyproject.toml
+├── README.md
+└── .gitignore
+```
+
+## Requirements
+
+- Python 3.10 or higher
+- Git installed and configured
+- A GitHub account with a public repository
+
+## Limitations
+
+- Only uppercase letters A-Z, digits 0-9, and spaces are supported
+- Text longer than 8 characters may not fit within the 52-week display window
+- The contribution graph only shows the past year, so backdated commits must fall within this range
+- Private repositories do not contribute to the public contribution graph by default
+
+## License
+
+MIT License. See LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome. Please open an issue to discuss proposed changes before submitting a pull request.
