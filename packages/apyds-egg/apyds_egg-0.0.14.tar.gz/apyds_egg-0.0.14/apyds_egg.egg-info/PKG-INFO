@@ -1,0 +1,244 @@
+Metadata-Version: 2.4
+Name: apyds-egg
+Version: 0.0.14
+Summary: E-Graph implementation for apyds
+Author-email: Hao Zhang <hzhangxyz@outlook.com>
+License-Expression: AGPL-3.0-or-later
+Project-URL: Repository, https://github.com/USTC-KnowledgeComputingLab/ds.git
+Requires-Python: <3.15,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: apyds
+Provides-Extra: dev
+Requires-Dist: ruff~=0.14.10; extra == "dev"
+Requires-Dist: pytest~=9.0.2; extra == "dev"
+Requires-Dist: pytest-cov~=7.0.0; extra == "dev"
+
+# E-Graph Support Package for DS
+
+An E-Graph (Equality Graph) implementation for the DS deductive system, providing efficient management and manipulation of equivalence classes of terms.
+
+This package implements the egg-style E-Graph data structure with deferred congruence closure, enabling efficient equality reasoning. Inspired by the [egg library](https://egraphs-good.github.io/).
+
+## Features
+
+- **E-Graph Data Structure**: Manage equivalence classes of terms efficiently
+- **Union-Find**: Path-compressed union-find for disjoint set management
+- **Congruence Closure**: Automatic maintenance of congruence relationships
+- **Deferred Rebuilding**: egg-style deferred rebuilding for performance
+
+## Installation
+
+### Python (pip)
+
+```bash
+pip install apyds-egg
+```
+
+Requires Python 3.11-3.14.
+
+### TypeScript/JavaScript (npm)
+
+```bash
+npm install atsds-egg
+```
+
+## Quick Start
+
+### Python Example
+
+```python
+import apyds
+from apyds_egg import EGraph
+
+# Create an E-Graph
+eg = EGraph()
+
+# Add terms to the E-Graph
+a = eg.add(apyds.Term("a"))
+b = eg.add(apyds.Term("b"))
+x = eg.add(apyds.Term("x"))
+
+# Add compound terms
+ax = eg.add(apyds.Term("(+ a x)"))
+bx = eg.add(apyds.Term("(+ b x)"))
+
+# Initially, (+ a x) and (+ b x) are in different E-classes
+assert eg.find(ax) != eg.find(bx)
+
+# Merge a and b
+eg.merge(a, b)
+
+# Rebuild to restore congruence
+eg.rebuild()
+
+# Now (+ a x) and (+ b x) are in the same E-class
+assert eg.find(ax) == eg.find(bx)
+```
+
+### TypeScript Example
+
+```typescript
+import { Term } from "atsds";
+import { EGraph } from "atsds-egg";
+
+// Create an E-Graph
+const eg = new EGraph();
+
+// Add terms to the E-Graph
+const a = eg.add(new Term("a"));
+const b = eg.add(new Term("b"));
+const x = eg.add(new Term("x"));
+
+// Add compound terms
+const ax = eg.add(new Term("(+ a x)"));
+const bx = eg.add(new Term("(+ b x)"));
+
+// Initially, (+ a x) and (+ b x) are in different E-classes
+if (eg.find(ax) === eg.find(bx)) throw new Error("Should be different");
+
+// Merge a and b
+eg.merge(a, b);
+
+// Rebuild to restore congruence
+eg.rebuild();
+
+// Now (+ a x) and (+ b x) are in the same E-class
+if (eg.find(ax) !== eg.find(bx)) throw new Error("Should be same");
+```
+
+## Core Concepts
+
+### E-Graph
+
+An E-Graph is a data structure that efficiently represents and maintains equivalence classes of terms. It consists of:
+
+- **E-Nodes**: Nodes representing terms with an operator and children
+- **E-classes**: Equivalence classes of E-Nodes
+- **Union-Find**: Data structure for managing E-class equivalence
+- **Congruence**: Two terms are congruent if they have the same operator and their children are in equivalent E-classes
+
+### Congruence Closure
+
+The E-Graph maintains congruence closure automatically. When two E-classes are merged, the E-Graph rebuilds to ensure that congruent terms remain in the same E-class.
+
+#### Python Example
+
+```python
+eg = EGraph()
+
+# Add terms
+fa = eg.add(apyds.Term("(f a)"))
+fb = eg.add(apyds.Term("(f b)"))
+
+# Merge a and b
+a = eg.add(apyds.Term("a"))
+b = eg.add(apyds.Term("b"))
+eg.merge(a, b)
+
+# Rebuild maintains congruence
+eg.rebuild()
+
+# Now (f a) and (f b) are equivalent
+assert eg.find(fa) == eg.find(fb)
+```
+
+#### TypeScript Example
+
+```typescript
+import { Term } from "atsds";
+import { EGraph } from "atsds-egg";
+
+const eg = new EGraph();
+
+// Add terms
+const fa = eg.add(new Term("(f a)"));
+const fb = eg.add(new Term("(f b)"));
+
+// Merge a and b
+const a = eg.add(new Term("a"));
+const b = eg.add(new Term("b"));
+eg.merge(a, b);
+
+// Rebuild maintains congruence
+eg.rebuild();
+
+// Now (f a) and (f b) are equivalent
+if (eg.find(fa) !== eg.find(fb)) throw new Error("Congruence failed");
+```
+
+## API Overview
+
+### Python (apyds-egg)
+
+- `EGraph()`: Create a new E-Graph
+- `add(term: apyds.Term) -> EClassId`: Add a term to the E-Graph
+- `merge(a: EClassId, b: EClassId) -> EClassId`: Merge two E-classes
+- `rebuild() -> None`: Restore congruence closure
+- `find(eclass: EClassId) -> EClassId`: Find canonical E-class representative
+
+### TypeScript (atsds-egg)
+
+- `new EGraph()`: Create a new E-Graph
+- `add(term: atsds.Term): EClassId`: Add a term to the E-Graph
+- `merge(a: EClassId, b: EClassId): EClassId`: Merge two E-classes
+- `rebuild(): void`: Restore congruence closure
+- `find(eclass: EClassId): EClassId`: Find canonical E-class representative
+
+## Building from Source
+
+### Prerequisites
+
+- Python 3.11-3.14
+- Node.js and npm
+- apyds and atsds packages
+
+### Python Package
+
+```bash
+cd egg
+
+# Install dependencies
+uv sync --extra dev
+
+# Build package
+uv build
+
+# Run tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov
+```
+
+### TypeScript Package
+
+```bash
+cd egg
+
+# Install dependencies
+npm install
+
+# Build package
+npm run build
+
+# Run tests
+npm test
+```
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+
+## Repository
+
+- **GitHub**: [USTC-KnowledgeComputingLab/ds](https://github.com/USTC-KnowledgeComputingLab/ds) (in `/egg` directory)
+- **Python Package**: [apyds-egg](https://pypi.org/project/apyds-egg/)
+- **npm Package**: [atsds-egg](https://www.npmjs.com/package/atsds-egg)
+
+## Author
+
+Hao Zhang <hzhangxyz@outlook.com>
+
+## Related
+
+This package is a support library for the [DS (Deductive System)](https://github.com/USTC-KnowledgeComputingLab/ds) project. For the main DS library with C++ core and bindings, see the [main repository](https://github.com/USTC-KnowledgeComputingLab/ds).
