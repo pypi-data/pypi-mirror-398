@@ -1,0 +1,533 @@
+## GGUF connector
+
+GGUF (GPT-Generated Unified Format) is a successor of GGML (GPT-Generated Model Language), it was released on August 21, 2023; by the way, GPT stands for Generative Pre-trained Transformer.
+
+[<img src="https://raw.githubusercontent.com/calcuis/gguf-connector/master/gguf.gif" width="128" height="128">](https://github.com/calcuis/gguf-connector)
+[![Static Badge](https://img.shields.io/badge/version-3.2.5-green?logo=github)](https://github.com/calcuis/gguf-connector/releases)
+[![Static Badge](https://img.shields.io/badge/version-0.1.3-blue?logo=gitforwindows)](https://github.com/calcuis/chatgpt-model-selector/releases)
+
+This package is a simple graphical user interface (GUI) application that uses the ctransformers or llama.cpp to interact with a chat model for generating responses.
+
+Install the connector via pip (once only):
+```
+pip install gguf-connector
+```
+Update the connector (if previous version installed) by:
+```
+pip install gguf-connector --upgrade
+```
+With this version, you can interact straight with the GGUF file(s) available in the same directory by a simple command.
+### Graphical User Interface (GUI)
+Select model(s) with ctransformers (optional: need ctransformers to work; pip install ctransformers):
+```
+ggc c
+```
+Select model(s) with llama.cpp connector (optional: need llama-cpp-python to work; get it [here](https://github.com/abetlen/llama-cpp-python/releases) or nightly [here](https://github.com/calcuis/llama-cpp-python/releases)):
+```
+ggc cpp
+```
+[<img src="https://raw.githubusercontent.com/calcuis/chatgpt-model-selector/master/demo.gif" width="350" height="280">](https://github.com/calcuis/chatgpt-model-selector/blob/main/demo.gif)
+[<img src="https://raw.githubusercontent.com/calcuis/chatgpt-model-selector/master/demo1.gif" width="350" height="280">](https://github.com/calcuis/chatgpt-model-selector/blob/main/demo1.gif)
+
+### Command Line Interface (CLI)
+Select model(s) with ctransformers:
+```
+ggc g
+```
+Select model(s) with llama.cpp connector:
+```
+ggc gpp
+```
+Select model(s) with vision connector:
+```
+ggc v
+```
+Opt a clip handler then opt a vision model; prompt your picture link to process (see example [here](https://huggingface.co/calcuis/llava-gguf))
+#### Metadata reader (CLI only)
+Select model(s) with metadata reader:
+```
+ggc r
+```
+Select model(s) with metadata fast reader:
+```
+ggc r2
+```
+Select model(s) with tensor reader (optional: need torch to work; pip install torch):
+```
+ggc r3
+```
+#### PDF analyzor (beta feature on CLI recently)
+Load PDF(s) into a model with ctransformers:
+```
+ggc cp
+```
+Load PDF(s) into a model with llama.cpp connector:
+```
+ggc pp
+```
+optional: need pypdf; pip install pypdf
+#### Speech recognizor (beta feature; accept WAV format recently)
+Prompt WAV(s) into a model with ctransformers:
+```
+ggc cs
+```
+Prompt WAV(s) into a model with llama.cpp connector:
+```
+ggc ps
+```
+optional: need speechrecognition, pocketsphinx; pip install speechrecognition, pocketsphinx
+#### Speech recognizor (via Google api; online)
+Prompt WAV(s) into a model with ctransformers:
+```
+ggc cg
+```
+Prompt WAV(s) into a model with llama.cpp connector:
+```
+ggc pg
+```
+#### Container
+Launch to page/container:
+```
+ggc w
+```
+#### Divider
+Divide gguf into different part(s) with a cutoff point (size):
+```
+ggc d2
+```
+#### Merger
+Merge all gguf into one:
+```
+ggc m2
+```
+#### Merger (safetensors)
+Merge all safetensors into one (optional: need torch to work; pip install torch):
+```
+ggc ma
+```
+#### Splitter (checkpoint)
+Split checkpoint into components (optional: need torch to work; pip install torch):
+```
+ggc s
+```
+#### Quantizor
+Quantize safetensors to fp8 (downscale; optional: need torch to work; pip install torch):
+```
+ggc q
+```
+Quantize safetensors to fp32 (upscale; optional: need torch to work; pip install torch):
+```
+ggc q2
+```
+#### Convertor
+Convert safetensors to gguf (auto; optional: need torch to work; pip install torch):
+```
+ggc t
+```
+#### Convertor (alpha)
+Convert safetensors to gguf (meta; optional: need torch to work; pip install torch):
+```
+ggc t1
+```
+#### Convertor (beta)
+Convert safetensors to gguf (unlimited; optional: need torch to work; pip install torch):
+```
+ggc t2
+```
+#### Convertor (gamma)
+Convert gguf to safetensors (reversible; optional: need torch to work; pip install torch):
+```
+ggc t3
+```
+#### Swapper (lora)
+Rename lora tensor (base/unet swappable; optional: need torch to work; pip install torch):
+```
+ggc la
+```
+#### Remover
+Tensor remover:
+```
+ggc rm
+```
+#### Renamer
+Tensor renamer:
+```
+ggc rn
+```
+#### Extractor
+Tensor extractor:
+```
+ggc ex
+```
+#### Cutter
+Get cutter for bf/f16 to q2-q8 quantization (see user guide [here](https://pypi.org/project/gguf-cutter)) by:
+```
+ggc u
+```
+#### Comfy
+Download comfy pack (see user guide [here](https://pypi.org/project/gguf-comfy)) by:
+```
+ggc y
+```
+#### Node
+Clone node (see user/setup guide [here](https://pypi.org/project/gguf-node)) by:
+```
+ggc n
+```
+#### Pack
+Take pack (see user guide [here](https://pypi.org/project/gguf-pack)) by:
+```
+ggc p
+```
+#### PackPack
+Take packpack (see user guide [here](https://pypi.org/project/framepack)) by:
+```
+ggc p2
+```
+#### FramePack (1-click long video generation)
+Take framepack (portable packpack) by:
+```
+ggc p1
+```
+Run framepack - ggc edition by (optional: need framepack to work; pip install framepack):
+```
+ggc f2
+```
+#### Smart contract generator (solidity)
+Activate backend and frontend by (optional: need transformers to work; pip install transformers):
+```
+ggc g1
+```
+#### Video 1 (image to video)
+Activate backend and frontend by (optional: need torch, diffusers to work; pip install torch, diffusers):
+```
+ggc v1
+```
+#### Video 2 (text to video)
+Activate backend and frontend by (optional: need torch, diffusers to work; pip install torch, diffusers):
+```
+ggc v2
+```
+#### Image 2 (text to image)
+Activate backend and frontend by (optional: need torch, diffusers to work; pip install torch, diffusers):
+```
+ggc i2
+```
+#### Kontext 2 (image editor)
+Activate backend and frontend by (optional: need torch, diffusers to work; pip install torch, diffusers):
+```
+ggc k2
+```
+With lora selection:
+```
+ggc k1
+```
+With memory economy mode (low/no vram or w/o gpu option):
+```
+ggc k3
+```
+#### Krea 4 (image generator)
+Activate backend and frontend by (optional: need torch, diffusers to work; pip install torch, diffusers):
+```
+ggc k4
+```
+#### Note 2 (OCR)
+Activate backend and frontend by (optional: need transformers to work; pip install transformers):
+```
+ggc n2
+```
+#### Image descriptor (image to text)
+Activate backend and frontend by (optional: need torch to work; pip install torch):
+```
+ggc f5
+```
+Realtime live captioning:
+```
+ggc f7
+```
+Connector mode, opt a gguf to interact with (see example [here](https://huggingface.co/calcuis/fastvlm-gguf)):
+```
+ggc f6
+```
+Activate accurate/precise mode by (optional: need vtoo to work; pip install vtoo):
+```
+ggc h3
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/holo-gguf))
+#### Speech 2 (text to speech)
+Activate backend and frontend by (optional: need diao to work; pip install diao):
+```
+ggc s2
+```
+#### Higgs 2 (text to audio)
+Activate backend and frontend by (optional: need higgs to work; pip install higgs):
+```
+ggc h2
+```
+Multilingual supported, i.e., Spanish, German, Korean, etc.
+#### Bagel 2 (any to any)
+Activate backend and frontend by (optional: need bagel2 to work; pip install bagel2):
+```
+ggc b2
+```
+Opt a vae then opt a model file (see example [here](https://huggingface.co/calcuis/bagel-gguf))
+#### Voice 2 (text to voice)
+Activate backend and frontend by (optional: need chichat to work; pip install chichat):
+```
+ggc c2
+```
+Opt a vae, a clip (t3-cfg) and a model file (see example [here](https://huggingface.co/calcuis/chatterbox-gguf))
+#### Voice 3 (text to voice)
+Multilingual (optional: need chichat to work; pip install chichat):
+```
+ggc c3
+```
+Opt a vae, a clip (t3-23lang) and a model file (see example [here](https://huggingface.co/calcuis/chatterbox-gguf))
+#### Audio 2 (text to audio)
+Activate backend and frontend by (optional: need fishaudio to work; pip install fishaudio):
+```
+ggc o2
+```
+Opt a codec then opt a model file (see example [here](https://huggingface.co/calcuis/openaudio-gguf))
+#### Krea 7 (image generator)
+Activate backend and frontend by (optional: need dequantor to work; pip install dequantor):
+```
+ggc k7
+```
+Opt a model file in the current directory (see example [here](https://huggingface.co/calcuis/krea-gguf))
+#### Kontext 8 (image editor)
+Activate backend and frontend by (optional: need dequantor to work; pip install dequantor):
+```
+ggc k8
+```
+Opt a model file in the current directory (see example [here](https://huggingface.co/calcuis/kontext-gguf))
+#### Flux connector (all-in-one)
+Select flux image model(s) with k connector:
+```
+ggc k
+```
+#### Qwen image connector
+Select qwen image model(s) with q5 connector:
+```
+ggc q5
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/qwen-image-gguf))
+#### Qwen image edit connector
+Select image edit model(s) with q6 connector:
+```
+ggc q6
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/qwen-image-edit-gguf))
+#### Qwen image edit plus connector
+Select image edit plus model(s) with q7 connector:
+```
+ggc q7
+```
+#### Qwen image edit plux connector - multiple image input
+Select image edit plus model(s) with q8 connector:
+```
+ggc q8
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/qwen-image-edit-plus-gguf))
+#### Qwen image edit ++ connector - multiple image input
+Select image edit plus/lite model(s) with q9 connector (need nunchaku to work; get it [here](https://github.com/nunchaku-tech/nunchaku/releases)):
+```
+ggc q9
+```
+Opt a scaled 4-bit safetensors model file to interact with
+#### Qwen image lite connector - multiple image input
+Select image edit lite model(s) with q0 connector:
+```
+ggc q0
+```
+#### Qwen image lite2 connector - multiple image input
+Select image edit lite2 model(s) with p0 connector:
+```
+ggc p0
+```
+#### Qwen image lite3 connector - multiple image input
+Select image edit lite3 model(s) with p9 connector:
+```
+ggc p9
+```
+#### Z image connector
+Select z image model(s) with z1 connector:
+```
+ggc z1
+```
+#### Lumina image connector
+Select lumina image model(s) with l2 connector:
+```
+ggc l2
+```
+#### Wan video connector
+Select wan video model(s) with w2 connector:
+```
+ggc w2
+```
+#### Ltxv connector
+Select ltxv model(s) with x2 connector:
+```
+ggc x2
+```
+#### Mochi connector
+Select mochi model(s) with m1 connector:
+```
+ggc m1
+```
+#### Kx-lite connector
+Select kontext model(s) with k0 connector:
+```
+ggc k0
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/kontext-gguf))
+#### SD-lite connector
+Select sd3.5 model(s) with s3 connector:
+```
+ggc s3
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/sd3.5-lite-gguf))
+#### Higgs audio connector
+Select higgs model(s) with h6 connector:
+```
+ggc h6
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/higgs-gguf))
+#### Dia connector (text to speech)
+Select dia model(s) with s6 connector:
+```
+ggc s6
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/dia-gguf))
+#### FastVLM connector (image-text to text)
+Select fastvlm model(s) with f9 connector:
+```
+ggc f9
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/fastvlm-gguf))
+#### VibeVoice connector (text/voice to speech)
+Select vibevoice model(s) with v6 connector (optional: need yvoice to work; pip install yvoice):
+```
+ggc v6
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/vibevoice-gguf))
+#### Docling connector (image/document to text)
+Select docling model(s) with n3 connector:
+```
+ggc n3
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/docling-gguf))
+#### Gudio (text to speech)
+Activate backend and frontend by (optional: need gudio to work; pip install gudio):
+```
+ggc g2
+```
+Opt a model then opt a clip (see example [here](https://huggingface.co/gguf-org/gudio))
+#### Sketch (draw something awesome)
+Sketch gguf connector (optional: need dequantor to work; pip install dequantor):
+```
+ggc s8
+```
+Sketch safetensors connector (optional: need nunchaku to work; get it [here](https://github.com/nunchaku-tech/nunchaku/releases)):
+```
+ggc s9
+```
+Opt a model file to interact with (see example [here](https://huggingface.co/calcuis/sketch))
+#### Studio
+Studio connector:
+```
+ggc w9
+```
+Opt a recognizor, a generator, and a transformer to interact with (see example [here](https://huggingface.co/calcuis/studio))
+#### api (self-hosted backend)
+Fast sd3.5 connector:
+```
+ggc w8
+```
+Fast lumina connector:
+```
+ggc w7
+```
+Fast flux connector:
+```
+ggc w6
+```
+Frontend [test.gguf.org](https://test.gguf.org) or localhost (open a new console/terminal: `ggc b`)
+#### api (self-hosted backend) - exclusive for 🐷 holder trial recently
+Fast image-to-video connector:
+```
+ggc e5
+```
+Fast video connector:
+```
+ggc e6
+```
+Fast scan connector:
+```
+ggc e7
+```
+Fast edit connector:
+```
+ggc e8
+```
+Fast plus connector:
+```
+ggc e9
+```
+Frontend [gguf.org](https://gguf.org) or localhost (open a new console/terminal: `ggc a`)
+#### chatpig - GPT like frontend and backend
+Frontend chatpig launcher:
+```
+ggc b4
+```
+Backend chatpig connector (optional: need llama-cpp-python to work):
+```
+ggc e4
+```
+Opt any gguf model to load (text-based generation)
+#### cli chatbot
+Launcher:
+```
+ggc l
+```
+#### computer use 🤖🕹️
+Computer use agent (optional: need gguf-cua to work; pip install gguf-cua):
+```
+ggc cu
+```
+Get the model file(s) [here](https://huggingface.co/gguf-org/fara-7b-gguf) for backend
+#### vibe code 👾🎮
+Vibe code agent (optional: need coder to work; npm install -g @gguf/coder):
+```
+ggc vc
+```
+### Menu
+Enter the main menu for selecting a connector or getting pre-trained trial model(s).
+```
+ggc m
+```
+[<img src="https://raw.githubusercontent.com/calcuis/gguf-connector/master/demo1.gif" width="350" height="300">](https://github.com/calcuis/gguf-connector/blob/main/demo1.gif)
+
+#### Import as a module
+Include the connector selection menu to your code by:
+```
+from gguf_connector import menu
+```
+[<img src="https://raw.githubusercontent.com/calcuis/gguf-connector/master/demo.gif" width="350" height="200">](https://github.com/calcuis/gguf-connector/blob/main/demo.gif)
+
+For standalone version please refer to the repository in the reference list (below).
+#### References
+[model selector](https://github.com/calcuis/chatgpt-model-selector) (standalone version: [installable package](https://github.com/calcuis/chatgpt-model-selector/releases))
+
+[cgg](https://github.com/calcuis/cgg) (cmd-based tool)
+#### Resources
+[ctransformers](https://github.com/marella/ctransformers)
+[llama.cpp](https://github.com/ggerganov/llama.cpp)
+#### Article
+[understanding gguf and the gguf-connector](https://medium.com/@whiteblanksheet/understanding-gguf-and-the-gguf-connector-a-comprehensive-guide-3b1fc0f938ba)
+#### Website
+[gguf.org](https://gguf.org) (you can download the frontend from [github](https://github.com/gguf-org/gguf-org.github.io) and host it locally; the backend is ethereum blockchain)
+
+[gguf.io](https://gguf.io) (i/o is a mirror of us; note: this web3 domain might be restricted access in some regions/by some service providers, if so, visit the one above/below instead, exactly the same)
+
+[gguf.us](https://gguf.us)
