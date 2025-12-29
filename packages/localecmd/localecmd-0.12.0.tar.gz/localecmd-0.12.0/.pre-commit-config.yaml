@@ -1,0 +1,79 @@
+
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    - id: check-added-large-files
+    - id: check-toml
+    - id: check-yaml
+
+
+  - repo: local
+    hooks:
+    - id: ruff-lint
+      name: ruff-lint
+      description: Lint with ruff. Always pass for non-main branch
+      entry: ruff check
+      types: [python]
+      args: [--fix, --show-fixes]
+      language: python
+      require_serial: true
+      verbose: true
+
+    - id: ruff-fmt
+      name: ruff-format
+      description: Format with ruff
+      entry: ruff format
+      types: [python]
+      language: python
+      require_serial: true
+
+    - id: mypy
+      name: mypy
+      description: Type checking
+      entry: mypy
+      exclude: 'docs/source/tutorial/.*'
+      language: python
+      types: [python]
+      require_serial: true
+      verbose: true
+
+    - id: pytest
+      name: pytest
+      description: Tests
+      entry: pytest tests
+      exclude: 'docs/source/tutorial/.*'
+      language: python
+      types: [python]
+      require_serial: true
+      verbose: true
+
+    - id: commitizen
+      name: commitizen check
+      description: >
+        Check whether the current commit message follows committing rules. Allow
+        empty commit messages by default, because they typically indicate to Git
+        that the commit should be aborted.
+      entry: cz check
+      args: [--allow-abort, --commit-msg-file]
+      stages: [commit-msg]
+      require_serial: true
+      language: python
+
+    - id: commitizen-branch
+      name: commitizen check branch
+      description: >
+        Check all commit messages between default branch on origin and current branch.
+        Useful for checking messages after
+        the fact (e.g., pre-push or in CI) without an expensive check of the entire
+        repository history.
+      stages: [pre-push]
+      entry: cz check
+      args: [--rev-range, origin/$(git branch --show-current)..HEAD]
+      always_run: true
+      pass_filenames: false
+      require_serial: true
+      language: python
+
+
