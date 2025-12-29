@@ -1,0 +1,136 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "localecmd"
+description = 'Python package for commandline interpreter that is translatable'
+readme = "README.md"
+version = "0.12.1"
+requires-python = ">=3.8"
+license = "BSD-3-Clause"
+keywords = []
+authors = [
+  { name = "j-box", email = "j-box@blueline.email" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "babel>=2.17",
+  "typing-extensions>=4.0",
+  "rich>=13",
+]
+
+[dependency-groups]
+docs = [
+    "myst-parser",
+    "sphinx",
+    "sphinx-autodoc2",
+    "sphinx-intl",
+    "sphinx-localecmddoc",
+    "sphinx-markdown-builder",
+    "sphinx-nefertiti",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+types = ["mypy"]
+format = ["ruff"]
+dev = [
+    "build",
+    "commitizen",
+    "pre-commit",
+    "twine",
+    {include-group = "docs"},
+    {include-group = "test"},
+    {include-group = "format"},
+    {include-group = "types"},
+]
+
+[project.urls]
+Documentation = "https://codeberg.org/jbox/localecmd"
+Issues = "https://codeberg.org/jbox/localecmd/issues"
+Source = "https://codeberg.org/jbox/localecmd"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.hatch-test]
+dependencies = [
+    # Hopefully at some point dependency group dev can be used...
+    "pytest-cov",
+]
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report html --cov-config=pyproject.toml --doctest-glob='*.md' --import-mode=importlib "
+
+[tool.coverage.run]
+source_pkgs = ["localecmd", "tests"]
+omit = [".venv/*"]
+branch = true
+parallel = true
+
+[tool.coverage.paths]
+localecmd = ["src/localecmd", "*/localecmd/src/localecmd"]
+tests = ["tests", "*/localecmd/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+# Use custom convention: 
+# Single quotes for identifiers, double quotes for natural language
+# See f.ex. https://www.askpython.com/python/string/difference-between-single-and-double-quotes-in-python
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-comprehensions
+    "C4",
+    # flake8-bandit
+    "S",
+    # flake8-future-annotations
+    "FA",
+    # flake8-gettext
+    "INT",
+    # flake8-logging
+    "LOG",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+ignore = ["S101", "SIM108"]
+
+[tool.commitizen]
+version_provider = "pep621"
+version_files = ["pyproject.toml"]
+major_version_zero = true
+template = "CHANGELOG.md.j2"
+changelog_incremental = false
+update_changelog_on_bump = true
+change_type_map = {"feat" = "New features", "fix" = "Fixes", "refactor" = "Changes", "perf" = "Improvements"}
+change_type_order = ["BREAKING CHANGE", "New features", "Fixes", "Changes", "Improvements"]
