@@ -1,0 +1,70 @@
+Metadata-Version: 2.4
+Name: gcl_certbot_plugin
+Version: 0.0.5
+Summary: Plugin for certbot to allow dns-01 acme checks in letsencrypt.
+Home-page: https://github.com/infraguys/gcl_certbot_plugin
+Author: Genesis Corporation
+Author-email: mail@gmelikov.ru
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pbr<=5.8.1,>=1.10.0
+Requires-Dist: bazooka<2.0.0,>=1.3.0
+Requires-Dist: certbot<5.0.0,>=3.0.0
+Requires-Dist: gcl_iam<2.0.0,>=0.11.0
+Requires-Dist: gcl_sdk<2.0.0,>=0.4.0
+Requires-Dist: cryptography<47.0.0,>=45.0.5
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
+# gcl_certbot_plugin
+Plugin for certbot to allow dns-01 acme checks in letsencrypt with Genesis Core integrated DNS.
+
+## How to use
+```bash
+# Install the plugin and certbot
+pip install gcl_certbot_plugin
+
+# Create certificate
+certbot certonly --authenticator=genesis-core \
+    --genesis-core-endpoint=http://core.local.genesis-core.tech:11010 \
+    --genesis-core-login=admin \
+    --genesis-core-password=password \
+    --domains test.pdns.your.domain
+```
+
+To create a new certificate, in the code
+```python
+from gcl_certbot_plugin import acme
+
+# Get or creat a client private key
+private_key = acme.get_or_create_client_private_key("privkey.pem")
+
+# Get ACME client
+client_acme = acme.get_acme_client(private_key, "myemail@example.com")
+
+# Create cert
+pkey_pem, csr_pem, fullchain_pem = acme.create_cert(
+    client_acme,
+    dns_client,
+    ["test.pdns.your.domain"],
+)
+```
+
+For complete example see [create_cert](https://github.com/infraguys/gcl_certbot_plugin/blob/master/gcl_certbot_plugin/examples/create_cert.py) script.
+
