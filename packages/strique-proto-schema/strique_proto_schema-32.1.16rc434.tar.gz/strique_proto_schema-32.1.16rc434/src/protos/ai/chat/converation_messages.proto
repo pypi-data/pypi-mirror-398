@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package strique.model.ai.chat;
+
+option java_outer_classname = "ConversationMessagesProto";
+option java_package = "com.strique.model.ai.chat";
+
+// Next Id: 5
+message ConversationMessagesRequest {
+  // ID of the conversation.
+  string conversation_id = 1;
+
+  // Max messages to return (default 50, max 100).
+  int32 limit = 2;
+
+  // Offset for pagination.
+  int32 offset = 4;
+
+  reserved 3;
+}
+
+// Next Id: 6
+message ConversationMessagesResponse {
+  repeated UIMessageProto messages = 1;
+  bool has_more = 2;
+  int32 next_offset = 5; 
+  int32 count = 4;
+
+  reserved 3;
+}
+
+// Next Id: 5
+enum MessageRole {
+  SYSTEM = 0;
+  USER = 1;
+  ASSISTANT = 2;
+  TOOL = 3;
+}
+
+// Next Id: 5
+message UIMessageProto {
+  string id = 1;
+  MessageRole role = 2;
+  repeated UIMessagePartProto parts = 3;
+  UIMessageMetadataProto metadata = 4;
+}
+
+// Next Id: 5
+message UIMessagePartProto {
+  oneof part {
+    TextPartProto text = 1;
+    FilePartProto file = 2;
+    DynamicToolPartProto dynamic_tool = 3;
+    SourceUrlPartProto source_url = 4;
+    ReasoningPartProto reasoning = 5;
+  }
+}
+
+// Next Id: 3
+message TextPartProto {
+  string text = 1;
+  string state = 2; 
+}
+
+// Next Id: 4
+message FilePartProto {
+  string media_type = 1;
+  string filename = 2;
+  string url = 3;
+}
+
+// Next Id: 6
+message DynamicToolPartProto {
+  string tool_name = 1;         
+  string tool_call_id = 2;       
+  string state = 3;              
+  string input = 4;
+  string output = 5;
+}
+
+// Next Id: 3
+message SourceUrlPartProto {
+  string source_id = 1;
+  string url = 2;
+}
+
+// Next Id: 3
+message UIMessageMetadataProto {
+  string created_at = 1; 
+  int32 tokens = 2;      
+}
+
+message ReasoningPartProto {
+  string text = 1; 
+  string state = 2;         
+}
