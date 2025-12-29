@@ -1,0 +1,38 @@
+import os
+
+ARBEITSZEIT_PASSWORD_HASHER = "arbeitszeit_flask.password_hasher:PasswordHasherImpl"
+
+FLASK_DEBUG = 0
+TESTING = False
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+LANGUAGES = {"en": "English", "de": "Deutsch", "es": "Español"}
+MAIL_PLUGIN_MODULE = "arbeitszeit_flask.mail_service.flask_mail_service"
+MAIL_PLUGIN_CLASS = "FlaskMailService"
+MAIL_USE_TLS = True
+MAIL_USE_SSL = False
+MAIL_PORT = 587
+AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", False)
+FORCE_HTTPS = True
+PREFERRED_URL_SCHEME = "https"
+
+FLASK_PROFILER = {
+    "enabled": False,
+}
+
+RESTX_MASK_SWAGGER = False
+# swagger placeholders are necessary until fix of bug in flask-restx:
+# https://github.com/python-restx/flask-restx/issues/565
+SWAGGER_UI_OAUTH_CLIENT_ID = "placeholder"
+SWAGGER_VALIDATOR_URL = "placeholder"
+SWAGGER_UI_OAUTH_REALM = "placeholder"
+SWAGGER_UI_OAUTH_APP_NAME = "placeholder"
+
+ALEMBIC_CONFIG = os.environ["ALEMBIC_CONFIG"]
+
+DEFAULT_USER_TIMEZONE = "UTC"
+ALLOWED_OVERDRAW_MEMBER = "0"
+ACCEPTABLE_RELATIVE_ACCOUNT_DEVIATION = "33"
+PAYOUT_FACTOR_CALCULATION_WINDOW = 180
+
+SQLALCHEMY_DATABASE_URI = "sqlite:////tmp/arbeitszeitapp.db"

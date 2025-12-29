@@ -1,0 +1,97 @@
+{% from 'macros/pagination.html' import render_pagination %}
+{% extends "base.html" %}
+
+{% block navbar_start %}
+<div class="navbar-item">{{ gettext("All plans") }}</div>
+{% endblock %}
+
+{% block content %}
+<div class="section has-text-centered">
+    <div class="columns is-centered">
+        <div class="column is-one-third">
+            <h1 class="title">
+                {{ gettext("Plans") }}
+            </h1>
+            <form method="get">
+                <div class="field">
+                    <div class="control">
+                        <div class="select is-large is-fullwidth">
+                            {{ form.select }}
+                        </div>
+                    </div>
+                    <p class="help">{{ gettext("Search by plan ID or product name") }}</p>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        {{ form.search(class_="input is-large") }}
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">{{ gettext("Sort by") }}</label>
+                    <div class="control">
+                        {% for subfield in form.radio %}
+                        <span>{{ subfield }} {{ subfield.label }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="field">
+                    {{ form.include_expired_plans }} {{ form.include_expired_plans.label }}
+                </div>
+                <input type="hidden" name="page" value="1">
+                <button class="button is-block is-primary is-large is-fullwidth">
+                    {{ gettext("Search") }}
+                </button>
+            </form>
+        </div>
+    </div>
+    <h1 class="title">
+        {{ gettext("Results") }} ({{ view_model.total_results}})
+    </h1>
+</div>
+
+{% if view_model.show_results %}
+<div class="section">
+    <div class="columns is-centered">
+        <div class="column is-one-third">
+            {{ render_pagination(view_model.pagination) }}
+            {% for column in view_model.results.rows %}
+            <article class="media">
+                <div class="media-content">
+                    <div class="content">
+                        <p>
+                            <strong class="is-size-5">
+                                <a href="{{ column.plan_details_url }}">{{ column.product_name }}</a>
+                            </strong>
+                            <br>
+                            <small><a href="{{ column.company_summary_url }}">@{{ column.company_name }}</a></small>
+                            <br>
+                            <span>
+                                {{ column.description }}
+                            </span>
+                        </p>
+                    </div>
+                    <div>
+                        {% if column.is_cooperating %}
+                        <span class="tag is-primary">{{ gettext("Cooperating plan") }}</span>
+                        {% endif %}
+                        {% if column.is_public_service %}
+                        <span class="tag is-warning">{{ gettext("Public") }}</span>
+                        {% endif %}
+                        {% if column.is_expired %}
+                        <span class="tag is-danger">{{ gettext("Expired") }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="media-right">
+                    <p class="is-size-5">
+                        {{ column.price_per_unit }}
+                    </p>
+                </div>
+            </article>
+            {% endfor %}
+            {{ render_pagination(view_model.pagination) }}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

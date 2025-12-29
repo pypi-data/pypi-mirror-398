@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block navbar_start %}
+  <div class="navbar-item">{{ gettext("List unreviewed plans") }}</div>
+{% endblock %}
+
+{% block content %}
+<section class="section has-text-centered"> 
+    <h1 class="title">{{ gettext("Unreviewed plans") }}</h1>
+</section>
+<section class="section">
+  {% if view_model.show_plan_list %}
+  <div class="column is-4 is-offset-4 is-centered has-text-left">
+    {% for plan in view_model.plans %}
+    <article class="media">
+      <div class="media-content">
+        <div class="content">
+          <strong><a href="{{ plan.plan_details_url }}">{{ plan.product_name }}</a></strong>
+          <br>
+          <small>@<a href="{{ plan.company_summary_url }}">{{ plan.planner_name }}</a></small>
+        </div>
+      </div>
+      <div class="media-right">
+        <div class="content pt-1">
+          <form method="post" action="{{ plan.approve_plan_url }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button is-ghost" type="submit" title="{{ gettext('Approve plan') }}">
+              {{ 'check'|icon }}
+            </button>
+          </form>
+          <form method="post" action="{{ plan.reject_plan_url }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button is-ghost" type="submit" title="{{ gettext('Reject plan') }}">
+              {{ "times"|icon }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  {{ gettext("There are currently no plans waiting for review") }}
+  {% endif %}
+</section>
+{% endblock %}
