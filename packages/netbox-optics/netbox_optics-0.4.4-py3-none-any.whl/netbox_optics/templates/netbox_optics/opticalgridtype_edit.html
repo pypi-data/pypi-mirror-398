@@ -1,0 +1,64 @@
+{% extends 'generic/object_edit.html' %}
+{% load form_helpers %}
+
+{% block form %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <strong>Optical Grid Type</strong>
+    </div>
+    <div class="panel-body">
+        {% render_field form.name %}
+        {% render_field form.spacing %}
+        {% render_field form.description %}
+    </div>
+</div>
+
+<!-- Bulk Wavelength Input - only for new objects -->
+{% if not object.pk and bulk_form %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <strong>Bulk Wavelength Input</strong>
+    </div>
+    <div class="panel-body">
+        {% render_field bulk_form.bulk_wavelengths %}
+        {% if bulk_form.bulk_wavelengths.errors %}
+            <div class="text-danger">
+                {% for error in bulk_form.bulk_wavelengths.errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+        <div class="text-center">
+            <small class="text-muted">
+                Enter multiple wavelengths separated by commas. Example: 1550.12, 1550.92, 1551.72
+            </small>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Existing Wavelengths - only for existing objects -->
+{% if object.pk %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <strong>Allowed Wavelengths</strong>
+    </div>
+    <div class="panel-body">
+        {% if object.allowed_wavelengths.all %}
+            <ul class="list-unstyled">
+                {% for wavelength in object.allowed_wavelengths.all %}
+                    <li><a href="{% url 'plugins:netbox_optics:opticalgridtypewavelength' pk=wavelength.pk %}">{{ wavelength.value }} nm</a></li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <span class="text-muted">None</span>
+        {% endif %}
+        <div class="text-center" style="margin-top: 15px;">
+            <a href="{% url 'plugins:netbox_optics:opticalgridtypewavelength_add' %}?grid_type_id={{ object.pk }}" class="btn btn-primary btn-sm">
+                <span class="mdi mdi-plus" aria-hidden="true"></span> Add Wavelength
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %} 
