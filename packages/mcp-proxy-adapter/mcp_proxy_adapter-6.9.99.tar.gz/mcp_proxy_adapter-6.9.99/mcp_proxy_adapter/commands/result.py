@@ -1,0 +1,157 @@
+"""
+Module with base classes for command results.
+"""
+
+import json
+from abc import ABC, abstractmethod
+from typing import TypeVar, Dict, Any, Optional
+
+T = TypeVar("T", bound="CommandResult")
+
+
+class CommandResult(ABC):
+    """
+    Base abstract class for command execution results.
+    """
+
+    @abstractmethod
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts result to dictionary for serialization.
+
+        Returns:
+            Dictionary with result data.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_schema(cls) -> Dict[str, Any]:
+        """Get JSON schema for the result."""
+        pass
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CommandResult":
+        """Create result from dictionary."""
+        pass
+
+
+class SuccessResult(CommandResult):
+    """
+    Base class for successful command results.
+    """
+
+    def __init__(
+        self, data: Optional[Dict[str, Any]] = None, message: Optional[str] = None
+    ):
+        """
+        Initialize successful result.
+
+        Args:
+            data: Result data.
+            message: Result message.
+        """
+        self.data = data or {}
+        self.message = message
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts result to dictionary for serialization.
+
+        Returns:
+            Dictionary with result data.
+        """
+        result = {"success": True}
+        if self.data:
+            result["data"] = self.data
+        if self.message:
+            result["message"] = self.message
+        return result
+
+    @classmethod
+    def get_schema(cls) -> Dict[str, Any]:
+        """Get JSON schema for success result."""
+        return {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean", "const": True},
+                "data": {"type": "object"},
+                "message": {"type": "string"}
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SuccessResult":
+        """Create success result from dictionary."""
+        return cls(
+            data=data.get("data"),
+            message=data.get("message")
+        )
+
+
+class ErrorResult(CommandResult):
+    """
+    Base class for command results with error.
+
+    This class follows the JSON-RPC 2.0 error object format:
+    https://www.jsonrpc.org/specification#error_object
+    """
+
+    def __init__(
+        self, message: str, code: int = -32000, details: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Initialize error result.
+
+        Args:
+            message: Error message.
+            code: Error code (following JSON-RPC 2.0 spec).
+            details: Additional error details.
+        """
+        self.message = message
+        self.error = message  # For backward compatibility with tests
+        self.code = code
+        self.details = details or {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts result to dictionary for serialization.
+
+        Returns:
+            Dictionary with result data in JSON-RPC 2.0 error format.
+        """
+        result = {
+            "success": False,
+            "error": {"code": self.code, "message": self.message},
+        }
+        if self.details:
+            result["error"]["data"] = self.details
+        return result
+
+    @classmethod
+    def get_schema(cls) -> Dict[str, Any]:
+        """Get JSON schema for error result."""
+        return {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean", "const": False},
+                "error": {
+                    "type": "object",
+                    "properties": {
+                        "code": {"type": "integer"},
+                        "message": {"type": "string"},
+                        "data": {"type": "object"}
+                    }
+                }
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ErrorResult":
+        """Create error result from dictionary."""
+        error_data = data.get("error", {})
+        return cls(
+            code=error_data.get("code", -32603),
+            message=error_data.get("message", "Internal error"),
+            details=error_data.get("data")
+        )

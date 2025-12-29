@@ -1,0 +1,162 @@
+{
+  "roles": {
+    "admin": {
+      "description": "Administrator with full access",
+      "allowed_servers": ["*"],
+      "allowed_clients": ["*"],
+      "permissions": ["read", "write", "delete", "admin"],
+      "priority": 100
+    },
+    "super-admin": {
+      "description": "Super administrator with system-level access",
+      "allowed_servers": ["*"],
+      "allowed_clients": ["*"],
+      "permissions": ["read", "write", "delete", "admin", "system"],
+      "priority": 200
+    },
+    "kubernetes_service": {
+      "description": "Kubernetes service with cluster management access",
+      "allowed_servers": ["kubernetes_manager", "kubernetes_api", "cluster_monitor", "k8s_operator"],
+      "allowed_clients": ["admin", "super-admin", "kubernetes_service", "ca_root", "ca_intermediate"],
+      "permissions": ["read", "write", "system"],
+      "priority": 120
+    },
+    "ca_root": {
+      "description": "Root Certificate Authority with full certificate management",
+      "allowed_servers": ["*"],
+      "allowed_clients": ["admin", "super-admin", "ca_root", "ca_intermediate"],
+      "permissions": ["read", "write", "delete", "admin", "system"],
+      "priority": 180
+    },
+    "ca_intermediate": {
+      "description": "Intermediate Certificate Authority with delegated certificate management",
+      "allowed_servers": ["certificate_manager", "ssl_manager", "tls_manager"],
+      "allowed_clients": ["admin", "super-admin", "ca_root", "ca_intermediate", "kubernetes_service"],
+      "permissions": ["read", "write", "admin"],
+      "priority": 140
+    },
+    "operator": {
+      "description": "Operator with limited access",
+      "allowed_servers": ["kubernetes_manager", "docker_manager", "monitor", "aiadm"],
+      "allowed_clients": ["admin", "super-admin", "operator"],
+      "permissions": ["read", "write"],
+      "priority": 50
+    },
+    "user": {
+      "description": "Regular user with basic access",
+      "allowed_servers": ["basic_commands", "info_commands"],
+      "allowed_clients": ["admin", "super-admin", "operator", "user"],
+      "permissions": ["read"],
+      "priority": 10
+    },
+    "guest": {
+      "description": "Guest user with minimal access",
+      "allowed_servers": ["help", "info"],
+      "allowed_clients": ["admin", "super-admin", "operator", "user", "guest"],
+      "permissions": ["read"],
+      "priority": 1
+    },
+    "system": {
+      "description": "System service with internal access",
+      "allowed_servers": ["*"],
+      "allowed_clients": ["admin", "super-admin", "system"],
+      "permissions": ["read", "write", "system"],
+      "priority": 150
+    }
+  },
+  "default_policy": {
+    "deny_by_default": true,
+    "require_role_match": true,
+    "case_sensitive": false,
+    "allow_wildcard": true
+  },
+  "role_hierarchy": {
+    "super-admin": ["admin", "user"],
+    "admin": ["operator", "user"],
+    "kubernetes_service": ["operator", "user"],
+    "ca_root": ["admin", "ca_intermediate", "kubernetes_service"],
+    "ca_intermediate": ["operator", "user"],
+    "operator": ["user"],
+    "user": ["guest"],
+    "system": ["admin", "user"]
+  },
+  "permissions": {
+    "read": {
+      "description": "Read access to data and commands",
+      "level": 1
+    },
+    "write": {
+      "description": "Write access to data and commands",
+      "level": 2
+    },
+    "delete": {
+      "description": "Delete access to data and commands",
+      "level": 3
+    },
+    "admin": {
+      "description": "Administrative access",
+      "level": 4
+    },
+    "system": {
+      "description": "System-level access",
+      "level": 5
+    }
+  },
+  "server_roles": {
+    "kubernetes_manager": {
+      "description": "Kubernetes management server",
+      "required_roles": ["admin", "operator", "kubernetes_service"],
+      "allowed_commands": ["k8s_*", "system_monitor"]
+    },
+    "kubernetes_api": {
+      "description": "Kubernetes API server",
+      "required_roles": ["kubernetes_service", "admin"],
+      "allowed_commands": ["k8s_api_*", "cluster_*"]
+    },
+    "cluster_monitor": {
+      "description": "Kubernetes cluster monitoring server",
+      "required_roles": ["kubernetes_service", "admin"],
+      "allowed_commands": ["monitor_*", "metrics_*"]
+    },
+    "k8s_operator": {
+      "description": "Kubernetes operator server",
+      "required_roles": ["kubernetes_service", "admin"],
+      "allowed_commands": ["operator_*", "crd_*"]
+    },
+    "certificate_manager": {
+      "description": "Certificate management server",
+      "required_roles": ["ca_root", "ca_intermediate", "admin"],
+      "allowed_commands": ["cert_*", "ca_*", "ssl_*"]
+    },
+    "ssl_manager": {
+      "description": "SSL/TLS management server",
+      "required_roles": ["ca_intermediate", "admin"],
+      "allowed_commands": ["ssl_*", "tls_*", "cert_*"]
+    },
+    "tls_manager": {
+      "description": "TLS management server",
+      "required_roles": ["ca_intermediate", "admin"],
+      "allowed_commands": ["tls_*", "mtls_*", "cert_*"]
+    },
+    "docker_manager": {
+      "description": "Docker management server",
+      "required_roles": ["admin", "operator"],
+      "allowed_commands": ["docker_*", "system_monitor"]
+    },
+    "aiadm": {
+      "description": "AI Admin server",
+      "required_roles": ["admin", "operator"],
+      "allowed_commands": ["*"]
+    },
+    "basic_commands": {
+      "description": "Basic command server",
+      "required_roles": ["user", "admin", "operator"],
+      "allowed_commands": ["help", "config", "health", "info"]
+    },
+    "help": {
+      "description": "Help server",
+      "required_roles": ["guest", "user", "admin", "operator"],
+      "allowed_commands": ["help"]
+    }
+  }
+} 

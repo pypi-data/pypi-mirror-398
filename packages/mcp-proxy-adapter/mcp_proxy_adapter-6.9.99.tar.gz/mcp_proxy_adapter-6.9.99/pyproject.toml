@@ -1,0 +1,216 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-proxy-adapter"
+version = "6.9.99"
+description = "Powerful JSON-RPC microservices framework with built-in security, authentication, proxy registration, queue-backed command execution for long-running operations, and configurable HTTP timeouts for mTLS connections"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Vasiliy Zdanovskiy", email = "vasilyvz@gmail.com"}
+]
+maintainers = [
+    {name = "Vasiliy Zdanovskiy", email = "vasilyvz@gmail.com"}
+]
+keywords = [
+    "json-rpc",
+    "microservices",
+    "fastapi",
+    "security",
+    "authentication",
+    "authorization",
+    "proxy",
+    "mcp",
+    "mtls",
+    "ssl",
+    "rest",
+    "api",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.95.0,<1.0.0",
+    "pydantic>=2.0.0",
+    "hypercorn>=0.15.0,<1.0.0",
+    "docstring-parser>=0.15,<1.0.0",
+    "typing-extensions>=4.5.0,<5.0.0",
+    "jsonrpc>=1.2.0",
+    "psutil>=5.9.0",
+    "mcp_security_framework>=1.5.1",
+    "flask>=3.1.0",
+    "packaging>=20.0",
+    "aiohttp>=3.8.0,<4.0.0",
+    "httpx>=0.24.0",
+    "queuemgr>=1.0.13",
+    "requests>=2.31.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "httpx>=0.24.0",
+    "pytest-mock>=3.10.0",
+]
+examples = []
+
+[project.urls]
+Homepage = "https://github.com/maverikod/mcp-proxy-adapter"
+Documentation = "https://github.com/maverikod/mcp-proxy-adapter#readme"
+Source = "https://github.com/maverikod/mcp-proxy-adapter"
+Tracker = "https://github.com/maverikod/mcp-proxy-adapter/issues"
+PyPI = "https://pypi.org/project/mcp-proxy-adapter/"
+
+[project.scripts]
+mcp-proxy-adapter = "mcp_proxy_adapter.cli.main:main"
+adapter-cfg-gen = "mcp_proxy_adapter.cli.commands.config_generate:main"
+adapter-cfg-val = "mcp_proxy_adapter.cli.commands.config_validate:main"
+mcp-config-generate = "mcp_proxy_adapter.core.config.cli_generator:main"
+
+[project.gui-scripts]
+mcp-proxy-adapter-gui = "mcp_proxy_adapter.examples.gui:main"
+
+[project.entry-points."mcp_proxy_adapter.examples"]
+setup_test_environment = "mcp_proxy_adapter.examples.setup_test_environment:main"
+create_test_configs = "mcp_proxy_adapter.examples.create_test_configs:main"
+generate_certificates = "mcp_proxy_adapter.examples.generate_all_certificates:main"
+run_security_tests = "mcp_proxy_adapter.examples.run_security_tests_fixed:main"
+run_full_test_suite = "mcp_proxy_adapter.examples.run_full_test_suite:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_proxy_adapter*"]
+exclude = ["test*", "tests*", ".venv*", "venv*", "build*", "dist*"]
+
+[tool.setuptools.package-dir]
+"" = "."
+
+[tool.setuptools.package-data]
+mcp_proxy_adapter = ["schemas/*.json"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["mcp_proxy_adapter"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "fastapi.*",
+    "pydantic.*",
+    "cryptography.*",
+    "OpenSSL.*",
+    "mcp_security_framework.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "security: marks tests as security tests",
+    "asyncio: marks tests as asyncio tests",
+    "functional: marks tests as functional tests",
+    "performance: marks tests as performance tests",
+]
+
+[tool.coverage.run]
+source = ["mcp_proxy_adapter"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.flake8]
+max-line-length = 120
+exclude = [
+  ".venv",
+  "venv",
+  "build",
+  "dist",
+]
+extend-ignore = ["E501"]
+per-file-ignores = [
+  "mcp_proxy_adapter/examples/*:E501,F401,F841,E402,F811,E712,E722,W291,W293",
+  "mcp_proxy_adapter/examples/**/*:E501,F401,F841,E402,F811,E712,E722,W291,W293"
+]
