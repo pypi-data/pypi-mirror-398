@@ -1,0 +1,477 @@
+import datetime
+import io
+import json
+import logging
+from getpass import getpass
+from pathlib import Path
+from typing import Any
+
+import httpx
+from pydantic import UUID4, BaseModel, ConfigDict, Field, ValidationError, parse_obj_as
+
+from .config import settings
+from .ingredient_groups import iter_ingredient_groups
+from .models import Image, localized_fallback
+from .models import Recipe as KptnCookRecipe
+
+logger = logging.getLogger(__name__)
+
+
+class NameIsIdModel(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+
+    def __hash__(self):
+        """Hash on name to be able to have sets of models."""
+        return hash(self.name)
+
+    def __eq__(self, other):
+        """Compare on name to be able to subtract sets of models."""
+        return self.name == other.name
+
+
+class RecipeTag(NameIsIdModel):
+    slug: str | None = None
+    name: str
+    group_id: UUID4 | None = Field(None, alias="groupId")
+    id: UUID4 | None = None
+
+
+class RecipeCategory(RecipeTag):
+    pass
+
+
+class RecipeTool(RecipeTag):
+    on_hand: bool = False
+
+
+class UnitFoodBase(NameIsIdModel):
+    id: UUID4 | None = None
+    name: str
+    description: str = ""
+
+
+class RecipeFood(UnitFoodBase): ...  # noqa: E701
+
+
+class RecipeUnit(UnitFoodBase):
+    id: UUID4 | None = None
+    fraction: bool = True
+    abbreviation: str = ""
+
+
+class RecipeIngredient(BaseModel):
+    title: str | None = None
+    note: str | None = None
+    unit: RecipeUnit | None
+    food: RecipeUnit | None
+    disable_amount: bool = True
+    quantity: float | None = 1
+
+
+class RecipeSummary(BaseModel):
+    id: UUID4 | None = None
+
+    user_id: UUID4 | None = Field(None, alias="userId")
+    group_id: UUID4 | None = Field(None, alias="groupId")
+
+    name: str | None = None
+    slug: str = ""
+    image: Any | None = None
+    recipe_yield: str | None = None
+
+    total_time: str | None = None
+    prep_time: str | int | None = None
+    cook_time: str | int | None = None
+    perform_time: str | None = None
+
+    description: str | None = ""
+    recipe_category: list[str] | None = []
+    tags: list[RecipeTag] | None = []
+    # tags: list[RecipeTag | str] | None = []
+    tools: list[RecipeTool] = []
+    rating: int | None = None
+    org_url: str | None = Field(None, alias="orgURL")
+
+    recipe_ingredient: list[RecipeIngredient] | None = []
+
+    date_added: datetime.date | None = None
+    date_updated: datetime.datetime | None = None
+
+
+class RecipeStep(BaseModel):
+    title: str | None = ""
+    text: str
+    ingredientReferences: list[Any] = []
+    image: Image | None = None
+
+
+class Nutrition(BaseModel):
+    calories: str | None = None
+    fatContent: str | None = None
+    proteinContent: str | None = None
+    carbohydrateContent: str | None = None
+    fiberContent: str | None = None
+    sodiumContent: str | None = None
+    sugarContent: str | None = None
+
+
+class RecipeSettings(BaseModel):
+    public: bool = True
+    show_nutrition: bool = True
+    show_assets: bool = False
+    landscape_view: bool = False
+    disable_comments: bool = False
+    disable_amount: bool = False
+    locked: bool = False
+
+
+class RecipeAsset(BaseModel):
+    name: str
+    icon: str
+    file_name: str | None = None
+
+
+class RecipeNote(BaseModel):
+    title: str
+    text: str | None = None
+
+
+class Recipe(RecipeSummary):
+    recipe_ingredient: list[RecipeIngredient] = []
+    recipe_instructions: list[RecipeStep] | None = []
+    nutrition: Nutrition | None = None
+
+    # Mealie Specific
+    settings: RecipeSettings | None = RecipeSettings()
+    assets: list[RecipeAsset] | None = []
+    notes: list[RecipeNote] | None = []
+    extras: dict = {}
+
+
+class RecipeWithImage(Recipe):
+    image_url: str
+
+
+class MealieApiClient:
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.headers = {}
+
+    @property
+    def logged_in(self):
+        return "access_token" in self.headers
+
+    def to_url(self, path):
+        return f"{self.base_url}{path}"
+
+    def __getattr__(self, name):
+        """
+        Return proxy for httpx, joining base_url with path and
+        providing authentication headers automatically.
+        """
+
+        def proxy(path, **kwargs):
+            url = self.to_url(path)
+            set_headers = kwargs.get("headers", {})
+            kwargs["headers"] = set_headers | self.headers
+            with httpx.Client() as client:
+                response = getattr(client, name)(url, **kwargs)
+            return response
+
+        return proxy
+
+    def fetch_api_token(self, username, password):
+        login_data = {"username": username, "password": password}
+        r = self.post("/auth/token", data=login_data, timeout=60)
+        r.raise_for_status()
+        return r.json()["access_token"]
+
+    def login(self, username: str = "admin", password: str = ""):
+        if password == "":
+            password = getpass()
+        access_token = self.fetch_api_token(username, password)
+        self.headers = {"authorization": f"Bearer {access_token}"}
+
+    def upload_asset(self, recipe_slug, image: Image):
+        # download image
+        r = httpx.get(image.url, follow_redirects=True)
+        r.raise_for_status()
+
+        download = io.BytesIO(r.content)
+
+        # upload to mealie
+        name = Path(image.name)
+        extension = name.suffix.lstrip(".")
+        stem = name.stem
+        data = {
+            "name": stem,
+            "icon": "mdi-file-image",
+            "extension": extension,
+        }
+        r = self.post(
+            f"/recipes/{recipe_slug}/assets", data=data, files={"file": download}
+        )
+        r.raise_for_status()
+
+        return r.json()
+
+    @staticmethod
+    def _build_recipestep_text(recipe_uuid, text, image_name):
+        return f'{text} <img src="/api/media/recipes/{recipe_uuid}/assets/{image_name}" height="100%" width="100%"/>'
+
+    def enrich_recipe_with_step_images(self, recipe):
+        assets = []
+        for instruction in recipe.recipe_instructions:
+            asset_properties = self.upload_asset(recipe.slug, instruction.image)
+            uploaded_image_name = asset_properties["fileName"]
+            instruction.text = self._build_recipestep_text(
+                recipe.id, instruction.text, uploaded_image_name
+            )
+            assets.append(
+                RecipeAsset(
+                    name=asset_properties["name"],
+                    icon=asset_properties["icon"],
+                    file_name=asset_properties["fileName"],
+                )
+            )
+        recipe.assets = assets
+        return recipe
+
+    def _post_recipe_trunk_and_get_slug(self, recipe_name):
+        data = {"name": recipe_name}
+        r = self.post("/recipes", data=json.dumps(data))
+        r.raise_for_status()
+        slug = r.json()
+        return slug
+
+    def _scrape_image_for_recipe(self, recipe, slug):
+        json_image_url = json.dumps({"url": recipe.image_url})
+        scrape_image_path = f"/recipes/{slug}/image"
+        r = self.post(scrape_image_path, data=json_image_url)
+        r.raise_for_status()
+
+    def _update_user_and_group_id(self, recipe, slug):
+        recipe_detail_path = f"/recipes/{slug}"
+        r = self.get(recipe_detail_path)
+        r.raise_for_status()
+        recipe_details = r.json()
+        update_attributes = ["id", "userId", "groupId"]
+        updated_details = {k: recipe_details[k] for k in update_attributes}
+        recipe = RecipeWithImage(**(recipe.dict() | updated_details))
+        return recipe
+
+    def _get_page(self, endpoint_name, page_num, per_page=50):
+        r = self.get(f"/{endpoint_name}?page={page_num}&perPage={per_page}")
+        r.raise_for_status()
+        return r.json()
+
+    def _get_all_items(self, endpoint_name):
+        all_items = []
+        response_data = self._get_page(endpoint_name, 1)
+        all_items.extend(response_data["items"])
+
+        # 1 was already fetched, start page_num at 2 and add 1 to the
+        # number of total pages, because we start counting at 1 instead of 0
+        for page_num in range(2, response_data["total_pages"] + 1):
+            response_data = self._get_page(endpoint_name, page_num)
+            all_items.extend(response_data["items"])
+
+        return all_items
+
+    def _create_item(self, endpoint_name, item):
+        r = self.post(f"/{endpoint_name}", data=item.json())
+        r.raise_for_status()
+        return r.json()
+
+    def _create_item_name_to_item_lookup(self, endpoint_name, model_class, items):
+        existing_items = parse_obj_as(
+            set[model_class], self._get_all_items(endpoint_name)
+        )
+        items_to_create = items - existing_items
+        for item in items_to_create:
+            existing_items.add(model_class(**self._create_item(endpoint_name, item)))
+        return {i.name: i for i in existing_items}
+
+    def _update_item_ids(self, recipe, endpoint_name, model_class, attr_name):
+        items = {
+            getattr(ig, attr_name)
+            for ig in recipe.recipe_ingredient
+            if getattr(ig, attr_name) is not None
+        }
+        if len(items) == 0:
+            # return early if there's nothing to do
+            return recipe
+
+        name_to_item_with_id = self._create_item_name_to_item_lookup(
+            endpoint_name, model_class, items
+        )
+        for ingredient in recipe.recipe_ingredient:
+            if getattr(ingredient, attr_name) is not None:
+                setattr(
+                    ingredient,
+                    attr_name,
+                    name_to_item_with_id[getattr(ingredient, attr_name).name],
+                )
+        return recipe
+
+    def _update_tag_ids(self, recipe):
+        recipe_tags = {tag for tag in recipe.tags}
+        if len(recipe_tags) == 0:
+            # return early if there's nothing to do
+            return recipe
+
+        name_to_tag_with_id = self._create_item_name_to_item_lookup(
+            "organizers/tags", RecipeTag, recipe_tags
+        )
+        recipe.tags = [name_to_tag_with_id[tag.name] for tag in recipe_tags]
+        return recipe
+
+    def _update_recipe(self, recipe, slug):
+        recipe_detail_path = f"/recipes/{slug}"
+        r = self.put(recipe_detail_path, data=recipe.json())
+        r.raise_for_status()
+        return Recipe.model_validate(r.json())
+
+    def create_recipe(self, recipe):
+        slug = self._post_recipe_trunk_and_get_slug(recipe.name)
+        logger.debug("Created Mealie recipe slug: %s", slug)
+        recipe.slug = slug
+        self._scrape_image_for_recipe(recipe, slug)
+        recipe = self._update_user_and_group_id(recipe, slug)
+        recipe = self._update_item_ids(recipe, "units", RecipeUnit, "unit")
+        recipe = self._update_item_ids(recipe, "foods", RecipeFood, "food")
+        recipe = self._update_tag_ids(recipe)
+        recipe = self.enrich_recipe_with_step_images(recipe)
+        return self._update_recipe(recipe, slug)
+
+    @staticmethod
+    def validate_recipes(recipes):
+        validated_recipes = []
+        for recipe in recipes:
+            try:
+                validated_recipe = Recipe.model_validate(recipe)
+                validated_recipes.append(validated_recipe)
+            except ValidationError as e:
+                logger.error(
+                    "Could not parse recipe {recipe_id}".format(recipe_id=recipe["id"])
+                )
+                logger.exception(e)
+                continue
+        return validated_recipes
+
+    def get_all_recipes(self):
+        all_recipes = []
+
+        r = self.get("/recipes?page=1&perPage=50")
+        r.raise_for_status()
+        all_recipes.extend(self.validate_recipes(r.json()["items"]))
+
+        page = 2
+        while page <= r.json()["total_pages"]:
+            r = self.get(f"/recipes?page={page}&perPage=50")
+            r.raise_for_status()
+            all_recipes.extend(self.validate_recipes(r.json()["items"]))
+            page += 1
+
+        return all_recipes
+
+    def delete_via_slug(self, slug):
+        r = self.delete(f"/recipes/{slug}")
+        r.raise_for_status()
+        return r.json()
+
+    def get_via_slug(self, slug):
+        r = self.get(f"/recipes/{slug}")
+        r.raise_for_status()
+        return Recipe.model_validate(r.json())
+
+
+def kptncook_to_mealie_ingredients(kptncook_ingredients):
+    mealie_ingredients = []
+    groups = iter_ingredient_groups(kptncook_ingredients or [])
+    for group_label, ingredients in groups:
+        for ingredient in ingredients:
+            ingredient_title = (
+                localized_fallback(ingredient.ingredient.localized_title) or ""
+            )
+            note = None
+            if "," in ingredient_title:
+                ingredient_title, note, *_ = (
+                    p.strip() for p in ingredient_title.split(",")
+                )
+            food = {"name": ingredient_title}
+            quantity = ingredient.quantity
+            measure = None
+            if hasattr(ingredient, "measure"):
+                if ingredient.measure is not None:
+                    measure = {"name": ingredient.measure}
+            mealie_ingredient = RecipeIngredient(
+                title=group_label or None,
+                quantity=quantity,
+                unit=measure,
+                note=note,
+                food=food,
+            )
+            mealie_ingredients.append(mealie_ingredient)
+    return mealie_ingredients
+
+
+def kptncook_to_mealie_steps(steps, api_key):
+    mealie_instructions = []
+    for step in steps:
+        image = step.image.get_image_with_api_key_url(api_key)
+        mealie_instructions.append(
+            RecipeStep(
+                title=None,
+                text=localized_fallback(step.title) or "",
+                image=image,
+            )
+        )
+    return mealie_instructions
+
+
+def kptncook_to_mealie_tags(active_tags: list[str] | None) -> list[RecipeTag]:
+    tag_names = ["kptncook"]
+    if active_tags:
+        tag_names.extend(active_tags)
+
+    seen = set()
+    tags = []
+    for name in tag_names:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        tags.append(RecipeTag.model_validate({"name": name, "group_id": None}))
+    return tags
+
+
+def kptncook_to_mealie(
+    kcin: KptnCookRecipe, api_key: str = settings.kptncook_api_key
+) -> RecipeWithImage:
+    kwargs = {
+        "name": localized_fallback(kcin.localized_title),
+        "notes": [
+            RecipeNote(
+                title="author comment",
+                text=localized_fallback(kcin.author_comment),
+            ),
+        ],
+        "nutrition": Nutrition(
+            calories=str(kcin.recipe_nutrition.calories),
+            proteinContent=str(kcin.recipe_nutrition.protein),
+            fatContent=str(kcin.recipe_nutrition.fat),
+            carbohydrateContent=str(kcin.recipe_nutrition.carbohydrate),
+        ),
+        "prep_time": kcin.preparation_time,
+        "cook_time": kcin.cooking_time,
+        "recipe_yield": "1 Portionen",
+        "recipe_instructions": kptncook_to_mealie_steps(kcin.steps, api_key),
+        "recipe_ingredient": kptncook_to_mealie_ingredients(kcin.ingredients),
+        "image_url": kcin.get_image_url(api_key),
+        "tags": kptncook_to_mealie_tags(kcin.active_tags),
+        "extras": {"kptncook_id": kcin.id.oid, "source": "kptncook"},
+    }
+    logger.debug("Mealie recipe payload kwargs: %s", kwargs)
+    return RecipeWithImage(**kwargs)
