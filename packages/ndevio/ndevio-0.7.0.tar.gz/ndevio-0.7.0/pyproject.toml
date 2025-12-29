@@ -1,0 +1,136 @@
+[project]
+name = "ndevio"
+dynamic = ["version"]
+description = "Read, write, and manage images in napari"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [
+  {name = "Tim Monko"},
+  {email = "timmonko@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Framework :: napari",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+requires-python = ">=3.11"
+# napari can be included in dependencies if napari imports are required.
+# However, you should not include napari[all], napari[qt],
+# or any other Qt bindings directly (e.g. PyQt5, PySide2).
+# See best practices: https://napari.org/stable/plugins/building_a_plugin/best_practices.html
+dependencies = [
+    "napari",
+    "ndev-settings>=0.4.0",
+    "nbatch>=0.0.4",
+    "natsort",
+    "magicgui",
+    "magic-class",
+    "xarray",
+    "bioio-base",
+    "bioio>=3.2.0",  # migrates writers to plugins
+    "bioio-ome-zarr>=3",  # Pin to v3.x for zarr 3.x compatibility
+    "bioio-ome-tiff>=1.2.0",  # minimum for migrated writer
+    "bioio-tifffile",  # a backup tifffile reader with better performance than imageio
+    "bioio-imageio",
+    "zarr>=3.1.3",  # tifffile's ZarrTiffStore needs set_partial_values/supports_partial_writes
+    "napari-plugin-manager>=0.1.7",  # Renamed to PYPI from PIP for tool selection https://github.com/napari/napari-plugin-manager/pull/176
+    "pooch",  # for downloading sample data from remote URLs
+]
+
+[project.optional-dependencies]
+# Allow easily installation with the full, default napari installation
+# (including Qt backend) using ndevio[all].
+all = ["napari[all]"]
+
+[dependency-groups]
+dev = [
+    "pytest",  # https://docs.pytest.org/en/latest/contents.html
+    "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
+    "pytest-qt",  # https://pytest-qt.readthedocs.io/en/latest/
+    "napari",
+    "pyqt6",  # Explicitly use PyQt6 (napari's future default, has ARM64 macOS support)
+    "bioio-czi",  # Include an additional priority reader for development/testing
+]
+
+[project.entry-points."napari.manifest"]
+ndevio = "ndevio:napari.yaml"
+
+[project.entry-points."ndev_settings.manifest"]
+ndevio = "ndevio:ndev_settings.yaml"
+
+[project.urls]
+"Bug Tracker" = "https://github.com/ndev-kit/ndevio/issues"
+"Documentation" = "https://github.com/ndev-kit/ndevio#README.md"
+"Source Code" = "https://github.com/ndev-kit/ndevio"
+"User Support" = "https://github.com/ndev-kit/ndevio/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback_version = "0.0.1+nogit"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+# filterwarnings = ["error"] # recommended by PP309
+log_cli_level = "INFO"
+testpaths = ["tests"]
+markers = [
+    "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
+]
+
+[tool.coverage]
+report.fail_under = 80
+
+[tool.ruff]
+line-length = 79
+format.quote-style = "single"
+lint.select = [
+    "E", "F", "W", #flake8
+    "UP", # pyupgrade
+    "I", # isort
+    "BLE", # flake8-blind-exception
+    "B", # flake8-bugbear
+    "A", # flake8-builtins
+    "C4", # flake8-comprehensions
+    "ISC", # flake8-implicit-str-concat
+    "G", # flake8-logging-format
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+]
+lint.ignore = [
+    "E501", # line too long. handled by formatter
+    "UP006", "UP007", # type annotation. As using magicgui require runtime type annotation then we disable this.
+]
+fix = true
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[tool.pixi.dependencies]
+python = ">=3.11,<3.14"
+
+[tool.pixi.pypi-dependencies]
+ndevio = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+all = { features = ["all"], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+
+[tool.pixi.tasks]
+test = { cmd = "pytest -v --color=yes --cov=ndevio --cov-report=xml" }
