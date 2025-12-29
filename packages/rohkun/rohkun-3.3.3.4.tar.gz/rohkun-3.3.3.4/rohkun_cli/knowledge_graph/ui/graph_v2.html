@@ -1,0 +1,4166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Graph - Rohkun</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            /* v2.0 Cyber-Professional Palette */
+            --bg: #050505;  /* Deep black - Obsidian */
+            --bg-panel: rgba(10, 10, 10, 0.8);
+            --text-primary: #E5E5E5;  /* Off-white */
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent: #7c3aed;
+            --accent-light: #8b5cf6;
+            --accent-dark: #6d28d9;
+            --border: #1f2937;
+            --border-light: #374151;
+            --success: #00FF94;  /* Neon Mint */
+            --error: #FF003C;  /* Cyberpunk Red */
+            --warning: #FFE600;  /* Electric Yellow */
+            
+            /* Neon Colors */
+            --neon-mint: #00FF94;
+            --neon-yellow: #FFE600;
+            --neon-pink: #BC13FE;
+            --neon-cyan: #00F0FF;
+            
+            --mouse-x: 50%;
+            --mouse-y: 50%;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+            /* Font smoothing for small text (Consultant Recommendation) */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-smooth: always;
+        }
+        
+        /* Texture Overlay - Subtle noise texture */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: screen;
+        }
+        
+        /* Dynamic Grid Background - Follows mouse cursor */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(124, 58, 237, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124, 58, 237, 0.3) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -2;
+            mask-image: radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), black 0%, transparent 80%);
+            -webkit-mask-image: radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), black 0%, transparent 80%);
+            opacity: 0.8;
+            pointer-events: none;
+        }
+        
+        /* Base Grid Background - Static */
+        .bg-grid-base {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(#151515 1px, transparent 1px),
+                linear-gradient(90deg, #151515 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -3;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        /* Spotlight Effect */
+        .spotlight-static {
+            position: fixed;
+            width: 1200px;
+            height: 1200px;
+            background: radial-gradient(circle, rgba(124, 58, 237, 0.08) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: -1;
+            filter: blur(80px);
+            top: -30%;
+            left: -10%;
+            animation: pulseLight 8s ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulseLight {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        
+        #network-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* Edge Animation Canvas Overlay for Moving Dashed Lines */
+        #edge-animation-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 3;
+        }
+        
+        /* --- HEADER (From Landing Page) --- */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            background: rgba(3, 3, 3, 0.85);
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .header-inner {
+            height: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 0 24px;
+            margin: 0 auto;
+        }
+        .logo {
+            font-weight: 800;
+            font-size: 1.2rem;
+            letter-spacing: -1px;
+            text-transform: uppercase;
+            display: flex; align-items: center; gap: 6px;
+            color: #fff; text-decoration: none;
+            cursor: default;
+        }
+        .logo::before { 
+            content: ">"; 
+            color: var(--accent); 
+            margin-right: 2px;
+            text-shadow: 0 0 12px var(--accent);
+        }
+        .nav-link {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-left: 2rem;
+            padding: 8px 0;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            letter-spacing: 1px;
+            position: relative;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        .nav-link:hover { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.5); }
+        
+        .nav-link::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 2px;
+            background: var(--accent); transition: width 0.3s ease;
+            box-shadow: 0 0 8px var(--accent);
+        }
+        .nav-link:hover::after { width: 100%; }
+        
+        .nav-link.active {
+            color: #fff;
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+        .nav-link.active::after {
+            width: 100%;
+        }
+
+        /* Adjust container offsets since header is fixed */
+        #info-panel {
+            top: 80px; /* Below header */
+        }
+        #graph-toggle {
+            display: none; /* Hide old toggle */
+        }
+        
+        /* Graph Toggle - Top Right Corner (Legacy - Hidden) */
+        
+        /* Info Panel - Top Left (Quant Style) - Glassmorphism (Consultant Standard) */
+        #info-panel {
+            position: fixed;
+            top: 80px; /* Adjusted for Header */
+            left: 20px;
+            background: rgba(5, 5, 5, 0.85);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            padding: 16px;
+            max-width: 300px;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            will-change: transform, opacity;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        }
+        
+        #info-panel.hidden {
+            transform: translateX(-120%);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Panel Toggle Button */
+        #panel-toggle {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            width: 32px;
+            height: 32px;
+            background: rgba(5, 5, 5, 0.85);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            z-index: 99; /* Behind panel when open */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            opacity: 0; /* Hidden when panel is open */
+            pointer-events: none;
+        }
+        
+        #panel-toggle.visible {
+            opacity: 1;
+            pointer-events: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        #panel-toggle:hover {
+            background: rgba(20, 20, 30, 0.95);
+            box-shadow: 0 0 10px var(--accent-glow);
+            border-color: var(--accent);
+        }
+        
+        /* Close Button inside Panel */
+        .panel-close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+        .panel-close-btn:hover {
+            color: var(--accent);
+        }
+        
+        #info-panel h1 {
+            font-size: 14px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        #info-panel h1::before {
+            content: '>';
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        #info-panel .stat {
+            margin: 8px 0;
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            padding-bottom: 2px;
+        }
+        
+        #info-panel .stat strong {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        
+        #info-panel .stat .value {
+            color: var(--accent-light);
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(124, 58, 237, 0.3);
+        }
+        
+        /* Legend - Bottom Right - Glassmorphism */
+        #legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(5, 5, 5, 0.85);
+            border: 1px solid var(--border);
+            border-right: 3px solid var(--accent);
+            border-radius: 4px;
+            padding: 16px;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            font-size: 10px;
+            max-width: 220px;
+        }
+        
+        #legend h3 {
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+        
+        #legend .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            gap: 10px;
+        }
+        
+        #legend .legend-color {
+            width: 8px;
+            height: 8px;
+            /* border-radius: 2px; Square dots look more technical */
+            border: none;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px currentColor;
+            position: relative;
+        }
+        
+        #legend .legend-color::after {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            border: 1px solid currentColor;
+            opacity: 0.3;
+        }
+        
+        /* Search - Top Center - Glassmorphism */
+        #search-box {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px); /* Safari support */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        #search-box input {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            outline: none;
+            width: 250px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        #search-box input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        /* Node Info - Bottom Left (replaces console when node clicked) - Glassmorphism */
+        /* Node Info - Bottom Left (replaces console when node clicked) - Glassmorphism - Styled like info panel */
+        #node-info {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            max-width: 320px;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px); /* Safari support */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 0 20px rgba(124, 58, 237, 0.2);
+            display: none;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        #node-info.visible {
+            display: block;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        #node-info h3 {
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+        }
+        
+        #node-info .stat {
+            margin: 6px 0;
+            font-size: 10px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        #node-info .stat strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        #node-info .stat .value {
+            color: var(--accent-light);
+            font-weight: 600;
+        }
+        
+        #node-info p {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin: 6px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        #node-info p strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--success);
+            border-radius: 6px;
+            padding: 12px 16px;
+            z-index: 10000;
+            display: none;
+            backdrop-filter: blur(20px);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 20px rgba(0, 255, 148, 0.3);
+        }
+        
+        .toast.visible {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: var(--text-secondary);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Diff Mode Panel */
+        #diff-panel {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-panel);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 16px;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            min-width: 400px;
+        }
+        
+        #diff-panel h3 {
+            color: var(--accent);
+            margin-bottom: 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        #snapshot-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        #snapshot-dropdowns {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        
+        .snapshot-select {
+            flex: 1;
+        }
+        
+        .snapshot-select label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .snapshot-select select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 6px 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            outline: none;
+        }
+        
+        .snapshot-select select:focus {
+            border-color: var(--accent);
+        }
+        
+        #compare-btn {
+            background: var(--accent);
+            color: var(--text-primary);
+            border: none;
+            border-radius: 4px;
+            padding: 6px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        #compare-btn:hover {
+            background: var(--accent-light);
+            box-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
+        }
+        
+        /* Diff Summary Panel */
+        #diff-summary {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            max-width: 300px;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        #diff-summary h3 {
+            color: var(--accent);
+            margin-bottom: 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .diff-item {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .diff-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .diff-item-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .diff-item-icon {
+            font-size: 14px;
+        }
+        
+        .diff-item-label {
+            color: var(--text-primary);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            flex: 1;
+        }
+        
+        .risk-badge {
+            background: var(--error);
+            color: var(--text-primary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .impact-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        
+        .impact-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+        
+        .impact-bar-fill.added {
+            background: #00FFA3;
+        }
+        
+        .impact-bar-fill.removed {
+            background: #FF1744;
+        }
+        
+        .impact-bar-fill.changed {
+            background: #FFB300;
+        }
+        
+        .diff-item-details {
+            color: var(--text-secondary);
+            font-size: 9px;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+        
+        /* Floating Filter Pills */
+        #diff-filters {
+            position: sticky;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin: 0 auto;
+            width: fit-content;
+        }
+        
+        .filter-pill {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid transparent;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .filter-pill:hover {
+            border-color: var(--border-light);
+            color: var(--text-primary);
+        }
+        
+        .filter-pill.active {
+            border-color: var(--accent);
+            color: var(--text-primary);
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.5);
+        }
+        
+        .pill-icon {
+            font-size: 12px;
+        }
+        
+        .pill-badge {
+            background: var(--accent);
+            color: var(--text-primary);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 8px;
+            min-width: 18px;
+            text-align: center;
+        }
+        
+        /* Snapshot Mode - Hide UI elements */
+        .snapshot-mode #graph-toggle,
+        .snapshot-mode #search-box,
+        .snapshot-mode #controls,
+        .snapshot-mode #legend,
+        .snapshot-mode #console-log,
+        .snapshot-mode #node-info,
+        .snapshot-mode #diff-panel,
+        .snapshot-mode #diff-summary,
+        .snapshot-mode #diff-filters {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        /* Focus Mode - Dim non-selected nodes */
+        .focus-mode .vis-network {
+            filter: brightness(0.2);
+        }
+        
+        .focus-mode .vis-network .vis-node.selected,
+        .focus-mode .vis-network .vis-node.neighbor {
+            filter: brightness(1.5);
+        }
+        
+        /* Watermark for snapshot */
+        .watermark {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 16px;
+            z-index: 10001;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: none;
+        }
+        
+        .snapshot-mode .watermark {
+            display: block;
+        }
+        
+        /* Diff Mode Animations (Consultation Standards) */
+        @keyframes bloom-in {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fade-to-history {
+            0% {
+                opacity: 1;
+                filter: blur(0px);
+            }
+            100% {
+                opacity: 0.4;
+                filter: blur(2px);
+            }
+        }
+        
+        @keyframes ripple-change {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(255, 179, 0, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(255, 179, 0, 0);
+            }
+        }
+        
+        /* High Impact Node Pulse Animation (CSS-based for performance - Consultant Optimization) */
+        /* Using transform/opacity instead of box-shadow animation for better performance */
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.9;
+            }
+        }
+        
+        .high-impact-pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        /* Apply animations to vis.js nodes via class */
+        .vis-network .vis-node.node-added {
+            animation: bloom-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .vis-network .vis-node.node-removed {
+            animation: fade-to-history 0.8s ease-out forwards;
+        }
+        
+        .vis-network .vis-node.node-changed {
+            animation: ripple-change 2s ease-out infinite;
+        }
+        
+        /* Also apply to node elements directly */
+        .node-added {
+            animation: bloom-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .node-removed {
+            animation: fade-to-history 0.8s ease-out forwards;
+        }
+        
+        .node-changed {
+            animation: ripple-change 2s ease-out infinite;
+        }
+        
+        /* Edge animations */
+        .vis-network .vis-edge.added-edge {
+            animation: trace-path 1s ease-out;
+        }
+        
+        @keyframes trace-path {
+            0% {
+                opacity: 0;
+                stroke-dasharray: 5, 5;
+            }
+            100% {
+                opacity: 1;
+                stroke-dasharray: none;
+            }
+        }
+        
+        /* Graveyard Zone for Removed Nodes (Second Consultation Specification) */
+        .graveyard-zone {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: rgba(255, 23, 68, 0.05);
+            border-top: 1px solid var(--error);
+            z-index: 100;
+            padding: 12px 16px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            display: none; /* Hidden by default, shown when removed nodes exist */
+        }
+        
+        .graveyard-zone.visible {
+            display: block;
+        }
+        
+        .graveyard-zone.collapsed {
+            height: 40px;
+            overflow: hidden;
+        }
+        
+        .graveyard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .graveyard-header h4 {
+            color: var(--error);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .graveyard-count {
+            background: var(--error);
+            color: var(--text-primary);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 8px;
+            font-weight: 600;
+        }
+        
+        .graveyard-toggle {
+            color: var(--text-secondary);
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+        
+        .graveyard-zone.collapsed .graveyard-toggle {
+            transform: rotate(-90deg);
+        }
+        
+        .graveyard-items {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+        
+        .graveyard-item {
+            padding: 6px 10px;
+            background: rgba(255, 23, 68, 0.1);
+            border-left: 2px solid var(--error);
+            border-radius: 4px;
+            font-size: 9px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .graveyard-item:hover {
+            background: rgba(255, 23, 68, 0.2);
+            color: var(--text-primary);
+            border-left-width: 3px;
+        }
+        
+        .graveyard-item-label {
+            flex: 1;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .graveyard-item-deps {
+            color: var(--error);
+            font-size: 8px;
+            margin-left: 8px;
+        }
+        
+        .graveyard-item-action {
+            background: transparent;
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 8px;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: all 0.2s;
+        }
+        
+        .graveyard-item-action:hover {
+            background: var(--error);
+            color: var(--text-primary);
+        }
+        
+        .graveyard-empty {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 9px;
+            padding: 20px;
+        }
+        
+        /* Timeline Scrubber (Consultation Standard) */
+        .timeline-container {
+            position: relative;
+            width: 100%;
+            height: 60px;
+            margin: 16px 0;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px;
+        }
+        
+        .timeline-track {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, var(--border) 0%, var(--border-light) 50%, var(--border) 100%);
+            border-radius: 2px;
+        }
+        
+        .timeline-marker {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .timeline-marker:hover {
+            background: var(--accent);
+            width: 3px;
+        }
+        
+        .timeline-marker.selected {
+            background: var(--accent);
+            width: 4px;
+        }
+        
+        .timeline-marker-label {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        
+        .timeline-handle {
+            position: absolute;
+            top: -8px;
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border: 2px solid var(--bg);
+            border-radius: 50%;
+            cursor: grab;
+            transform: translateX(-50%);
+            box-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
+            transition: all 0.2s;
+        }
+        
+        .timeline-handle:active {
+            cursor: grabbing;
+            transform: translateX(-50%) scale(1.2);
+        }
+        
+        .timeline-handle.previous {
+            background: var(--error);
+            box-shadow: 0 0 10px rgba(255, 23, 68, 0.5);
+        }
+        
+        .timeline-handle.current {
+            background: var(--success);
+            box-shadow: 0 0 10px rgba(0, 255, 148, 0.5);
+        }
+        
+        .timeline-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+        
+        /* Diff Storytelling Panel */
+        #diff-story-panel {
+            position: absolute;
+            top: 200px;
+            right: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 16px;
+            max-width: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        #diff-story-panel h3 {
+            color: var(--accent);
+            margin-bottom: 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        #diff-story-content {
+            color: var(--text-primary);
+            font-size: 11px;
+            line-height: 1.6;
+        }
+        
+        .story-section {
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .story-section:last-child {
+            border-bottom: none;
+        }
+        
+        .story-section h4 {
+            color: var(--accent-light);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .story-section p {
+            margin: 4px 0;
+            color: var(--text-secondary);
+        }
+        
+        .story-highlight {
+            color: var(--success);
+            font-weight: 600;
+        }
+        
+        .story-warning {
+            color: var(--error);
+            font-weight: 600;
+        }
+        
+        /* Accessibility: Color-blind friendly patterns */
+        .node-added::before {
+            content: '+';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .node-removed::before {
+            content: '-';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .node-changed::before {
+            content: '~';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        #legend-tooltip {
+            position: fixed;
+            background: rgba(5, 5, 5, 0.95);
+            border: 1px solid var(--border);
+            border-left: 2px solid var(--accent);
+            padding: 10px 14px;
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 10000;
+            display: none;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            max-width: 220px;
+            text-transform: uppercase;
+            line-height: 1.4;
+            letter-spacing: 0.5px;
+        }
+        #legend-tooltip strong {
+            display: block;
+            color: var(--accent-light);
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+        /* Modals */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
+        
+        .modal-content {
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            width: 600px; max-width: 90%;
+            max-height: 80vh;
+            display: flex; flex-direction: column;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+        .modal-content.large { width: 900px; height: 80vh; }
+        
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h2 { font-size: 1.1rem; color: #fff; }
+        .close-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            font-size: 1.5rem; cursor: pointer;
+        }
+        .close-btn:hover { color: #fff; }
+        
+        .modal-body { padding: 20px; overflow-y: auto; color: var(--text-secondary); font-size: 0.9rem; }
+        
+        /* Search & Filter */
+        .header-controls { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+        .search-container {
+            position: relative;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            display: flex; align-items: center;
+        }
+        #node-search {
+            background: transparent; border: none; color: #fff;
+            font-family: 'JetBrains Mono'; font-size: 0.8rem;
+            width: 150px; outline: none;
+        }
+        
+        .filter-container { position: relative; }
+        .icon-btn {
+            background: transparent; border: 1px solid var(--border);
+            color: var(--accent); padding: 6px; border-radius: 4px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .icon-btn:hover { background: var(--accent); color: #fff; }
+        
+        .filter-dropdown {
+            position: absolute; top: 100%; right: 0; margin-top: 10px;
+            background: rgba(10, 10, 10, 0.95); border: 1px solid var(--border);
+            padding: 15px; min-width: 200px;
+            display: none; flex-direction: column; gap: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .filter-dropdown.active { display: flex; }
+        .filter-group h4 { color: var(--text-muted); font-size: 0.75rem; margin-bottom: 8px; }
+        .filter-group label { display: block; margin-bottom: 5px; font-size: 0.85rem; cursor: pointer; }
+        
+        pre { background: #000; padding: 15px; border-radius: 4px; border: 1px solid var(--border); overflow-x: auto; }
+        code { font-family: 'JetBrains Mono'; color: #a5b3ce; }
+    </style>
+</head>
+<body>
+    <!-- Legend Tooltip -->
+    <div id="legend-tooltip"></div>
+    <!-- Header (New Navigation) -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">Rohkun <span style="color: var(--text-secondary); font-size: 0.7em; margin-left: 8px; letter-spacing: 2px; font-weight: 500;">// KNOWLEDGE GRAPH</span></div>
+            <nav style="display: flex; align-items: center; gap: 8px;">
+                <!-- Navigation Arrows -->
+                <button onclick="navigateReport(-1)" class="nav-link" id="nav-prev" title="Previous Report" style="padding: 6px 10px; min-width: auto;">←</button>
+                <button onclick="navigateReport(1)" class="nav-link" id="nav-next" title="Next Report" style="padding: 6px 10px; min-width: auto;">→</button>
+                <div style="width: 1px; height: 20px; background: var(--border); margin: 0 4px;"></div>
+                <button onclick="switchGraph('api')" class="nav-link active" id="nav-api">APIs</button>
+                <button onclick="switchGraph('functions')" class="nav-link" id="nav-func">FUNCTIONS</button>
+                <button onclick="switchGraph('files')" class="nav-link" id="nav-files" style="opacity: 0.5; cursor: not-allowed;" title="Coming Soon">FILES</button>
+                <button onclick="toggleReportModal()" class="nav-link" id="nav-report">REPORT</button>
+            </nav>
+            
+            <!-- Search & Filter -->
+            <div class="header-controls">
+                <div class="search-container">
+                   <input type="text" id="node-search" placeholder="SEARCH NODE..." oninput="window.filterNodes(this.value)">
+                   <span style="font-size: 12px; color: var(--text-muted);">🔍</span>
+                </div>
+                <div class="filter-container">
+                   <button id="help-btn" class="icon-btn" onclick="toggleHelpModal()" title="Help & Legend">?</button>
+                   <div id="filter-menu" class="filter-dropdown">
+                       <!-- Simplified Filters (Global) -->
+                       <div class="filter-group">
+                           <h4>VISIBILITY</h4>
+                           <label><input type="checkbox" checked onchange="updateFilters('status', 'high_impact')"> HIGH IMPACT</label>
+                           <label><input type="checkbox" checked onchange="updateFilters('status', 'orphan')"> ORPHANS</label>
+                           <label><input type="checkbox" checked onchange="updateFilters('status', 'unknown')"> UNKNOWNS</label>
+                       </div>
+                       
+                       <!-- Language Filters (File View Only) -->
+                       <div id="filter-context-dependency" class="filter-context" style="display:none; border-top: 1px solid var(--border); padding-top: 10px;">
+                           <div class="filter-group">
+                               <h4>LANGUAGES</h4>
+                               <label><input type="checkbox" checked onchange="updateFilters('ext', '.py')"> Python</label>
+                               <label><input type="checkbox" checked onchange="updateFilters('ext', '.js')"> JavaScript</label>
+                               <label><input type="checkbox" checked onchange="updateFilters('ext', '.ts')"> TypeScript</label>
+                               <label><input type="checkbox" checked onchange="updateFilters('ext', '.html')"> HTML</label>
+                               <label><input type="checkbox" checked onchange="updateFilters('ext', '.css')"> CSS</label>
+                           </div>
+                       </div>
+                   </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Background Layers (2D Grids Removed for 3D Implementation) -->
+    <!-- <div class="bg-grid-base"></div> -->
+    <!-- <div class="bg-grid"></div> -->
+    <div class="spotlight-static"></div>
+    
+    <div id="network-container">
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Loading graph data...</div>
+        </div>
+    </div>
+    
+    <!-- Edge Animation Canvas for Moving Dashed Lines -->
+    <canvas id="edge-animation-canvas"></canvas>
+    
+    <!-- Graph Toggle - Top Right (Replaced by Header) -->
+    <!-- <div id="graph-toggle">...</div> -->
+    
+    <!-- Info Panel - Top Left (Quant Style) -->
+    <div id="info-panel">
+        <h1 id="graph-title">API CONNECTIONS</h1>
+        <div class="stat"><strong>PROJECT:</strong> <span class="value" id="project-name">LOADING...</span></div>
+        <div class="stat"><strong>NODES:</strong> <span class="value" id="node-count">0</span></div>
+        <div class="stat"><strong>EDGES:</strong> <span class="value" id="edge-count">0</span></div>
+        <div class="stat"><strong>HIGH_IMPACT:</strong> <span class="value" id="high-impact-count">0</span></div>
+        <div class="stat"><strong>ORPHANED:</strong> <span class="value" id="orphaned-count">0</span></div>
+        <div class="stat"><strong>RENDER_TIME:</strong> <span class="value" id="render-time">0ms</span></div>
+        <div class="stat"><strong>FORCE_SIM:</strong> <span class="value" id="force-sim">STABLE</span></div>
+        
+        <!-- Close Button inside Panel -->
+        <button class="panel-close-btn" onclick="toggleInfoPanel()">×</button>
+    </div>
+    
+    <!-- Info Panel Toggle (Visible when panel is hidden) -->
+    <div id="panel-toggle" onclick="toggleInfoPanel()">i</div>
+    
+    <!-- Console Log - Bottom Left -->
+    <div id="console-log"></div>
+    
+    <!-- Legend - Bottom Right -->
+    <div id="legend"></div>
+    
+    <!-- Search - Top Center (Moved to Header) -->
+    <!-- <div id="search-box">...</div> -->
+    
+    <!-- Controls - Bottom Center -->
+    <div id="controls">
+        <button onclick="resetView()">RESET</button>
+        <button id="physics-btn" onclick="togglePhysics()">PHYSICS: ON</button>
+        <button id="labels-btn" onclick="toggleLabels()" class="active">LABELS: ON</button>
+        <button onclick="toggleFocusMode()" id="focus-btn">FOCUS: OFF</button>
+        <button onclick="toggleDiffMode()" id="diff-btn">DIFF: OFF</button>
+        <button onclick="exportScreenshot()">📸 SNAPSHOT</button>
+    </div>
+    
+    <!-- Diff Mode Panel - Snapshot Selector -->
+    <div id="diff-panel" style="display: none;">
+        <h3>SELECT SNAPSHOTS TO COMPARE</h3>
+        <div id="snapshot-selector">
+            <!-- Timeline Scrubber (Visual Timeline) -->
+            <div id="timeline-scrubber" style="display: none;">
+                <div class="timeline-container">
+                    <div class="timeline-track" id="timeline-track">
+                        <!-- Timeline markers will be generated here -->
+                    </div>
+                    <div class="timeline-handle previous" id="timeline-handle-previous"></div>
+                    <div class="timeline-handle current" id="timeline-handle-current"></div>
+                </div>
+                <div class="timeline-labels">
+                    <span id="timeline-label-previous">Previous</span>
+                    <span id="timeline-label-current">Current</span>
+                </div>
+            </div>
+            
+            <!-- Fallback Dropdowns (shown by default, hidden when timeline is ready) -->
+            <div id="snapshot-dropdowns">
+                <div class="snapshot-select">
+                    <label>Previous:</label>
+                    <select id="previous-snapshot"></select>
+                </div>
+                <div class="snapshot-select">
+                    <label>Current:</label>
+                    <select id="current-snapshot"></select>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button onclick="window.playTimeline()" id="play-btn" style="background: var(--accent); color: #000; border: none; padding: 6px 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;">▶ PLAY</button>
+                <button onclick="compareSnapshots()" id="compare-btn">COMPARE</button>
+                <button onclick="toggleShowContext()" id="context-btn" style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 6px 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;">SHOW CONTEXT</button>
+                <button onclick="generateDiffStory()" id="story-btn" style="background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 6px 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;">📖 TELL ME WHAT CHANGED</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Diff Storytelling Panel -->
+    <div id="diff-story-panel" style="display: none;">
+        <h3>📖 CHANGE NARRATIVE</h3>
+        <div id="diff-story-content"></div>
+        <button onclick="closeDiffStory()" style="margin-top: 12px; width: 100%; padding: 8px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: uppercase;">CLOSE</button>
+    </div>
+    
+    <!-- Diff Summary Panel -->
+    <div id="diff-summary" style="display: none;">
+        <h3>📊 DIFF IMPACT</h3>
+        <div id="diff-summary-content"></div>
+    </div>
+    
+    <!-- Floating Filter Pills (shown in diff mode) -->
+    <div id="diff-filters" style="display: none;">
+        <button class="filter-pill active" data-filter="all" onclick="applyDiffFilter('all')">
+            <span class="pill-icon">●</span>
+            <span class="pill-label">All</span>
+        </button>
+        <button class="filter-pill" data-filter="added" onclick="applyDiffFilter('added')">
+            <span class="pill-icon">+</span>
+            <span class="pill-label">Added</span>
+            <span class="pill-badge" id="added-count">0</span>
+        </button>
+        <button class="filter-pill" data-filter="removed" onclick="applyDiffFilter('removed')">
+            <span class="pill-icon">-</span>
+            <span class="pill-label">Removed</span>
+            <span class="pill-badge" id="removed-count">0</span>
+        </button>
+        <button class="filter-pill" data-filter="changed" onclick="applyDiffFilter('changed')">
+            <span class="pill-icon">~</span>
+            <span class="pill-label">Changed</span>
+            <span class="pill-badge" id="changed-count">0</span>
+        </button>
+    </div>
+    
+    <!-- Node Info - Bottom Left (shown on node click) -->
+    <div id="node-info"></div>
+    
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+    
+    <!-- Watermark (shown in snapshot mode) -->
+    <div class="watermark" id="watermark">
+        GENERATED BY ROHKUN // SYSTEM MAP v2.0<br>
+        TIMESTAMP: <span id="watermark-time"></span>
+    </div>
+    
+    <!-- Graveyard Zone (Second Consultation Specification) -->
+    <div id="graveyard-zone" class="graveyard-zone">
+        <div class="graveyard-header" onclick="toggleGraveyard()">
+            <h4>
+                🪦 REMOVED
+                <span class="graveyard-count" id="graveyard-count">0</span>
+            </h4>
+            <span class="graveyard-toggle">▼</span>
+        </div>
+        <div class="graveyard-items" id="graveyard-items">
+            <div class="graveyard-empty">✅ No endpoints removed</div>
+        </div>
+    </div>
+    
+    <!-- SVG Patterns for Accessibility (Second Consultation) -->
+    <svg width="0" height="0" style="position: absolute;">
+        <defs>
+            <!-- Pattern for Added Nodes -->
+            <pattern id="pattern-added" width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M0,4 L8,4 M4,0 L4,8" stroke="#00FFA3" stroke-width="1" opacity="0.3"/>
+            </pattern>
+            
+            <!-- Pattern for Removed Nodes -->
+            <pattern id="pattern-removed" width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M0,4 L8,4" stroke="#FF1744" stroke-width="1" opacity="0.3"/>
+            </pattern>
+            
+            <!-- Pattern for Changed Nodes -->
+            <pattern id="pattern-changed" width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M0,0 L8,8 M0,8 L8,0" stroke="#FFB300" stroke-width="1" opacity="0.2"/>
+            </pattern>
+        </defs>
+    </svg>
+    
+    <script>
+        // Toggle Info Panel
+        window.toggleInfoPanel = function() {
+            const panel = document.getElementById('info-panel');
+            const toggle = document.getElementById('panel-toggle');
+            
+            if (panel && toggle) {
+                panel.classList.toggle('hidden');
+                if (panel.classList.contains('hidden')) {
+                    toggle.classList.add('visible');
+                } else {
+                    toggle.classList.remove('visible');
+                }
+            }
+        };
+        
+        // Get API URL from query param or use default
+        const urlParams = new URLSearchParams(window.location.search);
+        const apiUrl = urlParams.get('api') || 'http://localhost:8002';
+        const reportName = urlParams.get('report') || null;
+        
+        // Initialize variables first (before any functions that use them)
+        let network = null;
+        let nodes = null;
+        let edges = null;
+        let physicsEnabled = true;
+        let labelsEnabled = true;
+        let focusModeEnabled = false;
+        let diffModeEnabled = false;
+        let allNodes = [];
+        let allEdges = [];
+        let currentGraphType = 'api'; // Initialize before use
+        let selectedNodeId = null;
+        let renderStartTime = null;
+        
+        // Diff mode state
+        let currentSnapshotData = null;
+        let previousSnapshotData = null;
+        let diffData = null;
+        let showUnchangedNodes = false;
+        let activeDiffFilters = ['all'];
+        let availableReports = [];
+        
+        // Extract current report number from file path
+        function getCurrentReportNumber() {
+            try {
+                // Primary: extract from current file path (most reliable)
+                const pathMatch = window.location.pathname.match(/reports[\/\\](\d+)[\/\\]/);
+                if (pathMatch) {
+                    return parseInt(pathMatch[1]);
+                }
+                
+                // Fallback: try to extract from embedded data
+                const embeddedData = document.getElementById('embedded-graph-data');
+                if (embeddedData) {
+                    const data = JSON.parse(embeddedData.textContent);
+                    const reportPath = data.report?.project?.path || '';
+                    // Extract report number from path like: .../reports/26/report.json
+                    const match = reportPath.match(/reports[\/\\](\d+)[\/\\]/);
+                    if (match) {
+                        return parseInt(match[1]);
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not extract report number:', e);
+            }
+            return null;
+        }
+        
+        // Navigate to previous/next report while preserving graph type
+        window.navigateReport = function(direction) {
+            const currentReportNum = getCurrentReportNumber();
+            if (currentReportNum === null) {
+                console.warn('Could not determine current report number');
+                return;
+            }
+            
+            const targetReportNum = currentReportNum + direction;
+            if (targetReportNum < 0) {
+                console.log('Already at first report');
+                return;
+            }
+            
+            // Get current graph type
+            const currentGraphType = window.currentGraphType || 'api';
+            
+            // Construct new path - replace report number in current path
+            let newPath = window.location.pathname;
+            newPath = newPath.replace(/reports[\/\\]\d+[\/\\]/, `reports/${targetReportNum}/`);
+            
+            // Add graph type to URL so it's preserved
+            const newUrl = new URL(window.location.href);
+            newUrl.pathname = newPath;
+            newUrl.searchParams.set('graph', currentGraphType);
+            
+            // Navigate to new report
+            window.location.href = newUrl.toString();
+        };
+        
+        // Update navigation button states on load
+        function updateNavigationButtons() {
+            const currentReportNum = getCurrentReportNumber();
+            const prevBtn = document.getElementById('nav-prev');
+            const nextBtn = document.getElementById('nav-next');
+            
+            if (currentReportNum !== null) {
+                // Disable prev button if we're at report 0
+                if (prevBtn) {
+                    prevBtn.disabled = currentReportNum <= 0;
+                    prevBtn.style.opacity = currentReportNum <= 0 ? '0.3' : '1';
+                    prevBtn.style.cursor = currentReportNum <= 0 ? 'not-allowed' : 'pointer';
+                }
+                
+                // For next button, we can't easily check if next exists without trying
+                // So we'll enable it and let it fail gracefully if report doesn't exist
+                if (nextBtn) {
+                    nextBtn.disabled = false;
+                    nextBtn.style.opacity = '1';
+                    nextBtn.style.cursor = 'pointer';
+                }
+            } else {
+                // Hide buttons if we can't determine report number
+                if (prevBtn) prevBtn.style.display = 'none';
+                if (nextBtn) nextBtn.style.display = 'none';
+            }
+        }
+        
+        // Check for graph type in URL and restore it (after variable declaration)
+        const graphTypeFromUrl = urlParams.get('graph');
+        if (graphTypeFromUrl && ['api', 'functions', 'files'].includes(graphTypeFromUrl)) {
+            currentGraphType = graphTypeFromUrl;
+        }
+        
+        // Console log entries
+        const consoleLog = document.getElementById('console-log');
+        let logEntries = [];
+        
+        function addLogEntry(message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry new';
+            entry.textContent = `> [SYSTEM] ${message}`;
+            logEntries.push(entry);
+            consoleLog.appendChild(entry);
+            
+            // Keep only last 10 entries
+            if (logEntries.length > 10) {
+                const oldEntry = logEntries.shift();
+                oldEntry.remove();
+            }
+            
+            // Auto-scroll to bottom
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+            
+            // Remove 'new' class after animation
+            setTimeout(() => entry.classList.remove('new'), 300);
+        }
+        
+        // Initialize console
+        addLogEntry('Graph system initializing...');
+        
+        // 3D intro code (init3DView, build3DGraph, transitionTo2D) will be injected here by html_generator.py
+        
+        // Legend data with v2.0 colors
+        const apiLegend = [
+            {color: '#3b82f6', label: 'GET'},
+            {color: '#00FF94', label: 'POST'},  // Neon Mint
+            {color: '#FFE600', label: 'PUT'},   // Electric Yellow
+            {color: '#00F0FF', label: 'PATCH'}, // Neon Cyan
+            {color: '#FF003C', label: 'DELETE'}, // Cyberpunk Red
+            {color: '#BC13FE', label: 'HIGH IMPACT'}, // Hot Pink
+            {color: '#374151', label: 'ORPHANED'}
+        ];
+        
+        const funcDepLegend = [
+            {color: '#7c3aed', label: 'FUNCTION'},  // Purple - Defined functions
+            {color: '#FFE600', label: 'CALLER'},    // Electric Yellow - Functions that call others
+            {color: '#00F0FF', label: 'EXTERNAL'},  // Neon Cyan - External/library functions
+            {color: '#BC13FE', label: 'HIGH IMPACT'}, // Hot Pink
+            {color: '#374151', label: 'ORPHANED'}
+        ];
+        
+        const depLegend = [
+            {color: '#00F0FF', label: 'PYTHON'},  // Neon Cyan
+            {color: '#FFE600', label: 'JAVASCRIPT'}, // Electric Yellow
+            {color: '#3178c6', label: 'TYPESCRIPT'},
+            {color: '#BC13FE', label: 'HIGH IMPACT'}, // Hot Pink
+            {color: '#374151', label: 'ORPHANED'}
+        ];
+        
+        function updateLegend(legendData) {
+            const legend = document.getElementById('legend');
+            const tooltip = document.getElementById('legend-tooltip');
+            
+            legend.innerHTML = '<h3>LEGEND</h3>';
+            
+            legendData.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'legend-item';
+                div.innerHTML = `
+                    <div class="legend-color" style="background: ${item.color}; color: ${item.color};"></div>
+                    <span>${item.label}</span>
+                `;
+                
+                if (item.desc) {
+                    div.style.cursor = 'help';
+                    div.addEventListener('mouseenter', (e) => {
+                        tooltip.innerHTML = `<strong>${item.label}</strong>${item.desc}`;
+                        tooltip.style.display = 'block';
+                        tooltip.style.borderLeftColor = item.color; // Match border color
+                    });
+                    div.addEventListener('mousemove', (e) => {
+                        // Position tooltip to the left of the mouse
+                        const x = e.clientX - tooltip.offsetWidth - 15;
+                        const y = e.clientY - 10;
+                        tooltip.style.left = x + 'px';
+                        tooltip.style.top = y + 'px';
+                    });
+                    div.addEventListener('mouseleave', () => {
+                        tooltip.style.display = 'none';
+                    });
+                }
+                legend.appendChild(div);
+            });
+        }
+        
+        // 3D-only mode: This function is replaced by window.switchGraph from html_generator.py
+        // But we keep it for UI updates (title, legend, buttons)
+        function switchGraph(type) {
+            // Check if FILES view is requested - show coming soon message
+            if (type === 'files' || type === 'dependency') {
+                const message = '🚧 FILES view is coming soon! This feature is currently under development.';
+                if (typeof showToast === 'function') {
+                    showToast(message);
+                } else {
+                    alert(message);
+                }
+                addLogEntry('FILES view requested - coming soon');
+                return; // Don't switch
+            }
+            
+            currentGraphType = type;
+            addLogEntry(`Switching to ${type.toUpperCase()} view...`);
+            
+            // Update toggle buttons (New Header Nav)
+            document.querySelectorAll('.nav-link').forEach(btn => btn.classList.remove('active'));
+            if (type === 'api') document.getElementById('nav-api').classList.add('active');
+            // Support both old and new names for backward compatibility
+            if (type === 'functions' || type === 'function_dependency') document.getElementById('nav-func').classList.add('active');
+            
+            // Update title (if element exists)
+            let title = 'API CONNECTIONS';
+            if (type === 'functions' || type === 'function_dependency') {
+                title = 'FUNCTIONS';
+            } else if (type === 'files' || type === 'dependency') {
+                title = 'FILES';
+            }
+            const titleEl = document.getElementById('graph-title');
+            if (titleEl) {
+                titleEl.textContent = title;
+            }
+            
+            // Update legend
+            let legend = apiLegend;
+            if (type === 'functions' || type === 'function_dependency') {
+                legend = funcDepLegend;
+            } else if (type === 'files' || type === 'dependency') {
+                legend = depLegend;
+            }
+            updateLegend(legend);
+            
+            // If in diff mode, clear diff data and reload
+            if (diffModeEnabled) {
+                diffData = null;
+                currentSnapshotData = null;
+                previousSnapshotData = null;
+                addLogEntry('Diff mode active - reloading snapshots for new graph type');
+            }
+            
+            // Call the 3D switchGraph3D function (from html_generator.py)
+            // This gets data from translator and renders 3D graph
+            if (typeof window.switchGraph3D === 'function') {
+                window.switchGraph3D(type);
+            } else {
+                console.error('[KG] window.switchGraph3D not available - 3D graph system not initialized');
+            }
+        }
+        
+        // Wrapper function that uses GraphDataTranslator (new unified system)
+        // All graph data now goes through the translator -> renderer path
+        function getEmbeddedGraphData(graphType, silent = false) {
+            if (!window.GraphDataTranslator) {
+                console.error('[KG] GraphDataTranslator not available - graph system not initialized');
+                return { nodes: [], edges: [], summary: {}, report: {} };
+            }
+            
+            // Use translator to get normalized graph data
+            return window.GraphDataTranslator.translate(graphType, false);
+        }
+        
+        async function loadGraphData(type) {
+            return new Promise(async (resolve, reject) => {
+            try {
+                // Store type in a variable accessible to nested functions
+                const graphType = type;
+                renderStartTime = performance.now();
+                addLogEntry('Loading graph data...');
+                
+                // Get normalized graph data via translator (unified system)
+                let data = null;
+                if (window.GraphDataTranslator) {
+                    data = window.GraphDataTranslator.translate(type, false);
+                    if (data && data.nodes && data.nodes.length > 0) {
+                        console.log(`[KG] Loaded ${type} graph via translator: ${data.nodes.length} nodes, ${data.edges.length} edges`);
+                    }
+                }
+                
+                if (data && data.nodes && data.nodes.length > 0) {
+                    // Data loaded via translator - already normalized
+                } else {
+                addLogEntry('Fetching graph data...');
+                let endpoint = 'api-connections';
+                if (type === 'files' || type === 'dependency') {
+                    endpoint = 'dependencies';
+                } else if (type === 'functions' || type === 'function_dependency') {
+                    endpoint = 'function-dependencies';
+                }
+                const url = reportName 
+                    ? `${apiUrl}/api/graph/${endpoint}?report=${encodeURIComponent(reportName)}`
+                    : `${apiUrl}/api/graph/${endpoint}`;
+                
+                    console.log('[KG] Loading from:', url);
+                    const loadingEl = document.getElementById('loading');
+                    if (loadingEl) {
+                        loadingEl.style.display = 'block';
+                    }
+                
+                const response = await fetch(url);
+                    console.log('[KG] Response:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('[KG] API Error:', response.status, errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                    data = await response.json();
+                    console.log('[KG] Data received:', {
+                        nodes: data.nodes?.length || 0,
+                        edges: data.edges?.length || 0,
+                        summary: data.summary
+                    });
+                
+                if (data.error) {
+                        console.error('[KG] Data error:', data.error);
+                    throw new Error(data.error);
+                    }
+                }
+                
+                allNodes = data.nodes || [];
+                allEdges = data.edges || [];
+                
+                console.log('[KG] Loaded nodes:', allNodes.map(n => ({id: n.id, label: n.label, type: n.type})));
+                console.log('[KG] Loaded edges:', allEdges.map(e => {
+                    const fromNode = allNodes.find(n => n.id === e.from);
+                    const toNode = allNodes.find(n => n.id === e.to);
+                    return {
+                        from: e.from, 
+                        to: e.to, 
+                        label: e.label,
+                        fromNode: fromNode?.label || 'NOT FOUND',
+                        toNode: toNode?.label || 'NOT FOUND',
+                        arrowDirection: `${fromNode?.label || e.from} → ${toNode?.label || e.to}`,
+                        arrows: e.arrows
+                    };
+                }));
+                
+                addLogEntry(`${allNodes.length} nodes, ${allEdges.length} edges loaded`);
+                
+                // Update info panel
+                document.getElementById('node-count').textContent = data.summary?.total_nodes || allNodes.length;
+                document.getElementById('edge-count').textContent = data.summary?.total_edges || allEdges.length;
+                document.getElementById('high-impact-count').textContent = data.summary?.high_impact || 0;
+                
+                // Update orphaned count if available
+                if (data.summary?.orphaned !== undefined) {
+                    const orphanedEl = document.getElementById('orphaned-count');
+                    if (orphanedEl) {
+                        orphanedEl.textContent = data.summary.orphaned;
+                    }
+                    if (data.summary.orphaned > 0) {
+                        addLogEntry(`${data.summary.orphaned} orphaned nodes detected`);
+                    }
+                }
+                
+                // Load project name
+                if (data.report?.project?.name) {
+                    // Use project name from embedded data
+                    document.getElementById('project-name').textContent = 
+                        (data.report.project.name || 'UNKNOWN').toUpperCase();
+                } else if (apiUrl && !window.location.protocol.includes('file:')) {
+                    // Try to fetch from API (only if not using embedded data)
+                try {
+                    const reportResponse = await fetch(`${apiUrl}/api/reports/latest`);
+                    if (reportResponse.ok) {
+                        const reportData = await reportResponse.json();
+                        document.getElementById('project-name').textContent = 
+                            (reportData.report?.project?.name || 'UNKNOWN').toUpperCase();
+                    }
+                } catch (e) {
+                    console.warn('Could not load project name:', e);
+                        document.getElementById('project-name').textContent = 'UNKNOWN';
+                    }
+                } else {
+                    document.getElementById('project-name').textContent = 'UNKNOWN';
+                }
+                
+                initGraph();
+                resolve();
+                
+            } catch (error) {
+                console.error('[KG] Failed to load graph data:', error);
+                console.error('[KG] Error stack:', error.stack);
+                addLogEntry(`ERROR: ${error.message}`);
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) {
+                    loadingEl.innerHTML = `
+                    <div style="color: var(--error);">
+                        <h3>❌ FAILED TO LOAD GRAPH</h3>
+                        <p>${error.message}</p>
+                        <p style="margin-top: 10px; font-size: 10px; color: var(--text-secondary);">
+                            Make sure the API server is running on ${apiUrl}
+                        </p>
+                            <p style="margin-top: 5px; font-size: 10px; color: var(--text-secondary);">
+                                Check browser console (F12) for detailed error logs
+                            </p>
+                    </div>
+                `;
+                }
+                reject(error);
+            }
+            });
+        }
+        
+        function initGraph() {
+            const container = document.getElementById('network-container');
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                loadingEl.style.display = 'none';
+            }
+            
+            // Clear edge animation system (but keep network alive)
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            animatedEdges = [];
+            dashOffset = 0;
+            
+            // Enhance edges with animated dashes and ensure correct arrow direction
+            const enhancedEdges = allEdges.map((edge, index) => {
+                const enhanced = {...edge};
+                
+                // Log edge data for debugging (use allNodes array since nodes DataSet doesn't exist yet)
+                const fromNode = allNodes.find(n => n.id === enhanced.from);
+                const toNode = allNodes.find(n => n.id === enhanced.to);
+                const edgeInfo = {
+                    id: enhanced.id || `${enhanced.from}->${enhanced.to}`,
+                    from: enhanced.from,
+                    to: enhanced.to,
+                    label: enhanced.label,
+                    fromNode: fromNode?.label || 'NOT FOUND',
+                    fromNodeType: fromNode?.type || 'unknown',
+                    toNode: toNode?.label || 'NOT FOUND',
+                    toNodeType: toNode?.type || 'unknown',
+                    arrowDirection: `${fromNode?.label || enhanced.from} → ${toNode?.label || enhanced.to}`,
+                    arrows: enhanced.arrows
+                };
+                console.log(`[KG] Edge ${index}:`, JSON.stringify(edgeInfo, null, 2));
+                
+                // Ensure arrow points from source to target (from -> to)
+                if (!enhanced.arrows) {
+                    enhanced.arrows = { to: { enabled: true, scaleFactor: 0.7 } };
+                } else if (!enhanced.arrows.to) {
+                    enhanced.arrows.to = { enabled: true, scaleFactor: 0.7 };
+                } else {
+                    enhanced.arrows.to.enabled = true; // Ensure arrow is enabled
+                }
+                // Add dashes to all edges for animation (will be animated in direction from->to)
+                enhanced.dashes = [8, 4]; // [dashLength, gapLength] - initial pattern
+                return enhanced;
+            });
+            
+            // Enhance nodes with glow effects and formatting
+            const enhancedNodes = allNodes.map(node => {
+                const enhanced = {...node};
+                
+                // Format label with brackets
+                if (enhanced.label) {
+                    if (currentGraphType === 'api') {
+                        const method = enhanced.method || 'UNKNOWN';
+                        const path = enhanced.path || enhanced.url || 'unknown';
+                        enhanced.label = `[${method}] :: ${path}`;
+                    } else {
+                        enhanced.label = enhanced.label.toUpperCase();
+                    }
+                }
+                
+                // Add glow effect to color
+                const baseColor = enhanced.color?.background || enhanced.color || '#7c3aed';
+                enhanced.color = {
+                    background: baseColor,
+                    border: baseColor,
+                    highlight: {
+                        background: baseColor,
+                        border: '#ffffff'
+                    }
+                };
+                
+                // Add shadow/glow via custom styling (OPTIMIZED - Consultant Recommendation)
+                // Static glow baked into node (not animated) for performance
+                // Only animated glow on hover/focus (handled in event handlers)
+                enhanced.shadow = {
+                    enabled: true,
+                    color: baseColor,
+                    size: 12,  // Slightly reduced for performance
+                    x: 0,
+                    y: 0
+                };
+                
+                // Pulse animation for high impact nodes (CSS-based, not shadow-based)
+                if (enhanced.high_impact) {
+                    enhanced.font = {
+                        ...enhanced.font,
+                        size: (enhanced.font?.size || 11) + 1
+                    };
+                    // Add CSS class for pulse animation (more performant than animating shadow)
+                    enhanced.className = (enhanced.className || '') + ' high-impact-pulse';
+                }
+                
+                return enhanced;
+            });
+            
+            // Update or create datasets
+            if (nodes && edges) {
+                // Network already exists - update the existing DataSets
+                console.log('[KG] Updating existing graph data');
+                nodes.clear();
+                edges.clear();
+                nodes.add(enhancedNodes);
+                edges.add(enhancedEdges);
+            } else {
+                // First time - create new DataSets
+                console.log('[KG] Creating new graph data');
+                nodes = new vis.DataSet(enhancedNodes);
+                edges = new vis.DataSet(enhancedEdges);
+            }
+            
+            // Make nodes accessible to 3D transition code
+            window.nodes = nodes;
+            
+            // Network options - v2.0 physics (heavier, more expensive feel)
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    font: {
+                        color: '#E5E5E5',
+                        size: 10,
+                        face: 'JetBrains Mono',
+                        align: 'center'
+                    },
+                    borderWidth: 2,
+                    shadow: {
+                        enabled: true,
+                        color: 'rgba(124, 58, 237, 0.5)',  // Slightly reduced opacity for performance
+                        size: 12,  // Reduced from 15 for better performance (Consultant Optimization)
+                        x: 0,
+                        y: 0
+                    },
+                    scaling: {
+                        min: 10,
+                        max: 50
+                    }
+                },
+                edges: {
+                    arrows: {
+                        to: {
+                            enabled: true,
+                            scaleFactor: 0.7
+                        }
+                    },
+                    font: {
+                        color: '#E5E5E5',  // Off-white for better visibility
+                        size: 10,
+                        face: 'JetBrains Mono',
+                        strokeWidth: 3,  // Text stroke for contrast
+                        strokeColor: '#050505'  // Dark stroke for visibility
+                    },
+                    labelHighlightBold: true,
+                    shadow: {
+                        enabled: false
+                    },
+                    smooth: {
+                        type: 'continuous',
+                        roundness: 0.5
+                    }
+                },
+                physics: {
+                    enabled: physicsEnabled,  // Controlled by toggle button
+                    stabilization: {
+                        enabled: true,
+                        iterations: 200,
+                        updateInterval: 50,
+                        onlyDynamicEdges: false,
+                        fit: true  // Fit network to viewport after stabilization
+                    },
+                    barnesHut: {
+                        theta: 0.5,  // Barnes-Hut approximation parameter (default: 0.5)
+                        gravitationalConstant: -2000,
+                        centralGravity: 0.1,
+                        springLength: currentGraphType === 'api' ? 180 : 200,
+                        springConstant: 0.04,
+                        damping: 0.12,  // Increased for heavier feel
+                        // Dynamic avoidOverlap based on node count (Consultant Optimization)
+                        // For large graphs (>500 nodes), reduce to prevent CPU overload
+                        // During stabilization, can be even lower, then increase when stable
+                        avoidOverlap: (allNodes.length > 500) ? 0.5 : 1
+                    },
+                    // Consultant Recommendation: Adaptive physics for large graphs
+                    adaptiveTimestep: allNodes.length > 500,
+                    maxVelocity: allNodes.length > 500 ? 5 : 50  // Limit velocity for large graphs
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 100,
+                    zoomView: true,
+                    dragView: true
+                },
+                layout: {
+                    improvedLayout: true
+                }
+            };
+            
+            // Create or update network
+            if (!network) {
+                // First time - create network
+                console.log('[KG] Creating new network');
+                const data = { nodes: nodes, edges: edges };
+                network = new vis.Network(container, data, options);
+                
+                // Make network accessible to 3D transition code
+                window.network = network;
+            } else {
+                // Network already exists - data was updated above
+                console.log('[KG] Network updated with new data - fitting view');
+                console.log('[KG] Network object exists:', !!network);
+                console.log('[KG] Nodes count:', nodes.length);
+                console.log('[KG] Edges count:', edges.length);
+                
+                // Note: 3D graph switching is handled separately by switchGraph() from button clicks
+                // Don't call switchGraph here to avoid infinite loops
+                
+                // Fit the view to show all nodes with animation
+                try {
+                    network.fit({
+                        animation: {
+                            duration: 500,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                } catch (e) {
+                    console.error('[KG] Error fitting network:', e);
+                }
+            }
+            
+            // If in diff mode and diff data exists, apply diff visualization after network is created
+            if (diffModeEnabled && diffData && currentSnapshotData) {
+                setTimeout(() => {
+                    applyDiffVisualization();
+                }, 100);
+            }
+            
+            // Calculate render time
+            const renderTime = Math.round(performance.now() - renderStartTime);
+            document.getElementById('render-time').textContent = `${renderTime}ms`;
+            addLogEntry(`Graph rendered in ${renderTime}ms`);
+            addLogEntry('Force simulation: STABLE');
+            
+            // Event handlers
+            network.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const node = nodes.get(nodeId);
+                    selectedNodeId = nodeId;
+                    showNodeInfo(node);
+                    
+                    // Track time to insight (Second Consultation)
+                    if (diffModeEnabled && diffModeEnabledAt && !firstInsightRecorded) {
+                        const timeToInsight = Date.now() - diffModeEnabledAt;
+                        metrics.diffMode.timeToFirstInsight.push(timeToInsight);
+                        firstInsightRecorded = true;
+                        console.log(`Time to first insight: ${timeToInsight}ms`);
+                    }
+                    
+                    if (focusModeEnabled) {
+                        applyFocusMode(nodeId);
+                    }
+                } else {
+                    hideNodeInfo();
+                    selectedNodeId = null;
+                    if (focusModeEnabled) {
+                        clearFocusMode();
+                    }
+                }
+            });
+            
+            network.on('hoverNode', function(params) {
+                container.style.cursor = 'pointer';
+                // Intensify glow on hover (only on hover - Consultant Optimization)
+                const node = nodes.get(params.node);
+                if (node) {
+                    const baseColor = node.color?.background || node.color || '#7c3aed';
+                    nodes.update({
+                        id: params.node,
+                        shadow: {
+                            enabled: true,
+                            color: baseColor,
+                            size: 20,  // Increased glow on hover (but not too extreme)
+                            x: 0,
+                            y: 0
+                        }
+                    });
+                }
+            });
+            
+            network.on('blurNode', function(params) {
+                container.style.cursor = 'default';
+                // Restore normal glow (static, not animated)
+                const node = nodes.get(params.node);
+                if (node) {
+                    const baseColor = node.color?.background || node.color || '#7c3aed';
+                    nodes.update({
+                        id: params.node,
+                        shadow: {
+                            enabled: true,
+                            color: baseColor,
+                            size: 12,  // Static glow size (Consultant Optimization)
+                            x: 0,
+                            y: 0
+                        }
+                    });
+                }
+            });
+            
+            network.on('stabilizationEnd', function() {
+                addLogEntry('Physics simulation stabilized');
+                document.getElementById('force-sim').textContent = 'STABLE';
+                
+                // Recreate animated edges after stabilization (nodes are now in final positions)
+                setTimeout(() => {
+                    if (typeof createAnimatedEdges === 'function') {
+                        createAnimatedEdges();
+                        // Ensure animation is running
+                        if (!animationFrameId) {
+                            animateDashedLines();
+                        }
+                    }
+                }, 500);
+            });
+            
+            // Listen for stabilization progress to update UI
+            network.on('stabilizationProgress', function(params) {
+                const progress = Math.round((params.iterations / params.total) * 100);
+                document.getElementById('force-sim').textContent = `STABILIZING ${progress}%`;
+            });
+            
+            // Search functionality
+            const searchInput = document.getElementById('search-input');
+            let searchTimeout = null;
+            
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(function() {
+                    const query = e.target.value.toLowerCase();
+                    if (query === '') {
+                        nodes.update(enhancedNodes);
+                    } else {
+                        const filtered = enhancedNodes.filter(node => {
+                            return (node.label || '').toLowerCase().includes(query) ||
+                                   (node.path || node.file_path || '').toLowerCase().includes(query) ||
+                                   (node.method || '').toLowerCase().includes(query);
+                        });
+                        nodes.update(filtered);
+                        addLogEntry(`Filtered to ${filtered.length} nodes`);
+                    }
+                }, 300);
+            });
+        }
+        
+        function showNodeInfo(node) {
+            const infoDiv = document.getElementById('node-info');
+            const consoleDiv = document.getElementById('console-log');
+            if (consoleDiv) {
+            consoleDiv.style.display = 'none';
+            }
+            
+            // Get node type for header
+            const nodeType = node.type || 'NODE';
+            const nodeTypeLabel = nodeType === 'endpoint_function' ? 'ENDPOINT' : 
+                                 nodeType === 'api_call_function' ? 'API CALL' :
+                                 nodeType === 'file' ? 'FILE' : 'NODE';
+            
+            let html = `<h3>${nodeTypeLabel}</h3>`;
+            
+            if (currentGraphType === 'api') {
+                const method = (node.method || 'UNKNOWN').toUpperCase();
+                const path = node.path || node.url || 'unknown';
+                const file = node.file || 'unknown';
+                const line = node.line || '?';
+                const connections = node.connections || 0;
+                const highImpact = node.high_impact ? 'YES' : 'NO';
+                
+                html += `
+                    <div class="stat">
+                        <strong>METHOD:</strong>
+                        <span class="value">${method}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>PATH:</strong>
+                        <span class="value" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${path}">${path.length > 25 ? path.substring(0, 22) + '...' : path}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>FILE:</strong>
+                        <span class="value" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${file}">${file.length > 25 ? file.substring(0, 22) + '...' : file}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>LINE:</strong>
+                        <span class="value">${line}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>CONNECTIONS:</strong>
+                        <span class="value">${connections}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>HIGH IMPACT:</strong>
+                        <span class="value" style="color: ${highImpact === 'YES' ? '#ff003c' : '#00ff94'}">${highImpact}</span>
+                    </div>
+                `;
+            } else {
+                const filePath = node.file_path || node.file || 'unknown';
+                const fileName = node.file_name || filePath.split('/').pop() || 'unknown';
+                const extension = (node.extension || filePath.split('.').pop() || 'unknown').toUpperCase();
+                const endpoints = node.endpoint_count || 0;
+                const functions = node.function_count || 0;
+                const imports = node.import_count || 0;
+                const highImpact = node.high_impact ? 'YES' : 'NO';
+                
+                html += `
+                    <div class="stat">
+                        <strong>FILE:</strong>
+                        <span class="value" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${fileName}">${fileName.length > 25 ? fileName.substring(0, 22) + '...' : fileName}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>PATH:</strong>
+                        <span class="value" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${filePath}">${filePath.length > 25 ? filePath.substring(0, 22) + '...' : filePath}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>EXTENSION:</strong>
+                        <span class="value">${extension}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>ENDPOINTS:</strong>
+                        <span class="value">${endpoints}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>FUNCTIONS:</strong>
+                        <span class="value">${functions}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>IMPORTS:</strong>
+                        <span class="value">${imports}</span>
+                    </div>
+                    <div class="stat">
+                        <strong>HIGH IMPACT:</strong>
+                        <span class="value" style="color: ${highImpact === 'YES' ? '#ff003c' : '#00ff94'}">${highImpact}</span>
+                    </div>
+                `;
+            }
+            
+            infoDiv.innerHTML = html;
+            infoDiv.classList.add('visible');
+        }
+        
+        function hideNodeInfo() {
+            document.getElementById('node-info').classList.remove('visible');
+            document.getElementById('console-log').style.display = 'block';
+        }
+        
+        function resetView() {
+            if (network) {
+                network.fit({
+                    animation: {
+                        duration: 1000,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+                addLogEntry('View reset to fit all nodes');
+            }
+        }
+        
+        function togglePhysics() {
+            if (network) {
+                physicsEnabled = !physicsEnabled;
+                network.setOptions({ physics: { enabled: physicsEnabled } });
+                document.getElementById('physics-btn').textContent = `PHYSICS: ${physicsEnabled ? 'ON' : 'OFF'}`;
+                document.getElementById('physics-btn').classList.toggle('active', physicsEnabled);
+                document.getElementById('force-sim').textContent = physicsEnabled ? 'STABLE' : 'FROZEN';
+                addLogEntry(`Physics simulation ${physicsEnabled ? 'enabled' : 'disabled'}`);
+            }
+        }
+        
+        function toggleLabels() {
+            if (nodes && allNodes) {
+                labelsEnabled = !labelsEnabled;
+                const update = allNodes.map(node => ({
+                    ...node,
+                    font: { ...(node.font || {}), size: labelsEnabled ? 10 : 0 }
+                }));
+                nodes.update(update);
+                document.getElementById('labels-btn').textContent = `LABELS: ${labelsEnabled ? 'ON' : 'OFF'}`;
+                document.getElementById('labels-btn').classList.toggle('active', labelsEnabled);
+            }
+        }
+        
+        function toggleFocusMode() {
+            focusModeEnabled = !focusModeEnabled;
+            document.getElementById('focus-btn').textContent = `FOCUS: ${focusModeEnabled ? 'ON' : 'OFF'}`;
+            document.getElementById('focus-btn').classList.toggle('active', focusModeEnabled);
+            
+            if (!focusModeEnabled) {
+                clearFocusMode();
+            } else if (selectedNodeId) {
+                applyFocusMode(selectedNodeId);
+            }
+            addLogEntry(`Focus mode ${focusModeEnabled ? 'enabled' : 'disabled'}`);
+        }
+        
+        // ============================================
+        // DIFF MODE FUNCTIONS (Consultation Standards)
+        // ============================================
+        
+        async function toggleDiffMode() {
+            diffModeEnabled = !diffModeEnabled;
+            const diffBtn = document.getElementById('diff-btn');
+            const diffPanel = document.getElementById('diff-panel');
+            const diffSummary = document.getElementById('diff-summary');
+            const diffFilters = document.getElementById('diff-filters');
+            const graveyardZone = document.getElementById('graveyard-zone');
+            
+            diffBtn.textContent = `DIFF: ${diffModeEnabled ? 'ON' : 'OFF'}`;
+            diffBtn.classList.toggle('active', diffModeEnabled);
+            
+            if (diffModeEnabled) {
+                // Track metrics
+                diffModeEnabledAt = Date.now();
+                firstInsightRecorded = false;
+                metrics.diffMode.enabled++;
+                
+                // Show diff UI
+                diffPanel.style.display = 'block';
+                diffFilters.style.display = 'flex';
+                
+                // Load available reports
+                await loadAvailableReports();
+                
+                // Set defaults: latest vs second-latest
+                if (availableReports.length >= 2) {
+                    document.getElementById('current-snapshot').value = availableReports[0].filename;
+                    document.getElementById('previous-snapshot').value = availableReports[1].filename;
+                }
+                
+                addLogEntry('Diff mode enabled - select snapshots to compare');
+            } else {
+                // Hide diff UI
+                diffPanel.style.display = 'none';
+                diffSummary.style.display = 'none';
+                diffFilters.style.display = 'none';
+                graveyardZone.classList.remove('visible');
+                
+                // Reset to normal view
+                if (currentGraphType === 'api') {
+                    loadGraphData('api');
+                    // Update navigation buttons after graph loads
+                    setTimeout(updateNavigationButtons, 500);
+                } else {
+                    loadGraphData('dependency');
+                }
+                
+                addLogEntry('Diff mode disabled - returning to normal view');
+            }
+        }
+        
+        async function loadAvailableReports() {
+            try {
+                const response = await fetch(`${apiUrl}/api/reports/list`);
+                if (!response.ok) throw new Error('Failed to load reports');
+                
+                const data = await response.json();
+                availableReports = data.reports || [];
+                
+                // Populate dropdowns (fallback)
+                const currentSelect = document.getElementById('current-snapshot');
+                const previousSelect = document.getElementById('previous-snapshot');
+                
+                currentSelect.innerHTML = '';
+                previousSelect.innerHTML = '';
+                
+                availableReports.forEach((report, index) => {
+                    const date = new Date(report.generated_at);
+                    const label = `#${availableReports.length - index} - ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+                    
+                    const option1 = document.createElement('option');
+                    option1.value = report.filename;
+                    option1.textContent = label;
+                    currentSelect.appendChild(option1);
+                    
+                    const option2 = document.createElement('option');
+                    option2.value = report.filename;
+                    option2.textContent = label;
+                    previousSelect.appendChild(option2);
+                });
+                
+                // Initialize timeline scrubber if we have reports
+                if (availableReports.length >= 2) {
+                    initTimelineScrubber();
+                }
+                
+                addLogEntry(`Loaded ${availableReports.length} reports`);
+            } catch (error) {
+                console.error('Failed to load reports:', error);
+                addLogEntry(`ERROR: Failed to load reports - ${error.message}`);
+            }
+        }
+        
+        function initTimelineScrubber() {
+            const timelineTrack = document.getElementById('timeline-track');
+            const timelineScrubber = document.getElementById('timeline-scrubber');
+            const snapshotDropdowns = document.getElementById('snapshot-dropdowns');
+            
+            if (!timelineTrack || availableReports.length < 2) {
+                return; // Fallback to dropdowns
+            }
+            
+            // Show timeline, hide dropdowns
+            timelineScrubber.style.display = 'block';
+            snapshotDropdowns.style.display = 'none';
+            
+            // Clear existing markers
+            timelineTrack.innerHTML = '';
+            
+            // Create timeline markers
+            availableReports.forEach((report, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'timeline-marker';
+                marker.dataset.index = index;
+                marker.dataset.filename = report.filename;
+                
+                const date = new Date(report.generated_at);
+                const position = (index / (availableReports.length - 1)) * 100;
+                
+                marker.style.left = `${position}%`;
+                
+                const label = document.createElement('div');
+                label.className = 'timeline-marker-label';
+                label.textContent = `#${availableReports.length - index}`;
+                marker.appendChild(label);
+                
+                marker.addEventListener('click', () => {
+                    // Toggle selection
+                    const isSelected = marker.classList.contains('selected');
+                    document.querySelectorAll('.timeline-marker').forEach(m => m.classList.remove('selected'));
+                    if (!isSelected) {
+                        marker.classList.add('selected');
+                    }
+                });
+                
+                timelineTrack.appendChild(marker);
+            });
+            
+            // Initialize handles (default: latest vs second-latest)
+            const handlePrevious = document.getElementById('timeline-handle-previous');
+            const handleCurrent = document.getElementById('timeline-handle-current');
+            
+            if (availableReports.length >= 2) {
+                // Previous: second-latest (index 1)
+                const prevPosition = (1 / (availableReports.length - 1)) * 100;
+                handlePrevious.style.left = `${prevPosition}%`;
+                handlePrevious.dataset.index = '1';
+                handlePrevious.dataset.filename = availableReports[1].filename;
+                
+                // Current: latest (index 0)
+                handleCurrent.style.left = '100%';
+                handleCurrent.dataset.index = '0';
+                handleCurrent.dataset.filename = availableReports[0].filename;
+                
+                // Update dropdowns to match
+                document.getElementById('previous-snapshot').value = availableReports[1].filename;
+                document.getElementById('current-snapshot').value = availableReports[0].filename;
+                
+                // Make handles draggable
+                makeHandleDraggable(handlePrevious, 'previous');
+                makeHandleDraggable(handleCurrent, 'current');
+            }
+        }
+        
+        function makeHandleDraggable(handle, type) {
+            const track = document.getElementById('timeline-track');
+            let isDragging = false;
+            
+            handle.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const trackRect = track.getBoundingClientRect();
+                const x = e.clientX - trackRect.left;
+                const percentage = Math.max(0, Math.min(100, (x / trackRect.width) * 100));
+                
+                handle.style.left = `${percentage}%`;
+                
+                // Find closest marker
+                const markers = Array.from(document.querySelectorAll('.timeline-marker'));
+                let closestMarker = null;
+                let closestDistance = Infinity;
+                
+                markers.forEach(marker => {
+                    const markerPos = parseFloat(marker.style.left);
+                    const distance = Math.abs(percentage - markerPos);
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestMarker = marker;
+                    }
+                });
+                
+                if (closestMarker) {
+                    handle.style.left = closestMarker.style.left;
+                    handle.dataset.index = closestMarker.dataset.index;
+                    handle.dataset.filename = closestMarker.dataset.filename;
+                    
+                    // Update corresponding dropdown
+                    if (type === 'previous') {
+                        document.getElementById('previous-snapshot').value = closestMarker.dataset.filename;
+                    } else {
+                        document.getElementById('current-snapshot').value = closestMarker.dataset.filename;
+                    }
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+        }
+        
+        async function compareSnapshots() {
+            const currentFilename = document.getElementById('current-snapshot').value;
+            const previousFilename = document.getElementById('previous-snapshot').value;
+            
+            if (!currentFilename || !previousFilename) {
+                addLogEntry('ERROR: Please select both snapshots');
+                showToast('Please select both snapshots', 'error');
+                return;
+            }
+            
+            if (currentFilename === previousFilename) {
+                addLogEntry('ERROR: Cannot compare snapshot to itself');
+                showToast('Cannot compare snapshot to itself', 'error');
+                return;
+            }
+            
+            addLogEntry('Loading snapshots for comparison...');
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                // Load both snapshots in parallel
+                let endpoint = 'api-connections';
+                if (currentGraphType === 'files' || currentGraphType === 'dependency') {
+                    endpoint = 'dependencies';
+                } else if (currentGraphType === 'functions' || currentGraphType === 'function_dependency') {
+                    endpoint = 'function-dependencies';
+                }
+                const [currentResponse, previousResponse] = await Promise.all([
+                    fetch(`${apiUrl}/api/graph/${endpoint}?report=${encodeURIComponent(currentFilename)}`),
+                    fetch(`${apiUrl}/api/graph/${endpoint}?report=${encodeURIComponent(previousFilename)}`)
+                ]);
+                
+                if (!currentResponse.ok) {
+                    throw new Error(`Failed to load current snapshot: ${currentResponse.statusText}`);
+                }
+                if (!previousResponse.ok) {
+                    throw new Error(`Failed to load previous snapshot: ${previousResponse.statusText}`);
+                }
+                
+                currentSnapshotData = await currentResponse.json();
+                previousSnapshotData = await previousResponse.json();
+                
+                // Validate data
+                if (!currentSnapshotData.nodes || !previousSnapshotData.nodes) {
+                    throw new Error('Invalid snapshot data: missing nodes');
+                }
+                
+                // Compute diff client-side (instant, no API call)
+                const computeStart = performance.now();
+                diffData = computeDiffClientSide(currentSnapshotData, previousSnapshotData);
+                const computeTime = performance.now() - computeStart;
+                
+                // Track performance metrics (Second Consultation)
+                if (metrics && metrics.performance) {
+                    metrics.performance.diffComputationTime.push(computeTime);
+                }
+                
+                const added = diffData.added_endpoints.length;
+                const removed = diffData.removed_endpoints.length;
+                const changed = diffData.changed_endpoints.length;
+                
+                addLogEntry(`Diff computed in ${computeTime.toFixed(2)}ms: ${added} added, ${removed} removed, ${changed} changed`);
+                
+                if (added === 0 && removed === 0 && changed === 0) {
+                    showToast('No differences found between snapshots', 'info');
+                } else {
+                    showToast(`Found ${added + removed + changed} changes`, 'success');
+                }
+                
+                // Apply diff visualization
+                applyDiffVisualization();
+                
+                // Show diff summary
+                renderDiffSummary(diffData);
+                
+            } catch (error) {
+                console.error('Failed to compare snapshots:', error);
+                addLogEntry(`ERROR: ${error.message}`);
+                showToast(`Error: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast visible ${type}`;
+            toast.style.borderColor = type === 'error' ? 'var(--error)' : 
+                                      type === 'info' ? 'var(--accent)' : 'var(--success)';
+            
+            setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 3000);
+        }
+        
+        // Diff comparison strategy: "Free Comparison" (Consultant Recommendation)
+        // Both snapshots stabilize independently for easier visual comparison
+        // Alternative: "Anchored Comparison" would try to match layouts (more complex)
+        let diffComparisonStrategy = 'free'; // 'free' or 'anchored'
+        
+        function computeDiffClientSide(current, previous) {
+            // OPTIMIZED - Consultant Recommendation: Use Maps for O(1) lookups
+            const currentKeys = new Map(); // key -> node
+            const previousKeys = new Map(); // key -> node
+            
+            // For API graph: use method:path as key
+            // For dependency graph: use file_path as key
+            const getNodeKey = (node) => {
+                if (currentGraphType === 'api') {
+                    return `${node.method || 'UNKNOWN'}:${node.path || node.url || 'unknown'}`;
+                } else {
+                    return node.file_path || node.id;
+                }
+            };
+            
+            // Build key maps (O(n) instead of O(n²) lookups)
+            (current.nodes || []).forEach(node => {
+                const key = getNodeKey(node);
+                currentKeys.set(key, node);
+            });
+            
+            (previous.nodes || []).forEach(node => {
+                const key = getNodeKey(node);
+                previousKeys.set(key, node);
+            });
+            
+            // Find added, removed, changed (optimized with Map lookups)
+            const added = [];
+            const removed = [];
+            const changed = [];
+            
+            // Check current nodes
+            currentKeys.forEach((node, key) => {
+                if (!previousKeys.has(key)) {
+                    added.push(node);
+                } else {
+                    // Compare for changes (only check relevant properties for performance)
+                    const prevNode = previousKeys.get(key);
+                    if (hasNodeChanged(node, prevNode)) {
+                        changed.push(node);
+                    }
+                }
+            });
+                
+            // Check previous nodes for removed
+            previousKeys.forEach((node, key) => {
+                if (!currentKeys.has(key)) {
+                    removed.push(node);
+                }
+            });
+            
+            // Build node ID to key maps for edges (optimized)
+            const currentNodeMap = new Map();
+            (current.nodes || []).forEach(node => {
+                currentNodeMap.set(node.id, getNodeKey(node));
+            });
+            
+            const previousNodeMap = new Map();
+            (previous.nodes || []).forEach(node => {
+                previousNodeMap.set(node.id, getNodeKey(node));
+            });
+            
+            // Compare edges (optimized with Set for O(1) lookups)
+            const getEdgeKey = (edge) => {
+                const fromKey = currentNodeMap.get(edge.from) || previousNodeMap.get(edge.from) || edge.from;
+                const toKey = currentNodeMap.get(edge.to) || previousNodeMap.get(edge.to) || edge.to;
+                return `${fromKey}->${toKey}`;
+            };
+            
+            const currentEdgeKeys = new Set((current.edges || []).map(getEdgeKey));
+            const previousEdgeKeys = new Set((previous.edges || []).map(getEdgeKey));
+            
+            const addedEdges = (current.edges || []).filter(edge => {
+                return !previousEdgeKeys.has(getEdgeKey(edge));
+            });
+            
+            const removedEdges = (previous.edges || []).filter(edge => {
+                return !currentEdgeKeys.has(getEdgeKey(edge));
+            });
+            
+            return {
+                added_endpoints: added,
+                removed_endpoints: removed,
+                changed_endpoints: changed,
+                added_edges: addedEdges,
+                removed_edges: removedEdges,
+                added_endpoint_keys: new Set(added.map(getNodeKey)),
+                removed_endpoint_keys: new Set(removed.map(getNodeKey)),
+                changed_endpoint_keys: new Set(changed.map(getNodeKey)),
+                comparison_strategy: diffComparisonStrategy
+            };
+        }
+        
+        // Optimized node comparison (only check relevant properties)
+        function hasNodeChanged(currentNode, previousNode) {
+            // Compare only properties that matter for visualization
+            const relevantProps = ['method', 'path', 'url', 'file_path', 'connections', 'high_impact', 'color', 'size'];
+            
+            for (const prop of relevantProps) {
+                if (currentNode[prop] !== previousNode[prop]) {
+                    return true;
+                }
+            }
+            
+            // Deep compare color object if it exists
+            if (currentNode.color && previousNode.color) {
+                if (JSON.stringify(currentNode.color) !== JSON.stringify(previousNode.color)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        function applyDiffVisualization() {
+            if (!diffData || !currentSnapshotData) return;
+            
+            // Progressive disclosure: hide unchanged nodes by default
+            const enhancedNodes = (currentSnapshotData.nodes || []).map(node => {
+                const nodeKey = currentGraphType === 'api' 
+                    ? `${node.method || 'UNKNOWN'}:${node.path || node.url || 'unknown'}`
+                    : (node.file_path || node.id);
+                
+                let diffStatus = 'unchanged';
+                if (diffData.added_endpoint_keys.has(nodeKey)) {
+                    diffStatus = 'added';
+                } else if (diffData.removed_endpoint_keys.has(nodeKey)) {
+                    diffStatus = 'removed';
+                } else if (diffData.changed_endpoint_keys.has(nodeKey)) {
+                    diffStatus = 'changed';
+                }
+                
+                // Apply diff styling
+                const enhanced = {...node};
+                
+                if (diffStatus === 'added') {
+                    enhanced.color = {
+                        background: '#00FFA3',  // Brighter mint
+                        border: '#00FFA3',
+                        highlight: { background: '#00FFA3', border: '#ffffff' }
+                    };
+                    enhanced.diffStatus = 'added';
+                    enhanced.className = 'node-added';
+                } else if (diffStatus === 'removed') {
+                    // Hollow ghost (outline only, NO fill) - Consultation Standard
+                    // Position in graveyard zone (offset to bottom)
+                    const container = document.getElementById('network-container');
+                    const containerRect = container.getBoundingClientRect();
+                    const graveyardY = containerRect.height - 100; // Bottom area
+                    
+                    // Refined color: #FF1744 (Material Red - better contrast)
+                    enhanced.color = {
+                        background: 'transparent',  // Hollow - no fill
+                        border: '#FF1744',  // Material red (accessible)
+                        highlight: { background: 'transparent', border: '#FF1744' }
+                    };
+                    enhanced.opacity = 0.4;
+                    enhanced.borderWidth = 3;  // Thicker border for visibility
+                    enhanced.dashes = true;  // Dashed outline
+                    enhanced.shape = 'dot';  // Accessibility: consistent shape
+                    enhanced.diffStatus = 'removed';
+                    enhanced.className = 'node-removed';
+                    enhanced.isRemoved = true;
+                    
+                    // Offset to graveyard zone (right side, bottom)
+                    if (!enhanced.x) enhanced.x = containerRect.width * 0.8;
+                    if (!enhanced.y) enhanced.y = graveyardY;
+                    enhanced.fixed = { x: true, y: true }; // Keep in graveyard
+                    enhanced.physics = false; // Don't participate in physics
+                } else if (diffStatus === 'changed') {
+                    // Yellow border ring (not full recolor) - Consultation Standard
+                    const originalColor = node.color?.background || node.color || '#7c3aed';
+                    // Refined color: #FFB300 (Amber - better contrast than yellow)
+                    enhanced.color = {
+                        background: originalColor,  // Preserve original color
+                        border: '#FFB300',  // Amber border (accessible, high contrast)
+                        highlight: { background: originalColor, border: '#FFB300' }
+                    };
+                    enhanced.borderWidth = 4;  // Thicker border for visibility
+                    enhanced.shape = 'dot';  // Accessibility: consistent shape
+                    enhanced.diffStatus = 'changed';
+                    enhanced.className = 'node-changed';
+                } else {
+                    // Unchanged - hide by default (progressive disclosure)
+                    enhanced.opacity = showUnchangedNodes ? 0.2 : 0;
+                    enhanced.diffStatus = 'unchanged';
+                }
+                
+                // Format label with brackets (if not already formatted)
+                if (enhanced.label && !enhanced.label.includes('::')) {
+                    if (currentGraphType === 'api') {
+                        const method = enhanced.method || node.method || 'UNKNOWN';
+                        const path = enhanced.path || node.path || node.url || 'unknown';
+                        enhanced.label = `[${method}] :: ${path}`;
+                    } else {
+                        enhanced.label = (enhanced.label || node.label || 'NODE').toUpperCase();
+                    }
+                }
+                
+                // Semantic labels with icons
+                if (diffStatus !== 'unchanged') {
+                    const icons = {
+                        added: '🆕',
+                        removed: '❌',
+                        changed: '✏️'
+                    };
+                    // Prepend icon to existing label
+                    enhanced.label = `${icons[diffStatus]} ${enhanced.label || node.label || 'NODE'}`;
+                }
+                
+                return enhanced;
+            });
+            
+            // Apply filters
+            let filteredNodes = enhancedNodes;
+            if (!activeDiffFilters.includes('all')) {
+                filteredNodes = enhancedNodes.filter(node => {
+                    if (activeDiffFilters.includes('added') && node.diffStatus === 'added') return true;
+                    if (activeDiffFilters.includes('removed') && node.diffStatus === 'removed') return true;
+                    if (activeDiffFilters.includes('changed') && node.diffStatus === 'changed') return true;
+                    return false;
+                });
+            } else {
+                // In "all" mode, still hide unchanged (progressive disclosure)
+                filteredNodes = enhancedNodes.filter(node => node.diffStatus !== 'unchanged' || showUnchangedNodes);
+            }
+            
+            // Update nodes with animation triggers
+            if (nodes && network) {
+                // Store previous node IDs for animation detection
+                const previousNodeIds = new Set(nodes.getIds());
+                const newNodeIds = new Set(filteredNodes.map(n => n.id));
+                
+                // Clear and add new nodes
+                nodes.clear();
+                nodes.add(filteredNodes);
+                
+                // Trigger animations for new nodes
+                filteredNodes.forEach(node => {
+                    if (node.diffStatus === 'added' && !previousNodeIds.has(node.id)) {
+                        // Bloom-in animation will be triggered by CSS class
+                        const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`);
+                        if (nodeElement) {
+                            nodeElement.classList.add('node-added');
+                        }
+                    }
+                });
+            }
+            
+            // Update edges with diff status
+            const enhancedEdges = (currentSnapshotData.edges || []).map(edge => {
+                const edgeKey = `${edge.from}->${edge.to}`;
+                const isAdded = diffData.added_edges.some(e => `${e.from}->${e.to}` === edgeKey);
+                const isRemoved = diffData.removed_edges.some(e => `${e.from}->${e.to}` === edgeKey);
+                
+                const enhanced = {...edge};
+                
+                if (isAdded) {
+                    enhanced.color = { color: '#00FFA3', opacity: 0.8 };
+                    enhanced.width = 2; // Slightly thicker for visibility
+                    enhanced.className = 'added-edge'; // For animation
+                } else if (isRemoved) {
+                    enhanced.color = { color: '#FF1744', opacity: 0.3 };
+                    enhanced.dashes = true;
+                    enhanced.width = 1; // Thinner for removed
+                } else {
+                    enhanced.opacity = showUnchangedNodes ? 0.3 : 0.1;
+                    enhanced.width = 1;
+                }
+                
+                return enhanced;
+            });
+            
+            if (edges && network) {
+                edges.clear();
+                edges.add(enhancedEdges);
+            }
+            
+            // Update graveyard zone (Second Consultation Specification)
+            updateGraveyardZone(diffData.removed_endpoints);
+            
+            // Update network container height to accommodate graveyard
+            const container = document.getElementById('network-container');
+            if (diffData.removed_endpoints.length > 0) {
+                container.style.paddingBottom = '120px'; // Space for graveyard
+            } else {
+                container.style.paddingBottom = '0px';
+            }
+            
+            // Track visualization render time (Second Consultation)
+            const renderTime = performance.now() - renderStartTime;
+            if (metrics && metrics.performance) {
+                metrics.performance.visualizationRenderTime.push(renderTime);
+            }
+            
+            // Force network redraw to apply animations
+            if (network) {
+                network.redraw();
+            }
+            
+            addLogEntry(`Diff visualization applied in ${renderTime.toFixed(2)}ms`);
+        }
+        
+        function updateGraveyardZone(removedNodes) {
+            const graveyardZone = document.getElementById('graveyard-zone');
+            const graveyardItems = document.getElementById('graveyard-items');
+            const graveyardCount = document.getElementById('graveyard-count');
+            
+            if (!removedNodes || removedNodes.length === 0) {
+                graveyardZone.classList.remove('visible');
+                graveyardItems.innerHTML = '<div class="graveyard-empty">✅ No endpoints removed</div>';
+                return;
+            }
+            
+            graveyardZone.classList.add('visible');
+            graveyardCount.textContent = removedNodes.length;
+            
+            // Clear existing items
+            graveyardItems.innerHTML = '';
+            
+            // Show max 3 items initially (scroll for more)
+            const maxVisible = 3;
+            const visibleItems = removedNodes.slice(0, maxVisible);
+            const hiddenCount = removedNodes.length - maxVisible;
+            
+            visibleItems.forEach(node => {
+                const item = document.createElement('div');
+                item.className = 'graveyard-item';
+                
+                const label = currentGraphType === 'api' 
+                    ? `${node.method || 'UNKNOWN'} ${node.path || node.url || 'unknown'}`
+                    : (node.file_path || node.id);
+                
+                const deps = node.connections || node.dependencyCount || 0;
+                
+                item.innerHTML = `
+                    <span class="graveyard-item-label">❌ ${label}</span>
+                    <span class="graveyard-item-deps">${deps} deps</span>
+                    <button class="graveyard-item-action" onclick="highlightRemovedNode('${node.id || label}')">View Impact</button>
+                `;
+                
+                // Click to highlight former connections
+                item.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('graveyard-item-action')) {
+                        highlightRemovedNodeConnections(node);
+                    }
+                });
+                
+                graveyardItems.appendChild(item);
+            });
+            
+            // Show "show more" if there are hidden items
+            if (hiddenCount > 0) {
+                const showMore = document.createElement('div');
+                showMore.className = 'graveyard-item';
+                showMore.style.justifyContent = 'center';
+                showMore.style.cursor = 'pointer';
+                showMore.textContent = `▼ Show ${hiddenCount} more removed endpoints`;
+                showMore.addEventListener('click', () => {
+                    // Expand to show all
+                    removedNodes.slice(maxVisible).forEach(node => {
+                        const item = document.createElement('div');
+                        item.className = 'graveyard-item';
+                        const label = currentGraphType === 'api' 
+                            ? `${node.method || 'UNKNOWN'} ${node.path || node.url || 'unknown'}`
+                            : (node.file_path || node.id);
+                        const deps = node.connections || node.dependencyCount || 0;
+                        item.innerHTML = `
+                            <span class="graveyard-item-label">❌ ${label}</span>
+                            <span class="graveyard-item-deps">${deps} deps</span>
+                            <button class="graveyard-item-action" onclick="highlightRemovedNode('${node.id || label}')">View Impact</button>
+                        `;
+                        item.addEventListener('click', (e) => {
+                            if (!e.target.classList.contains('graveyard-item-action')) {
+                                highlightRemovedNodeConnections(node);
+                            }
+                        });
+                        graveyardItems.insertBefore(item, showMore);
+                    });
+                    showMore.remove();
+                });
+                graveyardItems.appendChild(showMore);
+            }
+        }
+        
+        function toggleGraveyard() {
+            const graveyardZone = document.getElementById('graveyard-zone');
+            graveyardZone.classList.toggle('collapsed');
+        }
+        
+        function highlightRemovedNode(nodeId) {
+            // Find the removed node and highlight its former connections
+            if (!diffData || !previousSnapshotData) return;
+            
+            const removedNode = diffData.removed_endpoints.find(n => 
+                (n.id || `${n.method}:${n.path}`) === nodeId
+            );
+            
+            if (removedNode) {
+                highlightRemovedNodeConnections(removedNode);
+            }
+        }
+        
+        function highlightRemovedNodeConnections(removedNode) {
+            if (!network || !previousSnapshotData) return;
+            
+            // Find edges that connected to this removed node in previous snapshot
+            const connectedEdges = (previousSnapshotData.edges || []).filter(edge => 
+                edge.from === removedNode.id || edge.to === removedNode.id
+            );
+            
+            // Highlight connected nodes in current graph
+            const connectedNodeIds = new Set();
+            connectedEdges.forEach(edge => {
+                connectedNodeIds.add(edge.from);
+                connectedNodeIds.add(edge.to);
+            });
+            
+            // Update node opacity to highlight connections
+            const updates = [];
+            if (nodes) {
+                nodes.forEach(node => {
+                    const isConnected = connectedNodeIds.has(node.id);
+                    updates.push({
+                        id: node.id,
+                        opacity: isConnected ? 1.0 : 0.2,
+                        borderWidth: isConnected ? 4 : 2
+                    });
+                });
+                nodes.update(updates);
+            }
+            
+            addLogEntry(`Highlighted ${connectedNodeIds.size} nodes connected to removed endpoint`);
+            
+            // Reset after 3 seconds
+            setTimeout(() => {
+                if (nodes) {
+                    const resetUpdates = [];
+                    nodes.forEach(node => {
+                        resetUpdates.push({
+                            id: node.id,
+                            opacity: node.diffStatus === 'unchanged' && !showUnchangedNodes ? 0 : 1,
+                            borderWidth: 2
+                        });
+                    });
+                    nodes.update(resetUpdates);
+                }
+            }, 3000);
+        }
+        
+        function renderDiffSummary(diffData) {
+            const summaryDiv = document.getElementById('diff-summary');
+            const contentDiv = document.getElementById('diff-summary-content');
+            
+            const addedCount = diffData.added_endpoints.length;
+            const removedCount = diffData.removed_endpoints.length;
+            const changedCount = diffData.changed_endpoints.length;
+            
+            // Calculate max for bar scaling
+            const maxCount = Math.max(addedCount, removedCount, changedCount, 1);
+            
+            // Calculate dependency counts (blast radius)
+            const removedDeps = diffData.removed_endpoints.reduce((sum, node) => {
+                return sum + (node.connections || 0);
+            }, 0);
+            
+            const addedDeps = diffData.added_endpoints.reduce((sum, node) => {
+                return sum + (node.connections || 0);
+            }, 0);
+            
+            const isHighRisk = removedDeps > 10;
+            
+            let html = '';
+            
+            // Added
+            html += `
+                <div class="diff-item">
+                    <div class="diff-item-header">
+                        <span class="diff-item-icon">✅</span>
+                        <span class="diff-item-label">ADDED</span>
+                    </div>
+                    <div class="impact-bar">
+                        <div class="impact-bar-fill added" style="width: ${(addedCount / maxCount) * 100}%"></div>
+                    </div>
+                    <div class="diff-item-details">${addedCount} endpoints (${addedDeps} deps)</div>
+                </div>
+            `;
+            
+            // Removed
+            html += `
+                <div class="diff-item ${isHighRisk ? 'high-risk' : ''}">
+                    <div class="diff-item-header">
+                        <span class="diff-item-icon">⚠️</span>
+                        <span class="diff-item-label">REMOVED</span>
+                        ${isHighRisk ? '<span class="risk-badge">HIGH RISK</span>' : ''}
+                    </div>
+                    <div class="impact-bar">
+                        <div class="impact-bar-fill removed" style="width: ${(removedDeps / Math.max(maxCount * 2, removedDeps)) * 100}%"></div>
+                    </div>
+                    <div class="diff-item-details">${removedCount} endpoints (${removedDeps} deps affected${isHighRisk ? '!' : ''})</div>
+                </div>
+            `;
+            
+            // Changed
+            html += `
+                <div class="diff-item">
+                    <div class="diff-item-header">
+                        <span class="diff-item-icon">✏️</span>
+                        <span class="diff-item-label">CHANGED</span>
+                    </div>
+                    <div class="impact-bar">
+                        <div class="impact-bar-fill changed" style="width: ${(changedCount / maxCount) * 100}%"></div>
+                    </div>
+                    <div class="diff-item-details">${changedCount} nodes (minor)</div>
+                </div>
+            `;
+            
+            contentDiv.innerHTML = html;
+            summaryDiv.style.display = 'block';
+            
+            // Update filter badges
+            document.getElementById('added-count').textContent = addedCount;
+            document.getElementById('removed-count').textContent = removedCount;
+            document.getElementById('changed-count').textContent = changedCount;
+        }
+        
+        function applyDiffFilter(filter) {
+            const pills = document.querySelectorAll('.filter-pill');
+            pills.forEach(pill => pill.classList.remove('active'));
+            
+            const clickedPill = document.querySelector(`[data-filter="${filter}"]`);
+            if (clickedPill) {
+                clickedPill.classList.add('active');
+            }
+            
+            if (filter === 'all') {
+                activeDiffFilters = ['all'];
+            } else {
+                activeDiffFilters = activeDiffFilters.includes('all') ? [filter] : 
+                    activeDiffFilters.includes(filter) ? 
+                        activeDiffFilters.filter(f => f !== filter) : 
+                        [...activeDiffFilters, filter];
+                
+                if (activeDiffFilters.length === 0) {
+                    activeDiffFilters = ['all'];
+                    document.querySelector('[data-filter="all"]').classList.add('active');
+                }
+            }
+            
+            // Track filter usage (Second Consultation)
+            if (metrics && metrics.diffMode && metrics.diffMode.filterUsage) {
+                if (filter === 'all') {
+                    metrics.diffMode.filterUsage.all++;
+                } else if (metrics.diffMode.filterUsage[filter] !== undefined) {
+                    metrics.diffMode.filterUsage[filter]++;
+                }
+            }
+            
+            // Reapply visualization with new filters
+            if (diffData) {
+                applyDiffVisualization();
+            }
+            
+            addLogEntry(`Filter: ${activeDiffFilters.join(', ')}`);
+        }
+        
+        function toggleShowContext() {
+            showUnchangedNodes = !showUnchangedNodes;
+            const contextBtn = document.getElementById('context-btn');
+            contextBtn.textContent = showUnchangedNodes ? 'HIDE CONTEXT' : 'SHOW CONTEXT';
+            contextBtn.classList.toggle('active', showUnchangedNodes);
+            
+            if (diffData) {
+                applyDiffVisualization();
+            }
+            addLogEntry(`Show context: ${showUnchangedNodes ? 'ON' : 'OFF'}`);
+        }
+        
+        function generateDiffStory() {
+            if (!diffData) {
+                addLogEntry('ERROR: No diff data available. Compare snapshots first.');
+                return;
+            }
+            
+            const storyPanel = document.getElementById('diff-story-panel');
+            const storyContent = document.getElementById('diff-story-content');
+            
+            // Generate narrative using template-based approach (Second Consultation)
+            const narrative = generateDiffNarrative(diffData, currentSnapshotData, previousSnapshotData);
+            
+            storyContent.innerHTML = narrative;
+            storyPanel.style.display = 'block';
+            addLogEntry('Diff story generated');
+            
+            // Track metrics
+            if (typeof metrics !== 'undefined') {
+                metrics.diffMode.narrativeViews++;
+            }
+        }
+        
+        // Template-based narrative generation (Second Consultation Specification)
+        function generateDiffNarrative(diffData, currentSnapshot, previousSnapshot) {
+            const narratives = [];
+            
+            const added = diffData.added_endpoints.length;
+            const removed = diffData.removed_endpoints.length;
+            const changed = diffData.changed_endpoints.length;
+            const addedEdges = diffData.added_edges.length;
+            const removedEdges = diffData.removed_edges.length;
+            
+            // Calculate impact metrics
+            const removedDeps = diffData.removed_endpoints.reduce((sum, node) => {
+                return sum + (node.connections || node.dependencyCount || 0);
+            }, 0);
+            
+            const addedDeps = diffData.added_endpoints.reduce((sum, node) => {
+                return sum + (node.connections || node.dependencyCount || 0);
+            }, 0);
+            
+            // High-impact removals
+            const criticalRemovals = diffData.removed_endpoints.filter(ep => 
+                (ep.connections || ep.dependencyCount || 0) > 5
+            );
+            
+            if (criticalRemovals.length > 0) {
+                narratives.push({
+                    type: 'warning',
+                    icon: '⚠️',
+                    title: 'High-Impact Removals Detected',
+                    message: `${criticalRemovals.length} endpoint(s) with ${removedDeps} total dependencies were removed.`,
+                    details: criticalRemovals.map(ep => ({
+                        endpoint: currentGraphType === 'api' 
+                            ? `${ep.method || 'UNKNOWN'} ${ep.path || ep.url || 'unknown'}`
+                            : (ep.file_path || ep.id),
+                        deps: ep.connections || ep.dependencyCount || 0
+                    }))
+                });
+            }
+            
+            // Architectural improvements (pattern detection)
+            const patterns = detectArchitecturalPatterns(diffData);
+            if (patterns.includes('oauth_added')) {
+                narratives.push({
+                    type: 'positive',
+                    icon: '✅',
+                    title: 'Architecture Improvement',
+                    message: 'Added OAuth2 authentication flow. This modernizes authentication and improves security.',
+                    details: null
+                });
+            }
+            
+            if (patterns.includes('graphql_added')) {
+                narratives.push({
+                    type: 'positive',
+                    icon: '✅',
+                    title: 'GraphQL Adoption',
+                    message: 'Added GraphQL endpoints. This suggests a move toward more flexible API querying.',
+                    details: null
+                });
+            }
+            
+            // Breaking changes detection
+            const breakingChanges = detectBreakingChanges(diffData);
+            if (breakingChanges.length > 0) {
+                narratives.push({
+                    type: 'error',
+                    icon: '🚨',
+                    title: 'Potential Breaking Changes',
+                    message: `${breakingChanges.length} endpoint(s) changed in ways that may break existing clients.`,
+                    details: breakingChanges
+                });
+            }
+            
+            // Build HTML from narratives
+            let story = '';
+            
+            // Executive Summary
+            story += `
+                <div class="story-section">
+                    <h4>📊 EXECUTIVE SUMMARY</h4>
+                    <p>Between these snapshots, your codebase has <span class="story-highlight">${added} new endpoints</span>, 
+                    <span class="story-warning">${removed} removed endpoints</span>, and ${changed} modified endpoints.</p>
+                    ${(added + removed) > 5 ? '<p><strong>⚠️ This is a major architectural change.</strong></p>' : ''}
+                </div>
+            `;
+            
+            // Render narratives
+            narratives.forEach(narrative => {
+                story += `
+                    <div class="story-section ${narrative.type}">
+                        <h4>${narrative.icon} ${narrative.title}</h4>
+                        <p>${narrative.message}</p>
+                        ${narrative.details ? `
+                            <ul style="margin-left: 16px; color: var(--text-secondary); font-size: 10px; margin-top: 8px;">
+                                ${narrative.details.map(detail => 
+                                    `<li>${detail.endpoint || detail}${detail.deps ? ` (${detail.deps} deps)` : ''}</li>`
+                                ).join('')}
+                            </ul>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            // What Changed
+            story += `
+                <div class="story-section">
+                    <h4>🔄 WHAT CHANGED</h4>
+                    ${added > 0 ? `<p><span class="story-highlight">+${added} endpoints added</span> (${addedDeps} new connections)</p>` : ''}
+                    ${removed > 0 ? `<p><span class="story-warning">-${removed} endpoints removed</span> (${removedDeps} connections affected)</p>` : ''}
+                    ${changed > 0 ? `<p>~${changed} endpoints modified</p>` : ''}
+                    ${addedEdges > 0 ? `<p>+${addedEdges} new connections established</p>` : ''}
+                    ${removedEdges > 0 ? `<p>-${removedEdges} connections broken</p>` : ''}
+                </div>
+            `;
+            
+            // Impact Analysis
+            story += `
+                <div class="story-section">
+                    <h4>💥 IMPACT ANALYSIS</h4>
+                    ${removedDeps > 10 ? 
+                        `<p class="story-warning">⚠️ <strong>HIGH RISK:</strong> ${removedDeps} dependencies are affected by removals. 
+                        This could break downstream consumers.</p>` : 
+                        removedDeps > 0 ?
+                        '<p>✅ Low to moderate impact. Removals affect minimal dependencies.</p>' :
+                        '<p>✅ No dependencies affected by removals.</p>'
+                    }
+                    ${addedDeps > 0 ? 
+                        `<p>✅ <strong>Growth:</strong> ${addedDeps} new connections suggest expanding functionality.</p>` : 
+                        ''
+                    }
+                </div>
+            `;
+            
+            // Migration Path (if removals exist)
+            if (removed > 0) {
+                story += `
+                    <div class="story-section">
+                        <h4>🛠️ MIGRATION PATH</h4>
+                        <p>${removed} endpoint${removed > 1 ? 's have' : ' has'} been removed. Consider:</p>
+                        <ul style="margin-left: 16px; color: var(--text-secondary); font-size: 10px;">
+                            <li>Updating API documentation</li>
+                            <li>Notifying dependent services</li>
+                            <li>Checking for deprecated endpoint usage</li>
+                            ${removedDeps > 10 ? '<li><strong>Reviewing breaking changes with team</strong></li>' : ''}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // Recommendations
+            story += `
+                <div class="story-section">
+                    <h4>💡 RECOMMENDATIONS</h4>
+                    ${added > removed ? 
+                        '<p>✅ <strong>Expansion:</strong> More endpoints added than removed. Architecture is growing.</p>' : 
+                        removed > added ? 
+                        '<p>⚠️ <strong>Refactoring:</strong> More endpoints removed than added. Likely consolidation or cleanup.</p>' :
+                        '<p>📊 <strong>Stable:</strong> Balanced changes. Architecture is evolving incrementally.</p>'
+                    }
+                    ${changed > 0 ? 
+                        '<p>🔍 <strong>Review modified endpoints:</strong> Check parameter changes, response formats, or behavior updates.</p>' : 
+                        ''
+                    }
+                </div>
+            `;
+            
+            return story;
+        }
+        
+        // Architectural pattern detection (Second Consultation)
+        function detectArchitecturalPatterns(diffData) {
+            const patterns = [];
+            
+            // OAuth detection
+            const oauthEndpoints = diffData.added_endpoints.filter(ep => 
+                (ep.path || ep.url || '').includes('/oauth') || 
+                (ep.path || ep.url || '').includes('/token') ||
+                (ep.path || ep.url || '').includes('/auth')
+            );
+            if (oauthEndpoints.length >= 2) patterns.push('oauth_added');
+            
+            // GraphQL adoption
+            const graphqlEndpoints = diffData.added_endpoints.filter(ep =>
+                (ep.path || ep.url || '').includes('/graphql')
+            );
+            if (graphqlEndpoints.length > 0) patterns.push('graphql_added');
+            
+            // RESTful versioning
+            const versionedEndpoints = diffData.added_endpoints.filter(ep =>
+                /\/v\d+\//.test(ep.path || ep.url || '')
+            );
+            if (versionedEndpoints.length >= 3) patterns.push('versioning_added');
+            
+            return patterns;
+        }
+        
+        // Breaking changes detection (Second Consultation)
+        function detectBreakingChanges(diffData) {
+            // Changed endpoints where method or path structure changed
+            return diffData.changed_endpoints.filter(ep => {
+                // Check if method changed (would need previous version data)
+                // For now, check if path structure changed significantly
+                const path = ep.path || ep.url || '';
+                const pathSegments = path.split('/').filter(s => s);
+                
+                // If path has version number change, it's likely breaking
+                if (/\/v\d+\//.test(path)) {
+                    return true;
+                }
+                
+                // If endpoint has many connections and changed, might be breaking
+                if ((ep.connections || ep.dependencyCount || 0) > 5) {
+                    return true;
+                }
+                
+                return false;
+            });
+        }
+        
+        function closeDiffStory() {
+            document.getElementById('diff-story-panel').style.display = 'none';
+        }
+        
+        function applyFocusMode(nodeId) {
+            if (!network) return;
+            
+            // Get connected nodes
+            const connectedNodeIds = new Set([nodeId]);
+            const connectedEdges = allEdges.filter(edge => 
+                edge.from === nodeId || edge.to === nodeId
+            );
+            
+            connectedEdges.forEach(edge => {
+                connectedNodeIds.add(edge.from);
+                connectedNodeIds.add(edge.to);
+            });
+            
+            // Dim all nodes
+            const updates = allNodes.map(node => {
+                const isSelected = node.id === nodeId;
+                const isNeighbor = connectedNodeIds.has(node.id) && !isSelected;
+                
+                return {
+                    id: node.id,
+                    opacity: isSelected ? 1.0 : (isNeighbor ? 0.8 : 0.2)
+                };
+            });
+            
+            nodes.update(updates);
+            
+            // Dim edges
+            const edgeUpdates = allEdges.map(edge => {
+                const isConnected = edge.from === nodeId || edge.to === nodeId;
+                return {
+                    id: edge.id || `${edge.from}-${edge.to}`,
+                    opacity: isConnected ? 0.8 : 0.1
+                };
+            });
+            
+            edges.update(edgeUpdates);
+        }
+        
+        function clearFocusMode() {
+            if (!network) return;
+            
+            // Restore all nodes
+            const updates = allNodes.map(node => ({
+                id: node.id,
+                opacity: 1.0
+            }));
+            nodes.update(updates);
+            
+            // Restore all edges
+            const edgeUpdates = allEdges.map(edge => ({
+                id: edge.id || `${edge.from}-${edge.to}`,
+                opacity: edge.opacity || 0.5
+            }));
+            edges.update(edgeUpdates);
+        }
+        
+        function exportScreenshot() {
+            showToast('GENERATING SNAPSHOT...');
+            addLogEntry('Snapshot mode activated');
+            
+            // Enable snapshot mode
+            document.body.classList.add('snapshot-mode');
+            
+            // Update watermark timestamp
+            const now = new Date().toISOString();
+            document.getElementById('watermark-time').textContent = now;
+            
+            // Wait for UI to hide
+            setTimeout(() => {
+                html2canvas(document.getElementById('network-container'), {
+                    backgroundColor: '#050505',
+                    scale: 2,  // High resolution (2x for retina displays)
+                    useCORS: true,
+                    logging: false,
+                    allowTaint: false,  // Security: don't allow cross-origin images to taint canvas
+                    foreignObjectRendering: false,  // Use standard rendering for better compatibility
+                    removeContainer: true,  // Clean up temporary DOM elements
+                    imageTimeout: 15000,  // 15 second timeout for images
+                    onclone: function(clonedDoc) {
+                        // Ensure background is visible in cloned document
+                        const clonedContainer = clonedDoc.getElementById('network-container');
+                        if (clonedContainer) {
+                            clonedContainer.style.backgroundColor = '#050505';
+                        }
+                    }
+                }).then(canvas => {
+                    // Disable snapshot mode
+                    document.body.classList.remove('snapshot-mode');
+                    
+                    const link = document.createElement('a');
+                    link.download = `rohkun-${currentGraphType}-graph-${Date.now()}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    
+                    showToast('SNAPSHOT SAVED!');
+                    addLogEntry('Snapshot exported successfully');
+                }).catch(error => {
+                    document.body.classList.remove('snapshot-mode');
+                    showToast('SNAPSHOT FAILED');
+                    addLogEntry(`ERROR: ${error.message}`);
+                });
+            }, 500);
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('visible');
+            setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 3000);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (network) {
+                network.redraw();
+            }
+        });
+        
+        // Animated dashed line system - directly on vis.js edges
+        let animationFrameId = null;
+        let dashOffset = 0; // Global dash offset for animation
+        
+        function initEdgeAnimationSystem() {
+            // In 3D mode, there's no vis.js network - skip edge animation
+            if (typeof network === 'undefined' || !network || !edges) return;
+            
+            console.log('[KG] Edge animation initialized with', edges.length, 'edges');
+            
+            // Start animation loop to update edge dash patterns
+            animateEdgeDashes();
+        }
+        
+        function animateEdgeDashes() {
+            if (!network || !edges) {
+                animationFrameId = requestAnimationFrame(animateEdgeDashes);
+                return;
+            }
+            
+            // Update global dash offset for animation (slower speed)
+            // Positive offset moves dashes in the direction from -> to (following arrow)
+            dashOffset += 0.3; // Move dashes forward in arrow direction
+            if (dashOffset > 12) dashOffset = 0; // Reset when pattern repeats
+            
+            // Update all edges with animated dash pattern
+            const edgeArray = edges.get();
+            edgeArray.forEach((edge, index) => {
+                // Verify edge direction: from -> to (arrow should point from source to target)
+                if (!edge.from || !edge.to) return;
+                
+                // Ensure arrow is pointing in correct direction (from -> to)
+                const arrowDirection = edge.arrows?.to?.enabled !== false; // Default to true if not specified
+                
+                // Calculate offset based on edge index for variety (each edge moves at slightly different phase)
+                // Movement direction: from source (edge.from) to target (edge.to) - following arrow direction
+                // For API connections: API Call (from) → Endpoint (to) - dashes move from API call toward endpoint
+                const edgePhase = (dashOffset + (index * 0.3)) % 12;
+                
+                // Create moving dash effect by shifting the dash pattern
+                // The pattern moves from source to target (in arrow direction)
+                const dashLength = 8;
+                const gapLength = 4;
+                const totalLength = dashLength + gapLength;
+            
+                // Calculate which part of the pattern should be visible
+                // Positive offset = movement from source to target (arrow direction)
+                const offset = Math.floor(edgePhase) % totalLength;
+                
+                // Create shifted dash array to simulate movement in arrow direction (from -> to)
+                // The pattern moves from source node (edge.from) toward target node (edge.to)
+                // This creates the visual effect of dashes "flowing" along the edge in the arrow's direction
+                let newDashes;
+                if (offset === 0) {
+                    // Full dash pattern at start - dash at beginning, gap follows
+                    newDashes = [dashLength, gapLength];
+                } else if (offset < dashLength) {
+                    // Dash is moving forward: part of dash visible at start, gap moving in
+                    // This creates forward movement from source to target
+                    newDashes = [dashLength - offset, gapLength, offset];
+                } else {
+                    // Gap is visible, next dash is moving in from source side
+                    // This continues the forward flow toward the target
+                    const gapOffset = offset - dashLength;
+                    newDashes = [gapLength - gapOffset, dashLength, gapOffset];
+                }
+                
+                // Update edge with new dash pattern and ensure arrow direction is correct
+                const currentDashes = edge.dashes;
+                const needsUpdate = !currentDashes || JSON.stringify(currentDashes) !== JSON.stringify(newDashes);
+                const needsArrowFix = !edge.arrows || !edge.arrows.to || edge.arrows.to.enabled !== true;
+                
+                if (needsUpdate || needsArrowFix) {
+                    const update = {
+                        id: edge.id,
+                        dashes: newDashes
+                    };
+                
+                    // Ensure arrow points from -> to
+                    if (needsArrowFix) {
+                        update.arrows = {
+                            to: {
+                                enabled: true,
+                                scaleFactor: 0.7
+                            }
+                        };
+                    }
+                    
+                    edges.update(update);
+                }
+            });
+            
+            animationFrameId = requestAnimationFrame(animateEdgeDashes);
+        }
+        
+        // Mouse tracking for dynamic grid background (OPTIMIZED - Consultant Recommendation)
+        // Use requestAnimationFrame to debounce updates and prevent jitter
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseUpdateScheduled = false;
+        
+        function updateMousePosition() {
+            document.documentElement.style.setProperty('--mouse-x', mouseX + 'px');
+            document.documentElement.style.setProperty('--mouse-y', mouseY + 'px');
+            mouseUpdateScheduled = false;
+        }
+        
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            
+            // Schedule update on next animation frame (debounced)
+            if (!mouseUpdateScheduled) {
+                mouseUpdateScheduled = true;
+                requestAnimationFrame(updateMousePosition);
+            }
+        });
+        
+        // Initialize on load
+        window.addEventListener('load', function() {
+            updateLegend(apiLegend);
+            loadGraphData('api');
+            updateLegend(apiLegend);
+            loadGraphData('api');
+            
+            // Initialize edge animation system after a delay (wait for network to be ready)
+            // Only in 2D mode (when network exists)
+            setTimeout(() => {
+                if (typeof network !== 'undefined' && network) {
+                    initEdgeAnimationSystem();
+                }
+            }, 2000);
+            
+            // Add periodic console updates (only in 2D mode)
+            setInterval(() => {
+                if (typeof network !== 'undefined' && network && physicsEnabled) {
+                    const stats = network.getScale();
+                    // Can add more dynamic stats here
+                }
+            }, 5000);
+            
+            // Keyboard shortcuts (Consultation Standard)
+            document.addEventListener('keydown', function(e) {
+                // Diff mode shortcuts
+                if (diffModeEnabled) {
+                    if (e.key === 'a' || e.key === 'A') {
+                        e.preventDefault();
+                        applyDiffFilter('all');
+                    } else if (e.key === '+' || e.key === '=') {
+                        e.preventDefault();
+                        applyDiffFilter('added');
+                    } else if (e.key === '-') {
+                        e.preventDefault();
+                        applyDiffFilter('removed');
+                    } else if (e.key === '~') {
+                        e.preventDefault();
+                        applyDiffFilter('changed');
+                    } else if (e.key === 'c' || e.key === 'C') {
+                        e.preventDefault();
+                        toggleShowContext();
+                    } else if (e.key === 's' || e.key === 'S') {
+                        e.preventDefault();
+                        generateDiffStory();
+                    } else if (e.key === 'Escape') {
+                        closeDiffStory();
+                    }
+                }
+                
+                // Global shortcuts
+                if (e.key === 'd' || e.key === 'D') {
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        toggleDiffMode();
+                    }
+                } else if (e.key === 'f' || e.key === 'F') {
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        document.getElementById('search-input').focus();
+                    }
+                } else if (e.key === 'r' || e.key === 'R') {
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        resetView();
+                    }
+                }
+            });
+        });
+    </script>
+    <!-- CODE OVERLAY MODAL -->
+    <div id="code-overlay" class="modal-overlay" onclick="closeCodeOverlay(event)">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2 id="code-title">NODE_NAME</h2>
+                <button class="close-btn" onclick="closeCodeOverlay()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="code-meta" id="code-meta" style="margin-bottom: 15px; font-size: 0.9rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                    <!-- Meta tags -->
+                </div>
+                <div id="connections-list" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Connections will be injected here -->
+                </div>
+                <pre id="code-block" style="display:none;"><code id="code-content" class="language-python">
+                </code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- REPORT MODAL -->
+    <div id="report-modal" class="modal-overlay" onclick="toggleReportModal(event)">
+        <div class="modal-content glass-panel large" onclick="event.stopPropagation()" style="text-align: center; padding: 60px 40px; position: relative;">
+            <button class="close-btn" onclick="toggleReportModal(event)" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--text-muted); font-size: 2rem; cursor: pointer; line-height: 1; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">×</button>
+            <div class="modal-header" style="margin-bottom: 30px;">
+                <h2 style="font-size: 32px; margin-bottom: 16px; color: var(--accent);">🚧 COMING SOON</h2>
+                <p style="color: var(--text-secondary); font-size: 16px; line-height: 1.6;">
+                    The Report feature is currently under development.<br>
+                    Check back soon for detailed project analytics and insights!
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="help-modal" class="modal-overlay" onclick="toggleHelpModal(event)" style="display: none;">
+        <div class="modal-content glass-panel large" onclick="event.stopPropagation()" style="position: relative;">
+            <button class="close-btn" onclick="toggleHelpModal(event)" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--text-muted); font-size: 2rem; cursor: pointer; line-height: 1; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">×</button>
+            <div class="modal-header">
+                <h2 style="color: var(--accent);">📖 HELP & LEGEND</h2>
+            </div>
+            <div class="modal-body" style="overflow-y: auto; max-height: calc(80vh - 80px);">
+                <div id="help-content">
+                    <h3 style="color: var(--accent-light); margin-top: 0; margin-bottom: 20px; font-size: 1.2rem;">APIS & DEPENDENCIES VISUALIZATION GUIDE</h3>
+                    
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">🎨 NODE COLORS</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 20px; height: 20px; background: #7c3aed; border-radius: 3px; vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">Purple (#7c3aed)</strong> - API Endpoints (default for API view)
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 20px; height: 20px; background: #BC13FE; border-radius: 3px; vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">Hot Pink (#BC13FE)</strong> - High Impact Nodes (critical connections, overrides other colors)
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 20px; height: 20px; background: #00F0FF; border-radius: 3px; vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">Neon Cyan (#00F0FF)</strong> - Files view default, Python files (.py)
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 20px; height: 20px; background: #FF003C; border-radius: 3px; vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">Cyber Red (#FF003C)</strong> - Functions view default, DELETE methods
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 20px; height: 20px; background: #F59E0B; border-radius: 3px; vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">Amber (#F59E0B)</strong> - JavaScript files (.js)
+                            </div>
+                            <div style="margin-bottom: 12px; padding-left: 30px; font-size: 0.9rem; color: var(--text-secondary);">
+                                <strong>API Method Colors:</strong> GET (Blue #3b82f6), POST (Mint #00FF94), PUT (Yellow #FFE600), PATCH (Cyan #00F0FF), OPTIONS/HEAD (Gray #6b7280)
+                            </div>
+                            <div style="margin-bottom: 12px; padding-left: 30px; font-size: 0.9rem; color: var(--text-secondary);">
+                                <strong>File Type Colors:</strong> TypeScript (#3178c6), React/JSX (#61dafb), Go (#00add8), Java (#ed8b00), Ruby (#cc342d), PHP (#777bb4), C# (#239120), Rust (#ce422b), C/C++ (#00599c), Unknown (#6b7280)
+                            </div>
+                        </div>
+                    </section>
+
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">🔗 CONNECTION LINES</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 40px; height: 2px; background: rgba(255,255,255,0.15); vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">White Lines (15% opacity)</strong> - Normal connections showing relationships (API calls, dependencies, imports)
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: inline-block; width: 40px; height: 2px; background: #ffffff; vertical-align: middle; margin-right: 10px;"></span>
+                                <strong style="color: #fff;">White Lines (100% opacity)</strong> - Highlighted connections when a node is selected
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="color: #00ff94; font-size: 1.2rem; vertical-align: middle; margin-right: 10px;">▶</span>
+                                <strong style="color: #fff;">Mint Green Arrows (#00ff94)</strong> - Show direction of connection (from source to target node)
+                            </div>
+                        </div>
+                    </section>
+
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">🔷 NODE SHAPES</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Icosahedron (20-sided sphere)</strong> - API view nodes
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Dodecahedron (12-sided gem)</strong> - Functions view nodes
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Box (Building)</strong> - Files/Dependencies view nodes (2D city layout)
+                            </div>
+                        </div>
+                    </section>
+
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">🖱️ INTERACTIONS</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Single Click</strong> - Select a node to highlight its connections. Other nodes dim.
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Double Click</strong> - Open details modal showing node name, method, and connected nodes list.
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Click Background</strong> - Deselect and reset all highlights.
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Drag</strong> - Pan the view around.
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Scroll</strong> - Zoom in/out.
+                            </div>
+                        </div>
+                    </section>
+
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">🔍 SEARCH</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                Type in the search box to filter nodes by name. If only one node matches, it will be automatically selected and highlighted.
+                            </div>
+                        </div>
+                    </section>
+
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">📊 GRAPH TYPES</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">APIs</strong> - Shows API endpoints (functions that define endpoints) and API calls (functions that call APIs). Nodes are Icosahedrons. Default color: Purple. Colors based on HTTP method (GET=Blue, POST=Mint, PUT=Yellow, DELETE=Red, PATCH=Cyan).
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Dependencies (Files)</strong> - Shows file dependencies and imports. Nodes are Boxes (buildings) in a 2D city layout. Default color: Neon Cyan. Colors based on file extension (Python=Cyan, JavaScript=Amber, TypeScript=Blue, etc.).
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <strong style="color: #fff;">Functions</strong> - Shows function call dependencies (which functions call which other functions). Nodes are Dodecahedrons. Default color: Cyber Red.
+                            </div>
+                        </div>
+                    </section>
+
+                    <section style="margin-bottom: 30px;">
+                        <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">⚙️ PHYSICS & LAYOUT</h4>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px;">
+                                Nodes use force-directed physics to organize themselves. Connected nodes are attracted to each other, while unconnected nodes repel. This creates a natural, readable layout.
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                The center node (with most connections) is fixed, and other nodes arrange around it in a spiral pattern.
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

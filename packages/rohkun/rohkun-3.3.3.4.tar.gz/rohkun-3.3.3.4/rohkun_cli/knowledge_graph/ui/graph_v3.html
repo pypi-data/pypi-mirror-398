@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Code Universe - Reference Implementation</title>
+
+<!-- Dependencies -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --bg: #030303;
+    --bg-panel: #050505;
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1a1;
+    --accent: #7c3aed;
+    --accent-glow: rgba(124, 58, 237, 0.6);
+    --border: #333;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+::selection { background: var(--accent); color: #fff; text-shadow: none; }
+
+body, html { 
+    margin: 0; 
+    padding: 0; 
+    width: 100%; 
+    height: 100%; 
+    overflow: hidden; 
+    background-color: var(--bg); 
+    font-family: 'JetBrains Mono', monospace;
+    position: relative;
+}
+
+/* Texture Overlay */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: screen;
+}
+
+/* Dynamic Grid Background */
+.bg-grid {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: 
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 50px 50px;
+    z-index: -2;
+    opacity: 0.4;
+}
+
+.bg-grid-base {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: 
+        linear-gradient(#151515 1px, transparent 1px),
+        linear-gradient(90deg, #151515 1px, transparent 1px);
+    background-size: 50px 50px;
+    z-index: -3;
+    opacity: 0.3;
+}
+
+/* Spotlight */
+.spotlight-static {
+    position: fixed;
+    width: 1200px; height: 1200px;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.08) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: -1;
+    filter: blur(80px);
+    top: -30%; left: -10%;
+    animation: pulseLight 8s ease-in-out infinite alternate;
+}
+
+@keyframes pulseLight { 
+    0% { opacity: 0.6; } 
+    100% { opacity: 1; } 
+}
+
+/* Container ensuring perfect overlap */
+#universe-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* 3D Layer */
+#canvas-3d {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    margin: 0;
+    padding: 0; /* CRITICAL: padding changes the center point */
+    z-index: 2; /* On top initially */
+    opacity: 1;
+    transition: opacity 0.1s linear;
+}
+
+/* 2D Layer */
+#network-container {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    margin: 0;
+    padding: 0; /* CRITICAL: padding changes the center point */
+    z-index: 1;
+    opacity: 0; /* Hidden initially */
+    background: var(--bg-panel);
+}
+
+/* UI Overlay */
+#ui-layer {
+    position: absolute;
+    bottom: 20px; left: 20px;
+    z-index: 10;
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+#ui-layer h2 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+#ui-layer h2::before {
+    content: ">";
+    color: var(--accent);
+    margin-right: 6px;
+    text-shadow: 0 0 12px var(--accent);
+}
+
+#status-text {
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.hidden { display: none !important; }
+.visible { opacity: 1 !important; }
+
+/* Label fade-in animation */
+@keyframes fadeInLabels {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+</style>
+</head>
+
+<body>
+<!-- Background Elements -->
+<div class="bg-grid-base"></div>
+<div class="bg-grid"></div>
+<div class="spotlight-static"></div>
+
+<div id="universe-container">
+    <div id="canvas-3d"></div>
+    <div id="network-container"></div>
+    <div id="ui-layer">
+        <h2>Project Galaxy</h2>
+        <p id="status-text">Initializing sequence...</p>
+    </div>
+</div>
+
+<!-- Data Injection Point -->
+<script id="embedded-graph-data" type="application/json">
+{
+  "nodes": [
+    {"id": 1, "method": "GET", "label": "GET /users", "size": 20},
+    {"id": 2, "method": "POST", "label": "POST /users", "size": 20},
+    {"id": 3, "method": "GET", "label": "GET /auth", "size": 15},
+    {"id": 4, "method": "PUT", "label": "PUT /settings", "size": 15},
+    {"id": 5, "method": "DELETE", "label": "DELETE /logs", "size": 10},
+    {"id": 6, "method": "PATCH", "label": "PATCH /profile", "size": 10},
+    {"id": 7, "method": "GET", "label": "GET /analytics", "size": 15}
+  ],
+  "edges": [
+    {"from": 1, "to": 3},
+    {"from": 2, "to": 3},
+    {"from": 3, "to": 4},
+    {"from": 4, "to": 5},
+    {"from": 1, "to": 6},
+    {"from": 7, "to": 1},
+    {"from": 7, "to": 2}
+  ]
+}
+</script>
+
+<script>
+// --- CONFIGURATION ---
+const CONFIG = {
+    colors: {
+        'GET':     0x3b82f6,
+        'POST':    0x00FF94,
+        'PUT':     0xFFE600,
+        'DELETE':  0xFF003C,
+        'PATCH':   0x00F0FF,
+        'DEFAULT': 0x6b7280
+    },
+    camera: {
+        startPos: { x: 0, y: 0, z: 50 }, // Start at center, close up
+        fov: 50
+    },
+    animation: {
+        orbitDuration: 3000,     // 3s orbit phase
+        settleDuration: 2000     // 2s settle to final position
+    }
+};
+
+// --- STATE MANAGEMENT ---
+let state = {
+    nodes: [],
+    edges: [],
+    startTime: 0
+};
+
+let threeEng = {};
+let visNetwork = null;
+
+// --- 1. PRE-CALCULATION (FORCE DIRECTED) ---
+function calculateLayout(graphData) {
+    const nodeMap = new Map();
+    const nodes = graphData.nodes;
+    const edges = graphData.edges;
+    
+    // Initialize in circle
+    nodes.forEach((n, i) => {
+        const angle = (i / nodes.length) * Math.PI * 2;
+        const r = 50;
+        nodeMap.set(n.id, {
+            ...n,
+            x: Math.cos(angle) * r,
+            y: Math.sin(angle) * r,
+            vx: 0, vy: 0
+        });
+    });
+    
+    // Simple physics simulation (150 ticks)
+    const k = 50;
+    for(let i=0; i<150; i++) {
+        // Repulsion
+        nodeMap.forEach(n1 => {
+            nodeMap.forEach(n2 => {
+                if(n1.id === n2.id) return;
+                const dx = n1.x - n2.x;
+                const dy = n1.y - n2.y;
+                const dist = Math.sqrt(dx*dx + dy*dy) || 0.1;
+                const force = (k*k) / dist;
+                const fx = (dx/dist) * force;
+                const fy = (dy/dist) * force;
+                n1.vx += fx; n1.vy += fy;
+            });
+        });
+        
+        // Attraction
+        edges.forEach(e => {
+            const n1 = nodeMap.get(e.from);
+            const n2 = nodeMap.get(e.to);
+            if(!n1 || !n2) return;
+            const dx = n1.x - n2.x;
+            const dy = n1.y - n2.y;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 0.1;
+            const force = (dist*dist) / k;
+            const fx = (dx/dist) * force;
+            const fy = (dy/dist) * force;
+            n1.vx -= fx; n1.vy -= fy;
+            n2.vx += fx; n2.vy += fy;
+        });
+        
+        // Update & Dampen
+        nodeMap.forEach(n => {
+            n.x += n.vx * 0.05;
+            n.y += n.vy * 0.05;
+            n.vx *= 0.5;
+            n.vy *= 0.5;
+        });
+    }
+    
+    // Calculate bounds to ensure everything fits
+    const positions = Array.from(nodeMap.values());
+    const bounds = {
+        minX: Math.min(...positions.map(n => n.x)),
+        maxX: Math.max(...positions.map(n => n.x)),
+        minY: Math.min(...positions.map(n => n.y)),
+        maxY: Math.max(...positions.map(n => n.y))
+    };
+    
+    // Calculate required distance to fit everything in frame
+    const graphWidth = bounds.maxX - bounds.minX;
+    const graphHeight = bounds.maxY - bounds.minY;
+    const maxDimension = Math.max(graphWidth, graphHeight);
+    
+    // Store for camera calculation
+    state.graphBounds = bounds;
+    state.graphMaxDimension = maxDimension;
+    
+    // Add Z-depth for 3D (much more variation for dramatic orbit)
+    return positions.map(n => ({
+        ...n,
+        z: (Math.random() - 0.5) * 300, // Increased from 100 to 300
+        zOriginal: (Math.random() - 0.5) * 300
+    }));
+}
+
+// --- 2. 3D ENGINE (THREE.JS) ---
+function init3D() {
+    const container = document.getElementById('canvas-3d');
+    
+    // Scene
+    threeEng.scene = new THREE.Scene();
+    threeEng.scene.fog = new THREE.FogExp2(0x050505, 0.002);
+    
+    // Camera
+    const aspect = window.innerWidth / window.innerHeight;
+    threeEng.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, aspect, 0.1, 2000);
+    threeEng.camera.position.set(CONFIG.camera.startPos.x, CONFIG.camera.startPos.y, CONFIG.camera.startPos.z);
+    threeEng.camera.lookAt(0,0,0);
+    
+    // Renderer
+    threeEng.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    threeEng.renderer.setSize(window.innerWidth, window.innerHeight);
+    threeEng.renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(threeEng.renderer.domElement);
+    
+    // Create nodes
+    state.nodes.forEach(node => {
+        const colorHex = CONFIG.colors[node.method] || CONFIG.colors['DEFAULT'];
+        
+        // Core Sphere (made bigger to match 2D scale)
+        const geo = new THREE.SphereGeometry(node.size * 0.3, 32, 32);
+        const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+        const mesh = new THREE.Mesh(geo, mat);
+        
+        // Glow Sprite
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const context = canvas.getContext('2d');
+        const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.2, 'rgba(255,255,255,0.5)');
+        gradient.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 32, 32);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMat = new THREE.SpriteMaterial({ 
+            map: texture, 
+            color: colorHex, 
+            transparent: true, 
+            blending: THREE.AdditiveBlending 
+        });
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.scale.set(node.size * 2, node.size * 2, 1); // Bigger glow
+        mesh.add(sprite);
+        
+        mesh.position.set(node.x, node.y, node.z);
+        mesh.userData = { id: node.id };
+        threeEng.scene.add(mesh);
+        node._mesh = mesh;
+    });
+    
+    // Constellation Lines
+    const lineMat = new THREE.LineBasicMaterial({ 
+        color: 0xffffff, 
+        transparent: true, 
+        opacity: 0.15 
+    });
+    const edgeGeo = new THREE.BufferGeometry();
+    threeEng.edgeLines = new THREE.LineSegments(edgeGeo, lineMat);
+    threeEng.scene.add(threeEng.edgeLines);
+    
+    // Handle Resize
+    window.addEventListener('resize', () => {
+        const w = window.innerWidth; 
+        const h = window.innerHeight;
+        threeEng.camera.aspect = w/h;
+        threeEng.camera.updateProjectionMatrix();
+        threeEng.renderer.setSize(w, h);
+    });
+}
+
+// --- 3. 2D ENGINE (VIS.JS) ---
+function init2D(graphData) {
+    const container = document.getElementById('network-container');
+    
+    // Use our calculated positions with EXACT size matching
+    const vNodes = new vis.DataSet(state.nodes.map(n => ({
+        id: n.id,
+        label: n.label,
+        x: n.x, // CRITICAL: Use our calculated X
+        y: -n.y, // CRITICAL: Flip Y (Three.js Y+ is up, vis.js Y+ is down)
+        color: {
+            background: '#' + (CONFIG.colors[n.method] || CONFIG.colors.DEFAULT).toString(16).padStart(6,'0'),
+            border: '#ffffff'
+        },
+        size: n.size * 0.3, // CRITICAL: Match Three.js sphere radius exactly
+        font: { 
+            color: 'rgba(255,255,255,0.7)', // Subtle, not harsh white
+            size: 10, // Smaller, more tasteful
+            face: 'sans-serif'
+        }
+    })));
+    
+    const vEdges = new vis.DataSet(graphData.edges.map(e => ({ 
+        from: e.from, 
+        to: e.to, 
+        color: { color: 'rgba(255,255,255,0.2)' } 
+    })));
+    
+    const options = {
+        physics: { enabled: false }, // CRITICAL: Disable physics
+        interaction: { zoomView: true, dragView: true },
+        nodes: { 
+            shape: 'dot',
+            borderWidth: 0, // CRITICAL: No borders (Three.js spheres don't have them)
+            scaling: {
+                min: 1,
+                max: 100,
+                // CRITICAL: 1:1 scaling - no normalization
+                customScalingFunction: function (min, max, total, value) {
+                    return value;
+                }
+            }
+        },
+        layout: { improvedLayout: false }
+    };
+    
+    visNetwork = new vis.Network(container, { nodes: vNodes, edges: vEdges }, options);
+    
+    // Don't set scale yet - will be set after animation completes
+    // This allows vis.js to initialize but stay hidden
+}
+
+function setFinalScale() {
+    // FIX 1: Use exact container dimensions (not window)
+    const container = document.getElementById('network-container');
+    const containerHeight = container.clientHeight;
+    
+    // FIX 2: Calculate visible height at target distance
+    const distance = state.finalCameraDistance;
+    const fovRad = (CONFIG.camera.fov * Math.PI) / 180;
+    const visibleHeightWorld = 2 * distance * Math.tan(fovRad / 2);
+    
+    // FIX 3: Calculate scale factor (pixels per world unit)
+    const scaleFactor = containerHeight / visibleHeightWorld;
+    
+    console.log(`[FIX] Container H: ${containerHeight}, World H: ${visibleHeightWorld.toFixed(2)}, Scale: ${scaleFactor.toFixed(4)}`);
+    
+    visNetwork.moveTo({
+        position: { x: 0, y: 0 }, // Center of graph
+        scale: scaleFactor,
+        offset: { x: 0, y: 0 },   // Center of viewport
+        animation: false
+    });
+}
+
+function executeSwap() {
+    console.log('[SWAP] Transitioning to 2D interactive mode');
+    
+    // Set the final scale for 2D view
+    setFinalScale();
+    
+    // Instant swap - hide 3D, show 2D
+    document.getElementById('canvas-3d').style.opacity = '0';
+    document.getElementById('network-container').style.opacity = '1';
+    document.getElementById('canvas-3d').style.pointerEvents = 'none';
+    document.getElementById('status-text').innerText = "Interactive Mode";
+    
+    // Fade in labels after a brief delay
+    setTimeout(() => {
+        const canvas = document.querySelector('#network-container canvas');
+        if (canvas) {
+            canvas.style.animation = 'fadeInLabels 0.8s ease-in forwards';
+        }
+    }, 200);
+}
+
+// --- 4. ANIMATION LOOP (UNIFIED MOTION) ---
+function animate() {
+    requestAnimationFrame(animate);
+    
+    const time = performance.now();
+    const dt = time - state.startTime;
+    
+    // Update edge lines every frame
+    const points = [];
+    const rawEdges = JSON.parse(document.getElementById('embedded-graph-data').textContent).edges;
+    rawEdges.forEach(e => {
+        const n1 = state.nodes.find(n => n.id === e.from);
+        const n2 = state.nodes.find(n => n.id === e.to);
+        if(n1 && n2) {
+            points.push(n1._mesh.position);
+            points.push(n2._mesh.position);
+        }
+    });
+    threeEng.edgeLines.geometry.setFromPoints(points);
+    
+    const DURATION = 4000; // 4 seconds total
+    
+    if (dt < DURATION) {
+        const progress = dt / DURATION;
+        const ease = 1 - Math.pow(1 - progress, 3); // Smooth ease out
+        
+        // Calculate final camera distance (do this once)
+        if (!state.finalCameraDistance) {
+            const fovRad = (CONFIG.camera.fov * Math.PI) / 180;
+            const maxDim = state.graphMaxDimension;
+            const padding = 1.2;
+            state.finalCameraDistance = (maxDim * padding) / (2 * Math.tan(fovRad / 2));
+        }
+        
+        const centerNode = state.nodes[0];
+        const finalDistance = state.finalCameraDistance;
+        
+        // === UNIFIED CAMERA MOTION ===
+        // Start: Inside center node
+        // End: Front-facing at calculated distance
+        const startCamX = centerNode.x;
+        const startCamY = centerNode.y;
+        const startCamZ = centerNode.z + 20;
+        
+        threeEng.camera.position.x = startCamX + (0 - startCamX) * ease;
+        threeEng.camera.position.y = startCamY + (0 - startCamY) * ease;
+        threeEng.camera.position.z = startCamZ + (finalDistance - startCamZ) * ease;
+        threeEng.camera.lookAt(0, 0, 0);
+        
+        // === UNIFIED NODE MOTION ===
+        // Orbit slows down as we pull back, nodes flatten to Z=0
+        const orbitAmount = 1 - ease; // Full orbit at start, none at end
+        const angle = dt * 0.001 * orbitAmount;
+        
+        state.nodes.forEach(n => {
+            if (n.id === centerNode.id) {
+                // Center node: just flatten Z
+                n._mesh.position.set(n.x, n.y, n.z * (1 - ease));
+            } else {
+                // Other nodes: orbit + flatten
+                const relX = n.x - centerNode.x;
+                const relY = n.y - centerNode.y;
+                const relZ = n.z - centerNode.z;
+                
+                // Apply orbit (decreases over time)
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                const rotX = relX * cosA - relZ * sinA;
+                const rotZ = relX * sinA + relZ * cosA;
+                
+                // Interpolate from orbital position to final flat position
+                const orbitalX = centerNode.x + rotX;
+                const orbitalY = centerNode.y + relY;
+                const orbitalZ = centerNode.z + rotZ;
+                
+                n._mesh.position.x = orbitalX + (n.x - orbitalX) * ease;
+                n._mesh.position.y = orbitalY + (n.y - orbitalY) * ease;
+                n._mesh.position.z = orbitalZ * (1 - ease); // Flatten to 0
+            }
+        });
+    } else if (!state.swapped) {
+        // Animation complete - execute swap once
+        state.swapped = true;
+        console.log('[ANIMATION] Complete at', dt, 'ms - executing swap');
+        executeSwap();
+    }
+    
+    threeEng.renderer.render(threeEng.scene, threeEng.camera);
+}
+
+function executeSwap() {
+    state.phase = 'interactive';
+    
+    // Set the final scale for 2D view
+    setFinalScale();
+    
+    // The Frame Swap (instant, no fade)
+    document.getElementById('canvas-3d').style.opacity = '0';
+    document.getElementById('network-container').style.opacity = '1';
+    document.getElementById('canvas-3d').style.pointerEvents = 'none';
+    document.getElementById('status-text').innerText = "Interactive Mode";
+    
+    console.log('[SWAP] Transitioned to 2D at perfect frame');
+}
+
+// --- MAIN ENTRY ---
+window.onload = function() {
+    const rawData = JSON.parse(document.getElementById('embedded-graph-data').textContent);
+    
+    // 1. Calculate layout
+    state.nodes = calculateLayout(rawData);
+    
+    // 2. Init systems
+    init3D();
+    init2D(rawData);
+    
+    // 3. Start
+    state.startTime = performance.now();
+    animate();
+};
+</script>
+
+</body>
+</html>
