@@ -1,0 +1,96 @@
+method: bayes
+metric:
+  goal: maximize
+  name: train/episode_reward
+
+# Use Hydra override syntax: key=value (no dashes)
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}
+
+parameters:
+  # Model hyperparameters (model/ppo.yaml)
+  model.learning_rate:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+  model.gamma:
+    distribution: uniform
+    min: 0.9
+    max: 0.999
+  model.batch_size:
+    values: [32, 64, 128, 256]
+  model.n_steps:
+    distribution: int_uniform
+    min: 1024
+    max: 4096
+  model.clip_range:
+    distribution: uniform
+    min: 0.1
+    max: 0.3
+  model.ent_coef:
+    distribution: log_uniform_values
+    min: 0.0001
+    max: 0.01
+  model.gae_lambda:
+    distribution: uniform
+    min: 0.9
+    max: 0.99
+
+  # Training parameters (training/default.yaml)
+  training.total_timesteps:
+    distribution: int_uniform
+    min: 100000
+    max: 300000
+  training.log_interval:
+    distribution: int_uniform
+    min: 100
+    max: 1000
+  training.verbose:
+    values: [1, 2]
+
+  # Environment parameters (env/default.yaml)
+  env.action_space.max_towers:
+    distribution: int_uniform
+    min: 5
+    max: 20
+  env.episode.max_episode_steps:
+    distribution: int_uniform
+    min: 2500
+    max: 10000
+  env.episode.truncate_on_life_lost:
+    values: [true, false]
+  env.observation_space.include_enemy_health:
+    values: [true, false]
+  env.observation_space.include_tower_stats:
+    values: [true, false]
+  env.observation_space.normalize:
+    values: [true, false]
+
+  # Experiment settings
+  experiment.seed:
+    distribution: int_uniform
+    min: 1
+    max: 200
+
+  # Agent settings
+  agent.deterministic:
+    values: [true, false]
+
+  # Callbacks - W&B (fixed values for sweep logging)
+  callbacks.wandb.enabled:
+    value: true
+  callbacks.wandb.project:
+    value: utdg
+  callbacks.wandb.entity:
+    value: rl4aa
+  callbacks.wandb.mode:
+    value: online
+  callbacks.wandb.eval_enabled:
+    value: false
+  callbacks.wandb.save_code:
+    value: false
+
+program: trainer.py
