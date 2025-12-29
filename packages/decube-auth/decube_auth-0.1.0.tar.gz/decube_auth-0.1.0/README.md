@@ -1,0 +1,178 @@
+# Decube Auth SDK (Python)
+
+The **Decube Auth SDK** is a lightweight Python client for interacting with the Decube authentication system through the Decube Gateway.
+
+It provides a simple, ergonomic interface for:
+- User signup
+- User login
+- Refresh token rotation
+
+The SDK is intentionally **thin and stateless**.
+
+---
+
+## Installation
+
+From PyPI:
+```bash
+pip install decube-auth
+```
+
+For local development:
+```bash
+pip install -e .
+```
+
+### Quick Start
+```python
+from decube_auth import AuthClient
+
+auth = AuthClient(api_key="dc_live_xxx")
+
+# Signup
+tokens = auth.signup("user@example.com", "password123")
+
+# Login
+tokens = auth.login("user@example.com", "password123")
+
+# Refresh access token
+tokens = auth.refresh(tokens["refresh_token"])
+```
+## Authentication Model
+- API key is used to authenticate the project
+- User credentials authenticate the user
+- Project context is enforced by the Gateway
+- Tokens returned are scoped to a single project
+- The SDK communicates only with the Gateway, never directly with backend services.
+
+## Public API
+**AuthClient**
+>Initialization
+
+```python
+AuthClient(api_key: str, base_url: str = DEFAULT_BASE_URL)
+```
+api_key (required): Project API key
+base_url (optional): Gateway base URL
+
+
+**signup(email, password)**
+>Creates a new user scoped to the project.
+
+```python
+tokens = auth.signup("user@example.com", "password123")
+```
+
+Returns:
+```json
+{
+  "access_token": "...",
+  "refresh_token": "..."
+}
+```
+
+
+**login(email, password)**
+>Authenticates an existing user.
+
+```python
+tokens = auth.login("user@example.com", "password123")
+```
+
+Returns:
+```json
+{
+  "access_token": "...",
+  "refresh_token": "..."
+}
+```
+
+
+**refresh(refresh_token)**
+>Rotates the refresh token and returns a new token pair.
+
+```python
+tokens = auth.refresh(refresh_token)
+```
+
+Returns:
+```json
+{
+  "access_token": "...",
+  "refresh_token": "..."
+}
+```
+
+### Refresh tokens are:
+- Single-use
+- Rotated on every refresh
+- Invalid after use or expiry
+
+### Exceptions
+- The SDK raises clean, Python-level exceptions instead of exposing HTTP details.
+- Exception	Meaning
+- AuthenticationError	Invalid credentials or token
+- ConflictError	Resource already exists (e.g. duplicate signup)
+- BadRequestError	Invalid request payload
+- ServerError	Unexpected server error
+
+**Example:**
+
+```python
+from decube_auth.exceptions import AuthenticationError
+
+try:
+    auth.login("a@b.com", "wrong-password")
+except AuthenticationError:
+    print("Invalid credentials")
+```
+
+### Configuration
+>Base URL
+>By default, the SDK connects to:
+```arduino
+http://localhost:7000
+```
+
+>Override using environment variable:
+```env
+DECUBE_BASE_URL=http://your-gateway-host
+```
+
+>Or directly in code:
+```python
+auth = AuthClient(
+    api_key="dc_live_xxx",
+    base_url="https://api.decube.io"
+)
+```
+
+**What the SDK Does NOT Do**
+- Store tokens
+- Auto-refresh tokens
+- Validate JWTs
+- Implement business logic
+- Manage sessions
+>These responsibilities belong to the client application.
+
+**Design Principles**
+- Stateless
+- Explicit
+- Minimal surface area
+- No hidden behavior
+- Gateway-centric communication
+
+### Status
+- 🔒 Frozen at Checkpoint-2
+- Public API is locked
+- Behavior is stable
+- Backward compatibility guaranteed within version range
+
+### Summary
+The Decube Auth SDK is a convenience layer, not a framework.
+It exists to make authentication with Decube:
+- Easy to integrate
+- Predictable
+- Explicit
+
+If you understand HTTP, you understand this SDK.
