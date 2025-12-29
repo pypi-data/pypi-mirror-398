@@ -1,0 +1,631 @@
+"""FSSpec filesystem toolset helpers."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import difflib
+import re
+from typing import Any
+
+from pydantic_ai import ModelRetry
+
+from agentpool.log import get_logger
+from agentpool_toolsets.builtin.file_edit.fuzzy_matcher import StreamingFuzzyMatcher
+
+
+logger = get_logger(__name__)
+
+# Default maximum size for file operations (64KB)
+DEFAULT_MAX_SIZE = 64_000
+
+
+@dataclass
+class DiffHunk:
+    """A single diff hunk representing one edit operation."""
+
+    old_text: str
+    """The text to find/replace (context + removed lines)."""
+
+    new_text: str
+    """The replacement text (context + added lines)."""
+
+    raw: str
+    """The raw diff text for this hunk."""
+
+
+def parse_locationless_diff(diff_text: str) -> list[DiffHunk]:
+    """Parse a locationless unified diff into old/new text pairs.
+
+    Handles diff format without line numbers - the location is inferred
+    by matching context in the file.
+
+    Format expected:
+    ```
+     context line (unchanged)
+    -removed line
+    +added line
+     more context
+    ```
+
+    Multiple hunks are separated by:
+    - Blank lines (empty line not starting with space)
+    - Non-diff content lines
+
+    Args:
+        diff_text: The diff text (may contain multiple hunks)
+
+    Returns:
+        List of DiffHunk objects with old_text/new_text pairs
+    """
+    hunks: list[DiffHunk] = []
+
+    # Extract content between <diff> tags if present
+    diff_match = re.search(r"<diff>(.*?)</diff>", diff_text, re.DOTALL)
+    if diff_match:
+        diff_text = diff_match.group(1)
+
+    # Also handle ```diff ... ``` code blocks
+    # Use \n? instead of \s* to avoid consuming leading spaces on first diff line
+    code_block_match = re.search(r"```diff\n?(.*?)```", diff_text, re.DOTALL)
+    if code_block_match:
+        diff_text = code_block_match.group(1)
+
+    # Strip only leading/trailing newlines, not spaces (which are meaningful in diffs)
+    diff_text = diff_text.strip("\n\r")
+    lines = diff_text.split("\n")
+
+    current_hunk_lines: list[str] = []
+
+    for line in lines:
+        # Skip standard diff headers
+        if line.startswith(("---", "+++", "@@", "diff --git", "index ")):
+            continue
+
+        # Check if this is a diff line (starts with +, -, or space for context)
+        is_diff_line = line.startswith(("+", "-", " "))
+
+        # Empty line (not starting with space) = hunk separator
+        if line == "" or (not is_diff_line and not line.strip()):
+            if current_hunk_lines:
+                hunk = _parse_single_hunk(current_hunk_lines)
+                if hunk:
+                    hunks.append(hunk)
+                current_hunk_lines = []
+            continue
+
+        # Non-diff content line = hunk separator
+        if not is_diff_line and line.strip():
+            if current_hunk_lines:
+                hunk = _parse_single_hunk(current_hunk_lines)
+                if hunk:
+                    hunks.append(hunk)
+                current_hunk_lines = []
+            continue
+
+        # Accumulate diff lines
+        current_hunk_lines.append(line)
+
+    # Don't forget the last hunk
+    if current_hunk_lines:
+        hunk = _parse_single_hunk(current_hunk_lines)
+        if hunk:
+            hunks.append(hunk)
+
+    return hunks
+
+
+def _parse_single_hunk(lines: list[str]) -> DiffHunk | None:
+    """Parse a single diff hunk into old/new text.
+
+    Args:
+        lines: Lines of the hunk (each starting with +, -, or space)
+
+    Returns:
+        DiffHunk or None if the hunk is empty/invalid
+    """
+    old_lines: list[str] = []
+    new_lines: list[str] = []
+
+    for line in lines:
+        if line.startswith("-"):
+            # Removed line - only in old
+            old_lines.append(line[1:])
+        elif line.startswith("+"):
+            # Added line - only in new
+            new_lines.append(line[1:])
+        elif line.startswith(" "):
+            # Context line - in both
+            content = line[1:] if len(line) > 1 else ""
+            old_lines.append(content)
+            new_lines.append(content)
+        # Skip lines that don't match the pattern
+
+    if not old_lines and not new_lines:
+        return None
+
+    old_text = "\n".join(old_lines)
+    new_text = "\n".join(new_lines)
+    raw = "\n".join(lines)
+
+    return DiffHunk(old_text=old_text, new_text=new_text, raw=raw)
+
+
+async def apply_diff_edits(
+    original_content: str,
+    diff_response: str,
+    *,
+    use_fuzzy: bool = True,
+) -> str:
+    """Apply locationless diff edits to content.
+
+    Parses diff format and applies each hunk using content matching.
+
+    Args:
+        original_content: The original file content
+        diff_response: The agent's response containing diffs
+        use_fuzzy: Whether to use fuzzy matching for finding locations
+
+    Returns:
+        The modified content
+
+    Raises:
+        ModelRetry: If edits cannot be applied (for agent retry)
+    """
+    from agentpool_toolsets.builtin.file_edit import replace_content
+
+    hunks = parse_locationless_diff(diff_response)
+
+    if not hunks:
+        logger.warning("No diff hunks found in response")
+        # Try falling back to structured edits format
+        return await apply_structured_edits(original_content, diff_response)
+
+    content = original_content
+    applied_edits = 0
+    failed_hunks: list[str] = []
+
+    for hunk in hunks:
+        if not hunk.old_text.strip():
+            # Pure insertion - would need line context to place
+            # For now, skip pure insertions without context
+            logger.warning("Skipping pure insertion hunk (no context)")
+            continue
+
+        try:
+            # Use the existing smart replace with fuzzy matching
+            new_content = replace_content(
+                content,
+                hunk.old_text,
+                hunk.new_text,
+                replace_all=False,
+            )
+            content = new_content
+            applied_edits += 1
+        except ValueError as e:
+            # Match failed
+            logger.warning("Failed to apply hunk", error=str(e), hunk=hunk.raw[:100])
+            failed_hunks.append(hunk.old_text[:50])
+
+    if applied_edits == 0 and hunks:
+        msg = (
+            f"None of the {len(hunks)} diff hunks could be applied. "
+            "The context lines don't match the current file content. "
+            "Please read the file again and provide accurate diff context."
+        )
+        raise ModelRetry(msg)
+
+    if failed_hunks:
+        logger.warning(
+            "Some hunks failed",
+            applied=applied_edits,
+            failed=len(failed_hunks),
+        )
+
+    logger.info("Applied diff edits", applied=applied_edits, total=len(hunks))
+    return content
+
+
+async def apply_diff_edits_streaming(
+    original_content: str,
+    diff_response: str,
+    *,
+    line_hint: int | None = None,
+) -> str:
+    """Apply locationless diff edits using streaming fuzzy matcher (Zed-style).
+
+    Alternative to `apply_diff_edits` that uses a dynamic programming based
+    fuzzy matcher to locate where edits should be applied. This approach:
+    - Uses line-by-line fuzzy matching with Levenshtein distance
+    - Handles indentation differences gracefully
+    - Can use line hints to disambiguate multiple matches
+    - Matches Zed's edit resolution algorithm
+
+    Args:
+        original_content: The original file content
+        diff_response: The agent's response containing diffs
+        line_hint: Optional line number hint for disambiguation
+
+    Returns:
+        The modified content
+
+    Raises:
+        ModelRetry: If edits cannot be applied (for agent retry)
+    """
+    hunks = parse_locationless_diff(diff_response)
+
+    if not hunks:
+        logger.warning("No diff hunks found in response (streaming)")
+        # Try falling back to structured edits format
+        return await apply_structured_edits(original_content, diff_response)
+
+    content = original_content
+    applied_edits = 0
+    failed_hunks: list[str] = []
+    ambiguous_hunks: list[str] = []
+
+    for hunk in hunks:
+        if not hunk.old_text.strip():
+            # Pure insertion - skip for now (needs anchor point)
+            logger.warning("Skipping pure insertion hunk (no context)")
+            continue
+
+        # Use streaming fuzzy matcher to find where old_text matches
+        matcher = StreamingFuzzyMatcher(content)
+
+        # Feed the old_text lines to the matcher
+        # Simulate streaming by pushing line by line
+        old_lines = hunk.old_text.split("\n")
+        for i, line in enumerate(old_lines):
+            # Add newline except for last line
+            chunk = line + ("\n" if i < len(old_lines) - 1 else "")
+            matcher.push(chunk, line_hint=line_hint)
+
+        # Get final matches
+        matches = matcher.finish()
+
+        if not matches:
+            logger.warning("No match found for hunk", hunk=hunk.old_text[:50])
+            failed_hunks.append(hunk.old_text[:50])
+            continue
+
+        # Try to select best match
+        best_match = matcher.select_best_match()
+
+        if best_match is None and len(matches) > 1:
+            # Multiple ambiguous matches
+            logger.warning(
+                "Ambiguous matches for hunk",
+                hunk=hunk.old_text[:50],
+                match_count=len(matches),
+            )
+            ambiguous_hunks.append(hunk.old_text[:50])
+            continue
+
+        # Use best match or first match
+        match_range = best_match or matches[0]
+
+        # Extract the matched text and replace with new_text
+        matched_text = content[match_range.start : match_range.end]
+
+        # Apply the replacement
+        # We need to be careful about indentation - the matcher finds the range,
+        # but we should preserve the original indentation structure
+        old_indent = _get_leading_indent(matched_text)
+        new_indent = _get_leading_indent(hunk.old_text)
+
+        # Calculate indent delta
+        indent_delta = len(old_indent) - len(new_indent)
+
+        # Reindent new_text to match the file's indentation
+        if indent_delta != 0:
+            reindented_new = _reindent_text(
+                hunk.new_text, indent_delta, old_indent[0] if old_indent else " "
+            )
+        else:
+            reindented_new = hunk.new_text
+
+        # Apply the edit
+        content = content[: match_range.start] + reindented_new + content[match_range.end :]
+        applied_edits += 1
+
+        logger.debug(
+            "Applied streaming edit",
+            start=match_range.start,
+            end=match_range.end,
+            old_len=len(matched_text),
+            new_len=len(reindented_new),
+        )
+
+    if applied_edits == 0 and hunks:
+        if ambiguous_hunks:
+            matches_str = ", ".join(ambiguous_hunks[:3])
+            msg = (
+                f"Edit locations are ambiguous - multiple matches found for: {matches_str}... "
+                "Please include more context lines in the diff to uniquely identify the location."
+            )
+        else:
+            msg = (
+                f"None of the {len(hunks)} diff hunks could be applied. "
+                "The context lines don't match the current file content. "
+                "Please read the file again and provide accurate diff context."
+            )
+        raise ModelRetry(msg)
+
+    if failed_hunks or ambiguous_hunks:
+        logger.warning(
+            "Some hunks failed (streaming)",
+            applied=applied_edits,
+            failed=len(failed_hunks),
+            ambiguous=len(ambiguous_hunks),
+        )
+
+    logger.info("Applied diff edits (streaming)", applied=applied_edits, total=len(hunks))
+    return content
+
+
+def _get_leading_indent(text: str) -> str:
+    """Get the leading whitespace of the first non-empty line."""
+    for line in text.split("\n"):
+        if line.strip():
+            return line[: len(line) - len(line.lstrip())]
+    return ""
+
+
+def _reindent_text(text: str, delta: int, indent_char: str = " ") -> str:
+    """Reindent text by adding/removing leading whitespace.
+
+    Args:
+        text: Text to reindent
+        delta: Number of characters to add (positive) or remove (negative)
+        indent_char: Character to use for indentation (space or tab)
+
+    Returns:
+        Reindented text
+    """
+    if delta == 0:
+        return text
+
+    lines = text.split("\n")
+    result_lines = []
+
+    for line in lines:
+        if not line.strip():
+            # Empty or whitespace-only line - keep as is
+            result_lines.append(line)
+            continue
+
+        current_indent = len(line) - len(line.lstrip())
+
+        if delta > 0:
+            # Add indentation
+            new_line = (indent_char * delta) + line
+        else:
+            # Remove indentation (but don't go negative)
+            chars_to_remove = min(abs(delta), current_indent)
+            new_line = line[chars_to_remove:]
+
+        result_lines.append(new_line)
+
+    return "\n".join(result_lines)
+
+
+async def apply_structured_edits(original_content: str, edits_response: str) -> str:
+    """Apply structured edits from the agent response."""
+    # Parse the edits from the response
+    edits_match = re.search(r"<edits>(.*?)</edits>", edits_response, re.DOTALL)
+    if not edits_match:
+        logger.warning("No edits block found in response")
+        return original_content
+
+    edits_content = edits_match.group(1)
+
+    # Find all old_text/new_text pairs
+    old_text_pattern = r"<old_text[^>]*>(.*?)</old_text>"
+    new_text_pattern = r"<new_text>(.*?)</new_text>"
+
+    old_texts = re.findall(old_text_pattern, edits_content, re.DOTALL)
+    new_texts = re.findall(new_text_pattern, edits_content, re.DOTALL)
+
+    if len(old_texts) != len(new_texts):
+        logger.warning("Mismatch between old_text and new_text blocks")
+        return original_content
+
+    # Apply edits sequentially
+    content = original_content
+    applied_edits = 0
+
+    failed_matches = []
+    multiple_matches = []
+
+    for old_text, new_text in zip(old_texts, new_texts, strict=False):
+        old_cleaned = old_text.strip()
+        new_cleaned = new_text.strip()
+
+        # Check for multiple matches (ambiguity)
+        match_count = content.count(old_cleaned)
+        if match_count > 1:
+            multiple_matches.append(old_cleaned[:50])
+        elif match_count == 1:
+            content = content.replace(old_cleaned, new_cleaned, 1)
+            applied_edits += 1
+        else:
+            failed_matches.append(old_cleaned[:50])
+
+    # Raise ModelRetry for specific failure cases
+    if applied_edits == 0 and len(old_cleaned) > 0:
+        msg = (
+            "Some edits were produced but none of them could be applied. "
+            "Read the relevant sections of the file again so that "
+            "I can perform the requested edits."
+        )
+        raise ModelRetry(msg)
+
+    if multiple_matches:
+        matches_str = ", ".join(multiple_matches)
+        msg = (
+            f"<old_text> matches multiple positions in the file: {matches_str}... "
+            "Read the relevant sections of the file again and extend <old_text> "
+            "to be more specific."
+        )
+        raise ModelRetry(msg)
+
+    logger.info("Applied structured edits", num=applied_edits, total=len(old_texts))
+    return content
+
+
+def get_changed_lines(original_content: str, new_content: str, path: str) -> list[str]:
+    old = original_content.splitlines(keepends=True)
+    new = new_content.splitlines(keepends=True)
+    diff = list(difflib.unified_diff(old, new, fromfile=path, tofile=path, lineterm=""))
+    return [line for line in diff if line.startswith(("+", "-"))]
+
+
+def get_changed_line_numbers(original_content: str, new_content: str) -> list[int]:
+    """Extract line numbers where changes occurred for ACP UI highlighting.
+
+    Similar to Claude Code's line tracking for precise change location reporting.
+    Returns line numbers in the new content where changes happened.
+
+    Args:
+        original_content: Original file content
+        new_content: Modified file content
+
+    Returns:
+        List of line numbers (1-based) where changes occurred in new content
+    """
+    old_lines = original_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    # Use SequenceMatcher to find changed blocks
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines)
+    changed_line_numbers = set()
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("replace", "insert", "delete"):
+            # For replacements and insertions, mark lines in new content
+            # For deletions, mark the position where deletion occurred
+            if tag == "delete":
+                # Mark the line where deletion occurred (or next line if at end)
+                line_num = min(j1 + 1, len(new_lines))
+                if line_num > 0:
+                    changed_line_numbers.add(line_num)
+            else:
+                # Mark all affected lines in new content
+                for line_num in range(j1 + 1, j2 + 1):  # Convert to 1-based
+                    changed_line_numbers.add(line_num)
+
+    return sorted(changed_line_numbers)
+
+
+def truncate_content(content: str, max_size: int = DEFAULT_MAX_SIZE) -> tuple[str, bool]:
+    """Truncate text content to a maximum size in bytes.
+
+    Args:
+        content: Text content to truncate
+        max_size: Maximum size in bytes (default: 64KB)
+
+    Returns:
+        Tuple of (truncated_content, was_truncated)
+    """
+    content_bytes = content.encode("utf-8")
+    if len(content_bytes) <= max_size:
+        return content, False
+
+    # Truncate at byte boundary and decode safely
+    truncated_bytes = content_bytes[:max_size]
+    # Avoid breaking UTF-8 sequences by decoding with error handling
+    truncated = truncated_bytes.decode("utf-8", errors="ignore")
+    return truncated, True
+
+
+def truncate_lines(
+    lines: list[str], offset: int = 0, limit: int | None = None, max_bytes: int = DEFAULT_MAX_SIZE
+) -> tuple[list[str], bool]:
+    """Truncate lines with offset/limit and byte size constraints.
+
+    Args:
+        lines: List of text lines
+        offset: Starting line index (0-based)
+        limit: Maximum number of lines to include (None = no limit)
+        max_bytes: Maximum total bytes (default: 64KB)
+
+    Returns:
+        Tuple of (truncated_lines, was_truncated)
+    """
+    # Apply offset
+    start_idx = max(0, offset)
+    if start_idx >= len(lines):
+        return [], False
+
+    # Apply line limit
+    end_idx = min(len(lines), start_idx + limit) if limit is not None else len(lines)
+
+    selected_lines = lines[start_idx:end_idx]
+
+    # Apply byte limit
+    result_lines: list[str] = []
+    total_bytes = 0
+
+    for line in selected_lines:
+        line_bytes = len(line.encode("utf-8"))
+        if total_bytes + line_bytes > max_bytes:
+            # Would exceed limit - this is actual truncation
+            return result_lines, True
+
+        result_lines.append(line)
+        total_bytes += line_bytes
+
+    # Successfully returned all requested content - not truncated
+    # (byte truncation already handled above with early return)
+    return result_lines, False
+
+
+def _format_size(size: int) -> str:
+    """Format byte size as human-readable string."""
+    if size < 1024:  # noqa: PLR2004
+        return f"{size} B"
+    if size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size / (1024 * 1024):.1f} MB"
+
+
+def format_directory_listing(
+    path: str,
+    directories: list[dict[str, Any]],
+    files: list[dict[str, Any]],
+    pattern: str = "*",
+) -> str:
+    """Format directory listing as markdown table.
+
+    Args:
+        path: Base directory path
+        directories: List of directory info dicts
+        files: List of file info dicts
+        pattern: Glob pattern used
+
+    Returns:
+        Formatted markdown string
+    """
+    lines = [f"## {path}"]
+    if pattern != "*":
+        lines.append(f"Pattern: `{pattern}`")
+    lines.append("")
+
+    if not directories and not files:
+        lines.append("*Empty directory*")
+        return "\n".join(lines)
+
+    lines.append("| Name | Type | Size |")
+    lines.append("|------|------|------|")
+
+    # Directories first (sorted)
+    for d in sorted(directories, key=lambda x: x["name"]):
+        lines.append(f"| {d['name']}/ | dir | - |")  # noqa: PERF401
+
+    # Then files (sorted)
+    for f in sorted(files, key=lambda x: x["name"]):
+        size_str = _format_size(f.get("size", 0))
+        lines.append(f"| {f['name']} | file | {size_str} |")
+
+    lines.append("")
+    lines.append(f"*{len(directories)} directories, {len(files)} files*")
+
+    return "\n".join(lines)
