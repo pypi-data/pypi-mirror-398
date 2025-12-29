@@ -1,0 +1,165 @@
+# UAMT – Ultimate Auto Android App Modding Toolkit
+
+NO ROOT NEEDED ✅
+---
+
+UAMT is a powerful **Termux-based Android modding toolkit** that allows you to inject **Frida Gadget** and **custom native libraries**, patch APKs, rebuild, align, and sign them directly on your Android device.
+
+It is designed to be **fast, stable, and easy to use**, featuring a **full-screen interactive TUI**, smart auto-detection, and **automatic dependency installation**.
+---
+
+GitHub(give a star):
+---
+https://github.com/VarshaWanjari0/Auto-Android-App-Modding-Tool-UAMT
+---
+
+📦 Installation
+---
+Install via pip(first install python):
+
+```pip install uamt```
+
+Then run:
+
+```uamt``` to run the tool
+
+
+---
+
+✨ Features
+---
+
+🧩 Injection
+---
+⚡ Inject Frida Gadget
+
+Listen mode
+
+Wait mode
+
+Pre-injected script
+
+
+🧬 Inject any custom .so native library
+---
+
+📥 Download and inject Frida Gadget for multiple ABIs at once
+
+
+
+---
+
+🧠 Smart Detection
+---
+🤖 Automatically detects the best injection method:
+
+🔵 Native injection using patchelf
+
+🟣 Smali injection using APKEditor
+
+
+🔍 Detects main native libraries such as:
+
+libil2cpp.so
+
+libunity.so
+
+and more
+
+
+
+
+---
+
+🛠️ Tools & Build System
+---
+📦 Auto-download and unpack Frida Gadget
+
+🏗️ Full APK rebuild pipeline:
+---
+zipalign
+
+v1 / v2 / v3 signing
+
+
+
+
+---
+
+🎨 Interface
+---
+🎨 Colorful curses-based full-screen TUI
+
+📂 Built-in file picker
+
+✨ Improved layout and visual polish
+
+
+
+---
+
+🛡️ Safe Modding
+---
+🔐 Automatically adds missing INTERNET permission
+
+🧯 Reduces common APK breaking issues
+
+
+
+---
+
+⚙️ Automation
+---
+🚀 One-time automatic installation of all required dependencies
+
+🔌 One-tap connection to Frida Gadget
+
+📱 Optimized for Termux environments
+
+
+
+---
+
+🆕 What’s New
+---
+👉 **[View Full Project Catalog](https://github.com/VarshaWanjari0/Auto-Android-App-Modding-Tool-UAMT/blob/main/catalog.md)**
+
+---
+
+📱 Requirements
+
+📦 Termux (latest version)
+
+
+Run once:
+
+termux-setup-storage
+
+> ℹ️ On first launch, go through the Install / Update option and then the
+Download Frida Gadget option with an active internet connection to automatically set up all dependencies.
+
+
+---
+
+🔍 Use Cases
+---
+🧩 Android APK modding
+
+⚡ Frida Gadget injection
+
+🧬 Native library injection
+
+🔍 Reverse engineering
+
+🛡️ Android security research
+
+📱 Termux-based workflows
+
+
+
+---
+
+⚠️ Disclaimer
+---
+UAMT is intended for educational, research, and authorized testing purposes only.
+Do not use this tool on applications you do not own or have permission to modify.
