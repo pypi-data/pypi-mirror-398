@@ -1,0 +1,398 @@
+Metadata-Version: 2.4
+Name: fastapi-autowire
+Version: 0.1.1
+Summary: Spring-like Dependency Injection and Autowiring for FastAPI
+Author-email: Tuo Nome <tua.email@example.com>
+License: MIT License
+        
+        Copyright (c) 2025 Tuo Nome
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: autowire,dependency-injection,di,fastapi,ioc,spring
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: typing-extensions>=4.0.0; python_version < '3.10'
+Description-Content-Type: text/markdown
+
+# FastAPI Autowire
+
+Spring-like Dependency Injection and Autowiring for FastAPI
+
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+## Overview
+
+**FastAPI Autowire** brings Spring-style dependency injection to FastAPI applications. It provides a clean, declarative way to manage dependencies with automatic resolution, lifecycle management, and type-safe autowiring.
+
+## Features
+
+- 🔧 **Automatic Dependency Resolution** - Dependencies are automatically resolved and injected
+- 🏷️ **Semantic Decorators** - Use `@service`, `@repository`, `@component`, `@configuration`, and `@provider`
+- 🔄 **Lifecycle Management** - Built-in support for `post_construct` and `shutdown` hooks
+- 🎯 **Type-Safe Autowiring** - Leverage Python's type hints with the `Autowired[T]` generic
+- 🌳 **Circular Dependency Detection** - Prevents circular dependencies at startup
+- 📦 **Interface-Based Registration** - Register implementations against abstract base classes
+- ⚡ **FastAPI Integration** - Seamless integration with FastAPI's dependency injection system
+
+## Installation
+
+```bash
+pip install fastapi-autowire
+```
+
+Or using `uv`:
+
+```bash
+uv add fastapi-autowire
+```
+
+## Quick Start
+
+### 1. Define Your Components
+
+```python
+from fastapi_autowire import service, repository, Autowired
+
+@repository
+class UserRepository:
+    async def get_user(self, user_id: int):
+        # Database logic here
+        return {"id": user_id, "name": "John Doe"}
+
+@service
+class UserService:
+    def __init__(self, user_repo: Autowired[UserRepository]):
+        self.user_repo = user_repo
+    
+    async def get_user(self, user_id: int):
+        return await self.user_repo.get_user(user_id)
+```
+
+### 2. Setup Your FastAPI Application
+
+```python
+from fastapi import FastAPI
+from fastapi_autowire import lifespan, Autowired
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/users/{user_id}")
+async def get_user(user_id: int, service: Autowired[UserService]):
+    return await service.get_user(user_id)
+```
+
+That's it! The library handles:
+- ✅ Component registration
+- ✅ Dependency resolution
+- ✅ Lifecycle management
+- ✅ Injection into route handlers
+
+## Core Concepts
+
+### Component Registration
+
+Use semantic decorators to register components:
+
+```python
+from fastapi_autowire import service, repository, component, configuration, provider
+
+@service
+class EmailService:
+    pass
+
+@repository
+class UserRepository:
+    pass
+
+@component
+class CacheManager:
+    pass
+
+@configuration
+class AppConfig:
+    pass
+
+@provider
+class DatabaseProvider:
+    pass
+```
+
+All decorators are aliases of `@component` and serve as semantic markers for better code organization.
+
+### Dependency Injection
+
+#### Constructor Injection
+
+```python
+from fastapi_autowire import service, Autowired
+
+@service
+class OrderService:
+    def __init__(
+        self,
+        user_service: Autowired[UserService],
+        payment_service: Autowired[PaymentService]
+    ):
+        self.user_service = user_service
+        self.payment_service = payment_service
+```
+
+#### Route Handler Injection
+
+```python
+from fastapi import FastAPI
+from fastapi_autowire import Autowired
+
+@app.get("/orders")
+async def get_orders(order_service: Autowired[OrderService]):
+    return await order_service.get_all_orders()
+```
+
+### Interface-Based Registration
+
+Register concrete implementations against abstract interfaces:
+
+```python
+from abc import ABC, abstractmethod
+from fastapi_autowire import service
+
+class IEmailService(ABC):
+    @abstractmethod
+    async def send_email(self, to: str, subject: str, body: str):
+        pass
+
+@service(as_type=IEmailService)
+class SmtpEmailService(IEmailService):
+    async def send_email(self, to: str, subject: str, body: str):
+        # SMTP implementation
+        pass
+
+# Inject using the interface
+@service
+class NotificationService:
+    def __init__(self, email_service: Autowired[IEmailService]):
+        self.email_service = email_service
+```
+
+### Lifecycle Hooks
+
+Components can define lifecycle methods:
+
+```python
+from fastapi_autowire import service
+
+@service
+class DatabaseService:
+    async def post_construct(self):
+        """Called after all dependencies are injected"""
+        print("Initializing database connection...")
+        # Setup connection pool, etc.
+    
+    async def shutdown(self):
+        """Called during application shutdown"""
+        print("Closing database connection...")
+        # Cleanup resources
+```
+
+Lifecycle execution order:
+1. **Startup**: All components are instantiated → `post_construct()` called on each
+2. **Shutdown**: `shutdown()` or `close()` called in reverse order
+
+## Advanced Usage
+
+### Accessing the Application Context
+
+```python
+from fastapi import Request
+from fastapi_autowire.core import AppContext
+
+@app.get("/debug/services")
+async def list_services(request: Request):
+    context = request.app.state.app_context
+    # Access registered services
+    user_service = context.get(UserService)
+    return {"service": type(user_service).__name__}
+```
+
+### Manual Component Retrieval
+
+```python
+from fastapi_autowire.core import AppContext
+
+# After app startup
+context = AppContext.current()
+user_service = context.get(UserService)
+```
+
+## Logging & Debugging
+
+`fastapi-autowire` comes with a built-in logging system to help you monitor the dependency resolution process and troubleshoot any issues during startup.
+
+The library uses a dedicated logger named **`fastapi_autowire`**.
+
+### Enabling Logs
+
+By default, the library is silent (using `logging.NullHandler`). You can enable logs by configuring the level in your application:
+
+```python
+import logging
+import sys
+
+# Standard logging configuration
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+# Enable detailed debug logs for the DI container
+logging.getLogger("fastapi_autowire").setLevel(logging.DEBUG)
+```
+
+## How It Works
+
+1. **Registration Phase**: Decorators like `@service` register components in a global registry
+2. **Resolution Phase**: During app startup, the dependency resolver:
+   - Analyzes constructor signatures
+   - Builds a dependency graph
+   - Detects circular dependencies
+   - Instantiates components in the correct order
+3. **Injection Phase**: Components are injected via:
+   - Constructor parameters (for other components)
+   - FastAPI's `Depends()` mechanism (for route handlers)
+4. **Lifecycle Phase**: `post_construct()` hooks are called after instantiation
+
+### Visualizing the Process
+```mermaid
+sequenceDiagram
+autonumber
+participant Code as 📄 Python Files
+participant Registry as 🗂️ Global Registry
+participant FastAPI as ⚡ FastAPI (Lifespan)
+participant Resolver as 🧠 Dependency Resolver
+participant Container as 📦 AppContext (Container)
+participant Endpoint as 🛣️ Route Handler
+
+    note over Code, Registry: Phase 1: Registration (Import Time)
+    Code->>Registry: Decorators execute (@component, @service...)
+    Registry-->>Registry: Store class references and types
+
+    note over FastAPI, Container: Phase 2: The "Magic" Startup (Resolution & Instantiation)
+    FastAPI->>Resolver: Application starts, lifespan triggers resolution
+    Resolver->>Registry: Fetch all registered classes
+    Resolver-->>Resolver: Analyze __init__ signatures & build dependency graph (Topological Sort)
+    loop Instantiate in Order
+        Resolver-->>Resolver: Create instances, injecting dependencies recursively
+    end
+    Resolver->>Container: Store fully constructed singletons
+    Resolver->>Container: Trigger async post_construct() hooks
+
+    note over FastAPI, Endpoint: Phase 3: Runtime Injection (Request Time)
+    [Client]->>FastAPI: Incoming HTTP Request
+    FastAPI->>Endpoint: Match route handler
+    Endpoint->>Container: Autowired[T] requests instance of T
+    Container-->>Endpoint: Returns pre-instantiated singleton (O(1) lookup)
+    Endpoint-->>[Client]: Send response
+```
+
+The diagram above illustrates the three stages of fastapi-autowire:
+
+1. **Registration Phase (Import Time):** As Python loads your code, the decorators (@service, @repository) execute and register your classes in a central registry. No objects are created yet.
+
+2. **Startup Phase (The "Magic"):** When FastAPI starts, the lifespan kicks in. The Resolver analyzes the dependency graph of all registered classes, determines the correct order, and instantiates them one by one, injecting necessary dependencies. The final singletons are stored in the AppContext container.
+
+3. **Runtime Phase (Request Time):** When a request hits an endpoint using Autowired[T], FastAPI fetches the already-instantiated singleton directly from the AppContext in O(1) time. Zero overhead during requests.
+
+## API Reference
+
+### Decorators
+
+- **`@component(as_type=None)`** - Register a component
+- **`@service(as_type=None)`** - Register a service (alias of `@component`)
+- **`@repository(as_type=None)`** - Register a repository (alias of `@component`)
+- **`@configuration(as_type=None)`** - Register a configuration (alias of `@component`)
+- **`@provider(as_type=None)`** - Register a provider (alias of `@component`)
+
+**Parameters:**
+- `as_type`: Optional type to register the component as (for interface-based registration)
+
+### Types
+
+- **`Autowired[T]`** - Generic type for dependency injection
+  ```python
+  service: Autowired[UserService]
+  ```
+
+### Functions
+
+- **`lifespan(app: FastAPI)`** - Async context manager for FastAPI lifespan events
+
+### Classes
+
+- **`AppContext`** - Application context holding all registered components
+  - `current()` - Get the current context instance
+  - `get(component_type)` - Retrieve a component by type
+
+## Requirements
+
+- Python 3.9+
+- FastAPI 0.100.0+
+- typing-extensions 4.0.0+ (for Python < 3.10)
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/leoroop/fastapi-autowire.git
+cd fastapi-autowire
+
+# Install dependencies with uv
+uv sync
+
+# Run tests
+uv run pytest
+
+# Run linter
+uv run ruff check .
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+Inspired by Spring Framework's dependency injection system, adapted for Python and FastAPI.
+
+## Support
+
+If you encounter any issues or have questions, please [open an issue](https://github.com/leoroop/fastapi-autowire/issues) on GitHub.
