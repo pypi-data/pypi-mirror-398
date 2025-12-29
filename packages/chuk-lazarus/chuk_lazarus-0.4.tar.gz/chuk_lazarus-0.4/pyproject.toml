@@ -1,0 +1,148 @@
+[project]
+name = "chuk-lazarus"
+version = "0.4"
+description = "MLX-based LLM training and inference with hybrid RL architecture"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mlx>=0.12.0",
+    "mlx-lm>=0.12.0",
+    "transformers>=4.40.1",
+    "huggingface-hub>=0.23.0,<0.24.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "numpy>=1.24.0",
+    "tqdm>=4.65.0",
+    "typer>=0.9.0",
+    "tabulate>=0.9.0",
+    "aiofiles>=23.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "pytest-watch>=4.2.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "types-tabulate>=0.9.0",
+    "types-PyYAML>=6.0.0",
+    "types-aiofiles>=23.0.0",
+    "bandit>=1.7.0",
+    "twine>=4.0.0",
+    "build>=1.0.0",
+    "torch>=2.0.0",
+]
+fast = [
+    "mlx-data>=0.0.3",
+]
+openai = [
+    "tiktoken>=0.5.0",
+]
+
+[project.scripts]
+chuk-lazarus = "chuk_lazarus.cli:main"
+lazarus = "chuk_lazarus.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chuk_lazarus"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+    "/pyproject.toml",
+]
+
+[tool.hatch.build]
+include = [
+    "src/chuk_lazarus/**/*.py",
+    "src/chuk_lazarus/**/*.json",
+    "src/chuk_lazarus/**/*.yaml",
+    "src/chuk_lazarus/**/*.yml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = [
+    "E501",   # Line too long
+    "B905",   # zip() without strict= (too pedantic for most use cases)
+    "B008",   # Function call in default args (common pattern)
+    "B007",   # Unused loop control variable (use _ prefix manually)
+    "B020",   # Loop control variable overrides iterable
+    "B023",   # Function definition does not bind loop variable
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_ignores = false
+ignore_missing_imports = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+no_implicit_optional = false
+# Exclude external packages with broken stubs
+exclude = [
+    "mlx/",
+]
+# Disable most errors for now - codebase needs gradual typing improvements
+disable_error_code = [
+    "assignment",
+    "attr-defined",
+    "call-arg",
+    "arg-type",
+    "return-value",
+    "var-annotated",
+    "override",
+    "misc",
+    "valid-type",
+    "operator",
+    "union-attr",
+    "call-overload",
+    "method-assign",
+    "list-item",
+    "dict-item",
+    "index",
+    "import-untyped",
+    "syntax",
+    "type-abstract",
+]
+
+[[tool.mypy.overrides]]
+module = "mlx.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "golden: marks tests as golden/regression tests requiring real tokenizers",
+]
+
+[tool.coverage.run]
+source = ["src/chuk_lazarus"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "^\\s*\\.\\.\\.$",
+]
