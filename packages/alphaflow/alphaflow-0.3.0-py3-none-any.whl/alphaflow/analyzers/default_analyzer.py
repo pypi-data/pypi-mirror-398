@@ -1,0 +1,341 @@
+"""Default analyzer implementation for portfolio performance analysis."""
+
+from datetime import datetime
+from pathlib import Path
+
+import plotly.graph_objects as go
+
+from alphaflow import Analyzer
+from alphaflow.enums import Topic
+from alphaflow.events import FillEvent
+from alphaflow.events.event import Event
+
+
+class DefaultAnalyzer(Analyzer):
+    """Default analyzer for computing performance metrics and visualizations.
+
+    Tracks portfolio value over time and generates comprehensive performance
+    metrics including Sharpe ratio, Sortino ratio, maximum drawdown, and returns.
+    """
+
+    def __init__(
+        self,
+        plot_path: Path | None = None,
+        plot_title: str = "Portfolio Value Over Time",
+    ) -> None:
+        """Initialize the default analyzer.
+
+        Args:
+            plot_path: Optional path to save the performance plot.
+            plot_title: Title for the performance plot.
+
+        """
+        self._plot_path = plot_path
+        self._values: dict[datetime, float] = {}
+        self._plot_title = plot_title
+        self._fills: dict[datetime, FillEvent] = {}
+
+    def topic_subscriptions(self) -> list[Topic]:
+        """Return the topics this analyzer subscribes to.
+
+        Returns:
+            List of topics to monitor (FILL and MARKET_DATA).
+
+        """
+        return [Topic.FILL, Topic.MARKET_DATA]
+
+    def read_event(self, event: Event) -> None:
+        """Process events and record portfolio values.
+
+        Args:
+            event: Either a FillEvent or MarketDataEvent to process.
+
+        """
+        self._values[event.timestamp] = self._alpha_flow.portfolio.get_portfolio_value(event.timestamp)
+        if isinstance(event, FillEvent):
+            self._fills[event.timestamp] = event
+
+    def run(self) -> None:
+        """Run the analysis after backtest completion.
+
+        Computes all performance metrics, prints them to console, and generates
+        a visualization plot if plot_path was specified.
+
+        """
+        timestamps_tuple, portfolio_values_tuple = zip(*self._values.items(), strict=False)
+        timestamps = list(timestamps_tuple)
+        portfolio_values = list(portfolio_values_tuple)
+
+        for metric, value in self.calculate_all_metrics(timestamps, portfolio_values).items():
+            print(f"{metric}: {value}")
+
+        # Create plotly figure
+        fig = go.Figure()
+
+        # Add portfolio value trace
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=portfolio_values,
+                mode="lines",
+                name="Portfolio Value",
+                line={"width": 2},
+            )
+        )
+
+        drawdown_str = f"Max Drawdown: {100 * self.calculate_max_drawdown(portfolio_values):.2f}%"
+        sharpe_str = f"Sharpe Ratio: {self.calculate_sharpe_ratio(timestamps, portfolio_values):.4f}"
+        sortino_str = f"Sortino Ratio: {self.calculate_sortino_ratio(timestamps, portfolio_values):.4f}"
+        annualized_return_str = (
+            f"Annualized Return: {100 * self.calculate_annualized_return(timestamps, portfolio_values):.2f}%"
+        )
+
+        benchmark_values_dict = self._alpha_flow.portfolio.get_benchmark_values()
+        if benchmark_values_dict:
+            benchmark_timestamps_tuple, benchmark_values_tuple = zip(*benchmark_values_dict.items(), strict=False)
+            benchmark_timestamps = list(benchmark_timestamps_tuple)
+            benchmark_values = list(benchmark_values_tuple)
+            benchmark_multiple = portfolio_values[0] / benchmark_values[0]
+            benchmark_values = [value * benchmark_multiple for value in benchmark_values]
+
+            # Add benchmark trace
+            fig.add_trace(
+                go.Scatter(
+                    x=benchmark_timestamps,
+                    y=benchmark_values,
+                    mode="lines",
+                    name="Benchmark Value",
+                    line={"color": "orange", "width": 2},
+                )
+            )
+
+            benchmark_drawdown = self.calculate_max_drawdown(benchmark_values)
+            benchmark_sharpe = self.calculate_sharpe_ratio(benchmark_timestamps, benchmark_values)
+            benchmark_sortino = self.calculate_sortino_ratio(benchmark_timestamps, benchmark_values)
+            benchmark_annualized_return = self.calculate_annualized_return(benchmark_timestamps, benchmark_values)
+            drawdown_str += f" (Benchmark: {100 * benchmark_drawdown:.2f}%)"
+            sharpe_str += f" (Benchmark: {benchmark_sharpe:.4f})"
+            sortino_str += f" (Benchmark: {benchmark_sortino:.4f})"
+            annualized_return_str += f" (Benchmark: {100 * benchmark_annualized_return:.2f}%)"
+
+        # Update layout
+        metrics_text = "<br>".join([drawdown_str, sharpe_str, sortino_str, annualized_return_str])
+        fig.update_layout(
+            title=self._plot_title,
+            xaxis_title="Timestamp",
+            yaxis_title="Portfolio Value",
+            width=1200,
+            height=600,
+            hovermode="x unified",
+            annotations=[
+                {
+                    "text": metrics_text,
+                    "xref": "paper",
+                    "yref": "paper",
+                    "x": 0.02,
+                    "y": 0.98,
+                    "xanchor": "left",
+                    "yanchor": "top",
+                    "showarrow": False,
+                    "font": {"size": 9},
+                    "bgcolor": "rgba(255, 255, 255, 0.8)",
+                    "bordercolor": "rgba(0, 0, 0, 0.2)",
+                    "borderwidth": 1,
+                    "borderpad": 4,
+                }
+            ],
+        )
+
+        if self._plot_path:
+            fig.write_html(self._plot_path)
+
+    def calculate_max_drawdown(self, portfolio_values: list[float]) -> float:
+        """Calculate the maximum drawdown from peak to trough.
+
+        Args:
+            portfolio_values: List of portfolio values over time.
+
+        Returns:
+            Maximum drawdown as a decimal (e.g., 0.15 for 15% drawdown).
+
+        """
+        max_drawdown: float = 0.0
+        peak: float = portfolio_values[0]
+        for value in portfolio_values:
+            if value > peak:
+                peak = value
+            drawdown = (peak - value) / peak
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+        return max_drawdown
+
+    def calculate_sharpe_ratio(self, timestamps: list[datetime], portfolio_values: list[float]) -> float:
+        """Calculate the Sharpe ratio for the portfolio.
+
+        Args:
+            timestamps: List of datetime objects for each portfolio value.
+            portfolio_values: List of portfolio values over time.
+
+        Returns:
+            Annualized Sharpe ratio assuming zero risk-free rate.
+
+        """
+        if len(portfolio_values) < 2:
+            return 0.0
+
+        returns = [portfolio_values[i] / portfolio_values[i - 1] - 1 for i in range(1, len(portfolio_values))]
+        mean_return = sum(returns) / len(returns)
+        std_return = (sum((ret - mean_return) ** 2 for ret in returns) / len(returns)) ** 0.5
+
+        period_days = (timestamps[-1] - timestamps[0]).days
+        if period_days <= 0:
+            return 0.0
+
+        values_per_year = len(portfolio_values) / period_days * 365
+        if std_return == 0:
+            return 0.0
+        return float(mean_return * values_per_year**0.5 / std_return)
+
+    def calculate_sortino_ratio(self, timestamps: list[datetime], portfolio_values: list[float]) -> float:
+        """Calculate the Sortino ratio for the portfolio.
+
+        Similar to Sharpe ratio but only penalizes downside volatility.
+
+        Args:
+            timestamps: List of datetime objects for each portfolio value.
+            portfolio_values: List of portfolio values over time.
+
+        Returns:
+            Annualized Sortino ratio assuming zero risk-free rate.
+
+        """
+        if len(portfolio_values) < 2:
+            return 0.0
+
+        returns = [portfolio_values[i] / portfolio_values[i - 1] - 1 for i in range(1, len(portfolio_values))]
+        mean_return = sum(returns) / len(returns)
+
+        if abs(mean_return) < 1e-10:
+            return 0.0
+
+        # Downside deviation: only penalize returns below zero (target return = 0)
+        # Using semi-deviation approach: square only negative returns, normalize by all returns
+        downside_deviation = (sum(min(ret, 0) ** 2 for ret in returns) / len(returns)) ** 0.5
+
+        if downside_deviation == 0:
+            return float("inf")  # No downside volatility
+
+        period_days = (timestamps[-1] - timestamps[0]).days
+        if period_days <= 0:
+            return 0.0
+
+        values_per_year = len(portfolio_values) / period_days * 365
+        return float(mean_return * values_per_year**0.5 / downside_deviation)
+
+    def calculate_annualized_return(self, timestamps: list[datetime], portfolio_values: list[float]) -> float:
+        """Calculate the annualized return.
+
+        Args:
+            timestamps: List of datetime objects for each portfolio value.
+            portfolio_values: List of portfolio values over time.
+
+        Returns:
+            Annualized return as a decimal (e.g., 0.10 for 10% annual return).
+
+        """
+        days = (timestamps[-1] - timestamps[0]).days
+        if days == 0:
+            return 0.0
+        return float((portfolio_values[-1] / portfolio_values[0]) ** (365 / days) - 1)
+
+    def calculate_total_return(self, portfolio_values: list[float]) -> float:
+        """Calculate the total return over the entire period.
+
+        Args:
+            portfolio_values: List of portfolio values over time.
+
+        Returns:
+            Total return as a decimal (e.g., 0.25 for 25% return).
+
+        """
+        return portfolio_values[-1] / portfolio_values[0] - 1
+
+    def calculate_total_slippage_cost(self) -> float:
+        """Calculate total slippage cost across all trades.
+
+        Compares fill prices against market close prices to quantify the
+        total cost of slippage in the backtest.
+
+        Returns:
+            Total slippage cost in absolute currency units. Positive value
+            indicates total adverse slippage (fill prices worse than market).
+
+        """
+        total_slippage = 0.0
+        for timestamp, fill_event in self._fills.items():
+            market_price = self._alpha_flow.get_price(fill_event.symbol, timestamp)
+
+            if fill_event.fill_qty > 0:  # Buy
+                # Paid more than market price (adverse slippage)
+                slippage = (fill_event.fill_price - market_price) * fill_event.fill_qty
+            else:  # Sell
+                # Received less than market price (adverse slippage)
+                slippage = (market_price - fill_event.fill_price) * abs(fill_event.fill_qty)
+
+            total_slippage += slippage
+
+        return total_slippage
+
+    def calculate_average_slippage_bps(self) -> float:
+        """Calculate average slippage in basis points per trade.
+
+        Returns:
+            Average slippage across all trades in basis points.
+            Returns 0.0 if no trades were executed.
+
+        """
+        if not self._fills:
+            return 0.0
+
+        total_bps = 0.0
+        for timestamp, fill_event in self._fills.items():
+            market_price = self._alpha_flow.get_price(fill_event.symbol, timestamp)
+            slippage_bps = abs(fill_event.fill_price - market_price) / market_price * 10000
+            total_bps += slippage_bps
+
+        return total_bps / len(self._fills)
+
+    def calculate_total_commission_cost(self) -> float:
+        """Calculate total commission paid across all trades.
+
+        Returns:
+            Total commission cost in absolute currency units.
+
+        """
+        return sum(fill_event.commission for fill_event in self._fills.values())
+
+    def calculate_all_metrics(self, timestamps: list[datetime], portfolio_values: list[float]) -> dict[str, str]:
+        """Calculate all performance metrics including transaction costs.
+
+        Args:
+            timestamps: List of datetime objects for each portfolio value.
+            portfolio_values: List of portfolio values over time.
+
+        Returns:
+            Dictionary mapping metric names to their values.
+
+        """
+        total_slippage = self.calculate_total_slippage_cost()
+        total_commission = self.calculate_total_commission_cost()
+
+        return {
+            "Max Drawdown": f"{self.calculate_max_drawdown(portfolio_values):.3%}",
+            "Sharpe Ratio": f"{self.calculate_sharpe_ratio(timestamps, portfolio_values):.3f}",
+            "Sortino Ratio": f"{self.calculate_sortino_ratio(timestamps, portfolio_values):.3f}",
+            "Annualized Return": f"{self.calculate_annualized_return(timestamps, portfolio_values):.3%}",
+            "Total Return": f"{self.calculate_total_return(portfolio_values):.3%}",
+            "Total Slippage Cost": f"${total_slippage:.2f}",
+            "Total Commission Cost": f"${total_commission:.2f}",
+            "Total Transaction Costs": f"${total_slippage + total_commission:.2f}",
+            "Average Slippage (bps)": f"{self.calculate_average_slippage_bps():.3f}",
+        }
