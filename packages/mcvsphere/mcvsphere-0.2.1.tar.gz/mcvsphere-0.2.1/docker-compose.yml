@@ -1,0 +1,63 @@
+# ESXi MCP Server Docker Compose Configuration
+# Supports dev (hot-reload) and prod modes via COMPOSE_PROFILES
+
+services:
+  mcvsphere:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcvsphere
+    restart: unless-stopped
+    profiles: ["prod"]
+    ports:
+      - "${MCP_PORT:-8080}:8080"
+    volumes:
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8080
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Development mode with hot-reload
+  mcvsphere-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mcvsphere-dev
+    profiles: ["dev"]
+    ports:
+      - "${MCP_PORT:-8080}:8080"
+    volumes:
+      - ./src:/app/src:ro
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8080
+      - LOG_LEVEL=DEBUG
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
