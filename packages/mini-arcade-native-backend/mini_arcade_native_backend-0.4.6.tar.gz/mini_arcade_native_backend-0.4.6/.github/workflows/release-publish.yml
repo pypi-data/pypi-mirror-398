@@ -1,0 +1,26 @@
+name: Publish from Release Branch
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Release branch name (e.g. release/0.6)"
+        required: true
+        type: string
+
+jobs:
+  publish:
+    uses: trivox-io/trivox-ci/.github/workflows/publish-from-release.yml@main
+    with:
+      release_branch: ${{ inputs.release_branch }}
+      version_file: "pyproject.toml"
+      apt-deps: "libsdl2-dev libsdl2-ttf-dev"
+      poetry-build-args: "-f sdist"
+      build_wheels: true
+    secrets:
+      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID_RELEASE: ${{ secrets.SLACK_CHANNEL_ID_RELEASE }}
