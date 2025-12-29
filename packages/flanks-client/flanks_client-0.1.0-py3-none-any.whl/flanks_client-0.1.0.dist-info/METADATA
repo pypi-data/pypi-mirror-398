@@ -1,0 +1,266 @@
+Metadata-Version: 2.4
+Name: flanks-client
+Version: 0.1.0
+Summary: Python SDK for Flanks API
+Project-URL: Repository, https://github.com/diegok/flanks-python
+Author-email: Diego Kuperman <diego.kuperman@flanks.io>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: aggregation,api,banking,flanks,sdk
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Typing :: Typed
+Requires-Python: <4,>=3.10
+Requires-Dist: httpx<0.29,>=0.28.1
+Requires-Dist: pydantic<3,>=2.10
+Description-Content-Type: text/markdown
+
+# Flanks Python SDK
+
+Async Python client for the [Flanks API](https://docs.flanks.io/).
+
+## Features
+
+- **Fully typed** - Complete type hints with strict mypy validation
+- **Async first** - Built on httpx with async/await throughout
+- **Automatic authentication** - OAuth2 token lifecycle handled transparently
+- **Smart retries** - Exponential backoff for server errors, automatic token refresh on 401
+- **Pagination helpers** - Async iterators for paginated endpoints
+- **Comprehensive error handling** - Specific exceptions for different error types
+
+## Installation
+
+```bash
+pip install flanks-client
+```
+
+## Quick Start
+
+```python
+import asyncio
+from flanks import FlanksClient
+
+async def main():
+    # Uses FLANKS_CLIENT_ID and FLANKS_CLIENT_SECRET env vars
+    async with FlanksClient() as client:
+        # List banking entities
+        entities = await client.entities.list()
+        for entity in entities:
+            print(f"{entity.name} ({entity.country})")
+
+        # Iterate through sessions with automatic pagination
+        async for session in client.connect.list_sessions():
+            print(f"{session.session_id}: {session.status}")
+
+asyncio.run(main())
+```
+
+## Configuration
+
+```python
+from flanks import FlanksClient
+
+client = FlanksClient(
+    client_id="your_client_id",       # or FLANKS_CLIENT_ID env var
+    client_secret="your_secret",       # or FLANKS_CLIENT_SECRET env var
+    base_url="https://api.flanks.io",  # default
+    timeout=60.0,                      # request timeout in seconds
+    retries=1,                         # retry count for 5xx errors
+    retry_backoff=1.0,                 # exponential backoff base (seconds)
+    version="2026-01-01",              # API version date
+)
+```
+
+## API Clients
+
+### Entities
+
+```python
+# List all available banking entities
+entities = await client.entities.list()
+```
+
+### Connect (v2)
+
+```python
+from flanks.connect import SessionQuery, SessionStatus, SessionConfig
+
+# Iterate all sessions
+async for session in client.connect.list_sessions():
+    print(session)
+
+# Filter sessions by status
+query = SessionQuery(status_in=[SessionStatus.FINISHED_OK])
+async for session in client.connect.list_sessions(query):
+    print(session)
+
+# Manual pagination
+page = await client.connect.list_sessions_page()
+print(page.items)
+if page.has_next():
+    next_page = await client.connect.list_sessions_page(page_token=page.next_page_token)
+
+# Create session
+config = SessionConfig(connector_id="connector_123")
+session = await client.connect.create_session(config)
+
+# List connectors
+async for connector in client.connect.list_connectors():
+    print(connector.name)
+```
+
+### Credentials
+
+```python
+# Get credential status
+status = await client.credentials.get_status("creds_token")
+
+# List all credentials (page-based)
+page1 = await client.credentials.list(page=1)
+
+# Force SCA
+await client.credentials.force_sca("creds_token")
+
+# Delete credentials
+await client.credentials.delete("creds_token")
+```
+
+### Aggregation (v1)
+
+```python
+# Get portfolios
+portfolios = await client.aggregation_v1.get_portfolios(
+    credentials_token="creds_token",
+    date_from="2024-01-01"
+)
+
+# Get accounts
+accounts = await client.aggregation_v1.get_accounts("creds_token")
+
+# Get transactions
+transactions = await client.aggregation_v1.get_account_transactions(
+    credentials_token="creds_token",
+    date_from="2024-01-01",
+    date_to="2024-12-31"
+)
+
+# Get investments
+investments = await client.aggregation_v1.get_investments("creds_token")
+investment_txns = await client.aggregation_v1.get_investment_transactions("creds_token")
+
+# Get liabilities (loans, mortgages)
+liabilities = await client.aggregation_v1.get_liabilities("creds_token")
+liability_txns = await client.aggregation_v1.get_liability_transactions("creds_token")
+
+# Get cards
+cards = await client.aggregation_v1.get_cards("creds_token")
+card_txns = await client.aggregation_v1.get_card_transactions("creds_token")
+
+# Get identity
+identity = await client.aggregation_v1.get_identity("creds_token")
+
+# Get holders
+holders = await client.aggregation_v1.get_holders("creds_token")
+```
+
+## Error Handling
+
+```python
+from flanks import (
+    FlanksAuthError,
+    FlanksValidationError,
+    FlanksNotFoundError,
+    FlanksServerError,
+    FlanksNetworkError,
+)
+
+try:
+    entities = await client.entities.list()
+except FlanksAuthError as e:
+    # 401/403 - Invalid credentials or expired token
+    print(f"Auth failed: {e}")
+except FlanksValidationError as e:
+    # 400 - Invalid request parameters
+    print(f"Validation error: {e.response_body}")
+except FlanksNotFoundError as e:
+    # 404 - Resource not found
+    print(f"Not found: {e}")
+except FlanksServerError as e:
+    # 5xx - Server error (after retries exhausted)
+    print(f"Server error: {e.status_code}")
+except FlanksNetworkError as e:
+    # Network-level failure (connection refused, timeout, DNS)
+    print(f"Network error: {e}")
+```
+
+## Advanced Usage
+
+### Context Manager
+
+```python
+# Automatic resource cleanup
+async with FlanksClient() as client:
+    entities = await client.entities.list()
+# HTTP client closed automatically
+```
+
+### Manual Resource Management
+
+```python
+client = FlanksClient()
+try:
+    entities = await client.entities.list()
+finally:
+    await client.close()
+```
+
+### Direct Transport Access
+
+```python
+# For endpoints not yet wrapped by the SDK
+response = await client.transport.api_call( "/custom/endpoint", {"param": "value"} )
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_client.py
+```
+
+### Type Checking
+
+```bash
+uv run ty check
+```
+
+### Linting
+
+```bash
+uv run ruff check flanks tests
+uv run ruff format flanks tests
+```
+
+## Requirements
+
+- Python 3.10+
+- httpx 0.28.1+
+- pydantic 2.10+
+
+## License
+
+MIT
