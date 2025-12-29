@@ -1,0 +1,64 @@
+{% load i18n static %}
+
+<script>
+    if (!window.RangeFilterFilesLoaded) {
+        window.RangeFilterFilesLoaded = true;
+
+        const script = document.createElement('script');
+        script.src = '{% static "django_admin_range/js/range_filter.js" %}';
+        document.head.appendChild(script);
+    
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '{% static "django_admin_range/css/range_filter.css" %}';
+        document.head.appendChild(link);
+    }
+</script>
+
+{% for choice in choices %}
+<div class="form-group range-filter-wrapper" id="wrapper_{{ choice.field_name }}">
+    <button type="button" 
+            class="range-filter-trigger {% if choice.date_gte or choice.date_lte %}has-value{% endif %}"
+            onclick="toggleRangeFilterDropdown('{{ choice.field_name }}')">
+        {% if choice.date_gte and choice.date_lte %}
+            {{ choice.date_gte }} - {{ choice.date_lte }}
+        {% elif choice.date_gte %}
+            {{ choice.date_gte }} - ...
+        {% elif choice.date_lte %}
+            ... - {{ choice.date_lte }}
+        {% else %}
+            {{ choice.title }}
+        {% endif %}
+    </button>
+
+    <div class="range-filter-dropdown" id="dropdown_{{ choice.field_name }}">
+        <div class="range-filter-dropdown-title">
+            {{ choice.title }}
+        </div>
+        <hr>
+        <label for="field_gte_{{ choice.field_name }}">{% trans "From" %}</label>
+        <input type="date"
+               id="field_gte_{{ choice.field_name }}"
+               value="{{ choice.date_gte }}">
+
+        <label for="field_lte_{{ choice.field_name }}">{% trans "To" %}</label>
+        <input type="date"
+               id="field_lte_{{ choice.field_name }}"
+               value="{{ choice.date_lte }}">
+
+        <div class="range-filter-btn-group">
+            <button type="button"
+                    class="range-filter-btn"
+                    data-field-name="{{ choice.field_name }}">
+                {% trans "Filter" %}
+            </button>
+            <button type="button"
+                    class="range-filter-btn"
+                    data-field-name="{{ choice.field_name }}"
+                    onclick="clearRangeFilter('{{ choice.field_name }}')">
+                {% trans "Clear" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endfor %}
