@@ -1,0 +1,95 @@
+
+# 📝 Textnotes
+
+**Textnotes** is a lightweight Python tool that instantly turns any plain text into meaningful **summaries**, **bullet notes**, **flashcards**, **JSON output**, and **topic groups**.  
+It is designed for anyone who needs quick structured notes — developers, students, writers, and professionals.
+
+---
+
+## 🚀 Features
+
+- 🏷️ Automatic title detection  
+- 📝 Clean bullet‑point notes  
+- 📄 Instant summaries  
+- 📘 JSON output (UTF‑8 safe)  
+- 🧠 Flashcards for revision  
+- 🗂️ Keyword‑based topic grouping  
+- 💻 Use via CLI or `python -m textnotes`  
+- ⚡ Zero dependencies, fast, and simple  
+
+---
+
+## 📦 Installation
+
+### 👉 Install from PyPI (after publishing)
+
+pip install textnotes
+
+### 👉 Install locally from source
+pip install -e .
+
+## 🧰 Usage
+### ▶️ Command-line usage
+textnotes "your text here"
+
+## ▶️ Show help
+textnotes --help
+
+## ▶️ Run as a module
+python -m textnotes "your text here"
+
+## 🖨️Example Output
+
+## Input:
+
+python -m textnotes "Python is an amazing programming language used in AI and automation."
+
+## Output:
+
+Title: Python Overview
+Summary: Python is an amazing programming language used in AI and automation
+
+✨ NOTES:
+👉 **Python** is an amazing programming language used in **AI** and automation
+
+📘 JSON:
+{
+    "title": "Python Overview",
+    "summary": "Python is an amazing programming language used in AI and automation",
+    "bullets": [
+        "👉 **Python** is an amazing programming language used in **AI** and automation"
+    ]
+}
+
+🎴 FLASHCARDS:
+Q: What about this?
+A: Python is an amazing programming language used in AI and automation
+
+📂 TOPIC GROUPS:
+{'python': ['Python is an amazing programming language used in AI and automation']}
+
+💾 Output saved to file: textnotes_output.txt
+
+
+## 🗂️ Project Structure
+textnotes/
+    cli.py
+    processor.py
+    utils.py
+    __main__.py
+    __init__.py
+README.md
+setup.py
+LICENSE
+
+## 🤝 Contributing
+Contributions are welcome!
+
+Feel free to open issues or pull requests.
+
+## 📜 License
+Licensed under the MIT License.
+
+⭐ Star the GitHub repository
+🤗 Share it with others
+
