@@ -1,0 +1,78 @@
+name: continuous-integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.13
+
+      # ref: https://github.com/pre-commit/action
+      - uses: pre-commit/action@v3.0.1
+      - name: Help message if pre-commit fail
+        if: ${{ failure() }}
+        run: |
+          echo "You can install pre-commit hooks to automatically run formatting"
+          echo "on each commit with:"
+          echo "    pre-commit install"
+          echo "or you can run by hand on staged files with"
+          echo "    pre-commit run"
+          echo "or after-the-fact on already committed files with"
+          echo "    pre-commit run --all-files"
+
+  tests:
+    runs-on: ubuntu-24.04
+    env:
+      # Use TOKEN_READONLY if available (pushed branches), otherwise use GITHUB_TOKEN (PRs)
+      # TOKEN_READONLY is a PAT for @choldgraf that only has read-access to this repo but isn't available in PRs.
+      GITHUB_ACCESS_TOKEN: "${{ secrets.TOKEN_READONLY || secrets.GITHUB_TOKEN }}"
+    strategy:
+      matrix:
+        include:
+          # Only test oldest supported and latest python version to reduce
+          # GitHub API calls, as they can get rate limited
+          - python-version: "3.10"
+          - python-version: 3.x
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[testing]
+
+      - name: Run tests
+        run: pytest --verbose --color=yes --durations=10
+
+  docs:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[sphinx]
+
+      - name: Build docs
+        run: |
+          cd docs
+          make dirhtml
