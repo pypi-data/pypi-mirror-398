@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: uestc-login
+Version: 0.1.1
+Summary: A login utility for UESTC services (IDAS, Mooc, etc.)
+Author-email: H3CoF6 <h3cof6@gmail.com>
+Project-URL: Homepage, https://github.com/H3CoF6/uestc-login
+Project-URL: Bug Tracker, https://github.com/H3CoF6/uestc-login/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests
+Requires-Dist: beautifulsoup4
+Requires-Dist: pycryptodome
+Dynamic: license-file
+
+
+
+# UESTC Login (电子科技大学统一身份认证登录工具)
+
+![Python](https://img.shields.io/badge/Python-3.7%2B-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+本项目是一个用于电子科技大学（UESTC）统一身份认证及相关子系统登录的 Python 工具库。
+
+它封装了加密逻辑（AES）和复杂的重定向流程，能够自动处理 Cookies，帮助开发者快速接入学校的各类服务接口。
+
+## 🚀 目前已支持的平台
+
+- **统一身份认证 (IDAS)**: 基础登录功能，获取 `CASTGC` 等核心 Cookie。
+- **MOOC 平台**: 支持 `mooc2.uestc.edu.cn` 的自动登录跳转。
+- **成电 Seek **: 支持 `chat.uestc.edu.cn` 的自动登录跳转。
+
+### 📅 未来计划
+- [ ] 适配 WebVPN (`webvpn.uestc.edu.cn`)
+- [ ] 适配 教务中心 (`exams.uestc.edu.cn`)
+- [ ] 更多子域适配...
+
+## 📦 安装
+
+```bash
+pip install uestc-login
+```
+
+## 🛠 使用示例
+
+### 1. 基础登录 (统一身份认证)
+
+```python
+from uestc_login import UestcUser
+
+# 初始化用户 (建议使用环境变量存储密码)
+# cookie_dir 可选，指定 cookie 保存目录
+user = UestcUser("202100000000", "你的密码")
+
+try:
+    # 执行登录，返回 requests.Session 对象
+    session = user.login()
+    
+    # 登录成功后，可以使用 session 访问其他需要 IDAS 认证的页面
+    resp = session.get("[https://idas.uestc.edu.cn/authserver/index.do](https://idas.uestc.edu.cn/authserver/index.do)")
+    print(resp.status_code)
+    
+except Exception as e:
+    print(f"登录失败: {e}")
+```
+
+### 2. 登录 MOOC 平台
+
+```python
+# 会自动完成统一认证 -> MOOC 跳转流程
+user.login_mooc()
+
+# 之后直接访问 MOOC 接口
+resp = user.session.get("[https://mooc2.uestc.edu.cn/api/some/course/info](https://mooc2.uestc.edu.cn/api/some/course/info)")
+```
+
+### 3. 登录成电 Seek (Chat)
+
+```python
+# 会自动完成统一认证 -> Chat 跳转流程
+user.login_chat_perform()
+
+# 之后直接访问 Chat 接口
+resp = user.session.get("[https://chat.uestc.edu.cn/terminator/api/](https://chat.uestc.edu.cn/terminator/api/)...")
+```
+
+## 🍪 关于 Cookie 保存
+
+为了避免频繁登录触发风控，本工具会自动持久化 Cookie。
+
+- **默认路径**: 在 `cookie_dir` 目录下（默认为本脚本所在目录的 `cookies` 文件夹）生成 `{学号}_cookies.json`。
+- **加载机制**: 每次初始化时，程序会优先尝试加载本地 Cookie 并验证有效性。如果 Cookie 有效，将跳过账号密码登录步骤；如果失效，则自动重新发起登录并更新本地文件。
+
+## 🔧 开发者扩展指南
+
+本项目基于 `requests.Session`。如果你需要适配其他校内平台（如学工系统、教务处）：
+
+1. 使用浏览器 F12 或 Wireshark 抓包，分析该平台从“点击登录”到“进入系统”中间的 302 跳转流程。
+2. 使用 `user.login()` 获取已认证的 Session。
+3. 参考源码中的 `login_mooc` 方法，使用 `user.session.get(url)` 复现跳转流程即可。
+
+欢迎提交 Pull Request 贡献更多平台的适配代码！
+
+## ⚠️ 常见问题与排错
+
+### Q1: 报错提示 "检测到图形验证码" 或 "CredentialError"
+
+原因: 当短时间内频繁登录失败，或异地登录时，学校服务器会强制要求输入图形验证码。
+
+解决:
+
+1. 本工具目前**不支持**自动识别并完成图形验证码。
+2. 请在浏览器中手动访问 [统一身份认证页面](https://idas.uestc.edu.cn/authserver/login)，手动输入账号密码和验证码完成一次登录。
+3. 验证通过后，该账号的风控状态通常会被解除，随后即可再次使用脚本登录。
+
+### Q2: 关于弱口令爆破
+
+说明: 本项目设计初衷为方便开发者对接校内服务，严禁用于密码爆破。
+
+统一身份认证接口有严格的风控限制。<del>可以看看https://hq.uestc.edu.cn/service/login</del>。
+
+## ⚖️ 免责声明
+
+1. 本项目仅供计算机编程学习、学术研究及校内合法工具开发使用。
+2. **严禁**用于任何形式的各种网络攻击、窃取他人隐私或非法入侵学校系统。
+3. 使用者应妥善保管自己的账号密码和 Cookie 文件，因使用不当导致的信息泄露由使用者自行承担。
