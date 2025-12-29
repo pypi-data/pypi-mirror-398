@@ -1,0 +1,78 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --dev
+
+    - name: Run tests with coverage
+      run: |
+        uv run pytest tests/ -v --cov=autonomize_observer --cov-report=xml --cov-report=html --cov-report=term-missing --junit-xml=test-results.xml
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: test-results.xml
+
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: |
+          coverage.xml
+          htmlcov/
+
+    - name: Publish Test Report
+      uses: mikepenz/action-junit-report@v4
+      if: always()
+      with:
+        report_paths: 'test-results.xml'
+        check_name: 'Test Results'
+        fail_on_failure: true
+        detailed_summary: true
+        include_passed: true
+
+    - name: Coverage Report
+      uses: 5monkeys/cobertura-action@master
+      with:
+        path: coverage.xml
+        minimum_coverage: 75
+        fail_below_threshold: true
+        show_class_names: true
+        show_missing: true
+        show_line: true
+        show_branch: true
+        skip_covered: false
+

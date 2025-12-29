@@ -1,0 +1,191 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Get version from tag
+      id: get_version
+      run: |
+        TAG="${{ github.event.release.tag_name }}"
+        VERSION="${TAG#v}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "📦 Preparing to release version: $VERSION"
+    
+    - name: Validate version format
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "Version must be in format X.Y.Z"
+          exit 1
+        fi
+    
+    - name: Check version in pyproject.toml
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        TOML_VERSION=$(grep -E '^version = ' pyproject.toml | cut -d'"' -f2)
+        if [ "$VERSION" != "$TOML_VERSION" ]; then
+          echo "❌ Version mismatch!"
+          echo "Tag version: $VERSION"
+          echo "pyproject.toml version: $TOML_VERSION"
+          exit 1
+        fi
+        echo "✅ Version check passed"
+
+  test:
+    needs: validate-version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --dev
+
+    - name: Run full test suite
+      run: |
+        uv run pytest tests/ -v --cov=autonomize_observer --cov-report=xml --cov-report=term
+
+    - name: Verify minimum coverage
+      run: |
+        COVERAGE=$(uv run coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+        echo "Coverage: $COVERAGE%"
+        if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+          echo "❌ Coverage is below 70%"
+          exit 1
+        fi
+        echo "✅ Coverage check passed"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+        enable-cache: true
+
+    - name: Build package
+      run: |
+        uv build
+        echo "📦 Package built successfully"
+    
+    - name: Check build artifacts
+      run: |
+        ls -la dist/
+        echo "✅ Build artifacts:"
+        ls dist/
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  publish-to-pypi:
+    needs: [validate-version, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/autonomize-observer/
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        skip-existing: true
+    
+    - name: Verify PyPI deployment
+      run: |
+        VERSION="${{ needs.validate-version.outputs.version }}"
+        sleep 30  # Give PyPI time to update
+        pip install autonomize-observer==$VERSION
+        echo "✅ Version $VERSION successfully published to PyPI"
+
+  create-github-release-assets:
+    needs: [validate-version, build, publish-to-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/*
+        fail_on_unmatched_files: true
+    
+    - name: Update Release Notes
+      uses: softprops/action-gh-release@v1
+      with:
+        body: |
+          ## 🚀 Autonomize Observer SDK v${{ needs.validate-version.outputs.version }}
+          
+          ### 📦 Installation
+          ```bash
+          pip install autonomize-observer==${{ needs.validate-version.outputs.version }}
+          ```
+          
+          ### 📋 What's Changed
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed changes.
+          
+          ### 🔗 Links
+          - [PyPI Package](https://pypi.org/project/autonomize-observer/${{ needs.validate-version.outputs.version }}/)
+          - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+          
+          ---
+          
+          ${{ github.event.release.body }}

@@ -1,0 +1,144 @@
+# .github/workflows/auto-version-bump.yml
+
+name: Auto Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump_version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Bump version
+        run: |
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+            # Read current version using grep (no Python dependency needed)
+            CURRENT_VERSION=$(grep -m1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+
+            # Bump patch version
+            IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+            MAJOR=${VERSION_PARTS[0]}
+            MINOR=${VERSION_PARTS[1]}
+            PATCH=$((${VERSION_PARTS[2]} + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+
+            # Update version in pyproject.toml
+            sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" pyproject.toml
+
+            echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
+            git add pyproject.toml
+            git commit -m "v$NEW_VERSION"
+
+            # Delete existing branch if it exists (from previous failed runs)
+            git push origin --delete v$NEW_VERSION 2>/dev/null || true
+
+            git checkout -b v$NEW_VERSION
+            git push origin v$NEW_VERSION
+            git checkout main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.PAT }}
+          branch: v${{ env.VERSION }}
+          title: "[Automated] Version: ${{ env.VERSION }}"
+          body: |
+            This pull request was automatically generated as part of the versioning workflow.
+
+            **Summary of Changes:**
+            - Version updated to: `${{ env.VERSION }}`
+            - This PR includes updates to package versions, ensuring all dependencies and configurations reflect the new release.
+            - Automated process to maintain code consistency and versioning standards.
+
+            **Note:** This is an auto-generated PR, and will be auto-approved and doesn't require manual intervention.
+
+      - name: Auto approve and merge
+        if: steps.cpr.outputs.pull-request-operation == 'created'
+        run: |
+          gh pr merge --merge --auto "${{ steps.cpr.outputs.pull-request-number }}"
+          gh pr review --approve "${{ steps.cpr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for PR merge and create release
+        if: steps.cpr.outputs.pull-request-operation == 'created'
+        run: |
+          PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
+          VERSION="${{ env.VERSION }}"
+
+          # Wait for PR to be merged (check every 30 seconds, timeout after 10 minutes)
+          echo "Waiting for PR #$PR_NUMBER to be merged..."
+          for i in {1..20}; do
+            STATE=$(gh pr view $PR_NUMBER --json state -q '.state')
+            if [ "$STATE" = "MERGED" ]; then
+              echo "✅ PR merged successfully!"
+              break
+            fi
+            echo "Waiting for merge... attempt $i/20"
+            sleep 30
+          done
+
+          # Verify merge succeeded
+          STATE=$(gh pr view $PR_NUMBER --json state -q '.state')
+          if [ "$STATE" != "MERGED" ]; then
+            echo "❌ PR was not merged within timeout"
+            exit 1
+          fi
+
+          # Create GitHub release with auto-generated notes (triggers publish workflow)
+          echo "Creating release v$VERSION..."
+
+          # Get the previous tag for generating changelog
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            # Generate release notes from commits since last tag
+            RELEASE_NOTES=$(cat <<EOF
+          ## What's Changed
+
+          $(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges | grep -v "^- v[0-9]" || echo "- Various improvements and bug fixes")
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...v${VERSION}
+          EOF
+          )
+          else
+            RELEASE_NOTES="Initial release v$VERSION"
+          fi
+
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --notes "$RELEASE_NOTES" \
+            --target main
+
+          echo "✅ Release v$VERSION created successfully!"
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
