@@ -1,0 +1,344 @@
+"""CLAUDE.md context injection and generation."""
+
+import re
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Optional
+
+from .parser import Entity, EntityType, IssueStatus, ParseResult, SessionSummary
+from ..templates import CONTEXT_TEMPLATE
+
+
+def generate_context(stack: list[str]) -> str:
+    """Generate basic MIND:CONTEXT section (used by init)."""
+    stack_str = ", ".join(stack) if stack else "(not detected)"
+    return CONTEXT_TEMPLATE.format(stack=stack_str)
+
+
+def update_claude_md(project_path: Path, stack: list[str]) -> None:
+    """Add/update MIND:CONTEXT section in CLAUDE.md (basic version)."""
+    claude_md = project_path / "CLAUDE.md"
+    context = generate_context(stack)
+    _inject_context(claude_md, context)
+
+
+def _inject_context(claude_md: Path, context: str) -> None:
+    """Inject context into CLAUDE.md file."""
+    if claude_md.exists():
+        content = claude_md.read_text()
+
+        # Remove existing MIND:CONTEXT section (including MIND:END marker)
+        content = re.sub(
+            r"<!-- MIND:CONTEXT.*?<!-- MIND:END -->\n*",
+            "",
+            content,
+            flags=re.DOTALL,
+        )
+
+        # Remove orphaned MIND:CONTEXT sections (without MIND:END)
+        # These can occur from interrupted inits or corrupted files
+        content = re.sub(
+            r"<!-- MIND:CONTEXT[^>]*-->\n## Stack\n[^\n]*\n\n## Gotchas\n[^\n]*\n*",
+            "",
+            content,
+            flags=re.DOTALL,
+        )
+
+        # Remove old Mind template section (## Memory (Mind) up to first ---)
+        # This handles the case where the template was previously injected
+        content = re.sub(
+            r"^## Memory \(Mind\).*?^---\n*",
+            "",
+            content,
+            flags=re.DOTALL | re.MULTILINE,
+        )
+
+        # Remove old MIND:VERSION markers
+        content = re.sub(
+            r"<!-- MIND:VERSION:\d+ -->\n*",
+            "",
+            content,
+        )
+
+        # Inject at top, preserving any remaining user content
+        content = context + "\n\n" + content.lstrip()
+    else:
+        # Create new CLAUDE.md
+        content = context + "\n\n# Project Instructions\n\n(Add your instructions here)\n"
+
+    # Write with retry for Windows file locking
+    import sys
+    import time
+
+    if sys.platform == "win32":
+        # On Windows, direct write with retries
+        for attempt in range(3):
+            try:
+                claude_md.write_text(content, encoding="utf-8")
+                break
+            except PermissionError:
+                if attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    raise
+    else:
+        # Unix: atomic write via temp file
+        temp_path = claude_md.with_suffix(".md.tmp")
+        temp_path.write_text(content)
+        temp_path.replace(claude_md)
+
+
+class ContextGenerator:
+    """Generates rich MIND:CONTEXT from parsed entities."""
+
+    def __init__(
+        self,
+        max_decisions: int = 5,
+        max_open_loops: int = 3,
+        max_gotchas: int = 5,
+        max_session_summaries: int = 5,  # How many old sessions to show as summaries
+        stale_days: int = 14,
+        recent_session_days: int = 3,  # Sessions within this many days show full detail
+    ):
+        self.max_decisions = max_decisions
+        self.max_open_loops = max_open_loops
+        self.max_gotchas = max_gotchas
+        self.max_session_summaries = max_session_summaries
+        self.stale_days = stale_days
+        self.recent_session_days = recent_session_days
+
+    def generate(
+        self,
+        parse_result: ParseResult,
+        last_activity: Optional[datetime] = None,
+    ) -> str:
+        """Generate full MIND:CONTEXT section."""
+        sections = []
+
+        # Memory status
+        sections.append(self._memory_status(last_activity))
+
+        # Session context
+        if last_activity:
+            sections.append(self._session_context(last_activity))
+
+        # Project state
+        sections.append(self._project_state(parse_result))
+
+        # Key items (always show, never fade)
+        key_section = self._key_items(parse_result.entities)
+        if key_section:
+            sections.append(key_section)
+
+        # Recent decisions (exclude key items, they're shown above)
+        decisions_section = self._recent_decisions(parse_result.entities)
+        if decisions_section:
+            sections.append(decisions_section)
+
+        # Open loops
+        loops_section = self._open_loops(parse_result.entities)
+        if loops_section:
+            sections.append(loops_section)
+
+        # Gotchas
+        gotchas_section = self._gotchas(parse_result.project_edges)
+        if gotchas_section:
+            sections.append(gotchas_section)
+
+        # Session history (recent full, old compressed)
+        history_section = self._session_history(parse_result.session_summaries)
+        if history_section:
+            sections.append(history_section)
+
+        # Continue from
+        continue_section = self._continue_from(parse_result.entities)
+        if continue_section:
+            sections.append(continue_section)
+
+        content = "\n\n".join(filter(None, sections))
+        return f"<!-- MIND:CONTEXT - Auto-generated by Mind. Do not edit. -->\n{content}\n<!-- MIND:END -->"
+
+    def _memory_status(self, last_activity: Optional[datetime]) -> str:
+        """Generate memory status line."""
+        if last_activity:
+            ago = self._time_ago(last_activity)
+            return f"## Memory: Active\nLast captured: {ago}"
+        return "## Memory: Active"
+
+    def _session_context(self, last_activity: datetime) -> str:
+        """Generate session context."""
+        ago = self._time_ago(last_activity)
+        return f"## Session Context\nLast active: {ago}"
+
+    def _project_state(self, result: ParseResult) -> str:
+        """Generate project state section."""
+        state = result.project_state
+        lines = ["## Project State"]
+
+        if state.goal:
+            lines.append(f"- Goal: {state.goal}")
+        if state.stack:
+            lines.append(f"- Stack: {', '.join(state.stack)}")
+        if state.blocked_by:
+            lines.append(f"- Blocked: {state.blocked_by}")
+        else:
+            lines.append("- Blocked: None")
+
+        return "\n".join(lines)
+
+    def _key_items(self, entities: list[Entity]) -> Optional[str]:
+        """Generate key items section (items marked KEY: or important:)."""
+        key_entities = [e for e in entities if e.is_key]
+
+        if not key_entities:
+            return None
+
+        lines = ["## Key (Never Forget)"]
+        for e in key_entities:
+            type_prefix = {
+                EntityType.DECISION: "[D]",
+                EntityType.ISSUE: "[I]",
+                EntityType.LEARNING: "[L]",
+            }.get(e.type, "")
+            lines.append(f"- {type_prefix} {e.title}")
+
+        return "\n".join(lines)
+
+    def _recent_decisions(self, entities: list[Entity]) -> Optional[str]:
+        """Generate recent decisions section (excluding key items)."""
+        decisions = [
+            e for e in entities
+            if e.type == EntityType.DECISION and not e.is_key  # Exclude key items
+        ]
+
+        # Sort by date (most recent first), then by line number
+        decisions.sort(
+            key=lambda e: (e.date or datetime.min.date(), e.source_line),
+            reverse=True,
+        )
+
+        decisions = decisions[:self.max_decisions]
+
+        if not decisions:
+            return None
+
+        lines = ["## Recent Decisions"]
+        for d in decisions:
+            date_str = f" ({d.date})" if d.date else ""
+            reason_str = f" - {d.reasoning}" if d.reasoning else ""
+            lines.append(f"- {d.title}{date_str}{reason_str}")
+
+        return "\n".join(lines)
+
+    def _open_loops(self, entities: list[Entity]) -> Optional[str]:
+        """Generate open loops section (unfinished business)."""
+        loops = []
+
+        # Open issues
+        open_issues = [
+            e for e in entities
+            if e.type == EntityType.ISSUE and e.status == IssueStatus.OPEN
+        ]
+
+        for issue in open_issues[:self.max_open_loops]:
+            date_str = f" ({issue.date})" if issue.date else ""
+            loops.append(f"- [!] {issue.title}{date_str} - unresolved")
+
+        # Stale decisions (MVP, temporary, etc.)
+        now = datetime.now().date()
+        for entity in entities:
+            if entity.type != EntityType.DECISION:
+                continue
+            if not entity.date:
+                continue
+
+            age_days = (now - entity.date).days
+            if age_days < self.stale_days:
+                continue
+
+            content_lower = entity.content.lower()
+            if any(marker in content_lower for marker in ["mvp", "for now", "temporary", "quick fix"]):
+                loops.append(f"- [?] {entity.title} ({age_days}d ago) - still valid?")
+
+        if not loops:
+            return None
+
+        return "## Open Loops\n" + "\n".join(loops[:self.max_open_loops])
+
+    def _gotchas(self, edges: list) -> Optional[str]:
+        """Generate gotchas section."""
+        if not edges:
+            return None
+
+        lines = ["## Gotchas"]
+        for edge in edges[:self.max_gotchas]:
+            if edge.workaround:
+                lines.append(f"- {edge.title} -> {edge.workaround}")
+            else:
+                lines.append(f"- {edge.title}")
+
+        return "\n".join(lines)
+
+    def _session_history(self, summaries: list[SessionSummary]) -> Optional[str]:
+        """Generate session history section (compressed for old sessions)."""
+        if not summaries:
+            return None
+
+        # Sort by date (most recent first)
+        summaries = sorted(summaries, key=lambda s: s.date, reverse=True)
+        summaries = summaries[:self.max_session_summaries]
+
+        if not summaries:
+            return None
+
+        lines = ["## Session History"]
+        today = datetime.now().date()
+
+        for s in summaries:
+            days_ago = (today - s.date).days
+            date_str = s.date.isoformat()
+
+            if s.summary:
+                mood_str = f" | {s.mood}" if s.mood else ""
+                lines.append(f"- {date_str}: {s.summary}{mood_str}")
+            else:
+                lines.append(f"- {date_str}")
+
+        return "\n".join(lines)
+
+    def _continue_from(self, entities: list[Entity]) -> Optional[str]:
+        """Generate continue from section."""
+        # Find most recent decision or learning
+        recent = None
+        for entity in entities:
+            if entity.type in (EntityType.DECISION, EntityType.LEARNING):
+                if recent is None or (entity.date and (not recent.date or entity.date > recent.date)):
+                    recent = entity
+
+        if not recent:
+            return None
+
+        return f"## Continue From\nLast: {recent.title}"
+
+    def _time_ago(self, dt: datetime) -> str:
+        """Format datetime as relative time."""
+        now = datetime.now()
+        diff = now - dt
+
+        if diff < timedelta(minutes=1):
+            return "just now"
+        elif diff < timedelta(hours=1):
+            mins = int(diff.total_seconds() / 60)
+            return f"{mins}m ago"
+        elif diff < timedelta(days=1):
+            hours = int(diff.total_seconds() / 3600)
+            return f"{hours}h ago"
+        else:
+            days = diff.days
+            return f"{days}d ago"
+
+    def update_claude_md(self, project_path: Path, parse_result: ParseResult, last_activity: Optional[datetime] = None) -> None:
+        """Update CLAUDE.md with rich context."""
+        claude_md = project_path / "CLAUDE.md"
+        context = self.generate(parse_result, last_activity)
+        _inject_context(claude_md, context)
