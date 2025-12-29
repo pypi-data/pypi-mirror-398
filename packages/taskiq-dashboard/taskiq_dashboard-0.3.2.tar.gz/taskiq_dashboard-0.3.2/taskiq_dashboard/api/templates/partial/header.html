@@ -1,0 +1,151 @@
+<header class="bg-ctp-base">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4 py-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <a href="{{ url_for('Task list view') }}" class="group">
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-24 h-16 flex items-center justify-center">
+                            <svg class="w-48 h-16" aria-hidden="true">
+                                <use href="{{ url_for('static', path='logo_taskiq.svg') }}"></use>
+                            </svg>
+                        </div>
+                    </div>
+                </a>
+                <nav class="hidden sm:flex items-center gap-6 ml-4 mt-2">
+                    <a href="{{ url_for('Task list view') }}" class="text-ctp-text hover:text-ctp-mauve transition-colors font-medium">Tasks</a>
+                    <a href="{{ url_for('Schedule list view') }}" class="text-ctp-text hover:text-ctp-mauve transition-colors font-medium">Schedules</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="https://github.com/danfimov/taskiq-dashboard"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="text-ctp-text hover:text-ctp-mauve transition-colors"
+                   title="GitHub">
+                    <svg class="w-5 h-5" aria-hidden="true">
+                        <use href="{{ url_for('static', path='icons.svg#github') }}"></use>
+                    </svg>
+                </a>
+                <a href="https://danfimov.github.io/taskiq-dashboard/"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="text-ctp-text hover:text-ctp-mauve transition-colors"
+                   title="Documentation">
+                    <svg class="w-5 h-5" aria-hidden="true">
+                        <use href="{{ url_for('static', path='icons.svg#book-open') }}"></use>
+                    </svg>
+                </a>
+                <!-- Theme switcher -->
+                <form id="flavour-switcher" class="flex items-center">
+                    <label for="flavour" class="sr-only">Выбор темы</label>
+                    <div class="relative">
+                        <select id="flavour"
+                                name="flavour"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                class="px-3 pr-8 py-2 text-sm font-semibold rounded-[6px] border border-ctp-mauve-100 bg-ctp-base text-ctp-text focus:outline-none focus:ring-1 appearance-none"
+                                title="Выберите тему оформления">
+                            <option value="latte">🌻 Latte</option>
+                            <option value="frappe">🪴 Frappé</option>
+                            <option value="macchiato">🌺 Macchiato</option>
+                            <option value="mocha">🌿 Mocha</option>
+                            <option value="auto">🖥️ Auto</option>
+                        </select>
+                        <svg id="flavour-chevron"
+                             class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-ctp-mauve-100 transform transition-transform duration-200"
+                             aria-hidden="true">
+                            <use href="{{ url_for('static', path='icons.svg#chevron-left') }}"></use>
+                        </svg>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function() {
+            const THEMES = new Set(["latte", "frappe", "macchiato", "mocha", "auto"]);
+            const selectEl = document.getElementById("flavour");
+            const chevronEl = document.getElementById("flavour-chevron");
+
+            function applyTheme(theme) {
+                if (theme === "auto") {
+                    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                    const defaultTheme = prefersDark ? "mocha" : "latte";
+                    document.documentElement.className = defaultTheme;
+                    localStorage.setItem("theme", defaultTheme);
+                    localStorage.setItem("theme-auto", "true");
+                } else {
+                    document.documentElement.className = theme;
+                    localStorage.setItem("theme", theme);
+                    localStorage.setItem("theme-auto", "false");
+                }
+            }
+
+            // Handle select change
+            selectEl.addEventListener("change", (e) => {
+                const selected = e.target.value;
+                if (THEMES.has(selected)) {
+                    applyTheme(selected);
+                }
+                // Close chevron on selection (dropdown typically closes)
+                closeChevron();
+            });
+
+            // Rotate chevron on open/focus and reset on close + keep aria-expanded in sync
+            const openChevron = () => {
+                chevronEl && chevronEl.classList.add("-rotate-90");
+                selectEl.setAttribute("aria-expanded", "true");
+            };
+            const closeChevron = () => {
+                chevronEl && chevronEl.classList.remove("-rotate-90");
+                selectEl.setAttribute("aria-expanded", "false");
+            };
+            // pointer/touch and keyboard openers
+            selectEl.addEventListener("pointerdown", openChevron);
+            selectEl.addEventListener("click", openChevron);
+            selectEl.addEventListener("keydown", (e) => {
+                if (["ArrowUp", "ArrowDown", " ", "Enter"].includes(e.key)) openChevron();
+            });
+            // closing cases
+            selectEl.addEventListener("blur", closeChevron);
+            selectEl.addEventListener("change", closeChevron);
+            selectEl.addEventListener("keyup", (e) => {
+                if (e.key === "Escape") closeChevron();
+            });
+            document.addEventListener("pointerdown", (e) => {
+                if (!selectEl.contains(e.target)) {
+                    closeChevron();
+                }
+            });
+
+            // Initialize on load from localStorage
+            document.addEventListener("DOMContentLoaded", () => {
+                const isThemeAuto = localStorage.getItem("theme-auto");
+                if (isThemeAuto === "true") {
+                    selectEl.value = "auto";
+                    applyTheme("auto");
+                } else {
+                    const storedTheme = localStorage.getItem("theme");
+                    if (storedTheme && THEMES.has(storedTheme)) {
+                        selectEl.value = storedTheme;
+                        applyTheme(storedTheme);
+                    } else {
+                        // Default UI shows Auto, but we don't override current document class unless user changes it
+                        selectEl.value = "auto";
+                    }
+                }
+            });
+
+            // React to system preference changes in Auto mode
+            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
+            prefersDark.addEventListener("change", (event) => {
+                const isThemeAuto = localStorage.getItem("theme-auto");
+                if (isThemeAuto === "true") {
+                    const defaultTheme = event.matches ? "mocha" : "latte";
+                    document.documentElement.className = defaultTheme;
+                    localStorage.setItem("theme", defaultTheme);
+                }
+            });
+        })();
+    </script>
+</header>
