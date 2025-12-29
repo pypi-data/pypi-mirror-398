@@ -1,0 +1,685 @@
+# Copyright 2025 Vijaykumar Singh <singhvjd@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Conversation state machine for intelligent stage detection.
+
+This module provides automatic detection of conversation stages to improve
+tool selection accuracy. Instead of manual stage management, it infers the
+current stage from:
+- Tool execution history
+- Message content patterns
+- Observed file/resource access
+- Conversation depth
+
+Stages:
+- INITIAL: First interaction, exploring the request
+- PLANNING: Understanding scope, searching for files
+- READING: Examining files, gathering context
+- ANALYSIS: Reviewing code, analyzing structure
+- EXECUTION: Making changes, running commands
+- VERIFICATION: Testing, validating changes
+- COMPLETION: Summarizing, wrapping up
+
+Hook Integration (Observer Pattern):
+The state machine supports hooks for observing transitions:
+- on_enter: Called when entering a stage
+- on_exit: Called when exiting a stage
+- on_transition: Called on any stage change
+
+Example:
+    from victor.observability import StateHookManager
+
+    hooks = StateHookManager()
+
+    @hooks.on_transition
+    def log_transition(old, new, ctx):
+        print(f"{old} -> {new}")
+
+    machine = ConversationStateMachine(hooks=hooks)
+"""
+
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set
+
+from victor.tools.metadata_registry import get_tools_by_stage as registry_get_tools_by_stage
+from victor.observability.event_bus import EventBus, EventCategory, VictorEvent
+
+if TYPE_CHECKING:
+    from victor.observability.hooks import StateHookManager
+
+logger = logging.getLogger(__name__)
+
+
+class ConversationStage(str, Enum):
+    """Stages in a typical coding assistant conversation.
+
+    This is the canonical source for conversation stages.
+    Uses string values for serialization compatibility.
+
+    Note: Framework's `Stage` enum is now an alias to this class.
+    """
+
+    INITIAL = "initial"  # First interaction
+    PLANNING = "planning"  # Understanding scope, planning approach
+    READING = "reading"  # Reading files, gathering context
+    ANALYSIS = "analysis"  # Analyzing code, understanding structure
+    EXECUTION = "execution"  # Making changes, running commands
+    VERIFICATION = "verification"  # Testing, validating
+    COMPLETION = "completion"  # Summarizing, done
+
+
+# Stage ordering for adjacency calculations (since values are strings, not ints)
+STAGE_ORDER: Dict[ConversationStage, int] = {
+    stage: idx for idx, stage in enumerate(ConversationStage)
+}
+
+
+# Stage-to-tool mapping is now fully decorator-driven.
+# Tools define their stages via @tool(stages=["reading", "execution"]) decorator.
+# Use registry_get_tools_by_stage() to get tools for a stage.
+
+# Keywords that suggest specific stages
+STAGE_KEYWORDS: Dict[ConversationStage, List[str]] = {
+    ConversationStage.INITIAL: ["what", "how", "where", "explain", "help", "can you"],
+    ConversationStage.PLANNING: ["plan", "approach", "strategy", "design", "architect"],
+    ConversationStage.READING: ["show", "read", "look at", "check", "find"],
+    ConversationStage.ANALYSIS: ["analyze", "review", "examine", "understand", "why"],
+    ConversationStage.EXECUTION: [
+        "change",
+        "modify",
+        "create",
+        "add",
+        "remove",
+        "fix",
+        "implement",
+        "write",
+        "update",
+    ],
+    ConversationStage.VERIFICATION: ["test", "verify", "check", "validate", "run"],
+    ConversationStage.COMPLETION: ["done", "finish", "complete", "summarize", "commit"],
+}
+
+
+@dataclass
+class ConversationState:
+    """Tracks the current state of a conversation.
+
+    Attributes:
+        stage: Current conversation stage
+        tool_history: List of tools executed in order
+        observed_files: Files that have been read
+        modified_files: Files that have been modified
+        message_count: Number of messages in conversation
+        last_tools: Last N tools executed (for pattern detection)
+    """
+
+    stage: ConversationStage = ConversationStage.INITIAL
+    tool_history: List[str] = field(default_factory=list)
+    observed_files: Set[str] = field(default_factory=set)
+    modified_files: Set[str] = field(default_factory=set)
+    message_count: int = 0
+    last_tools: List[str] = field(default_factory=list)
+    _stage_confidence: float = 0.5
+
+    def record_tool_execution(self, tool_name: str, args: Dict[str, Any]) -> None:
+        """Record a tool execution and update state.
+
+        Args:
+            tool_name: Name of the executed tool
+            args: Tool arguments
+        """
+        self.tool_history.append(tool_name)
+        self.last_tools.append(tool_name)
+        if len(self.last_tools) > 5:
+            self.last_tools.pop(0)
+
+        # Track file access (use canonical tool names)
+        file_arg = args.get("file") or args.get("path") or args.get("file_path")
+        if file_arg:
+            if tool_name in {"read", "ls", "search", "overview"}:
+                self.observed_files.add(str(file_arg))
+            elif tool_name in {"write", "edit"}:
+                self.modified_files.add(str(file_arg))
+
+    def record_message(self) -> None:
+        """Record a new message in the conversation."""
+        self.message_count += 1
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize the conversation state to a dictionary.
+
+        Returns:
+            Dictionary representation of the state.
+        """
+        return {
+            "stage": self.stage.name,
+            "tool_history": self.tool_history,
+            "observed_files": list(self.observed_files),
+            "modified_files": list(self.modified_files),
+            "message_count": self.message_count,
+            "last_tools": self.last_tools,
+            "stage_confidence": self._stage_confidence,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ConversationState":
+        """Restore conversation state from a dictionary.
+
+        Args:
+            data: Dictionary containing serialized state.
+
+        Returns:
+            Restored ConversationState instance.
+        """
+        state = cls()
+        state.stage = ConversationStage[data.get("stage", "INITIAL")]
+        state.tool_history = data.get("tool_history", [])
+        state.observed_files = set(data.get("observed_files", []))
+        state.modified_files = set(data.get("modified_files", []))
+        state.message_count = data.get("message_count", 0)
+        state.last_tools = data.get("last_tools", [])
+        state._stage_confidence = data.get("stage_confidence", 0.5)
+        return state
+
+
+class ConversationStateMachine:
+    """State machine for detecting and managing conversation stages.
+
+    Automatically detects the current stage based on:
+    - Tool execution patterns
+    - Message content analysis
+    - Conversation progression
+
+    Includes cooldown mechanism to prevent rapid stage thrashing.
+
+    Supports hooks via the Observer pattern for decoupled state observation:
+    - on_enter: Called when entering a stage
+    - on_exit: Called when exiting a stage
+    - on_transition: Called on any stage change
+
+    Example:
+        from victor.observability import StateHookManager
+
+        hooks = StateHookManager()
+
+        @hooks.on_enter("EXECUTION")
+        def on_exec_start(stage, context):
+            print("Starting execution phase!")
+
+        machine = ConversationStateMachine(hooks=hooks)
+    """
+
+    # Minimum seconds between stage transitions (prevents thrashing)
+    # Increased from 3.0 to 5.0 to reduce stage thrashing observed in Ollama models
+    TRANSITION_COOLDOWN_SECONDS: float = 5.0
+
+    # Minimum tools required to trigger stage transition
+    MIN_TOOLS_FOR_TRANSITION: int = 3
+
+    # Confidence threshold for backward stage transitions
+    BACKWARD_TRANSITION_THRESHOLD: float = 0.85
+
+    def __init__(
+        self,
+        hooks: Optional["StateHookManager"] = None,
+        track_history: bool = True,
+        max_history_size: int = 100,
+        event_bus: Optional[EventBus] = None,
+    ) -> None:
+        """Initialize the state machine.
+
+        Args:
+            hooks: Optional StateHookManager for transition callbacks.
+            track_history: Whether to track transition history.
+            max_history_size: Maximum number of transitions to keep in history.
+            event_bus: Optional EventBus instance. If None, uses singleton.
+        """
+        self.state = ConversationState()
+        self._last_transition_time: float = 0.0
+        self._transition_count: int = 0
+        self._hooks = hooks
+        self._track_history = track_history
+        self._max_history_size = max_history_size
+        self._transition_history: List[Dict[str, Any]] = []
+        self._event_bus = event_bus or EventBus.get_instance()
+
+    def reset(self) -> None:
+        """Reset state for a new conversation."""
+        self.state = ConversationState()
+        self._transition_history.clear()
+        self._transition_count = 0
+        self._last_transition_time = 0.0
+
+    def record_tool_execution(self, tool_name: str, args: Dict[str, Any]) -> None:
+        """Record tool execution and potentially transition stage.
+
+        Args:
+            tool_name: Name of the executed tool
+            args: Tool arguments
+        """
+        self.state.record_tool_execution(tool_name, args)
+        self._maybe_transition()
+
+    def record_message(self, content: str, is_user: bool = True) -> None:
+        """Record a message and potentially transition stage.
+
+        Args:
+            content: Message content
+            is_user: Whether the message is from the user
+        """
+        self.state.record_message()
+
+        if is_user:
+            # Detect stage from user message content
+            detected_stage = self._detect_stage_from_content(content)
+            if detected_stage:
+                self._transition_to(detected_stage, confidence=0.7)
+
+    def get_stage(self) -> ConversationStage:
+        """Get the current conversation stage.
+
+        Returns:
+            Current ConversationStage
+        """
+        return self.state.stage
+
+    def get_current_stage(self) -> ConversationStage:
+        """Backward-compatible alias for orchestrator integrations."""
+        return self.get_stage()
+
+    def get_stage_tools(self) -> Set[str]:
+        """Get tools relevant to the current stage.
+
+        Tools define their stages via @tool(stages=["reading", "execution"]) decorator.
+        The metadata registry indexes tools by stage for efficient lookup.
+
+        Returns:
+            Set of tool names relevant to current stage
+        """
+        return self._get_tools_for_stage(self.state.stage)
+
+    def _get_tools_for_stage(self, stage: ConversationStage) -> Set[str]:
+        """Get tools for a specific stage from the metadata registry.
+
+        Tools define their stages via @tool(stages=["reading", "execution"]) decorator.
+        The registry indexes tools by stage for efficient lookup.
+
+        Args:
+            stage: The conversation stage to get tools for
+
+        Returns:
+            Set of tool names relevant to the stage
+        """
+        stage_name = stage.name.lower()
+        return registry_get_tools_by_stage(stage_name)
+
+    def get_state_summary(self) -> Dict[str, Any]:
+        """Get a summary of the current conversation state.
+
+        Returns:
+            Dictionary with state information
+        """
+        return {
+            "stage": self.state.stage.name,
+            "confidence": self.state._stage_confidence,
+            "message_count": self.state.message_count,
+            "tools_executed": len(self.state.tool_history),
+            "files_observed": len(self.state.observed_files),
+            "files_modified": len(self.state.modified_files),
+            "last_tools": self.state.last_tools,
+            "recommended_tools": list(self.get_stage_tools()),
+        }
+
+    def _detect_stage_from_content(self, content: str) -> Optional[ConversationStage]:
+        """Detect stage from message content using keyword matching.
+
+        Args:
+            content: Message content to analyze
+
+        Returns:
+            Detected stage or None
+        """
+        content_lower = content.lower()
+
+        # Score each stage based on keyword matches
+        scores: Dict[ConversationStage, int] = {}
+
+        for stage, keywords in STAGE_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw in content_lower)
+            if score > 0:
+                scores[stage] = score
+
+        if scores:
+            # Return stage with highest score
+            best_stage = max(scores, key=scores.get)  # type: ignore
+            if scores[best_stage] >= 2:  # Require at least 2 keyword matches
+                return best_stage
+
+        return None
+
+    def _detect_stage_from_tools(self) -> Optional[ConversationStage]:
+        """Detect stage from recent tool execution patterns.
+
+        Returns:
+            Detected stage or None
+        """
+        if not self.state.last_tools:
+            return None
+
+        # Score stages based on tool overlap (uses registry + static fallback)
+        scores: Dict[ConversationStage, int] = {}
+
+        for stage in ConversationStage:
+            stage_tools = self._get_tools_for_stage(stage)
+            overlap = len(set(self.state.last_tools) & stage_tools)
+            if overlap > 0:
+                scores[stage] = overlap
+
+        if scores:
+            return max(scores, key=scores.get)  # type: ignore
+
+        return None
+
+    def _maybe_transition(self) -> None:
+        """Check if we should transition to a new stage."""
+        detected = self._detect_stage_from_tools()
+        if detected and detected != self.state.stage:
+            # Only transition if we have strong evidence
+            stage_tools = self._get_tools_for_stage(detected)
+            recent_overlap = len(set(self.state.last_tools) & stage_tools)
+
+            # Use class constant for minimum tools threshold
+            if recent_overlap >= self.MIN_TOOLS_FOR_TRANSITION:
+                self._transition_to(detected, confidence=0.6 + (recent_overlap * 0.1))
+
+    def _transition_to(self, new_stage: ConversationStage, confidence: float = 0.5) -> None:
+        """Transition to a new stage.
+
+        Args:
+            new_stage: Stage to transition to
+            confidence: Confidence in this transition
+
+        Note: Transitions are rate-limited by TRANSITION_COOLDOWN_SECONDS to
+        prevent rapid stage thrashing observed in analysis tasks.
+
+        Hook invocation order (Observer Pattern):
+        1. on_exit hooks for old_stage
+        2. Stage update
+        3. on_transition hooks (old_stage, new_stage)
+        4. on_enter hooks for new_stage
+        """
+        import time
+
+        old_stage = self.state.stage
+
+        # Don't transition backwards unless confidence is high
+        # Use class constant for threshold
+        # Compare stage order (not string values) to determine backward transition
+        if (
+            STAGE_ORDER[new_stage] < STAGE_ORDER[old_stage]
+            and confidence < self.BACKWARD_TRANSITION_THRESHOLD
+        ):
+            return
+
+        if new_stage != old_stage:
+            # Enforce cooldown to prevent stage thrashing
+            current_time = time.time()
+            time_since_last = current_time - self._last_transition_time
+
+            if time_since_last < self.TRANSITION_COOLDOWN_SECONDS:
+                logger.debug(
+                    f"Stage transition blocked by cooldown: {old_stage.name} -> {new_stage.name} "
+                    f"(waited {time_since_last:.1f}s, need {self.TRANSITION_COOLDOWN_SECONDS}s)"
+                )
+                return
+
+            logger.info(
+                f"Stage transition: {old_stage.name} -> {new_stage.name} "
+                f"(confidence: {confidence:.2f})"
+            )
+
+            # Build context for hooks
+            hook_context = self._build_hook_context(confidence)
+
+            # Fire hooks if registered (Observer Pattern)
+            if self._hooks:
+                self._hooks.fire_transition(
+                    old_stage.name,
+                    new_stage.name,
+                    hook_context,
+                )
+
+            # Update state
+            self.state.stage = new_stage
+            self.state._stage_confidence = confidence
+            self._last_transition_time = current_time
+            self._transition_count += 1
+
+            # Emit STATE event for stage transition
+            self._event_bus.publish(
+                VictorEvent(
+                    category=EventCategory.STATE,
+                    name="conversation.stage_changed",
+                    data={
+                        "old_stage": old_stage.name,
+                        "new_stage": new_stage.name,
+                        "confidence": confidence,
+                        "transition_count": self._transition_count,
+                        "message_count": self.state.message_count,
+                        "tools_executed": len(self.state.tool_history),
+                        "files_observed": len(self.state.observed_files),
+                        "files_modified": len(self.state.modified_files),
+                    },
+                    source="ConversationStateMachine",
+                )
+            )
+
+            # Record transition history
+            if self._track_history:
+                self._record_transition(
+                    old_stage, new_stage, confidence, current_time, hook_context
+                )
+
+    def _build_hook_context(self, confidence: float) -> Dict[str, Any]:
+        """Build context dictionary for hook callbacks.
+
+        Args:
+            confidence: Transition confidence.
+
+        Returns:
+            Context dictionary with state information.
+        """
+        return {
+            "confidence": confidence,
+            "tool_history": list(self.state.tool_history[-10:]),  # Last 10 tools
+            "last_tools": list(self.state.last_tools),
+            "message_count": self.state.message_count,
+            "files_observed": len(self.state.observed_files),
+            "files_modified": len(self.state.modified_files),
+            "transition_count": self._transition_count,
+        }
+
+    def _record_transition(
+        self,
+        old_stage: ConversationStage,
+        new_stage: ConversationStage,
+        confidence: float,
+        timestamp: float,
+        context: Dict[str, Any],
+    ) -> None:
+        """Record a transition in history.
+
+        Args:
+            old_stage: Previous stage.
+            new_stage: New stage.
+            confidence: Transition confidence.
+            timestamp: Unix timestamp.
+            context: Transition context.
+        """
+        from datetime import datetime
+
+        record = {
+            "from_stage": old_stage.name,
+            "to_stage": new_stage.name,
+            "confidence": confidence,
+            "timestamp": timestamp,
+            "datetime": datetime.fromtimestamp(timestamp).isoformat(),
+            "transition_number": self._transition_count,
+            "message_count": context.get("message_count", 0),
+            "tool_count": len(context.get("tool_history", [])),
+        }
+
+        self._transition_history.append(record)
+
+        # Enforce max history size
+        if len(self._transition_history) > self._max_history_size:
+            self._transition_history.pop(0)
+
+    @property
+    def transition_history(self) -> List[Dict[str, Any]]:
+        """Get the transition history.
+
+        Returns:
+            List of transition records.
+        """
+        return list(self._transition_history)
+
+    @property
+    def transition_count(self) -> int:
+        """Get the total number of transitions.
+
+        Returns:
+            Number of transitions.
+        """
+        return self._transition_count
+
+    def get_transitions_summary(self) -> Dict[str, Any]:
+        """Get a summary of all transitions.
+
+        Returns:
+            Dictionary with transition statistics.
+        """
+        if not self._transition_history:
+            return {
+                "total_transitions": 0,
+                "unique_paths": 0,
+                "transitions_by_stage": {},
+                "average_confidence": 0.0,
+            }
+
+        # Count transitions by path
+        path_counts: Dict[str, int] = {}
+        stage_entries: Dict[str, int] = {}
+        total_confidence = 0.0
+
+        for record in self._transition_history:
+            path = f"{record['from_stage']}->{record['to_stage']}"
+            path_counts[path] = path_counts.get(path, 0) + 1
+            stage_entries[record["to_stage"]] = stage_entries.get(record["to_stage"], 0) + 1
+            total_confidence += record["confidence"]
+
+        return {
+            "total_transitions": len(self._transition_history),
+            "unique_paths": len(path_counts),
+            "transitions_by_path": path_counts,
+            "transitions_by_stage": stage_entries,
+            "average_confidence": total_confidence / len(self._transition_history),
+        }
+
+    def set_hooks(self, hooks: "StateHookManager") -> None:
+        """Set or replace the hook manager.
+
+        Args:
+            hooks: StateHookManager instance.
+        """
+        self._hooks = hooks
+
+    def clear_hooks(self) -> None:
+        """Remove all hooks."""
+        self._hooks = None
+
+    def should_include_tool(self, tool_name: str) -> bool:
+        """Check if a tool should be included based on current stage.
+
+        This provides a soft recommendation - tools outside the current
+        stage are not excluded, just deprioritized.
+
+        Args:
+            tool_name: Name of the tool
+
+        Returns:
+            True if tool is recommended for current stage
+        """
+        stage_tools = self.get_stage_tools()
+
+        # Always include if in current stage's tools
+        if tool_name in stage_tools:
+            return True
+
+        # Also include if in adjacent stages (flexible)
+        current_idx = STAGE_ORDER[self.state.stage]
+        for stage in ConversationStage:
+            if abs(STAGE_ORDER[stage] - current_idx) <= 1:
+                if tool_name in self._get_tools_for_stage(stage):
+                    return True
+
+        return False
+
+    def get_tool_priority_boost(self, tool_name: str) -> float:
+        """Get priority boost for a tool based on current stage.
+
+        Args:
+            tool_name: Name of the tool
+
+        Returns:
+            Boost value (0.0 to 0.2) to add to similarity score
+        """
+        if tool_name in self.get_stage_tools():
+            return 0.15  # High boost for stage-relevant tools
+
+        # Check adjacent stages
+        current_idx = STAGE_ORDER[self.state.stage]
+        for stage in ConversationStage:
+            if abs(STAGE_ORDER[stage] - current_idx) == 1:
+                if tool_name in self._get_tools_for_stage(stage):
+                    return 0.08  # Medium boost for adjacent stage tools
+
+        return 0.0  # No boost
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize the state machine to a dictionary.
+
+        Returns:
+            Dictionary representation suitable for JSON serialization.
+        """
+        return {
+            "state": self.state.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ConversationStateMachine":
+        """Restore state machine from a dictionary.
+
+        Args:
+            data: Dictionary containing serialized state machine.
+
+        Returns:
+            Restored ConversationStateMachine instance.
+        """
+        machine = cls()
+        if "state" in data:
+            machine.state = ConversationState.from_dict(data["state"])
+        return machine
