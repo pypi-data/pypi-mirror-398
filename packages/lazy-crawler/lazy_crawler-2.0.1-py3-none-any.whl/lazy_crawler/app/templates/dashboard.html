@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Crawlio Intelligence{% endblock %}
+
+{% block head %}
+<style>
+    /* Override base container for dashboard */
+    .dashboard-wrapper {
+        display: flex;
+        min-height: calc(100vh - 70px);
+        position: relative;
+        background-color: #f8f9fa;
+    }
+
+    /* Mobile Sidebar Toggle */
+    .sidebar-toggle {
+        display: none;
+        position: fixed;
+        top: 80px;
+        left: 1rem;
+        z-index: 1001;
+        background: var(--slack-purple);
+        color: white;
+        border: none;
+        padding: 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        font-size: 1.2rem;
+    }
+
+    .dashboard-sidebar {
+        width: 260px;
+        background-color: var(--slack-purple);
+        color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid rgba(0, 0, 0, 0.1);
+        overflow-y: auto;
+        max-height: calc(100vh - 70px);
+        position: sticky;
+        top: 0;
+        transition: transform 0.3s ease;
+    }
+
+    /* Scrollbar styling for sidebar */
+    .dashboard-sidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .dashboard-sidebar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .dashboard-sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 3px;
+    }
+
+    .dashboard-sidebar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    .sidebar-header {
+        padding: 1rem 1.5rem 0.75rem;
+        font-weight: 700;
+        color: white;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        position: sticky;
+        top: 0;
+        background-color: var(--slack-purple);
+        z-index: 10;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .collection-list {
+        list-style: none;
+        padding-bottom: 0.5rem;
+    }
+
+    .collection-item {
+        padding: 0.5rem 1.5rem;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        word-break: break-word;
+        transition: all 0.15s ease;
+    }
+
+    .collection-item:before {
+        content: "#";
+        opacity: 0.5;
+        flex-shrink: 0;
+        font-size: 0.75rem;
+    }
+
+    .collection-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+        padding-left: 1.75rem;
+    }
+
+    .collection-item.active {
+        background-color: var(--slack-blue);
+        color: white;
+        font-weight: 600;
+    }
+
+    .dashboard-main {
+        flex: 1;
+        padding: 1.5rem;
+        background-color: #f8f9fa;
+        overflow-y: auto;
+        min-width: 0;
+    }
+
+    .container {
+        max-width: 100%;
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .actions-bar {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.625rem 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        outline: none;
+        font-size: 0.875rem;
+        transition: border-color 0.2s ease;
+    }
+
+    .search-input:focus {
+        border-color: var(--slack-purple);
+        box-shadow: 0 0 0 3px rgba(106, 76, 147, 0.1);
+    }
+
+    .btn-primary {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* Table container with horizontal scroll */
+    #data-table-container {
+        overflow-x: auto;
+        margin-bottom: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e8e8e8;
+        background: white;
+    }
+
+    table {
+        width: 100%;
+        min-width: 600px;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    th {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        border-bottom: 2px solid #e8e8e8;
+        color: #2c3e50;
+        font-weight: 600;
+        background-color: #f8f9fa;
+        white-space: nowrap;
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    td {
+        padding: 0.625rem 1rem;
+        border-bottom: 1px solid #f0f0f0;
+        color: #5a6c7d;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+
+    tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1.5rem;
+        padding: 1rem 0 0;
+        border-top: 1px solid #e8e8e8;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    #page-info {
+        color: #5a6c7d;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .loader {
+        display: none;
+        justify-content: center;
+        padding: 3rem;
+    }
+
+    .loader span {
+        width: 30px;
+        height: 30px;
+        border: 3px solid var(--slack-purple);
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 1024px) {
+        .dashboard-sidebar {
+            width: 220px;
+        }
+
+        .dashboard-main {
+            padding: 1.25rem;
+        }
+
+        .container {
+            padding: 1.25rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .sidebar-toggle {
+            display: block;
+        }
+
+        .dashboard-sidebar {
+            position: fixed;
+            left: 0;
+            top: 70px;
+            height: calc(100vh - 70px);
+            z-index: 1000;
+            transform: translateX(-100%);
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .dashboard-sidebar.active {
+            transform: translateX(0);
+        }
+
+        .dashboard-main {
+            padding: 1rem;
+            width: 100%;
+        }
+
+        .container {
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .actions-bar {
+            flex-direction: column;
+        }
+
+        .search-input {
+            width: 100%;
+        }
+
+        .actions-bar button {
+            width: 100%;
+        }
+
+        th,
+        td {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8125rem;
+        }
+
+        th {
+            font-size: 0.75rem;
+        }
+
+        .pagination {
+            font-size: 0.8125rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .dashboard-main {
+            padding: 0.75rem;
+        }
+
+        .container {
+            padding: 0.75rem;
+        }
+
+        th,
+        td {
+            padding: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        th {
+            font-size: 0.7rem;
+        }
+
+        .sidebar-header {
+            padding: 0.75rem 1rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .collection-item {
+            padding: 0.5rem 1rem;
+            font-size: 0.8125rem;
+        }
+
+        .btn-primary {
+            padding: 0.5rem 1rem;
+            font-size: 0.8125rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+    ☰
+</button>
+<div class="dashboard-wrapper">
+    <aside class="dashboard-sidebar" id="dashboard-sidebar">
+        <div class="sidebar-header">My Uploads</div>
+        <ul class="collection-list" id="uploads-list">
+            <!-- Loaded via JS -->
+        </ul>
+        <div class="sidebar-header">Scraped Data</div>
+        <ul class="collection-list" id="collection-list">
+            <!-- Loaded via JS -->
+        </ul>
+    </aside>
+
+    <main class="dashboard-main">
+        <div class="container">
+            <div class="actions-bar" style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+                <input type="text" class="search-input" id="search-input"
+                    placeholder="Search data in this collection..." style="margin-bottom: 0; flex: 1;">
+                <button class="btn-primary" id="upload-btn" style="background-color: var(--slack-green);">Upload
+                    Dataset</button>
+                <input type="file" id="file-upload" style="display: none;" accept=".csv, .xlsx, .xls">
+            </div>
+
+            <div id="loader" class="loader"><span></span></div>
+
+            <div id="data-table-container">
+                <table>
+                    <thead>
+                        <tr id="table-head"></tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <tr>
+                            <td colspan="5" class="text-center">Select a collection to view data</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button class="btn-primary" id="prev-btn" disabled>Previous</button>
+                <span id="page-info" style="color: var(--text-muted); font-size: 0.9rem;">Page 1</span>
+                <button class="btn-primary" id="next-btn" disabled>Next</button>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/dashboard.js') }}"></script>
+{% endblock %}
