@@ -1,0 +1,16 @@
+# S3 Bucket Policy: {{ resource.config.bucket }}
+resource "aws_s3_bucket_policy" "{{ resource.terraform_name }}" {
+{% if resource.config.bucket is tf_ref %}
+  bucket = {{ resource.config.bucket }}
+{% else %}
+{% set bucket_resource = graph.get_resource(resource.config.bucket) %}
+{% if bucket_resource and bucket_resource.terraform_name %}
+  bucket = aws_s3_bucket.{{ bucket_resource.terraform_name }}.id
+{% else %}
+  # WARNING: S3 bucket {{ resource.config.bucket }} not found in graph - using original ID
+  bucket = "{{ resource.config.bucket }}"
+{% endif %}
+{% endif %}
+
+  policy = jsonencode({{ resource.config.policy | tojson }})
+}

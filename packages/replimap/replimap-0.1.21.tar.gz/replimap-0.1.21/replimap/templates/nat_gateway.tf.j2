@@ -1,0 +1,41 @@
+# NAT Gateway: {{ resource.original_name }}
+resource "aws_eip" "{{ resource.terraform_name }}_eip" {
+  domain = "vpc"
+
+  tags = {
+    Name        = "{{ resource.original_name }}-eip"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+  }
+}
+
+resource "aws_nat_gateway" "{{ resource.terraform_name }}" {
+  allocation_id = aws_eip.{{ resource.terraform_name }}_eip.id
+{% if resource.config.subnet_id is tf_ref %}
+  subnet_id     = {{ resource.config.subnet_id }}
+{% else %}
+{% set subnet_resource = graph.get_resource(resource.config.subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+  subnet_id     = aws_subnet.{{ subnet_resource.terraform_name }}.id
+{% else %}
+  # CROSS-ACCOUNT: Subnet not in graph - define var.unmapped_subnet_{{ resource.config.subnet_id | replace("-", "_") }}
+  subnet_id     = var.unmapped_subnet_{{ resource.config.subnet_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+
+  # NAT Gateway requires the Internet Gateway to exist first.
+  # Terraform handles this implicitly via the subnet -> VPC dependency chain.
+  # If deployment fails with IGW errors, add explicit depends_on:
+  # depends_on = [aws_internet_gateway.<your_igw_name>]
+}

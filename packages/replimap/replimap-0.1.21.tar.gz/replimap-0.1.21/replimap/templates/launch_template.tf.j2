@@ -1,0 +1,154 @@
+# Launch Template: {{ resource.original_name }}
+# Original ID: {{ resource.id }}
+resource "aws_launch_template" "{{ resource.terraform_name }}" {
+  name = "{{ resource.config.name }}"
+
+{% if resource.config.instance_type %}
+  # Uses variable for Right-Sizer compatibility
+  instance_type = var.{{ variable_names.instance_type }}
+{% endif %}
+{% if resource.config.image_id %}
+  # NOTE: AMI IDs are region-specific. Set via variable or use data source.
+  # Original AMI: {{ resource.config.image_id }}
+  image_id = var.ami_id_{{ resource.terraform_name | sanitize }}
+{% endif %}
+{% if resource.config.key_name %}
+  # NOTE: Key pair must exist in target account/region
+  key_name = var.key_name
+{% endif %}
+
+{% if resource.config.security_group_ids and not resource.config.network_interfaces %}
+  vpc_security_group_ids = [
+{% for sg_id in resource.config.security_group_ids %}
+{% if sg_id is tf_ref %}
+    {{ sg_id }},
+{% else %}
+{% set sg_resource = graph.get_resource(sg_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+    aws_security_group.{{ sg_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg_id | replace("-", "_") }}
+    var.unmapped_sg_{{ sg_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+{% if resource.config.network_interfaces %}
+{% for ni in resource.config.network_interfaces %}
+  network_interfaces {
+    device_index = {{ ni.device_index | default(0) }}
+{% if ni.associate_public_ip_address is defined %}
+    associate_public_ip_address = {{ ni.associate_public_ip_address | lower }}
+{% endif %}
+{% if ni.delete_on_termination is defined %}
+    delete_on_termination = {{ ni.delete_on_termination | lower }}
+{% endif %}
+{% if ni.subnet_id %}
+{% if ni.subnet_id is tf_ref %}
+    subnet_id = {{ ni.subnet_id }}
+{% else %}
+{% set subnet_resource = graph.get_resource(ni.subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+    subnet_id = aws_subnet.{{ subnet_resource.terraform_name }}.id
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_subnet_{{ ni.subnet_id | replace("-", "_") }}
+    subnet_id = var.unmapped_subnet_{{ ni.subnet_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+{% endif %}
+{% if ni.security_groups %}
+    security_groups = [
+{% for sg_id in ni.security_groups %}
+{% if sg_id is tf_ref %}
+      {{ sg_id }},
+{% else %}
+{% set sg_resource = graph.get_resource(sg_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+      aws_security_group.{{ sg_resource.terraform_name }}.id,
+{% else %}
+      # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg_id | replace("-", "_") }}
+      var.unmapped_sg_{{ sg_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+    ]
+{% endif %}
+  }
+
+{% endfor %}
+{% endif %}
+
+{% if resource.config.iam_instance_profile and (resource.config.iam_instance_profile.arn or resource.config.iam_instance_profile.name) %}
+  iam_instance_profile {
+{% if resource.config.iam_instance_profile.name %}
+    name = "{{ resource.config.iam_instance_profile.name }}"
+{% endif %}
+  }
+{% endif %}
+
+{% if resource.config.block_device_mappings %}
+{% for bdm in resource.config.block_device_mappings %}
+  block_device_mappings {
+    device_name = "{{ bdm.device_name }}"
+{% if bdm.ebs %}
+    ebs {
+{% if bdm.ebs.volume_size %}
+      volume_size = {{ bdm.ebs.volume_size }}
+{% endif %}
+{% if bdm.ebs.volume_type %}
+      volume_type = "{{ bdm.ebs.volume_type }}"
+{% endif %}
+{% if bdm.ebs.delete_on_termination is defined %}
+      delete_on_termination = {{ bdm.ebs.delete_on_termination | lower }}
+{% endif %}
+{% if bdm.ebs.encrypted is defined %}
+      encrypted = {{ bdm.ebs.encrypted | lower }}
+{% endif %}
+{% if bdm.ebs.kms_key_id %}
+      # NOTE: KMS key must be accessible in target account
+      kms_key_id = "{{ bdm.ebs.kms_key_id }}"
+{% endif %}
+{% if bdm.ebs.iops %}
+      iops = {{ bdm.ebs.iops }}
+{% endif %}
+{% if bdm.ebs.throughput %}
+      throughput = {{ bdm.ebs.throughput }}
+{% endif %}
+    }
+{% endif %}
+  }
+
+{% endfor %}
+{% endif %}
+
+  monitoring {
+    enabled = {{ resource.config.monitoring.get('Enabled', false) | lower }}
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name        = "{{ resource.original_name }}"
+      Environment = var.environment
+      ManagedBy   = "replimap"
+    }
+  }
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+
+# Add to variables.tf:
+# variable "ami_id_{{ resource.terraform_name }}" {
+#   description = "AMI ID for {{ resource.original_name }} (original: {{ resource.config.image_id }})"
+#   type        = string
+# }

@@ -1,0 +1,76 @@
+# EC2 Instance: {{ resource.original_name }}
+# Original ID: {{ resource.id }}
+# Original Type: {{ resource.config.instance_type }}
+resource "aws_instance" "{{ resource.terraform_name }}" {
+  # NOTE: AMI IDs are region-specific. Set via variable or use data source.
+  # Original AMI: {{ resource.config.ami }}
+  ami           = var.ami_id
+  instance_type = var.{{ variable_names.instance_type }}
+{% if resource.config.key_name %}
+  # NOTE: Key pair must exist in target account/region
+  key_name      = var.key_name
+{% endif %}
+
+{% if resource.config.subnet_id %}
+{% if resource.config.subnet_id is tf_ref %}
+  subnet_id     = {{ resource.config.subnet_id }}
+{% else %}
+{% set subnet_resource = graph.get_resource(resource.config.subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+  subnet_id     = aws_subnet.{{ subnet_resource.terraform_name }}.id
+{% else %}
+  # CROSS-ACCOUNT: Subnet not in graph - define var.unmapped_subnet_{{ resource.config.subnet_id | replace("-", "_") }}
+  subnet_id     = var.unmapped_subnet_{{ resource.config.subnet_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+{% endif %}
+
+{% if resource.config.security_group_ids %}
+  vpc_security_group_ids = [
+{% for sg_id in resource.config.security_group_ids %}
+{% if sg_id is tf_ref %}
+    {{ sg_id }},
+{% else %}
+{% set sg_resource = graph.get_resource(sg_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+    aws_security_group.{{ sg_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg_id | replace("-", "_") }}
+    var.unmapped_sg_{{ sg_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+{% if resource.config.iam_instance_profile and resource.config.iam_instance_profile.name %}
+  iam_instance_profile = "{{ resource.config.iam_instance_profile.name }}"
+{% endif %}
+
+  ebs_optimized = {{ resource.config.ebs_optimized | default(false) | lower }}
+  monitoring    = {{ resource.config.monitoring | default(false) | lower }}
+
+{% if resource.config.root_block_device %}
+  root_block_device {
+    delete_on_termination = {{ resource.config.root_block_device.delete_on_termination | default(true) | lower }}
+  }
+{% endif %}
+
+{% if resource.config.metadata_options %}
+  metadata_options {
+    http_endpoint               = "{{ resource.config.metadata_options.http_endpoint | default('enabled') }}"
+    http_tokens                 = "{{ resource.config.metadata_options.http_tokens | default('optional') }}"
+    http_put_response_hop_limit = {{ resource.config.metadata_options.http_put_response_hop_limit | default(1) }}
+  }
+{% endif %}
+
+  tags = {
+    Name        = "{{ resource.tags.get('Name', resource.terraform_name) }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

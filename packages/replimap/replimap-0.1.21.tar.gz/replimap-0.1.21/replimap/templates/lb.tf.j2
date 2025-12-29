@@ -1,0 +1,52 @@
+# Load Balancer: {{ resource.original_name }}
+resource "aws_lb" "{{ resource.terraform_name }}" {
+  name               = "{{ resource.config.name }}"
+  internal           = {{ (resource.config.scheme == 'internal') | lower }}
+  load_balancer_type = "{{ resource.config.type | lower }}"
+
+{% if resource.config.type == 'application' %}
+  security_groups = [
+{% for sg_id in resource.config.security_group_ids %}
+{% if sg_id is tf_ref %}
+    {{ sg_id }},
+{% else %}
+{% set sg_resource = graph.get_resource(sg_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+    aws_security_group.{{ sg_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg_id | replace("-", "_") }}
+    var.unmapped_sg_{{ sg_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+  subnets = [
+{% for subnet_id in resource.config.subnet_ids %}
+{% if subnet_id is tf_ref %}
+    {{ subnet_id }},
+{% else %}
+{% set subnet_resource = graph.get_resource(subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+    aws_subnet.{{ subnet_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_subnet_{{ subnet_id | replace("-", "_") }}
+    var.unmapped_subnet_{{ subnet_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+
+  enable_deletion_protection = false
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

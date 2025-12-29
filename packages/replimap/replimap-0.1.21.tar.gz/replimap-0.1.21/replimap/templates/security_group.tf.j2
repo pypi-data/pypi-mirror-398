@@ -1,0 +1,148 @@
+# Security Group: {{ resource.config.name }}
+# Original ID: {{ resource.id }}
+resource "aws_security_group" "{{ resource.terraform_name }}" {
+  name        = "{{ resource.config.name }}"
+  description = {{ resource.config.description | quote }}
+{% if resource.config.vpc_id %}
+{% if resource.config.vpc_id is tf_ref %}
+  vpc_id      = {{ resource.config.vpc_id }}
+{% else %}
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+{% if vpc_resource and vpc_resource.terraform_name %}
+  vpc_id      = aws_vpc.{{ vpc_resource.terraform_name }}.id
+{% else %}
+  # WARNING: VPC {{ resource.config.vpc_id }} not found in graph - using original ID
+  vpc_id      = "{{ resource.config.vpc_id }}"
+{% endif %}
+{% endif %}
+{% endif %}
+
+{# Only include ingress rules that DON'T reference other security groups (to avoid cycles) #}
+{% for rule in resource.config.ingress %}
+{% set has_other_sg_refs = rule.security_groups and (rule.security_groups | rejectattr('security_group_id', 'equalto', resource.id) | list | length > 0) %}
+{% if not has_other_sg_refs %}
+  ingress {
+    description      = "Ingress rule"
+    protocol         = "{{ rule.protocol }}"
+    from_port        = {{ rule.from_port | default(0) }}
+    to_port          = {{ rule.to_port | default(0) }}
+{% if rule.cidr_blocks %}
+    cidr_blocks      = {{ rule.cidr_blocks | tojson }}
+{% endif %}
+{% if rule.ipv6_cidr_blocks %}
+    ipv6_cidr_blocks = {{ rule.ipv6_cidr_blocks | tojson }}
+{% endif %}
+{% if rule.prefix_list_ids %}
+    prefix_list_ids  = {{ rule.prefix_list_ids | tojson }}
+{% endif %}
+{% if rule.security_groups %}
+{% set self_ref = rule.security_groups | selectattr('security_group_id', 'equalto', resource.id) | list %}
+{% if self_ref %}
+    self             = true
+{% endif %}
+{% endif %}
+  }
+
+{% endif %}
+{% endfor %}
+{# Only include egress rules that DON'T reference other security groups (to avoid cycles) #}
+{% for rule in resource.config.egress %}
+{% set has_other_sg_refs = rule.security_groups and (rule.security_groups | rejectattr('security_group_id', 'equalto', resource.id) | list | length > 0) %}
+{% if not has_other_sg_refs %}
+  egress {
+    description      = "Egress rule"
+    protocol         = "{{ rule.protocol }}"
+    from_port        = {{ rule.from_port | default(0) }}
+    to_port          = {{ rule.to_port | default(0) }}
+{% if rule.cidr_blocks %}
+    cidr_blocks      = {{ rule.cidr_blocks | tojson }}
+{% endif %}
+{% if rule.ipv6_cidr_blocks %}
+    ipv6_cidr_blocks = {{ rule.ipv6_cidr_blocks | tojson }}
+{% endif %}
+{% if rule.prefix_list_ids %}
+    prefix_list_ids  = {{ rule.prefix_list_ids | tojson }}
+{% endif %}
+{% if rule.security_groups %}
+{% set self_ref = rule.security_groups | selectattr('security_group_id', 'equalto', resource.id) | list %}
+{% if self_ref %}
+    self             = true
+{% endif %}
+{% endif %}
+  }
+
+{% endif %}
+{% endfor %}
+  tags = {
+    Name        = "{{ resource.tags.get('Name', resource.config.name) }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+{# Generate separate aws_security_group_rule resources for rules that reference OTHER security groups #}
+{# This avoids circular dependency issues when SGs reference each other #}
+{% for rule in resource.config.ingress %}
+{% set rule_index = loop.index %}
+{% set other_refs = rule.security_groups | rejectattr('security_group_id', 'equalto', resource.id) | list if rule.security_groups else [] %}
+{% if other_refs %}
+{% for sg in other_refs %}
+resource "aws_security_group_rule" "{{ resource.terraform_name }}_ingress_{{ rule_index }}_{{ loop.index }}" {
+  type                     = "ingress"
+  security_group_id        = aws_security_group.{{ resource.terraform_name }}.id
+  protocol                 = "{{ rule.protocol }}"
+  from_port                = {{ rule.from_port | default(0) }}
+  to_port                  = {{ rule.to_port | default(0) }}
+{% if sg.security_group_id is tf_ref %}
+  source_security_group_id = {{ sg.security_group_id }}
+{% else %}
+{% set sg_resource = graph.get_resource(sg.security_group_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+  source_security_group_id = aws_security_group.{{ sg_resource.terraform_name }}.id
+{% else %}
+  # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg.security_group_id | replace("-", "_") }}
+  source_security_group_id = var.unmapped_sg_{{ sg.security_group_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+  description              = "Ingress from {{ sg.security_group_id }}"
+}
+
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for rule in resource.config.egress %}
+{% set rule_index = loop.index %}
+{% set other_refs = rule.security_groups | rejectattr('security_group_id', 'equalto', resource.id) | list if rule.security_groups else [] %}
+{% if other_refs %}
+{% for sg in other_refs %}
+resource "aws_security_group_rule" "{{ resource.terraform_name }}_egress_{{ rule_index }}_{{ loop.index }}" {
+  type                     = "egress"
+  security_group_id        = aws_security_group.{{ resource.terraform_name }}.id
+  protocol                 = "{{ rule.protocol }}"
+  from_port                = {{ rule.from_port | default(0) }}
+  to_port                  = {{ rule.to_port | default(0) }}
+{% if sg.security_group_id is tf_ref %}
+  source_security_group_id = {{ sg.security_group_id }}
+{% else %}
+{% set sg_resource = graph.get_resource(sg.security_group_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+  source_security_group_id = aws_security_group.{{ sg_resource.terraform_name }}.id
+{% else %}
+  # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg.security_group_id | replace("-", "_") }}
+  source_security_group_id = var.unmapped_sg_{{ sg.security_group_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+  description              = "Egress to {{ sg.security_group_id }}"
+}
+
+{% endfor %}
+{% endif %}
+{% endfor %}

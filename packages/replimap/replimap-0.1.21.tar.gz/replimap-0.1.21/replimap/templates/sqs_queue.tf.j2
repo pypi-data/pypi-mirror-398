@@ -1,0 +1,48 @@
+# SQS Queue: {{ resource.original_name }}
+resource "aws_sqs_queue" "{{ resource.terraform_name }}" {
+  name = "{{ resource.config.name }}"
+
+{% if resource.config.fifo_queue %}
+  fifo_queue                  = true
+  content_based_deduplication = {{ resource.config.content_based_deduplication | d(false) | lower }}
+{% endif %}
+
+  visibility_timeout_seconds  = {{ resource.config.visibility_timeout_seconds | d(30) }}
+  message_retention_seconds   = {{ resource.config.message_retention_seconds | d(345600) }}
+  max_message_size            = {{ resource.config.max_message_size | d(262144) }}
+  delay_seconds               = {{ resource.config.delay_seconds | d(0) }}
+  receive_wait_time_seconds   = {{ resource.config.receive_wait_time_seconds | d(0) }}
+
+{% if resource.config.kms_master_key_id %}
+  kms_master_key_id                 = "{{ resource.config.kms_master_key_id }}"
+  kms_data_key_reuse_period_seconds = {{ resource.config.kms_data_key_reuse_period_seconds | d(300) }}
+{% elif resource.config.sqs_managed_sse_enabled %}
+  sqs_managed_sse_enabled = true
+{% endif %}
+
+{% if resource.config.redrive_policy and resource.config.redrive_policy.deadLetterTargetArn %}
+  redrive_policy = jsonencode({
+{% if resource.config.redrive_policy.deadLetterTargetArn is tf_ref %}
+    deadLetterTargetArn = {{ resource.config.redrive_policy.deadLetterTargetArn }}
+{% else %}
+{% set dlq_resource = graph.get_resource(resource.config.redrive_policy.deadLetterTargetArn) %}
+{% if dlq_resource and dlq_resource.terraform_name %}
+    deadLetterTargetArn = aws_sqs_queue.{{ dlq_resource.terraform_name }}.arn
+{% else %}
+    deadLetterTargetArn = "{{ resource.config.redrive_policy.deadLetterTargetArn }}"
+{% endif %}
+{% endif %}
+    maxReceiveCount     = {{ resource.config.redrive_policy.maxReceiveCount | d(5) }}
+  })
+{% endif %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

@@ -1,0 +1,30 @@
+# DB Parameter Group: {{ resource.original_name }}
+resource "aws_db_parameter_group" "{{ resource.terraform_name }}" {
+  name        = "{{ resource.config.name }}"
+  family      = "{{ resource.config.family }}"
+  description = "{{ resource.config.description | default('Managed by RepliMap') }}"
+
+{% for param in resource.config.parameters %}
+  parameter {
+    name         = {{ param.name | quote }}
+    value        = {{ param.value | quote }}
+{# Map AWS API apply_type to Terraform apply_method: dynamic->immediate, static->pending-reboot #}
+{% set apply_type = param.apply_type | default('static') | lower %}
+{% if apply_type == 'dynamic' %}
+    apply_method = "immediate"
+{% else %}
+    apply_method = "pending-reboot"
+{% endif %}
+  }
+{% endfor %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

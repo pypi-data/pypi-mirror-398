@@ -1,0 +1,78 @@
+# VPC Endpoint: {{ resource.original_name }}
+resource "aws_vpc_endpoint" "{{ resource.terraform_name }}" {
+{% if resource.config.vpc_id is tf_ref %}
+  vpc_id            = {{ resource.config.vpc_id }}
+{% else %}
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+{% if vpc_resource and vpc_resource.terraform_name %}
+  vpc_id            = aws_vpc.{{ vpc_resource.terraform_name }}.id
+{% else %}
+  # CROSS-ACCOUNT: VPC not in graph - define var.unmapped_vpc_{{ resource.config.vpc_id | replace("-", "_") }}
+  vpc_id            = var.unmapped_vpc_{{ resource.config.vpc_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+  service_name      = "{{ resource.config.service_name }}"
+  vpc_endpoint_type = "{{ resource.config.vpc_endpoint_type }}"
+
+{% if resource.config.vpc_endpoint_type == "Interface" %}
+  subnet_ids = [
+{% for subnet_id in resource.config.subnet_ids %}
+{% if subnet_id is tf_ref %}
+    {{ subnet_id }},
+{% else %}
+{% set subnet_resource = graph.get_resource(subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+    aws_subnet.{{ subnet_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_subnet_{{ subnet_id | replace("-", "_") }}
+    var.unmapped_subnet_{{ subnet_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+
+  security_group_ids = [
+{% for sg_id in resource.config.security_group_ids %}
+{% if sg_id is tf_ref %}
+    {{ sg_id }},
+{% else %}
+{% set sg_resource = graph.get_resource(sg_id) %}
+{% if sg_resource and sg_resource.terraform_name %}
+    aws_security_group.{{ sg_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_sg_{{ sg_id | replace("-", "_") }}
+    var.unmapped_sg_{{ sg_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+
+  private_dns_enabled = {{ resource.config.private_dns_enabled | default(false) | lower }}
+{% elif resource.config.vpc_endpoint_type == "Gateway" %}
+  route_table_ids = [
+{% for rt_id in resource.config.route_table_ids %}
+{% if rt_id is tf_ref %}
+    {{ rt_id }},
+{% else %}
+{% set rt_resource = graph.get_resource(rt_id) %}
+{% if rt_resource and rt_resource.terraform_name %}
+    aws_route_table.{{ rt_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_rt_{{ rt_id | replace("-", "_") }}
+    var.unmapped_rt_{{ rt_id | replace("-", "_") }},
+{% endif %}
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}

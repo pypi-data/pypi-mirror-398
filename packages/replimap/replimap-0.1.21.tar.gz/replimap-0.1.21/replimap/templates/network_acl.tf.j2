@@ -1,0 +1,178 @@
+# Network ACL: {{ resource.original_name }}
+# Original ID: {{ resource.id }}
+{% if resource.config.is_default %}
+# ═══════════════════════════════════════════════════════════════════════════
+# This is the VPC's DEFAULT Network ACL (implicitly created with the VPC).
+# Using aws_default_network_acl to adopt it rather than creating a duplicate.
+# ═══════════════════════════════════════════════════════════════════════════
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+resource "aws_default_network_acl" "{{ resource.terraform_name }}" {
+{% if vpc_resource and vpc_resource.terraform_name %}
+  default_network_acl_id = aws_vpc.{{ vpc_resource.terraform_name }}.default_network_acl_id
+{% else %}
+  # WARNING: VPC not found - you may need to import this manually
+  default_network_acl_id = "{{ resource.id }}"
+{% endif %}
+
+{% for rule in resource.config.ingress %}
+{% if rule.rule_number != 32767 %}
+  ingress {
+    rule_no    = {{ rule.rule_number }}
+    protocol   = "{{ rule.protocol }}"
+    action     = "{{ rule.rule_action }}"
+{% if rule.cidr_block %}
+    cidr_block = "{{ rule.cidr_block }}"
+{% endif %}
+{% if rule.ipv6_cidr_block %}
+    ipv6_cidr_block = "{{ rule.ipv6_cidr_block }}"
+{% endif %}
+{% if rule.from_port is defined and rule.from_port is not none %}
+    from_port  = {{ rule.from_port }}
+{% endif %}
+{% if rule.to_port is defined and rule.to_port is not none %}
+    to_port    = {{ rule.to_port }}
+{% endif %}
+{% if rule.icmp_type is defined and rule.icmp_type is not none %}
+    icmp_type  = {{ rule.icmp_type }}
+{% endif %}
+{% if rule.icmp_code is defined and rule.icmp_code is not none %}
+    icmp_code  = {{ rule.icmp_code }}
+{% endif %}
+  }
+
+{% endif %}
+{% endfor %}
+{% for rule in resource.config.egress %}
+{% if rule.rule_number != 32767 %}
+  egress {
+    rule_no    = {{ rule.rule_number }}
+    protocol   = "{{ rule.protocol }}"
+    action     = "{{ rule.rule_action }}"
+{% if rule.cidr_block %}
+    cidr_block = "{{ rule.cidr_block }}"
+{% endif %}
+{% if rule.ipv6_cidr_block %}
+    ipv6_cidr_block = "{{ rule.ipv6_cidr_block }}"
+{% endif %}
+{% if rule.from_port is defined and rule.from_port is not none %}
+    from_port  = {{ rule.from_port }}
+{% endif %}
+{% if rule.to_port is defined and rule.to_port is not none %}
+    to_port    = {{ rule.to_port }}
+{% endif %}
+{% if rule.icmp_type is defined and rule.icmp_type is not none %}
+    icmp_type  = {{ rule.icmp_type }}
+{% endif %}
+{% if rule.icmp_code is defined and rule.icmp_code is not none %}
+    icmp_code  = {{ rule.icmp_code }}
+{% endif %}
+  }
+
+{% endif %}
+{% endfor %}
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+{% else %}
+{# Custom (non-default) Network ACL #}
+resource "aws_network_acl" "{{ resource.terraform_name }}" {
+{% if resource.config.vpc_id is tf_ref %}
+  vpc_id = {{ resource.config.vpc_id }}
+{% else %}
+{% set vpc_resource = graph.get_resource(resource.config.vpc_id) %}
+{% if vpc_resource and vpc_resource.terraform_name %}
+  vpc_id = aws_vpc.{{ vpc_resource.terraform_name }}.id
+{% else %}
+  # CROSS-ACCOUNT: VPC not in graph - define var.unmapped_vpc_{{ resource.config.vpc_id | replace("-", "_") }}
+  vpc_id = var.unmapped_vpc_{{ resource.config.vpc_id | replace("-", "_") }}
+{% endif %}
+{% endif %}
+
+{% if resource.config.subnet_ids %}
+  subnet_ids = [
+{% for subnet_id in resource.config.subnet_ids %}
+{% set subnet_resource = graph.get_resource(subnet_id) %}
+{% if subnet_resource and subnet_resource.terraform_name %}
+    aws_subnet.{{ subnet_resource.terraform_name }}.id,
+{% else %}
+    # CROSS-ACCOUNT: Define var.unmapped_subnet_{{ subnet_id | replace("-", "_") }}
+    var.unmapped_subnet_{{ subnet_id | replace("-", "_") }},
+{% endif %}
+{% endfor %}
+  ]
+{% endif %}
+
+{% for rule in resource.config.ingress %}
+{% if rule.rule_number != 32767 %}
+  ingress {
+    rule_no    = {{ rule.rule_number }}
+    protocol   = "{{ rule.protocol }}"
+    action     = "{{ rule.rule_action }}"
+{% if rule.cidr_block %}
+    cidr_block = "{{ rule.cidr_block }}"
+{% endif %}
+{% if rule.ipv6_cidr_block %}
+    ipv6_cidr_block = "{{ rule.ipv6_cidr_block }}"
+{% endif %}
+{% if rule.from_port is defined and rule.from_port is not none %}
+    from_port  = {{ rule.from_port }}
+{% endif %}
+{% if rule.to_port is defined and rule.to_port is not none %}
+    to_port    = {{ rule.to_port }}
+{% endif %}
+{% if rule.icmp_type is defined and rule.icmp_type is not none %}
+    icmp_type  = {{ rule.icmp_type }}
+{% endif %}
+{% if rule.icmp_code is defined and rule.icmp_code is not none %}
+    icmp_code  = {{ rule.icmp_code }}
+{% endif %}
+  }
+
+{% endif %}
+{% endfor %}
+{% for rule in resource.config.egress %}
+{% if rule.rule_number != 32767 %}
+  egress {
+    rule_no    = {{ rule.rule_number }}
+    protocol   = "{{ rule.protocol }}"
+    action     = "{{ rule.rule_action }}"
+{% if rule.cidr_block %}
+    cidr_block = "{{ rule.cidr_block }}"
+{% endif %}
+{% if rule.ipv6_cidr_block %}
+    ipv6_cidr_block = "{{ rule.ipv6_cidr_block }}"
+{% endif %}
+{% if rule.from_port is defined and rule.from_port is not none %}
+    from_port  = {{ rule.from_port }}
+{% endif %}
+{% if rule.to_port is defined and rule.to_port is not none %}
+    to_port    = {{ rule.to_port }}
+{% endif %}
+{% if rule.icmp_type is defined and rule.icmp_type is not none %}
+    icmp_type  = {{ rule.icmp_type }}
+{% endif %}
+{% if rule.icmp_code is defined and rule.icmp_code is not none %}
+    icmp_code  = {{ rule.icmp_code }}
+{% endif %}
+  }
+
+{% endif %}
+{% endfor %}
+  tags = {
+    Name        = "{{ resource.original_name }}"
+    Environment = var.environment
+    ManagedBy   = "replimap"
+    SourceId    = "{{ resource.id }}"
+{% for key, value in resource.tags.items() if key != 'Name' and not key.startswith('aws:') %}
+    {{ key | quote_key }} = {{ value | quote }}
+{% endfor %}
+  }
+}
+{% endif %}
