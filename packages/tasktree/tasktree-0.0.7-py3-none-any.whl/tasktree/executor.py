@@ -1,0 +1,801 @@
+"""Task execution and staleness detection."""
+
+from __future__ import annotations
+
+import os
+import platform
+import stat
+import subprocess
+import tempfile
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from tasktree import docker as docker_module
+from tasktree.graph import get_implicit_inputs, resolve_execution_order
+from tasktree.hasher import hash_args, hash_task, make_cache_key
+from tasktree.parser import Recipe, Task
+from tasktree.state import StateManager, TaskState
+
+
+@dataclass
+class TaskStatus:
+    """Status of a task for execution planning."""
+
+    task_name: str
+    will_run: bool
+    reason: str  # "fresh", "inputs_changed", "definition_changed",
+    # "never_run", "no_outputs", "outputs_missing", "forced", "environment_changed"
+    changed_files: list[str] = field(default_factory=list)
+    last_run: datetime | None = None
+
+
+class ExecutionError(Exception):
+    """Raised when task execution fails."""
+
+    pass
+
+
+class Executor:
+    """Executes tasks with incremental execution logic."""
+
+    def __init__(self, recipe: Recipe, state_manager: StateManager):
+        """Initialize executor.
+
+        Args:
+            recipe: Parsed recipe containing all tasks
+            state_manager: State manager for tracking task execution
+        """
+        self.recipe = recipe
+        self.state = state_manager
+        self.docker_manager = docker_module.DockerManager(recipe.project_root)
+
+    def _get_platform_default_environment(self) -> tuple[str, list[str]]:
+        """Get default shell and args for current platform.
+
+        Returns:
+            Tuple of (shell, args) for platform default
+        """
+        is_windows = platform.system() == "Windows"
+        if is_windows:
+            return ("cmd", ["/c"])
+        else:
+            return ("bash", ["-c"])
+
+    def _get_effective_env_name(self, task: Task) -> str:
+        """Get the effective environment name for a task.
+
+        Resolution order:
+        1. Recipe's global_env_override (from CLI --env)
+        2. Task's explicit env field
+        3. Recipe's default_env
+        4. Empty string (for platform default)
+
+        Args:
+            task: Task to get environment name for
+
+        Returns:
+            Environment name (empty string if using platform default)
+        """
+        # Check for global override first
+        if self.recipe.global_env_override:
+            return self.recipe.global_env_override
+
+        # Use task's env
+        if task.env:
+            return task.env
+
+        # Use recipe default
+        if self.recipe.default_env:
+            return self.recipe.default_env
+
+        # Platform default (no env name)
+        return ""
+
+    def _resolve_environment(self, task: Task) -> tuple[str, list[str], str]:
+        """Resolve which environment to use for a task.
+
+        Resolution order:
+        1. Recipe's global_env_override (from CLI --env)
+        2. Task's explicit env field
+        3. Recipe's default_env
+        4. Platform default (bash on Unix, cmd on Windows)
+
+        Args:
+            task: Task to resolve environment for
+
+        Returns:
+            Tuple of (shell, args, preamble)
+        """
+        # Check for global override first
+        env_name = self.recipe.global_env_override
+
+        # If no global override, use task's env
+        if not env_name:
+            env_name = task.env
+
+        # If no explicit env, try recipe default
+        if not env_name and self.recipe.default_env:
+            env_name = self.recipe.default_env
+
+        # If we have an env name, look it up
+        if env_name:
+            env = self.recipe.get_environment(env_name)
+            if env:
+                return (env.shell, env.args, env.preamble)
+            # If env not found, fall through to platform default
+
+        # Use platform default
+        shell, args = self._get_platform_default_environment()
+        return (shell, args, "")
+
+    def check_task_status(
+        self,
+        task: Task,
+        args_dict: dict[str, Any],
+        force: bool = False,
+    ) -> TaskStatus:
+        """Check if a task needs to run.
+
+        A task executes if ANY of these conditions are met:
+        1. Force flag is set (--force)
+        2. Task definition hash differs from cached state
+        3. Environment definition has changed
+        4. Any explicit inputs have newer mtime than last_run
+        5. Any implicit inputs (from deps) have changed
+        6. No cached state exists for this task+args combination
+        7. Task has no inputs AND no outputs (always runs)
+        8. Different arguments than any cached execution
+
+        Args:
+            task: Task to check
+            args_dict: Arguments for this task execution
+            force: If True, ignore freshness and force execution
+
+        Returns:
+            TaskStatus indicating whether task will run and why
+        """
+        # If force flag is set, always run
+        if force:
+            return TaskStatus(
+                task_name=task.name,
+                will_run=True,
+                reason="forced",
+            )
+
+        # Compute hashes (include effective environment)
+        effective_env = self._get_effective_env_name(task)
+        task_hash = hash_task(task.cmd, task.outputs, task.working_dir, task.args, effective_env)
+        args_hash = hash_args(args_dict) if args_dict else None
+        cache_key = make_cache_key(task_hash, args_hash)
+
+        # Check if task has no inputs and no outputs (always runs)
+        all_inputs = self._get_all_inputs(task)
+        if not all_inputs and not task.outputs:
+            return TaskStatus(
+                task_name=task.name,
+                will_run=True,
+                reason="no_outputs",
+            )
+
+        # Check cached state
+        cached_state = self.state.get(cache_key)
+        if cached_state is None:
+            return TaskStatus(
+                task_name=task.name,
+                will_run=True,
+                reason="never_run",
+            )
+
+        # Check if environment definition has changed
+        env_changed = self._check_environment_changed(task, cached_state, effective_env)
+        if env_changed:
+            return TaskStatus(
+                task_name=task.name,
+                will_run=True,
+                reason="environment_changed",
+                last_run=datetime.fromtimestamp(cached_state.last_run),
+            )
+
+        # Check if inputs have changed
+        changed_files = self._check_inputs_changed(task, cached_state, all_inputs)
+        if changed_files:
+            return TaskStatus(
+                task_name=task.name,
+                will_run=True,
+                reason="inputs_changed",
+                changed_files=changed_files,
+                last_run=datetime.fromtimestamp(cached_state.last_run),
+            )
+
+        # Check if declared outputs are missing
+        missing_outputs = self._check_outputs_missing(task)
+        if missing_outputs:
+            return TaskStatus(
+                task_name=task.name,
+                will_run=True,
+                reason="outputs_missing",
+                changed_files=missing_outputs,
+                last_run=datetime.fromtimestamp(cached_state.last_run),
+            )
+
+        # Task is fresh
+        return TaskStatus(
+            task_name=task.name,
+            will_run=False,
+            reason="fresh",
+            last_run=datetime.fromtimestamp(cached_state.last_run),
+        )
+
+    def execute_task(
+        self,
+        task_name: str,
+        args_dict: dict[str, Any] | None = None,
+        force: bool = False,
+        only: bool = False,
+    ) -> dict[str, TaskStatus]:
+        """Execute a task and its dependencies.
+
+        Args:
+            task_name: Name of task to execute
+            args_dict: Arguments to pass to the task
+            force: If True, ignore freshness and re-run all tasks
+            only: If True, run only the specified task without dependencies (implies force=True)
+
+        Returns:
+            Dictionary of task names to their execution status
+
+        Raises:
+            ExecutionError: If task execution fails
+        """
+        if args_dict is None:
+            args_dict = {}
+
+        # When only=True, force execution (ignore freshness)
+        if only:
+            force = True
+
+        # Resolve execution order
+        if only:
+            # Only execute the target task, skip dependencies
+            execution_order = [task_name]
+        else:
+            # Execute task and all dependencies
+            execution_order = resolve_execution_order(self.recipe, task_name)
+
+        # Single phase: Check and execute incrementally
+        statuses: dict[str, TaskStatus] = {}
+        for name in execution_order:
+            task = self.recipe.tasks[name]
+
+            # Determine task-specific args (only for target task)
+            task_args = args_dict if name == task_name else {}
+
+            # Check if task needs to run (based on CURRENT filesystem state)
+            status = self.check_task_status(task, task_args, force=force)
+            statuses[name] = status
+
+            # Execute immediately if needed
+            if status.will_run:
+                # Warn if re-running due to missing outputs
+                if status.reason == "outputs_missing":
+                    import sys
+                    print(
+                        f"Warning: Re-running task '{name}' because declared outputs are missing",
+                        file=sys.stderr,
+                    )
+
+                self._run_task(task, task_args)
+
+        return statuses
+
+    def _run_task(self, task: Task, args_dict: dict[str, Any]) -> None:
+        """Execute a single task.
+
+        Args:
+            task: Task to execute
+            args_dict: Arguments to substitute in command
+
+        Raises:
+            ExecutionError: If task execution fails
+        """
+        # Substitute arguments in command
+        cmd = self._substitute_args(task.cmd, args_dict)
+
+        # Determine working directory
+        working_dir = self.recipe.project_root / task.working_dir
+
+        # Check if task uses Docker environment
+        env_name = self._get_effective_env_name(task)
+        env = None
+        if env_name:
+            env = self.recipe.get_environment(env_name)
+
+        # Execute command
+        print(f"Running: {task.name}")
+
+        # Route to Docker execution or regular execution
+        if env and env.dockerfile:
+            # Docker execution path
+            self._run_task_in_docker(task, env, cmd, working_dir)
+        else:
+            # Regular execution path
+            shell, shell_args, preamble = self._resolve_environment(task)
+
+            # Detect multi-line commands (ignore trailing newlines from YAML folded blocks)
+            if "\n" in cmd.rstrip():
+                self._run_multiline_command(cmd, working_dir, task.name, shell, preamble)
+            else:
+                self._run_single_line_command(cmd, working_dir, task.name, shell, shell_args)
+
+        # Update state
+        self._update_state(task, args_dict)
+
+    def _run_single_line_command(
+        self, cmd: str, working_dir: Path, task_name: str, shell: str, shell_args: list[str]
+    ) -> None:
+        """Execute a single-line command via shell.
+
+        Args:
+            cmd: Command string
+            working_dir: Working directory
+            task_name: Task name (for error messages)
+            shell: Shell executable to use
+            shell_args: Arguments to pass to shell
+
+        Raises:
+            ExecutionError: If command execution fails
+        """
+        try:
+            # Build command: shell + args + cmd
+            full_cmd = [shell] + shell_args + [cmd]
+            subprocess.run(
+                full_cmd,
+                cwd=working_dir,
+                check=True,
+                capture_output=False,
+            )
+        except subprocess.CalledProcessError as e:
+            raise ExecutionError(
+                f"Task '{task_name}' failed with exit code {e.returncode}"
+            )
+
+    def _run_multiline_command(
+        self, cmd: str, working_dir: Path, task_name: str, shell: str, preamble: str
+    ) -> None:
+        """Execute a multi-line command via temporary script file.
+
+        Args:
+            cmd: Multi-line command string
+            working_dir: Working directory
+            task_name: Task name (for error messages)
+            shell: Shell to use for script execution
+            preamble: Preamble text to prepend to script
+
+        Raises:
+            ExecutionError: If command execution fails
+        """
+        # Determine file extension based on platform
+        is_windows = platform.system() == "Windows"
+        script_ext = ".bat" if is_windows else ".sh"
+
+        # Create temporary script file
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=script_ext,
+            delete=False,
+        ) as script_file:
+            script_path = script_file.name
+
+            # On Unix/macOS, add shebang if not present
+            if not is_windows and not cmd.startswith("#!"):
+                # Use the configured shell in shebang
+                shebang = f"#!/usr/bin/env {shell}\n"
+                script_file.write(shebang)
+
+            # Add preamble if provided
+            if preamble:
+                script_file.write(preamble)
+                if not preamble.endswith("\n"):
+                    script_file.write("\n")
+
+            # Write command to file
+            script_file.write(cmd)
+            script_file.flush()
+
+        try:
+            # Make executable on Unix/macOS
+            if not is_windows:
+                os.chmod(script_path, os.stat(script_path).st_mode | stat.S_IEXEC)
+
+            # Execute script file
+            try:
+                subprocess.run(
+                    [script_path],
+                    cwd=working_dir,
+                    check=True,
+                    capture_output=False,
+                )
+            except subprocess.CalledProcessError as e:
+                raise ExecutionError(
+                    f"Task '{task_name}' failed with exit code {e.returncode}"
+                )
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(script_path)
+            except OSError:
+                pass  # Ignore cleanup errors
+
+    def _run_task_in_docker(
+        self, task: Task, env: Any, cmd: str, working_dir: Path
+    ) -> None:
+        """Execute task inside Docker container.
+
+        Args:
+            task: Task to execute
+            env: Docker environment configuration
+            cmd: Command to execute
+            working_dir: Host working directory
+
+        Raises:
+            ExecutionError: If Docker execution fails
+        """
+        # Resolve container working directory
+        container_working_dir = docker_module.resolve_container_working_dir(
+            env.working_dir, task.working_dir
+        )
+
+        # Execute in container
+        try:
+            self.docker_manager.run_in_container(
+                env=env,
+                cmd=cmd,
+                working_dir=working_dir,
+                container_working_dir=container_working_dir,
+            )
+        except docker_module.DockerError as e:
+            raise ExecutionError(str(e)) from e
+
+    def _substitute_args(self, cmd: str, args_dict: dict[str, Any]) -> str:
+        """Substitute arguments in command string.
+
+        Args:
+            cmd: Command template with {{arg}} placeholders
+            args_dict: Arguments to substitute
+
+        Returns:
+            Command with arguments substituted
+        """
+        result = cmd
+        for key, value in args_dict.items():
+            placeholder = f"{{{{{key}}}}}"
+            result = result.replace(placeholder, str(value))
+        return result
+
+    def _get_all_inputs(self, task: Task) -> list[str]:
+        """Get all inputs for a task (explicit + implicit from dependencies).
+
+        Args:
+            task: Task to get inputs for
+
+        Returns:
+            List of input glob patterns
+        """
+        all_inputs = list(task.inputs)
+        implicit_inputs = get_implicit_inputs(self.recipe, task)
+        all_inputs.extend(implicit_inputs)
+        return all_inputs
+
+    def _check_environment_changed(
+        self, task: Task, cached_state: TaskState, env_name: str
+    ) -> bool:
+        """Check if environment definition has changed since last run.
+
+        For shell environments: checks YAML definition hash
+        For Docker environments: checks YAML hash AND Docker image ID
+
+        Args:
+            task: Task to check
+            cached_state: Cached state from previous run
+            env_name: Effective environment name (from _get_effective_env_name)
+
+        Returns:
+            True if environment definition changed, False otherwise
+        """
+        # If using platform default (no environment), no definition to track
+        if not env_name:
+            return False
+
+        # Get environment definition
+        env = self.recipe.get_environment(env_name)
+        if env is None:
+            # Environment was deleted - treat as changed
+            return True
+
+        # Compute current environment hash (YAML definition)
+        from tasktree.hasher import hash_environment_definition
+
+        current_env_hash = hash_environment_definition(env)
+
+        # Get cached environment hash
+        marker_key = f"_env_hash_{env_name}"
+        cached_env_hash = cached_state.input_state.get(marker_key)
+
+        # If no cached hash (old state file), treat as changed to establish baseline
+        if cached_env_hash is None:
+            return True
+
+        # Check if YAML definition changed
+        if current_env_hash != cached_env_hash:
+            return True  # YAML changed, no need to check image
+
+        # For Docker environments, also check if image ID changed
+        if env.dockerfile:
+            return self._check_docker_image_changed(env, cached_state, env_name)
+
+        # Shell environment with unchanged hash
+        return False
+
+    def _check_docker_image_changed(
+        self, env: Environment, cached_state: TaskState, env_name: str
+    ) -> bool:
+        """Check if Docker image ID has changed.
+
+        Builds the image and compares the resulting image ID with the cached ID.
+        This detects changes from unpinned base images, network-dependent builds, etc.
+
+        Args:
+            env: Docker environment definition
+            cached_state: Cached state from previous run
+            env_name: Environment name
+
+        Returns:
+            True if image ID changed, False otherwise
+        """
+        # Build/ensure image is built and get its ID
+        try:
+            image_tag, current_image_id = self.docker_manager.ensure_image_built(env)
+        except Exception as e:
+            # If we can't build, treat as changed (will fail later with better error)
+            return True
+
+        # Get cached image ID
+        image_id_key = f"_docker_image_id_{env_name}"
+        cached_image_id = cached_state.input_state.get(image_id_key)
+
+        # If no cached ID (first run or old state), treat as changed
+        if cached_image_id is None:
+            return True
+
+        # Compare image IDs
+        return current_image_id != cached_image_id
+
+    def _check_inputs_changed(
+        self, task: Task, cached_state: TaskState, all_inputs: list[str]
+    ) -> list[str]:
+        """Check if any input files have changed since last run.
+
+        Handles both regular file inputs and Docker-specific inputs:
+        - Regular files: checked via mtime
+        - Docker context: checked via directory walk with early exit
+        - Dockerfile digests: checked via parsing and comparison
+
+        Args:
+            task: Task to check
+            cached_state: Cached state from previous run
+            all_inputs: All input glob patterns
+
+        Returns:
+            List of changed file paths
+        """
+        changed_files = []
+
+        # Expand glob patterns
+        input_files = self._expand_globs(all_inputs, task.working_dir)
+
+        # Check if task uses Docker environment
+        env_name = self._get_effective_env_name(task)
+        docker_env = None
+        if env_name:
+            docker_env = self.recipe.get_environment(env_name)
+            if docker_env and not docker_env.dockerfile:
+                docker_env = None  # Not a Docker environment
+
+        for file_path in input_files:
+            # Handle Docker context directory check
+            if file_path.startswith("_docker_context_"):
+                if docker_env:
+                    context_name = file_path.replace("_docker_context_", "")
+                    context_path = self.recipe.project_root / context_name
+                    dockerignore_path = context_path / ".dockerignore"
+
+                    # Get last context check time
+                    cached_context_time = cached_state.input_state.get(
+                        f"_context_{context_name}"
+                    )
+                    if cached_context_time is None:
+                        # Never checked before - consider changed
+                        changed_files.append(f"Docker context: {context_name}")
+                        continue
+
+                    # Check if context changed (with early exit optimization)
+                    if docker_module.context_changed_since(
+                        context_path, dockerignore_path, cached_context_time
+                    ):
+                        changed_files.append(f"Docker context: {context_name}")
+                continue
+
+            # Handle Docker Dockerfile digest check
+            if file_path.startswith("_docker_dockerfile_"):
+                if docker_env:
+                    dockerfile_name = file_path.replace("_docker_dockerfile_", "")
+                    dockerfile_path = self.recipe.project_root / dockerfile_name
+
+                    try:
+                        dockerfile_content = dockerfile_path.read_text()
+                        current_digests = set(
+                            docker_module.parse_base_image_digests(dockerfile_content)
+                        )
+
+                        # Get cached digests
+                        cached_digests = set()
+                        for key in cached_state.input_state:
+                            if key.startswith("_digest_"):
+                                digest = key.replace("_digest_", "")
+                                cached_digests.add(digest)
+
+                        # Check if digests changed
+                        if current_digests != cached_digests:
+                            changed_files.append(f"Docker base image digests in {dockerfile_name}")
+                    except (OSError, IOError):
+                        # Can't read Dockerfile - consider changed
+                        changed_files.append(f"Dockerfile: {dockerfile_name}")
+                continue
+
+            # Regular file check
+            file_path_obj = self.recipe.project_root / task.working_dir / file_path
+            if not file_path_obj.exists():
+                continue
+
+            current_mtime = file_path_obj.stat().st_mtime
+
+            # Check if file is in cached state
+            cached_mtime = cached_state.input_state.get(file_path)
+            if cached_mtime is None or current_mtime > cached_mtime:
+                changed_files.append(file_path)
+
+        return changed_files
+
+    def _check_outputs_missing(self, task: Task) -> list[str]:
+        """Check if any declared outputs are missing.
+
+        Args:
+            task: Task to check
+
+        Returns:
+            List of output patterns that have no matching files
+        """
+        if not task.outputs:
+            return []
+
+        missing_patterns = []
+        base_path = self.recipe.project_root / task.working_dir
+
+        for pattern in task.outputs:
+            # Check if pattern has any matches
+            matches = list(base_path.glob(pattern))
+            if not matches:
+                missing_patterns.append(pattern)
+
+        return missing_patterns
+
+    def _expand_globs(self, patterns: list[str], working_dir: str) -> list[str]:
+        """Expand glob patterns to actual file paths.
+
+        Args:
+            patterns: List of glob patterns
+            working_dir: Working directory to resolve patterns from
+
+        Returns:
+            List of file paths (relative to working_dir)
+        """
+        files = []
+        base_path = self.recipe.project_root / working_dir
+
+        for pattern in patterns:
+            # Use pathlib's glob
+            matches = base_path.glob(pattern)
+            for match in matches:
+                if match.is_file():
+                    # Make relative to working_dir
+                    rel_path = match.relative_to(base_path)
+                    files.append(str(rel_path))
+
+        return files
+
+    def _update_state(self, task: Task, args_dict: dict[str, Any]) -> None:
+        """Update state after task execution.
+
+        Args:
+            task: Task that was executed
+            args_dict: Arguments used for execution
+        """
+        # Compute hashes (include effective environment)
+        effective_env = self._get_effective_env_name(task)
+        task_hash = hash_task(task.cmd, task.outputs, task.working_dir, task.args, effective_env)
+        args_hash = hash_args(args_dict) if args_dict else None
+        cache_key = make_cache_key(task_hash, args_hash)
+
+        # Get all inputs and their current mtimes
+        all_inputs = self._get_all_inputs(task)
+        input_files = self._expand_globs(all_inputs, task.working_dir)
+
+        input_state = {}
+        for file_path in input_files:
+            # Skip Docker special markers (handled separately below)
+            if file_path.startswith("_docker_"):
+                continue
+
+            file_path_obj = self.recipe.project_root / task.working_dir / file_path
+            if file_path_obj.exists():
+                input_state[file_path] = file_path_obj.stat().st_mtime
+
+        # Record Docker-specific inputs if task uses Docker environment
+        env_name = self._get_effective_env_name(task)
+        if env_name:
+            env = self.recipe.get_environment(env_name)
+            if env and env.dockerfile:
+                # Record Dockerfile mtime
+                dockerfile_path = self.recipe.project_root / env.dockerfile
+                if dockerfile_path.exists():
+                    input_state[env.dockerfile] = dockerfile_path.stat().st_mtime
+
+                # Record .dockerignore mtime if exists
+                context_path = self.recipe.project_root / env.context
+                dockerignore_path = context_path / ".dockerignore"
+                if dockerignore_path.exists():
+                    relative_dockerignore = str(
+                        dockerignore_path.relative_to(self.recipe.project_root)
+                    )
+                    input_state[relative_dockerignore] = dockerignore_path.stat().st_mtime
+
+                # Record context check timestamp
+                input_state[f"_context_{env.context}"] = time.time()
+
+                # Parse and record base image digests from Dockerfile
+                try:
+                    dockerfile_content = dockerfile_path.read_text()
+                    digests = docker_module.parse_base_image_digests(dockerfile_content)
+                    for digest in digests:
+                        # Store digest with Dockerfile's mtime
+                        input_state[f"_digest_{digest}"] = dockerfile_path.stat().st_mtime
+                except (OSError, IOError):
+                    # If we can't read Dockerfile, skip digest tracking
+                    pass
+
+            # Record environment definition hash for all environments (shell and Docker)
+            if env:
+                from tasktree.hasher import hash_environment_definition
+
+                env_hash = hash_environment_definition(env)
+                input_state[f"_env_hash_{env_name}"] = env_hash
+
+                # For Docker environments, also store the image ID
+                if env.dockerfile:
+                    # Image was already built during check phase or task execution
+                    if env_name in self.docker_manager._built_images:
+                        image_tag, image_id = self.docker_manager._built_images[env_name]
+                        input_state[f"_docker_image_id_{env_name}"] = image_id
+
+        # Create new state
+        state = TaskState(
+            last_run=time.time(),
+            input_state=input_state,
+        )
+
+        # Save state
+        self.state.set(cache_key, state)
+        self.state.save()
