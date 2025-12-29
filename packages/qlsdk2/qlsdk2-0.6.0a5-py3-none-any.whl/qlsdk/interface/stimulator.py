@@ -1,0 +1,2 @@
+class IStimulator:
+    pass
