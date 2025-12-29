@@ -1,0 +1,115 @@
+"""API operation on tags."""
+
+
+class TagOperator(object):
+    """Task tag settings."""
+
+    def __init__(self, connect):
+        """Initialize instance.
+
+        Args:
+            connect (rayvision_api.api.connect.Connect): The connect instance.
+
+        """
+        self._connect = connect
+
+    def add_label(self, new_name, status=1):
+        """Add a custom label.
+
+        Args:
+            new_name (str): Label name.
+            status (int, optional): Label status,0 or 1,default is 1.
+
+        """
+        data = {
+            'newName': new_name,
+            'status': int(status)
+        }
+        return self._connect.post(self._connect.url.add, data)
+
+    def delete_label(self, del_name):
+        """Delete custom label.
+
+        Args:
+            del_name (str): The name of the label to be deleted.
+
+        """
+        data = {'delName': del_name}
+        return self._connect.post(self._connect.url.delete, data)
+
+    def get_label_list(self):
+        """Get custom labels.
+
+        Returns:
+            dict: Label list info.
+                e.g.:
+                    {
+                        "projectNameList": [
+                            {
+                                "projectId": 3671,
+                                "projectName": "myLabel"
+                            }
+                        ]
+                    }
+
+        """
+
+        return self._connect.post(self._connect.url.getList, validator=False)
+
+    def get_project_list(self):
+        """Get custom labels.
+
+        Returns:
+            list: Label list info.
+                e.g.:
+                    [
+                        {
+                            "projectId": 3671,
+                            "projectName": "myLabel"
+                        }
+                    ]
+
+        """
+        return self.get_label_list()['projectNameList']
+
+    def add_task_tag(self, tag, task_ids):
+        """Add a custom task tag.
+                Args:
+                    tag (str): Label name.
+                    task_ids (list[int], optional): task id list.
+
+        """
+        data = {
+            "label": tag,
+            "taskIds": task_ids
+        }
+        return self._connect.post(self._connect.url.addTaskLabel, data)
+
+    def delete_task_tag(self, taskIds, labelNames, tag_ids=None):
+        """del custom task label.
+                Args:
+                    taskIds (list[int], optional): small task ids.
+                    labelNames (list[string], optional): lable to delete.
+                    label_ids (list[int], optional): lable id list.
+
+        """
+        data = {
+            "taskIds": taskIds,
+            "labelNames": labelNames,
+            "labelIds": tag_ids if tag_ids else [],
+        }
+        return self._connect.post(self._connect.url.deleteTaskLabel, data)
+
+    def get_list(self, flag=0):
+        """Get the project name based on the flag.
+
+                Args:
+                    flag (int): 0. Query items under this account;
+                                1. Query items under this account and under the master account;
+                                2. Query all items associated with (all items under the same master account)
+
+        """
+        data = {
+            'flag': flag,
+        }
+        return self._connect.post(self._connect.url.list, data)
