@@ -1,0 +1,74 @@
+Metadata-Version: 2.4
+Name: dbl-main
+Version: 0.3.0
+Summary: Deterministic Boundary Layer - projection layer on dbl-core
+Author-email: Lukas Pfister <228201683+lukaspfisterch@users.noreply.github.com>
+License: MIT
+Project-URL: Repository, https://github.com/lukaspfisterch/dbl-main
+Project-URL: Issues, https://github.com/lukaspfisterch/dbl-main/issues
+Keywords: dbl,governance,policy,llm,orchestration,deterministic
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: dbl-core>=0.3.0
+Provides-Extra: test
+Requires-Dist: pytest>=8.0.0; extra == "test"
+Provides-Extra: test-fuzz
+Requires-Dist: pytest>=8.0.0; extra == "test-fuzz"
+Requires-Dist: hypothesis>=6.0.0; extra == "test-fuzz"
+Provides-Extra: yaml
+Requires-Dist: pyyaml>=6.0.0; extra == "yaml"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: hypothesis>=6.0.0; extra == "dev"
+Requires-Dist: pyyaml>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+# DBL Main
+
+DBL Main provides a deterministic projection of the dbl-core event stream V into a finite state model. It does not execute tasks.
+
+## Scope
+- Pure state projection from V (append-only event stream).
+- Deterministic status evaluation based only on event ordering and DECISION outcomes.
+- No policy engine, no kernel runtime, no IO side effects.
+dbl-main exports projection primitives only.
+
+## Contract
+- docs/dbl_main_contract.md
+
+## Install
+
+```bash
+pip install dbl-main
+```
+
+Requires `dbl-core>=0.3.0`, Python 3.11+.
+
+## Usage
+
+```python
+from dbl_core import DblEvent, DblEventKind, GateDecision
+from dbl_main import Phase, RunnerStatus, project_state
+
+v = [
+    DblEvent(DblEventKind.INTENT, correlation_id="c1", data={"psi": "x"}),
+    DblEvent(DblEventKind.DECISION, correlation_id="c1", data=GateDecision("ALLOW", "ok")),
+    DblEvent(DblEventKind.EXECUTION, correlation_id="c1", data={"trace": {}, "trace_digest": "..." }),
+    DblEvent(DblEventKind.PROOF, correlation_id="c1", data={"proof": "p1"}),
+]
+
+state = project_state(v)
+assert state.phase in (Phase.EXECUTED, Phase.PROVEN)
+assert state.runner_status == RunnerStatus.FINALIZED
+```
+
+## License
+
+MIT License. See LICENSE.
