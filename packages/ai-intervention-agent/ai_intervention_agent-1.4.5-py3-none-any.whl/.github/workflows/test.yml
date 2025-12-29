@@ -1,0 +1,73 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# 同一分支只保留最新一次运行，避免排队浪费
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 安装 uv（带缓存）
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: 同步依赖（含 dev 组，严格使用 uv.lock）
+        run: uv sync --all-groups --frozen
+
+      - name: Ruff（Lint）
+        run: uv run ruff check .
+
+      - name: Ruff（Format Check）
+        run: uv run ruff format --check .
+
+      - name: Ty（Type Check）
+        run: uv run ty check .
+
+      - name: Pytest（含覆盖率）
+        run: uv run pytest -q --cov=. --cov-report=xml --cov-report=term-missing --cov-config=.coveragerc
+
+      - name: 静态资源压缩检查（.min 文件）
+        run: uv run python scripts/minify_assets.py --check
+
+      - name: 上传覆盖率报告（coverage.xml）
+        if: always() && matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: warn
