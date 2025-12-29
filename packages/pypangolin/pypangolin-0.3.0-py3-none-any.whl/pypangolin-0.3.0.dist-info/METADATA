@@ -1,0 +1,189 @@
+Metadata-Version: 2.4
+Name: pypangolin
+Version: 0.3.0
+Summary: Python client for Pangolin Data Catalog
+Project-URL: Homepage, https://github.com/AlexMercedCoder/Pangolin
+Author-email: Alex Merced <alex@alexmerced.com>
+License-Expression: MIT
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.8
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pyiceberg>=0.5.0
+Requires-Dist: requests>=2.28.0
+Provides-Extra: all
+Requires-Dist: deltalake>=0.10.0; extra == 'all'
+Requires-Dist: dremioframe>=0.1.0; extra == 'all'
+Requires-Dist: google-cloud-bigquery>=3.0.0; extra == 'all'
+Requires-Dist: lancedb>=0.1.0; extra == 'all'
+Requires-Dist: mysql-connector-python>=8.0.0; extra == 'all'
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'all'
+Requires-Dist: pyarrow>=12.0.0; extra == 'all'
+Requires-Dist: pyiceberg[adlfs,gcsfs,s3fs]; extra == 'all'
+Requires-Dist: pymongo>=4.0.0; extra == 'all'
+Requires-Dist: pyodbc>=4.0.0; extra == 'all'
+Requires-Dist: pypaimon>=0.1.0; extra == 'all'
+Requires-Dist: snowflake-connector-python>=3.0.0; extra == 'all'
+Provides-Extra: all-connections
+Requires-Dist: dremioframe>=0.1.0; extra == 'all-connections'
+Requires-Dist: google-cloud-bigquery>=3.0.0; extra == 'all-connections'
+Requires-Dist: mysql-connector-python>=8.0.0; extra == 'all-connections'
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'all-connections'
+Requires-Dist: pymongo>=4.0.0; extra == 'all-connections'
+Requires-Dist: pyodbc>=4.0.0; extra == 'all-connections'
+Requires-Dist: snowflake-connector-python>=3.0.0; extra == 'all-connections'
+Provides-Extra: azure
+Requires-Dist: pyiceberg[adlfs]>=0.5.0; extra == 'azure'
+Provides-Extra: bigquery
+Requires-Dist: google-cloud-bigquery>=3.0.0; extra == 'bigquery'
+Provides-Extra: delta
+Requires-Dist: deltalake>=0.10.0; extra == 'delta'
+Provides-Extra: dremio
+Requires-Dist: dremioframe>=0.1.0; extra == 'dremio'
+Provides-Extra: gcs
+Requires-Dist: pyiceberg[gcsfs]>=0.5.0; extra == 'gcs'
+Provides-Extra: lance
+Requires-Dist: lancedb>=0.1.0; extra == 'lance'
+Provides-Extra: mongodb
+Requires-Dist: pymongo>=4.0.0; extra == 'mongodb'
+Provides-Extra: mysql
+Requires-Dist: mysql-connector-python>=8.0.0; extra == 'mysql'
+Provides-Extra: paimon
+Requires-Dist: pypaimon>=0.1.0; extra == 'paimon'
+Provides-Extra: postgres
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'postgres'
+Provides-Extra: redshift
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'redshift'
+Provides-Extra: s3
+Requires-Dist: pyiceberg[s3fs]>=0.5.0; extra == 's3'
+Provides-Extra: snowflake
+Requires-Dist: snowflake-connector-python>=3.0.0; extra == 'snowflake'
+Provides-Extra: synapse
+Requires-Dist: pyodbc>=4.0.0; extra == 'synapse'
+Description-Content-Type: text/markdown
+
+# PyPangolin
+
+Python Client for the [Pangolin Data Catalog](https://github.com/AlexMercedCoder/Pangolin).
+
+## Installation
+
+```bash
+pip install pypangolin
+```
+
+For Delta Lake support:
+```bash
+pip install "pypangolin[delta]"
+```
+
+## Quick Start
+
+### Core Client
+
+```python
+from pypangolin import PangolinClient
+
+# Connect to Pangolin
+client = PangolinClient(uri="http://localhost:8080")
+client.login("username", "password")
+
+# Work with catalogs
+catalogs = client.catalogs.list()
+
+### Warehouse Management
+
+```python
+# Create an S3 warehouse with custom configuration (e.g. MinIO)
+warehouse = client.warehouses.create_s3(
+    name="minio_warehouse",
+    bucket="my-bucket",
+    endpoint="http://minio:9000",
+    access_key="minio",
+    secret_key="minio123",
+    # Pass extra S3 properties via kwargs
+    **{"s3.path-style-access": "true"}
+)
+```
+```
+
+### PyIceberg Integration
+
+```python
+from pypangolin import get_iceberg_catalog
+
+catalog = get_iceberg_catalog("analytics", uri="http://localhost:8080", token="...")
+table = catalog.load_table("sales.transactions")
+```
+
+### Generic Assets (Delta Lake)
+
+```python
+from pypangolin.assets import DeltaAsset
+
+# Write data and register in Pangolin automatically
+DeltaAsset.write(
+    client, 
+    "analytics", "staging", "my_delta_table", 
+    dataframe, 
+    location="s3://bucket/path"
+)
+```
+
+## Documentation
+
+### Getting Started
+- [Authenticated Mode Guide](docs/auth_mode.md) - Standard operational mode with user authentication
+- [No Auth Mode Guide](docs/no_auth_mode.md) - For local development and testing
+- [Publishing Guide](PUBLISHING.md) - Build and release instructions
+
+### Core Features
+- [PyIceberg Integration](docs/iceberg.md) - Apache Iceberg tables with PyIceberg
+- [Advanced Git Operations](docs/git_operations.md) - Branching, merging, tagging, and conflict resolution
+
+### Table Formats & Assets
+- **Apache Iceberg**: [PyIceberg Integration](docs/iceberg.md)
+- **Delta Lake**: [Delta Guide](docs/delta.md)
+- **Apache Hudi**: [Hudi Guide](docs/hudi.md)
+- **Apache Paimon**: [Paimon Guide](docs/paimon.md)
+- **File Formats**: [Parquet](docs/parquet.md) | [CSV](docs/csv.md) | [JSON](docs/json.md)
+- **Specialized Formats**: [Lance](docs/lance.md) | [Vortex](docs/vortex.md)
+- **Other Assets**: [ML Models, Video, Images, etc.](docs/other.md)
+
+### Advanced Features
+- [Governance & Security](docs/governance.md) - RBAC, permissions, service users, metadata
+- [Admin & System](docs/admin.md) - Audit logging, search, tokens, system config
+- [Federated Catalogs & Views](docs/federated.md) - Remote catalogs and SQL views
+- [Database Connections](docs/connections.md) - Secure credential management for databases
+  - [PostgreSQL](docs/connections/postgresql.md) ✅ | [MySQL](docs/connections/mysql.md) ✅ | [MongoDB](docs/connections/mongodb.md) ✅
+  - [Snowflake](docs/connections/snowflake.md) ⚠️ | [Redshift](docs/connections/redshift.md) ⚠️ | [BigQuery](docs/connections/bigquery.md) ⚠️ | [Synapse](docs/connections/synapse.md) ⚠️
+  - [Dremio](docs/connections/dremio.md) ✅
+
+## Features
+
+✅ **Full API Coverage** - Complete support for all Pangolin REST API endpoints  
+✅ **PyIceberg Integration** - Seamless Apache Iceberg table operations  
+✅ **Multi-Format Support** - Delta, Hudi, Paimon, Parquet, CSV, JSON, and more  
+✅ **Git-like Operations** - Branching, merging, tagging with conflict resolution  
+✅ **Governance** - Role-based access control and business metadata  
+✅ **Federated Catalogs** - Connect to remote Iceberg catalogs  
+✅ **Type-Safe** - Pydantic models for all API responses  
+✅ **Audit Logging** - Comprehensive audit logs with user attribution
+
+## Verification
+
+To run the end-to-end verification suite against a local Pangolin + MinIO stack:
+
+```bash
+# Ensure MinIO is running and buckets exist
+python3 scripts/ensure_buckets.py
+
+# Run verification script
+python3 scripts/verify_pypangolin_live.py
+```
+
+## License
+
+MIT
+
