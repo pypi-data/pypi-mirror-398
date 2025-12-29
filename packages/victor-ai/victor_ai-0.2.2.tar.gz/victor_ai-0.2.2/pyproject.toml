@@ -1,0 +1,482 @@
+# Copyright 2025 Vijaykumar Singh <singhvjd@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "victor-ai"
+version = "0.2.2"
+description = "Enterprise-Ready AI Coding Assistant - Code to Victory with Any AI"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Vijaykumar Singh", email = "singhvjd@gmail.com"}
+]
+requires-python = ">=3.10"
+keywords = [
+    "ai",
+    "llm",
+    "coding-agent",
+    "victor",
+    "anthropic",
+    "openai",
+    "ollama",
+    "claude",
+    "gpt",
+    "cli",
+    "terminal"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    # Core
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+
+    # Async
+    "httpx>=0.27",
+    "aiofiles>=23.0",
+    "aiohttp>=3.9",
+
+    # CLI/UI
+    "typer>=0.12",
+    "rich>=13.7",
+    "prompt-toolkit>=3.0",
+    "textual>=0.89",
+
+    # LLM Providers (core - always installed)
+    "anthropic>=0.34",
+    "openai>=1.40",
+    # google-generativeai moved to optional due to protobuf version conflicts
+
+    # Tools
+    "gitpython>=3.1",
+    "jsonschema>=4.20",
+    "tiktoken>=0.7",
+    "pyyaml>=6.0",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+
+    # Code Analysis (core)
+    "tree-sitter>=0.23",  # 0.23+ required for QueryCursor API
+    "pygments>=2.17",
+
+    # Tree-sitter language packages (core languages - always installed)
+    # Additional languages available via optional dependencies below
+    "tree-sitter-python>=0.23",
+    "tree-sitter-javascript>=0.23",
+    "tree-sitter-typescript>=0.23",
+    "tree-sitter-go>=0.23",
+    "tree-sitter-rust>=0.23",
+    "tree-sitter-java>=0.23",
+    "tree-sitter-cpp>=0.23",
+
+    # Caching
+    "cachetools>=5.3",
+    "diskcache>=5.6",
+    "docker>=7.0",
+    "docstring-parser>=0.15",
+
+    # Semantic Tool Selection (Default: local embeddings)
+    "sentence-transformers>=2.2.0",
+
+    # Vector Storage (conversation embeddings, codebase search)
+    "lancedb>=0.6.0",
+    "pyarrow>=14.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.12",
+    "pytest-json-report>=1.5.0",
+    "respx>=0.21",
+
+    # Linting/Formatting
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "black>=24.0",
+
+    # Type stubs
+    "types-pyyaml",
+    "types-aiofiles",
+]
+
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+]
+
+build = [
+    # Binary distribution
+    "pyinstaller>=6.0",
+    "pyinstaller-hooks-contrib>=2024.0",
+]
+
+# Google Gemini provider (using new google-genai SDK)
+# Usage: pip install victor[google]
+google = [
+    "google-genai>=1.0",
+]
+
+# Language-specific tree-sitter grammars (optional - install what you need)
+# Usage: pip install victor[lang-c] or pip install victor[lang-all]
+
+lang-c = [
+    "tree-sitter-c>=0.23",
+]
+
+lang-csharp = [
+    "tree-sitter-c-sharp>=0.23",
+]
+
+lang-ruby = [
+    "tree-sitter-ruby>=0.23",
+]
+
+lang-php = [
+    "tree-sitter-php>=0.24",
+]
+
+lang-swift = [
+    "tree-sitter-swift>=0.0.1",
+]
+
+lang-scala = [
+    "tree-sitter-scala>=0.23",
+]
+
+lang-kotlin = [
+    "tree-sitter-kotlin>=1.0",
+]
+
+lang-bash = [
+    "tree-sitter-bash>=0.23",
+]
+
+lang-lua = [
+    "tree-sitter-lua>=0.2",
+]
+
+lang-elixir = [
+    "tree-sitter-elixir>=0.3",
+]
+
+lang-haskell = [
+    "tree-sitter-haskell>=0.23",
+]
+
+lang-sql = [
+    "tree-sitter-sql>=0.3",
+]
+
+lang-html = [
+    "tree-sitter-html>=0.23",
+]
+
+lang-css = [
+    "tree-sitter-css>=0.23",
+]
+
+lang-json = [
+    "tree-sitter-json>=0.23",
+]
+
+lang-yaml = [
+    "tree-sitter-yaml>=0.6",
+]
+
+lang-toml = [
+    "tree-sitter-toml>=0.6",
+]
+
+lang-markdown = [
+    "tree-sitter-markdown>=0.5",
+]
+
+lang-xml = [
+    "tree-sitter-xml>=0.6",
+]
+
+# Language bundles for convenience
+lang-web = [
+    "tree-sitter-html>=0.23",
+    "tree-sitter-css>=0.23",
+    "tree-sitter-json>=0.23",
+    "tree-sitter-javascript>=0.23",
+    "tree-sitter-typescript>=0.23",
+]
+
+lang-config = [
+    "tree-sitter-json>=0.23",
+    "tree-sitter-yaml>=0.6",
+    "tree-sitter-toml>=0.6",
+    "tree-sitter-xml>=0.6",
+    "tree-sitter-markdown>=0.5",
+]
+
+lang-jvm = [
+    "tree-sitter-scala>=0.23",
+    "tree-sitter-kotlin>=1.0",
+    "tree-sitter-java>=0.23",
+]
+
+lang-systems = [
+    "tree-sitter-c>=0.23",
+    "tree-sitter-bash>=0.23",
+    "tree-sitter-cpp>=0.23",
+]
+
+lang-apple = [
+    "tree-sitter-swift>=0.0.1",
+]
+
+lang-dotnet = [
+    "tree-sitter-c-sharp>=0.23",
+]
+
+lang-scripting = [
+    "tree-sitter-ruby>=0.23",
+    "tree-sitter-php>=0.24",
+    "tree-sitter-lua>=0.2",
+]
+
+lang-functional = [
+    "tree-sitter-elixir>=0.3",
+    "tree-sitter-haskell>=0.23",
+    "tree-sitter-scala>=0.23",
+]
+
+lang-all = [
+    # All additional language grammars
+    "tree-sitter-c>=0.23",
+    "tree-sitter-c-sharp>=0.23",
+    "tree-sitter-ruby>=0.23",
+    "tree-sitter-php>=0.24",
+    "tree-sitter-swift>=0.0.1",
+    "tree-sitter-scala>=0.23",
+    "tree-sitter-kotlin>=1.0",
+    "tree-sitter-bash>=0.23",
+    "tree-sitter-lua>=0.2",
+    "tree-sitter-elixir>=0.3",
+    "tree-sitter-haskell>=0.23",
+    "tree-sitter-sql>=0.3",
+    "tree-sitter-html>=0.23",
+    "tree-sitter-css>=0.23",
+    "tree-sitter-json>=0.23",
+    "tree-sitter-yaml>=0.6",
+    "tree-sitter-toml>=0.6",
+    "tree-sitter-markdown>=0.5",
+    "tree-sitter-xml>=0.6",
+]
+
+# Native Rust extensions for performance (optional)
+# Build with: cd rust && maturin develop --release
+native = [
+    "maturin>=1.4",
+]
+
+all = [
+    "victor[dev,docs,build,lang-all]",
+]
+
+[project.urls]
+Homepage = "https://github.com/vijayksingh/victor"
+Documentation = "https://github.com/vijayksingh/victor#readme"
+Repository = "https://github.com/vijayksingh/victor"
+Issues = "https://github.com/vijayksingh/victor/issues"
+
+[project.scripts]
+victor = "victor.ui.cli:app"
+vic = "victor.ui.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["victor*"]
+exclude = ["tests*", "docs*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=victor",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests as integration tests (require external services)",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    # Ignore PytestCollectionWarning for non-test classes in victor module
+    # These are data classes/enums that happen to start with "Test" (e.g., TestResult, TestRunner)
+    "ignore:cannot collect test class.*because it has a __init__ constructor:pytest.PytestCollectionWarning",
+    # Ignore semaphore leak warnings from multiprocessing (common in test cleanup)
+    # These come from dependencies like ChromaDB, sentence_transformers
+    "ignore:.*semaphore.*:ResourceWarning",
+    "ignore:.*leaked.*semaphore.*:UserWarning",
+    # Ignore multiprocessing resource tracker warnings
+    "ignore:.*resource_tracker.*:UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "archive",
+    "examples",
+    "docker/demos",
+    "victor_test",
+    "demo_workspace",
+    "src",
+    "ui",
+    "web/ui",
+    "htmlcov",
+    "venv",
+    "game_app.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E402",  # module level import not at top of file (sometimes necessary)
+    "F401",  # unused imports (often intentional re-exports)
+    "F811",  # redefined while unused (type imports shadowing runtime)
+    "B007",  # loop control variable not used within loop body
+    "B008",  # do not perform function calls in argument defaults
+    "B019",  # lru_cache on methods (valid pattern for class methods)
+    "B023",  # function uses loop variable (common pattern)
+    "B024",  # abstract class with no abstract methods (valid for protocols)
+    "B025",  # try-except with empty except clause (handled elsewhere)
+    "B904",  # allow broad HTTPException raising for now
+    "B905",  # zip() without strict= parameter (not critical)
+    "C401",  # unnecessary generator (minor optimization)
+    "C414",  # unnecessary list/set call (minor optimization)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
+"tests/**/*.py" = [
+    "B017",  # assert blind exception (common in test assertions)
+    "B018",  # useless expression (for test assertions)
+    "E741",  # ambiguous variable name (common in test fixtures)
+    "F841",  # unused local variable (often for side-effect testing)
+]
+
+[tool.mypy]
+python_version = "3.10"
+# Gradual typing adoption - start permissive, tighten over time
+strict = false
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_any_generics = false
+ignore_missing_imports = true
+check_untyped_defs = false
+no_implicit_optional = true
+exclude = [
+    "^archive/",
+    "^vscode-victor/",
+    "^tests/",
+    "^scripts/",
+]
+files = ["victor"]
+
+# Strictly typed modules (these should pass strict checks)
+[[tool.mypy.overrides]]
+module = [
+    "victor.config.*",
+    "victor.cache.*",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+strict = true
+
+# Modules with known issues - ignore for now
+[[tool.mypy.overrides]]
+module = [
+    "victor.providers.*",
+    "victor.codebase.*",
+    "victor.tools.*",
+    "victor.mcp.*",
+    "victor.ui.*",
+    "victor.api.*",
+    "victor.agent.*",
+    "victor.native.*",
+    "victor.verticals.*",
+    "victor.evaluation.*",
+    "victor.protocol.*",
+    "victor.framework.*",
+    "victor.embeddings.*",
+    "victor.state.*",
+    "victor.observability.*",
+    "victor.telemetry.*",
+    "victor.context.*",
+    "victor.*",
+]
+ignore_errors = true
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+include = '\.pyi?$'
+
+[tool.coverage.run]
+source = ["victor"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    # CLI modules require interactive terminal testing
+    "victor/ui/cli.py",
+    "victor/ui/commands.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
