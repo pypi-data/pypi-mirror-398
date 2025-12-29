@@ -1,0 +1,118 @@
+# basecollab
+
+`basecollab` is a Python package that scans a **Git-tracked** codebase for lines matching `TODO:` and returns a **JSON tree** you can render as an elegant “tree view” grouped by top-level folders.
+
+What is currently scanned : 
+    `TODO:` or `TODO :`
+It is being enriched with 
+    `git blame` metadata  (commit id, author, timestamp) so you can quickly see *who* wrote it and *when*.
+
+
+## Install
+
+```bash
+pip install basecollab
+```
+
+## Usage
+
+Minimal example (same as [`test.py`](test.py:1)):
+
+```py
+import json
+
+import basecollab
+
+raw = basecollab.scan_py(
+    selected_dirs=None,
+    excluded_dirs=None,
+    excluded_extensions=None,
+    file_size_limit_mb=None,
+)
+
+data = json.loads(raw)
+count = sum(len(section.get("children", [])) for section in data)
+print(f"Found {count} TODOs")
+print(json.dumps(data, indent=2))
+```
+
+### Parameters
+
+`basecollab.scan_py(...)` accepts:
+
+- `selected_dirs`: `list[str] | None` — directories to scan (relative to the repo root). `None` scans the whole repo.
+- `excluded_dirs`: `list[str] | None` — directory names to skip (example: `".git"`, `"node_modules"`).
+- `excluded_extensions`: `list[str] | None` — file extensions to skip (example: `"png"`, `"zip"`).
+- `file_size_limit_mb`: `int | None` — skip files larger than this size.
+
+## Output format (tree view)
+
+The function returns a JSON **array of section nodes**, one per top-level folder.
+
+Each section node:
+
+```json
+{
+  "type": "section",
+  "name": "./backend",
+  "children": [
+    {
+      "file_path": "./backend/example",
+      "line_number": 1,
+      "line_content": "Enhance function Caller() in backend",
+      "git_commit_id": "9680abab8918bf5612316cea088a068a0b5b87be",
+      "git_author": "ccouble",
+      "git_timestamp": "2025-12-27T01:36:11Z"
+    }
+  ]
+}
+```
+
+### Full output example
+
+```json
+[
+  {
+    "type": "section",
+    "name": "./backend",
+    "children": [
+      {
+        "file_path": "./backend/example",
+        "line_number": 1,
+        "line_content": "Enhance function Caller() in backend",
+        "git_commit_id": "9680abab8918bf5612316cea088a068a0b5b87be",
+        "git_author": "ccouble",
+        "git_timestamp": "2025-12-27T01:36:11Z"
+      }
+    ]
+  },
+  {
+    "type": "section",
+    "name": "./frontend",
+    "children": [
+      {
+        "file_path": "./frontend/example2",
+        "line_number": 1,
+        "line_content": "Enhance UI / UX of button {Y}",
+        "git_commit_id": "9680abab8918bf5612316cea088a068a0b5b87be",
+        "git_author": "ccouble",
+        "git_timestamp": "2025-12-27T01:36:11Z"
+      },
+      {
+        "file_path": "./frontend/example",
+        "line_number": 1,
+        "line_content": "Enhance UI / UX of button {X}",
+        "git_commit_id": "9680abab8918bf5612316cea088a068a0b5b87be",
+        "git_author": "ccouble",
+        "git_timestamp": "2025-12-27T01:36:11Z"
+      }
+    ]
+  }
+]
+```
+
+## Notes
+
+- Only TODOs in files that are part of the Git working tree are reported.
+- Only lines matching `TODO:` are captured; the returned `line_content` is the text after `TODO:`.
+
