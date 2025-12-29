@@ -1,0 +1,203 @@
+---
+git:
+  manifest:
+    root: "@jinja {{this.paths.project_root_dir}}"
+    includes: []
+    excludes: []
+    references: {}
+    cmd_timeout: 15
+
+  log:
+    flags:
+      - --graph
+      - --branches
+      - --abbrev-commit
+      - --date=relative
+      - --decorate=full
+      - --max-count=12
+      - >-
+        --pretty=format: %C(red)%h%C(reset) %<(72,trunc)%s %C(bold blue)[%an]%C(reset) %C(yellow)%d%C(reset)%n
+
+  pull:
+    flags:
+      - --tags
+      - --no-edit
+      - --autostash
+  diff:
+    flags:
+      - -M
+      - -C
+      - -B
+      - --ignore-blank-lines
+      - --default-prefix
+
+  status:
+    flags:
+      - --short
+      - --branch
+      - --renames
+      - --ahead-behind
+
+  fetch:
+    flags:
+      - --no-write-fetch-head
+
+  summary:
+    format: table
+
+    style:
+      headers: ~
+
+    table:
+      box: ROUNDED
+      title: ~
+      caption: ~
+      expand: true
+      highlight: true
+      show_lines: true
+      show_header: true
+      show_footer: false
+
+    columns:
+      - name: Repository
+        func: socx_plugins.git.utils:get_repo_name
+        style: bright_blue
+
+      - name: "[green]Ahead[/] [red]Behind[/]"
+        func: socx_plugins.git.utils:get_ahead_behind
+        style: ~
+
+      - name: Branch / Tag
+        func: socx_plugins.git.utils:get_ref_name
+        style: yellow
+
+      - name: Commit Hash
+        func: socx_plugins.git.utils:get_commit_hash
+        style: red
+
+      - name: Commit Message
+        func: socx_plugins.git.utils:get_commit_message
+        style: white
+
+      - name: Author Name
+        func: socx_plugins.git.utils:get_author_name
+        style: cyan
+
+      - name: Author Date
+        func: socx_plugins.git.utils:get_author_date
+        style: cyan
+
+  cli:
+    group:
+      help: Run `git` commands in parallel on multiple repositories.
+      no_args_is_help: true
+      invoke_without_command: true
+      options_metavar: "[options]"
+      subcommand_metavar: "\n[options] <command> [args]..."
+      context_settings:
+        help_option_names:
+          - -h
+          - --help
+        allow_extra_args: true
+        ignore_unknown_options: true
+        allow_interspersed_args: true
+
+    option-panels:
+      - name: I/O Options
+        options:
+          - --help
+          - --pager
+      - name: Git Options
+        options:
+          - --root
+          - --timeout
+          - --include
+          - --exclude
+      - name: Git Arguments
+        options:
+          - git_cmd
+          - git_args
+
+    help: |
+      # `socx git`
+
+      Run `git` commands in parallel on multiple repositories.
+
+      ANY `git` command will work! `git` aliases work as well!
+
+      ## About
+
+      `socx git` runs a given `git` command on multiple repositories in
+      parallel.
+
+      When invoked, `socx git` runs a flat search in the current *root* for
+      nested repositories on startup.
+
+      The invoked `git` command will then be ran on every repository found
+      (unless excluded via -e/--exclude flag or app configuration) along with
+      any flags and arguments that were passed with the command.
+
+      Outputs from each repository will then be displayed in a pretty formatted
+      graph tree.
+
+      > ***TIP***
+      >
+      > * The `-p` or `--pager` flag may be passed to display the outputs in
+      >   a pager.
+      >
+      > * The `-r` or `--root` path can be used to change the root path from
+      >   which git repositories will be searched to invoke the command.
+      >
+      > * The `-e` or `--exclude` flag can be passed one or more times along
+      >   with a glob/relative/absolute path to exclude repositories from the
+      >   run.
+
+      ## Examples
+
+      - ***run `git status` on all repositories in the current directory***:
+
+          ```py
+          socx git status # could also be written with the flag `--root .`
+          ```
+
+      - ***run `git status` on all repos in the parent directory***:
+
+          ```py
+          socx git status --root .. # could also use `-r ..` or `--root=..`
+          ```
+
+      - ***run `git fetch` on multiple repositories***:
+
+          ```py
+          socx git fetch
+          ```
+
+      - ***run `git status` on all repos in current directory, excluding 'foo'
+        and 'bar', and any repo in parent directory who's name contains
+        'bazz'***:
+
+          ```py
+          socx git status -e foo -e bar -i ../*bazz*
+          ```
+
+      - ***run `git fetch` on all repos in current directory, but exclude the
+      current directory itself if it is a git repo and any repo who's name
+      contains 'bazz'***:
+
+          ```py
+          socx git fetch --exclude '*bazz*' --exclude .
+          ```
+
+      - ***show a normal `git diff` of all repos in the current directory and
+        display output in a pager***:
+
+          ```py
+          socx git diff --pager
+          ```
+
+      - ***run `git diff` on all repos in the current directory, only show the
+        stat and ignore changes in whitespace***:
+
+          ```py
+          socx git diff --pager --stat --color-moved-ws=allow-indentation-change
+          ```
