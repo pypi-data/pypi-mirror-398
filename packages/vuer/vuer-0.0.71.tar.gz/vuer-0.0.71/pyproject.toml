@@ -1,0 +1,200 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vuer"
+version = "0.0.71"
+description = ""
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python",
+]
+dependencies = [
+    "params-proto>=3.0.0rc18",
+    "pillow",
+    "msgpack",
+    "numpy>=1.21", # because we require numpy.typing.NDArray
+    "websockets",
+]
+
+[project.optional-dependencies]
+# add the cors package, not needed in pyScript
+all = [
+    "aiohttp>=3.10.5",
+    "aiohttp-cors",
+    "killport",
+]
+example = [
+    "aiohttp>=3.10.5",
+    "aiohttp-cors",
+    "killport",
+    "open3d>=0.18.0",
+    "trimesh",
+    "cmx",
+    "functional_notations",
+    "ml_logger",
+    "opencv-python"
+]
+dev = [
+    "cmx",
+    "aiohttp>=3.10.5",
+    "aiohttp-cors",
+    "killport",
+    "pylint>=2.13.4",
+    "pytest>=7.1.2",
+    "sphinx>=7.1.2",
+    "furo",
+    "sphinx-autobuild",
+    "sphinx_copybutton",
+    "sphinxcontrib-video>=0.4.1",
+    "myst_parser",
+    # these are very optional but needed for the doc site
+    "trimesh",
+    "tqdm",
+    "roman",
+]
+
+[project.scripts]
+# Note, add the entrypoint name to scripts/completions/install.py to include CLI percentage
+vuer = "vuer:entrypoint"
+vuer-docs = "sphinx_autobuild.__main__:main"
+vuer-docs-build = "sphinx.cmd.build:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vuer"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/vuer",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[dependency-groups]
+dev = [
+    "cmx",
+    "aiohttp>=3.10.5",
+    "aiohttp-cors",
+    "killport",
+    "pylint>=2.13.4",
+    "pytest>=7.1.2",
+    "sphinx>=7.1.2",
+    "furo",
+    "sphinx-autobuild",
+    "sphinx_copybutton",
+    "sphinxcontrib-video>=0.4.1",
+    "myst_parser",
+    "trimesh",
+    "tqdm",
+    "roman",
+]
+
+[tool.uv]
+# Force newer versions with pre-built wheels to avoid compilation issues
+override-dependencies = [
+    "multidict>=6.0",  # Older versions need compilation
+    "docutils<0.21",  # Newer versions have compatibility issues with Sphinx 8.x
+]
+
+# ruff
+[tool.ruff]
+line-length = 140
+indent-width = 4
+target-version = "py311"
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+# black (keeping for backward compatibility)
+[tool.black]
+line-length = 120
+
+# pylint
+[tool.pylint.messages_control]
+max-line-length = 120
+generated-members = []
+good-names-rgxs = "^[_a-zA-Z][_a-z0-9]?$"
+ignore-paths = []
+jobs = 0
+ignored-classes = ["TensorDataclass"]
+
+disable = [
+    "duplicate-code",
+    "fixme",
+    "logging-fstring-interpolation",
+    "too-many-arguments",
+    "too-many-branches",
+    "too-many-instance-attributes",
+    "too-many-locals",
+    "unnecessary-ellipsis",
+]
+
+#pytest
+#[tool.pytest.ini_options]
+#addopts = "-n=4 --typeguard-packages=vuer --disable-warnings"
+#testpaths = [
+#    "tests",
+#]
+
+# pyright
+[tool.pyright]
+include = ["src/vuer"]
+exclude = ["**/node_modules", "**/__pycache__", ]
+#ignore = ["nerf_vuer"]
+defineConstant = { DEBUG = true }
+
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportPrivateImportUsage = false
+reportUndefinedVariable = false
+
+#pythonVersion = "3.8"
+#pythonPlatform = "Linux"
