@@ -1,0 +1,49 @@
+services:
+  mmrelay:
+    image: ghcr.io/jeremiah-k/mmrelay:latest
+    container_name: meshtastic-matrix-relay
+    restart: unless-stopped
+    stop_grace_period: 30s
+    user: "${UID:-1000}:${GID:-1000}"
+    labels:
+      - com.centurylinklabs.watchtower.enable=true # Enables automatic updates via Watchtower (if enabled, below)
+    environment:
+      - TZ=UTC # Set timezone (PYTHONUNBUFFERED and MPLCONFIGDIR are set in Dockerfile)
+
+    volumes:
+      # Mount your config directory - create ~/.mmrelay/config.yaml first
+      # See docs/DOCKER.md for setup instructions
+      # For non-SELinux systems (most common):
+      - ${MMRELAY_HOME:-$HOME}/.mmrelay/config.yaml:/app/config.yaml:ro
+      - ${MMRELAY_HOME:-$HOME}/.mmrelay:/app/data
+      # For SELinux systems (RHEL/CentOS/Fedora), add :Z flag to prevent permission denied errors:
+      # - ${MMRELAY_HOME:-$HOME}/.mmrelay/config.yaml:/app/config.yaml:ro,Z
+      # - ${MMRELAY_HOME:-$HOME}/.mmrelay:/app/data:Z
+
+      # For BLE connections, uncomment this line (Linux only):
+      # - /var/run/dbus:/var/run/dbus:ro
+
+    # For BLE connections, uncomment these options (Linux only). See DOCKER.md for alternatives.
+    # network_mode: host
+    # security_opt:
+    #   - apparmor=unconfined # Recommended for BLE to allow DBus communication
+    # privileged: true # Alternative if apparmor=unconfined is not acceptable
+
+    # Tip: For correct permissions and paths, ensure UID, GID, and MMRELAY_HOME are set in a .env file or exported
+
+    # Optional: Watchtower for automatic updates (Recommended)
+    # Uncomment to check for updates daily at 2 AM
+    # Uses label-based filtering to update only labeled containers
+    # Note: Uses Watchtower fork https://github.com/nicholas-fedor/watchtower (maintained, fixes Docker API issues)
+
+  # Uncomment below to enable automatic updates:
+  # watchtower:
+  #   image: nickfedor/watchtower:latest
+  #   container_name: watchtower-mmrelay
+  #   restart: unless-stopped
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   environment:
+  #     - WATCHTOWER_CLEANUP=true
+  #     - WATCHTOWER_SCHEDULE=0 2 * * *  # Daily at 2 AM
+  #   command: --label-enable
