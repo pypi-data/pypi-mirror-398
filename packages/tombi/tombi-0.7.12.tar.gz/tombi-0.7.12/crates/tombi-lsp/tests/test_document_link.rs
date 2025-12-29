@@ -1,0 +1,715 @@
+use tombi_test_lib::project_root_path;
+
+mod document_link_tests {
+    use super::*;
+
+    mod cargo_schema {
+        use super::*;
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_package_readme(
+                r#"
+                [package]
+                readme = "README.md"
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_workspace_package_readme_without_schema(
+                r#"
+                #:schema schemas/Cargo.json
+
+                [workspace.package]
+                readme = "README.md"
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("schemas/Cargo.json"),
+                    range: 0:9..0:27
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_workspace_dependencies_tombi_lsp(
+                r#"
+                [workspace.package]
+                readme = "README.md"
+
+                [workspace.dependencies]
+                tombi-lsp.path = "crates/tombi-lsp"
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("crates/tombi-lsp/Cargo.toml"),
+                    range: 4:0..4:9,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                },
+                {
+                    path: project_root_path().join("crates/tombi-lsp/Cargo.toml"),
+                    range: 4:18..4:34,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_workspace_dependencies_serde(
+                r#"
+                [workspace.package]
+                readme = "README.md"
+
+                [workspace.dependencies]
+                serde = "1.0"
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/serde",
+                    range: 4:0..4:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_workspace_dependencies_serde_toml(
+                r#"
+                [workspace.package]
+                readme = "README.md"
+
+                [workspace.dependencies]
+                serde_toml = { version = "0.1", package = "toml" }
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/toml",
+                    range: 4:0..4:10,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_workspace_dependencies_serde_git(
+                r#"
+                [workspace.package]
+                readme = "README.md"
+
+                [workspace.dependencies]
+                serde = { git = "https://github.com/serde-rs/serde" }
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://github.com/serde-rs/serde",
+                    range: 4:0..4:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::GitRepository,
+                },
+                {
+                    url: "https://github.com/serde-rs/serde",
+                    range: 4:17..4:50,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::GitRepository,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_dependencies_tombi_lsp(
+                r#"
+                [package]
+                readme = "README.md"
+
+                [dependencies]
+                tombi-lsp.path = "../../crates/tombi-lsp"
+                "#,
+                SourcePath(project_root_path().join("rust/tombi-cli/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("crates/tombi-lsp/Cargo.toml"),
+                    range: 4:0..4:9,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                },
+                {
+                    path: project_root_path().join("crates/tombi-lsp/Cargo.toml"),
+                    range: 4:18..4:40,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_dependencies_serde(
+                r#"
+                [package]
+                readme = "README.md"
+
+                [dependencies]
+                serde = "1.0"
+                "#,
+                SourcePath(project_root_path().join("subcrate/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/serde",
+                    range: 4:0..4:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_dependencies_serde_toml(
+                r#"
+                [package]
+                readme = "README.md"
+
+                [dependencies]
+                serde_toml = { version = "0.1", package = "toml" }
+                "#,
+                SourcePath(project_root_path().join("subcrate/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/toml",
+                    range: 4:0..4:10,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_dependencies_serde_git(
+                r#"
+                [package]
+                readme = "README.md"
+
+                [dependencies]
+                serde = { git = "https://github.com/serde-rs/serde" }
+                "#,
+                SourcePath(project_root_path().join("subcrate/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://github.com/serde-rs/serde",
+                    range: 4:0..4:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::GitRepository,
+                },
+                {
+                    url: "https://github.com/serde-rs/serde",
+                    range: 4:17..4:50,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::GitRepository,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_dependencies_tombi_lsp_workspace_true(
+                r#"
+                [package]
+                readme = "README.md"
+
+                [dependencies]
+                tombi-lsp = { workspace = true, default-features = [] }
+                "#,
+                SourcePath(project_root_path().join("subcrate/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("crates/tombi-lsp/Cargo.toml"),
+                    range: 4:0..4:9,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                },
+                {
+                    path: project_root_path().join("Cargo.toml"),
+                    range: 4:14..4:30,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::WorkspaceCargoToml,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_package_workspace(
+                r#"
+                [package]
+                workspace = "../../"
+                "#,
+                SourcePath(project_root_path().join("crates/tombi-lsp/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("Cargo.toml"),
+                    range: 1:13..1:19,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::WorkspaceCargoToml,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_root_package(
+                r#"
+                [package]
+                name = "root-package"
+                version = "0.1.0"
+
+                [dependencies]
+                tombi-ast = { workspace = true }
+
+                [workspace]
+                members = ["crates/*"]
+
+                [workspace.dependencies]
+                serde = "1.0"
+                tombi-ast = { path = "crates/tombi-ast" }
+                "#,
+                SourcePath(project_root_path().join("Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/serde",
+                    range: 11:0..11:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                },
+                {
+                    path: project_root_path().join("crates/tombi-ast/Cargo.toml"),
+                    range: 12:0..12:9,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                },
+                {
+                    path: project_root_path().join("crates/tombi-ast/Cargo.toml"),
+                    range: 12:22..12:38,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                },
+                {
+                    path: project_root_path().join("crates/tombi-accessor/Cargo.toml"),
+                    range: 8:12..8:20,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoTomlFirstMember,
+                },
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_bin_path_links_to_target(
+                r#"
+                [[bin]]
+                name = "profile"
+                path = "src/bin/profile.rs"
+                "#,
+                SourcePath(project_root_path().join("crates/tombi-glob/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("crates/tombi-glob/src/bin/profile.rs"),
+                    range: 2:8..2:26,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::RustSource,
+                }
+            ]));
+        );
+
+        // Tests for platform specific dependencies (Issue #1192)
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_target_dependencies_serde(
+                r#"
+                [target.'cfg(unix)'.dependencies]
+                serde = "1.0"
+                "#,
+                SourcePath(project_root_path().join("crates/subcrate/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/serde",
+                    range: 1:0..1:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_target_dependencies_with_workspace(
+                r#"
+                [target.'cfg(unix)'.dependencies]
+                serde = { workspace = true }
+                "#,
+                SourcePath(project_root_path().join("crates/subcrate/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://crates.io/crates/serde",
+                    range: 1:0..1:5,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CrateIo,
+                },
+                {
+                    path: project_root_path().join("Cargo.toml"),
+                    range: 1:10..1:26,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::WorkspaceCargoToml,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn cargo_target_dependencies_with_path(
+                r#"
+                [package]
+                name = "test"
+
+                [target.'cfg(unix)'.dependencies]
+                tombi-ast = { path = "../tombi-ast" }
+                "#,
+                SourcePath(project_root_path().join("crates/tombi-lsp/Cargo.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("crates/tombi-ast/Cargo.toml"),
+                    range: 4:0..4:9,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                },
+                {
+                    path: project_root_path().join("crates/tombi-ast/Cargo.toml"),
+                    range: 4:22..4:34,
+                    tooltip: tombi_extension_cargo::DocumentLinkToolTip::CargoToml,
+                }
+            ]));
+        );
+    }
+
+    mod tombi_schema {
+        use super::*;
+
+        test_document_link!(
+            #[tokio::test]
+            async fn tombi_schema_catalog_paths(
+                r#"
+                [schema]
+                catalog = { path = "https://www.schemastore.org/api/json/catalog.json" }
+                "#,
+                SourcePath(project_root_path().join("tombi.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://www.schemastore.org/api/json/catalog.json",
+                    range: 1:20..1:69,
+                    tooltip: tombi_extension_tombi::DocumentLinkToolTip::Catalog,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn tombi_schema_catalog_path(
+                r#"
+                [schema]
+                catalog = { paths = ["https://www.schemastore.org/api/json/catalog.json"] }
+                "#,
+                SourcePath(project_root_path().join("tombi.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://www.schemastore.org/api/json/catalog.json",
+                    range: 1:22..1:71,
+                    tooltip: tombi_extension_tombi::DocumentLinkToolTip::Catalog,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn tombi_schemas_path(
+                r#"
+                [[schemas]]
+                path = "www.schemastore.org/tombi.json"
+                "#,
+                SourcePath(project_root_path().join("tombi.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    path: project_root_path().join("www.schemastore.org/tombi.json"),
+                    range: 1:8..1:38,
+                    tooltip: tombi_extension_tombi::DocumentLinkToolTip::Schema,
+                }
+            ]));
+        );
+
+        test_document_link!(
+            #[tokio::test]
+            async fn tombi_schemas_remote_path(
+                r#"
+                [[schemas]]
+                path = "https://www.schemastore.org/cargo-make.json"
+                "#,
+                SourcePath(project_root_path().join("tombi.toml")),
+            ) -> Ok(Some(vec![
+                {
+                    url: "https://www.schemastore.org/cargo-make.json",
+                    range: 1:8..1:51,
+                    tooltip: tombi_extension_tombi::DocumentLinkToolTip::Schema,
+                }
+            ]));
+        );
+    }
+}
+
+#[macro_export]
+macro_rules! test_document_link {
+    // Pattern: with url, with tooltip
+    (#[tokio::test] async fn $name:ident(
+        $source:expr $(, $arg:expr )* $(,)?
+    ) -> Ok(Some(vec![$($document_link:tt),* $(,)?]));) => {
+        test_document_link! {
+            #[tokio::test] async fn _$name(
+                $source $(, $arg)*
+            ) -> Ok(Some(vec![
+                $(
+                    _document_link!($document_link),
+                )*
+                ]));
+        }
+    };
+    // Fallback: original (for DocumentLink struct literal)
+    (#[tokio::test] async fn _$name:ident(
+        $source:expr $(, $arg:expr )* $(,)?
+    ) -> Ok($expected_links:expr);) => {
+        #[tokio::test]
+        async fn $name() -> Result<(), Box<dyn std::error::Error>> {
+            // Use handler functions from tombi_lsp
+            use itertools::Itertools;
+            use tombi_lsp::handler::{handle_did_open, handle_document_link};
+            use tombi_lsp::Backend;
+            use tower_lsp::{
+                lsp_types::{
+                    DidOpenTextDocumentParams, DocumentLinkParams, PartialResultParams,
+                    TextDocumentIdentifier, TextDocumentItem, Url, WorkDoneProgressParams,
+                },
+                LspService,
+            };
+
+            tombi_test_lib::init_tracing();
+
+            #[allow(unused)]
+            #[derive(Default)]
+            struct TestConfig {
+                source_file_path: Option<std::path::PathBuf>,
+                schema_file_path: Option<std::path::PathBuf>,
+                subschemas: Vec<SubSchemaPath>,
+                backend_options: tombi_lsp::backend::Options,
+            }
+
+            #[allow(unused)]
+            trait ApplyTestArg {
+                fn apply(self, config: &mut TestConfig);
+            }
+
+            #[allow(unused)]
+            struct SourcePath(std::path::PathBuf);
+
+            impl ApplyTestArg for SourcePath {
+                fn apply(self, config: &mut TestConfig) {
+                    config.source_file_path = Some(self.0);
+                }
+            }
+
+            #[allow(unused)]
+            struct SchemaPath(std::path::PathBuf);
+
+            impl ApplyTestArg for SchemaPath {
+                fn apply(self, config: &mut TestConfig) {
+                    config.schema_file_path = Some(self.0);
+                }
+            }
+
+            #[allow(unused)]
+            struct SubSchemaPath {
+                pub root: String,
+                pub path: std::path::PathBuf,
+            }
+
+            impl ApplyTestArg for SubSchemaPath {
+                fn apply(self, config: &mut TestConfig) {
+                    config.subschemas.push(self);
+                }
+            }
+
+            impl ApplyTestArg for tombi_lsp::backend::Options {
+                fn apply(self, config: &mut TestConfig) {
+                    config.backend_options = self;
+                }
+            }
+
+            #[allow(unused_mut)]
+            let mut config = TestConfig::default();
+            $(ApplyTestArg::apply($arg, &mut config);)*
+
+            let (service, _) = LspService::new(|client| {
+                Backend::new(client, &config.backend_options)
+            });
+
+            let backend = service.inner();
+
+            if let Some(schema_file_path) = config.schema_file_path.as_ref() {
+                let schema_uri = tombi_schema_store::SchemaUri::from_file_path(schema_file_path)
+                    .expect(
+                        format!(
+                            "failed to convert schema path to URL: {}",
+                            schema_file_path.display()
+                        )
+                        .as_str(),
+                    );
+
+                backend
+                    .config_manager
+                    .load_config_schemas(
+                        &[tombi_config::SchemaItem::Root(tombi_config::RootSchema {
+                            toml_version: None,
+                            path: schema_uri.to_string(),
+                            include: vec!["*.toml".to_string()],
+                        })],
+                        None,
+                    )
+                    .await;
+            }
+
+            for subschema in &config.subschemas {
+                let subschema_uri = tombi_schema_store::SchemaUri::from_file_path(&subschema.path)
+                    .expect(
+                        format!(
+                            "failed to convert subschema path to URL: {}",
+                            subschema.path.display()
+                        )
+                        .as_str(),
+                    );
+
+                backend
+                    .config_manager
+                    .load_config_schemas(
+                        &[tombi_config::SchemaItem::Sub(tombi_config::SubSchema {
+                            path: subschema_uri.to_string(),
+                            include: vec!["*.toml".to_string()],
+                            root: subschema.root.clone(),
+                        })],
+                        None,
+                    )
+                    .await;
+            }
+
+            let _temp_file = tempfile::NamedTempFile::with_suffix_in(
+                ".toml",
+                std::env::current_dir().expect("failed to get current directory"),
+            )
+            .expect("failed to create temporary file for test document path");
+
+            let toml_file_url = match config.source_file_path.as_ref() {
+                Some(path) => Url::from_file_path(path)
+                    .expect("failed to convert source file path to URL"),
+                None => return Err("SourcePath(..) is required".into()),
+            };
+
+            let toml_text = textwrap::dedent($source).trim().to_string();
+
+            handle_did_open(
+                backend,
+                DidOpenTextDocumentParams {
+                    text_document: TextDocumentItem {
+                        uri: toml_file_url.clone(),
+                        language_id: "toml".to_string(),
+                        version: 0,
+                        text: toml_text.clone(),
+                    },
+                },
+            )
+            .await;
+
+            let params = DocumentLinkParams {
+                text_document: TextDocumentIdentifier { uri: toml_file_url },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            };
+
+            let result = handle_document_link(&backend, params).await;
+
+            tracing::debug!("document_link result: {:#?}", result);
+
+            let result = result.map(|result| {
+                result.map(|document_links| {
+                    document_links
+                        .into_iter()
+                        .map(|mut document_link| {
+                            document_link.target.as_mut().map(|target| {
+                                target.set_fragment(None);
+                                target
+                            });
+                            document_link
+                        })
+                        .collect_vec()
+                })
+            });
+
+            pretty_assertions::assert_eq!(result, Ok($expected_links));
+
+            Ok(())
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! _document_link {
+    ({
+        path: $path:expr,
+        range: $start_line:literal : $start_char:literal .. $end_line:literal : $end_char:literal $(,)?
+    }) => {
+        _document_link! ({
+            path: $path,
+            range: $start_line:$start_char..$end_line:$end_char,
+            tooltip: "Open JSON Schema",
+        })
+    };
+    ({
+        path: $path:expr,
+        range: $start_line:literal : $start_char:literal .. $end_line:literal : $end_char:literal,
+        tooltip: $tooltip:expr $(,)?
+    }) => {
+        tower_lsp::lsp_types::DocumentLink {
+            range: tower_lsp::lsp_types::Range {
+                start: tower_lsp::lsp_types::Position {
+                    line: $start_line,
+                    character: $start_char,
+                },
+                end: tower_lsp::lsp_types::Position {
+                    line: $end_line,
+                    character: $end_char,
+                },
+            },
+            target: Url::from_file_path($path).ok(),
+            tooltip: Some($tooltip.to_string()),
+            data: None,
+        }
+    };
+    ({
+        url: $url:expr,
+        range: $start_line:literal : $start_char:literal .. $end_line:literal : $end_char:literal,
+        tooltip: $tooltip:expr $(,)?
+    }) => {
+        tower_lsp::lsp_types::DocumentLink {
+            range: tower_lsp::lsp_types::Range {
+                start: tower_lsp::lsp_types::Position {
+                    line: $start_line,
+                    character: $start_char,
+                },
+                end: tower_lsp::lsp_types::Position {
+                    line: $end_line,
+                    character: $end_char,
+                },
+            },
+            target: Url::parse($url).ok(),
+            tooltip: Some($tooltip.to_string()),
+            data: None,
+        }
+    };
+}

@@ -1,0 +1,1092 @@
+{
+  "$id": "https://www.schemastore.org/tombi.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tombi",
+  "description": "**Tombi** (鳶 `/toɴbi/`) is a toolkit for TOML; providing a formatter/linter and language server.\nSee the [GitHub repository](https://github.com/tombi-toml/tombi) for more information.",
+  "type": "object",
+  "properties": {
+    "toml-version": {
+      "title": "TOML version",
+      "description": "TOML version to use if not specified in the schema and comment directive.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/TomlVersion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "v1.0.0"
+    },
+    "files": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/FilesOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "format": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/FormatOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lint": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LintOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lsp": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LspOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SchemaOverviewOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schemas": {
+      "title": "Schema items",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/SchemaItem"
+      }
+    },
+    "overrides": {
+      "title": "Override config items",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/OverrideItem"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "x-tombi-toml-version": "v1.1.0",
+  "x-tombi-table-keys-order": "schema",
+  "definitions": {
+    "TomlVersion": {
+      "title": "TOML version",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "v1.0.0",
+            "v1.1.0"
+          ]
+        },
+        {
+          "type": "string",
+          "const": "v1.1.0-preview",
+          "deprecated": true
+        }
+      ]
+    },
+    "FilesOptions": {
+      "title": "Files options",
+      "type": "object",
+      "properties": {
+        "include": {
+          "title": "File patterns to include",
+          "description": "The file match pattern to include in formatting and linting.\nSupports glob pattern.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "default": [
+            "**/*.toml"
+          ]
+        },
+        "exclude": {
+          "title": "File patterns to exclude",
+          "description": "The file match pattern to exclude from formatting and linting.\nSupports glob pattern.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "schema"
+    },
+    "FormatOptions": {
+      "title": "Formatter options",
+      "type": "object",
+      "properties": {
+        "rules": {
+          "title": "Format rules",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FormatRules"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "ascending"
+    },
+    "FormatRules": {
+      "type": "object",
+      "properties": {
+        "array-bracket-space-width": {
+          "title": "The number of spaces inside the brackets of a single line array.",
+          "description": "```toml\nkey = [ 1, 2, 3 ]\n#      ^       ^  <- this\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ArrayBracketSpaceWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0
+        },
+        "array-comma-space-width": {
+          "title": "The number of spaces after the comma in a single line array.",
+          "description": "```toml\nkey = [ 1, 2, 3 ]\n#         ^  ^    <- this\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ArrayCommaSpaceWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1
+        },
+        "date-time-delimiter": {
+          "title": "The delimiter between date and time",
+          "description": "In accordance with [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339), you can use `T` or space character between date and time.\n\n- `T`: Use `T` between date and time like `2001-01-01T00:00:00`\n- `space`: Use space between date and time like `2001-01-01 00:00:00`\n- `preserve`: Preserve the original delimiter.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DateTimeDelimiter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "T"
+        },
+        "indent-style": {
+          "title": "The style of indentation",
+          "description": "Whether to use spaces or tabs for indentation.\n\n- `space`: Use spaces for indentation.\n- `tab`: Use tabs for indentation.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/IndentStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "space"
+        },
+        "indent-sub-tables": {
+          "title": "Whether to indent the sub-tables",
+          "description": "If `true`, the sub-table will be indented.\n\n```toml\n[table]\n    [table.sub-table]\n    key = \"value\"\n# ^^  <- this\n```",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": false
+        },
+        "indent-table-key-value-pairs": {
+          "title": "Whether to indent the table key-value pairs",
+          "description": "If `true`, the table key-value pairs will be indented.\n\n```toml\n[table]\n    key = \"value\"\n# ^^  <- this\n```",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": false
+        },
+        "indent-width": {
+          "title": "The number of spaces per indentation level",
+          "description": "⚠️ **WARNING** ⚠️\\\nThis option is only used when the indentation style is `space`.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/IndentWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 2
+        },
+        "inline-table-brace-space-width": {
+          "title": "The number of spaces inside the brackets of a single line inline table.",
+          "description": "```toml\nkey = { a = 1, b = 2 }\n#      ^            ^  <- this\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InlineTableBraceSpaceWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1
+        },
+        "inline-table-comma-space-width": {
+          "title": "The number of spaces after the comma in a single line inline table.",
+          "description": "```toml\nkey = { a = 1, b = 2 }\n#             ^  <- this\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InlineTableCommaSpaceWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1
+        },
+        "key-value-equals-sign-alignment": {
+          "title": "Whether to align the equals sign in the key-value pairs.",
+          "description": "If `true`, the equals sign in the key-value pairs will be aligned.\n\n⚠️ **WARNING** ⚠️\\\nThis feature does **not** apply to key-value pairs inside single line inline tables.\n\n```toml\n# BEFORE\nkey = \"value1\"\nkey2 = \"value2\"\nkey3.key4 = \"value3\"\n\n# AFTER\nkey       = \"value1\"\nkey2      = \"value2\"\nkey3.key4 = \"value3\"\n```",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": false
+        },
+        "string-quote-style": {
+          "title": "The preferred quote character for strings",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/StringQuoteStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "double"
+        },
+        "trailing-comment-alignment": {
+          "title": "Whether to align the trailing comments in the key-value pairs.",
+          "description": "If `true`, the trailing comments in value/key-value pairs will be aligned.\n\n**📝 NOTE 📝**\\\nThe trailing comments of table header are not targeted by alignment.\n\n```toml\n# BEFORE\nkey = \"value1\"  # comment 1\nkey2 = \"value2\"  # comment 2\nkey3.key4 = \"value3\"  # comment 3\n\n# AFTER\nkey = \"value1\"        # comment 1\nkey2 = \"value2\"       # comment 2\nkey3.key4 = \"value3\"  # comment 3\n```",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": false
+        },
+        "key-value-equals-sign-space-width": {
+          "title": "The number of spaces around the equals sign in a key-value pair.",
+          "description": "```toml\nkey = \"value\"\n#  ^ ^  <- this\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/KeyValueEqualsSignSpaceWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1
+        },
+        "line-ending": {
+          "title": "The type of line ending",
+          "description": "In TOML, the line ending must be either `LF` or `CRLF`.\n\n- `lf`: Line Feed only (`\\n`), common on Linux and macOS as well as inside git repos.\n- `crlf`: Carriage Return Line Feed (`\\r\\n`), common on Windows.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LineEnding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "lf"
+        },
+        "line-width": {
+          "title": "The maximum line width",
+          "description": "The formatter will try to keep lines within this width.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LineWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 80
+        },
+        "trailing-comment-space-width": {
+          "title": "The number of spaces before the trailing comment.",
+          "description": "```toml\nkey = \"value\"  # trailing comment\n#            ^^  <- this\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TrailingCommentSpaceWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 2
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "ascending"
+    },
+    "ArrayBracketSpaceWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "ArrayCommaSpaceWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "DateTimeDelimiter": {
+      "description": "DateTime delimiter",
+      "oneOf": [
+        {
+          "description": "Example: `2021-01-01T00:00:00`",
+          "type": "string",
+          "const": "T"
+        },
+        {
+          "description": "Example: `2021-01-01 00:00:00`",
+          "type": "string",
+          "const": "space"
+        },
+        {
+          "description": "Preserve the source delimiter",
+          "type": "string",
+          "const": "preserve"
+        }
+      ]
+    },
+    "IndentStyle": {
+      "type": "string",
+      "enum": [
+        "space",
+        "tab"
+      ]
+    },
+    "IndentWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "InlineTableBraceSpaceWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "InlineTableCommaSpaceWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "StringQuoteStyle": {
+      "description": "The preferred quote character for strings.",
+      "oneOf": [
+        {
+          "description": "Prefer the double quote",
+          "type": "string",
+          "const": "double"
+        },
+        {
+          "description": "Prefer the single quote",
+          "type": "string",
+          "const": "single"
+        },
+        {
+          "description": "Preserve the source quote",
+          "type": "string",
+          "const": "preserve"
+        }
+      ]
+    },
+    "KeyValueEqualsSignSpaceWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "LineEnding": {
+      "type": "string",
+      "enum": [
+        "lf",
+        "crlf"
+      ]
+    },
+    "LineWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 1,
+      "maximum": 255
+    },
+    "TrailingCommentSpaceWidth": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "LintOptions": {
+      "title": "Linter options",
+      "type": "object",
+      "properties": {
+        "rules": {
+          "title": "Lint rules",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LintRules"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "schema"
+    },
+    "LintRules": {
+      "type": "object",
+      "properties": {
+        "key-empty": {
+          "title": "Key empty",
+          "description": "Check if the key is empty.\n\n```toml\n# VALID BUT DISCOURAGED\n\"\" = true\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SeverityLevelDefaultWarn"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dotted-keys-out-of-order": {
+          "title": "Dotted keys out of order",
+          "description": "Check if dotted keys are defined out of order.\n\n```toml\n# VALID BUT DISCOURAGED\napple.type = \"fruit\"\norange.type = \"fruit\"\napple.skin = \"thin\"\norange.skin = \"thick\"\n\n# RECOMMENDED\napple.type = \"fruit\"\napple.skin = \"thin\"\norange.type = \"fruit\"\norange.skin = \"thick\"\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SeverityLevelDefaultWarn"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tables-out-of-order": {
+          "title": "Tables out of order",
+          "description": "Check if tables are defined out of order.\n\n```toml\n# VALID BUT DISCOURAGED\n[fruit.apple]\n[animal]\n[fruit.orange]\n\n# RECOMMENDED\n[fruit.apple]\n[fruit.orange]\n[animal]\n```",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SeverityLevelDefaultWarn"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "version-sort"
+    },
+    "SeverityLevelDefaultWarn": {
+      "default": "warn",
+      "allOf": [
+        {
+          "$ref": "#/definitions/SeverityLevel"
+        }
+      ]
+    },
+    "SeverityLevel": {
+      "type": "string",
+      "enum": [
+        "off",
+        "warn",
+        "error"
+      ]
+    },
+    "LspOptions": {
+      "title": "Language Server options",
+      "type": "object",
+      "properties": {
+        "code-action": {
+          "title": "Code Action Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspCodeAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completion": {
+          "title": "Completion Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspCompletion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diagnostic": {
+          "title": "Diagnostic Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspDiagnostic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "document-link": {
+          "title": "Document Link Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspDocumentLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formatting": {
+          "title": "Formatting Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspFormatting"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goto-declaration": {
+          "title": "Goto Declaration Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspGotoDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goto-definition": {
+          "title": "Goto Definition Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspGotoDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goto-type-definition": {
+          "title": "Goto Type Definition Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspGotoDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hover": {
+          "title": "Hover Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspHover"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace-diagnostic": {
+          "title": "Workspace Diagnostics Feature options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LspWorkspaceDiagnostic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "ascending"
+    },
+    "LspCodeAction": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable code action feature",
+          "description": "Whether to enable code action.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "BoolDefaultTrue": {
+      "type": "boolean",
+      "default": true
+    },
+    "LspCompletion": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable completion feature",
+          "description": "Whether to enable completion.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspDiagnostic": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable diagnostic feature",
+          "description": "Whether to enable diagnostic.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspDocumentLink": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable document link feature",
+          "description": "Whether to enable document link.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspFormatting": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable formatting feature",
+          "description": "Whether to enable formatting.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspGotoDefinition": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable goto definition feature",
+          "description": "Whether to enable goto definition.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspHover": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable hover feature",
+          "description": "Whether to enable hover.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspWorkspaceDiagnostic": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable workspace diagnostic feature",
+          "description": "Whether to enable workspace diagnostic.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SchemaOverviewOptions": {
+      "title": "Schema overview options",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable the schema validation",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "strict": {
+          "title": "Enable strict schema validation",
+          "description": "If `additionalProperties` is not specified in the JSON Schema,\nthe strict mode treats it as `additionalProperties: false`,\nwhich is different from the JSON Schema specification.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "catalog": {
+          "title": "Schema catalog options",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SchemaCatalog"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "schema"
+    },
+    "SchemaCatalog": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "title": "The schema catalog path/url array",
+          "description": "The catalog is evaluated after the schemas specified by [[schemas]].\\\nSchemas are loaded in order from the beginning of the catalog list.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/SchemaCatalogPath"
+          },
+          "default": [
+            "tombi://www.schemastore.org/api/json/catalog.json",
+            "https://www.schemastore.org/api/json/catalog.json"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SchemaCatalogPath": {
+      "description": "Generic value that can be either single or multiple",
+      "type": "string"
+    },
+    "SchemaItem": {
+      "title": "Schema item",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/RootSchema"
+        },
+        {
+          "$ref": "#/definitions/SubSchema"
+        }
+      ]
+    },
+    "RootSchema": {
+      "title": "The schema for the root table",
+      "type": "object",
+      "properties": {
+        "toml-version": {
+          "title": "The TOML version that the schema is available",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TomlVersion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "title": "The schema path",
+          "type": "string"
+        },
+        "include": {
+          "title": "The file match pattern of the schema",
+          "description": "The file match pattern to include the target to apply the schema.\nSupports glob pattern.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "include"
+      ],
+      "x-tombi-table-keys-order": "schema"
+    },
+    "SubSchema": {
+      "title": "The schema for the sub value",
+      "type": "object",
+      "properties": {
+        "root": {
+          "title": "The accessors to apply the sub schema",
+          "type": "string",
+          "examples": [
+            "tool.tombi",
+            "items[0].name"
+          ],
+          "minLength": 1
+        },
+        "path": {
+          "title": "The sub schema path",
+          "type": "string"
+        },
+        "include": {
+          "title": "The file match pattern of the sub schema",
+          "description": "The file match pattern to include the target to apply the sub schema.\nSupports glob pattern.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "path",
+        "include"
+      ],
+      "x-tombi-table-keys-order": "schema"
+    },
+    "OverrideItem": {
+      "title": "Override config item",
+      "type": "object",
+      "properties": {
+        "files": {
+          "title": "Files options to override",
+          "allOf": [
+            {
+              "$ref": "#/definitions/OverrideFilesOptions"
+            }
+          ]
+        },
+        "format": {
+          "title": "Format options to override",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/OverrideFormatOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lint": {
+          "title": "Lint options to override",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/OverrideLintOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "files"
+      ],
+      "x-tombi-table-keys-order": "schema"
+    },
+    "OverrideFilesOptions": {
+      "title": "Files options to override",
+      "type": "object",
+      "properties": {
+        "include": {
+          "title": "File patterns to include",
+          "description": "The file match pattern to include in formatting and linting.\nSupports glob pattern.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "exclude": {
+          "title": "File patterns to exclude",
+          "description": "The file match pattern to exclude from formatting and linting.\nSupports glob pattern.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "include"
+      ],
+      "x-tombi-table-keys-order": "schema"
+    },
+    "OverrideFormatOptions": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Format enabled",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rules": {
+          "title": "Format rules",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FormatRules"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "schema"
+    },
+    "OverrideLintOptions": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Lint enabled",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BoolDefaultTrue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rules": {
+          "title": "Lint rules",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LintRules"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-table-keys-order": "schema"
+    }
+  }
+}
