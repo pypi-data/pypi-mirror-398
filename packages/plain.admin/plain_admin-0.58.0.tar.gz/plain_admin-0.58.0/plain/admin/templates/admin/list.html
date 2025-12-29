@@ -1,0 +1,190 @@
+{% extends "admin/base.html" %}
+
+{% use_elements %}
+
+{% block header_scripts %}
+<script src="{{ asset('admin/list.js') }}" defer nonce="{{ request.csp_nonce }}"></script>
+{% endblock %}
+
+{% block content %}
+
+{% htmxfragment "list" %}
+
+<header class="flex items-center justify-between">
+    <div class="text-xs text-black/50">
+        {% if table_style == "preview" %}
+            <div class="mb-3">{{ title }}</div>
+        {% else %}
+            {{ page.paginator.count }} result{{ page.paginator.count|pluralize }}
+        {% endif %}
+    </div>
+    <div class="flex space-x-2">
+        {% if table_style == "preview" %}
+        <a class="text-sm" href="{{ request.path }}{% if search_query %}?search={{ search_query }}{% endif %}">View {{ page.paginator.count }} result{{ "s" if page.paginator.count != 1 else "" }}</a>
+        {% else %}
+        {% if actions %}
+        <form method="POST" data-actions-form>
+            <select name="action_name" class="text-sm py-1 pl-3 pr-8">
+                <option value="">Actions...</option>
+                {% for action in actions %}
+                <option>{{ action }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="action_ids" value="" />
+        </form>
+        {% endif %}
+
+        <form method="GET" class="inline-flex space-x-2">
+            {% if presets %}
+            <select data-autosubmit name="preset" class="text-sm py-1 pl-3 pr-8">
+                <option value="">Presets...</option>
+                {% for preset in presets %}
+                <option {% if preset == current_preset %}selected{% endif %}>{{ preset }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
+            {% if show_search %}
+            <div class="relative">
+                <label for="search" class="sr-only">Search</label>
+                <input
+                    type="text"
+                    name="search"
+                    id="search"
+                    class="text-sm pr-3 pl-8 py-1"
+                    placeholder="Search"
+                    value="{{ search_query|default('') }}"
+                    >
+                <div class="absolute top-1/2 -translate-y-1/2 left-2 flex items-center pointer-events-none">
+                    <admin.Icon name="search" class="w-3.5 h-3.5 text-black/50" />
+                </div>
+            </div>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+</header>
+
+<div class="w-full overflow-auto mt-2">
+    <table class="text-sm table-auto">
+        <thead>
+            <tr class="bg-stone-100 [&>:first-child]:rounded-l-md [&>:last-child]:rounded-r-md">
+                {% if table_style != "preview" and actions %}
+                <th class="p-0 pl-1">
+                    <input
+                        data-action-checkbox-all
+                        class="rounded bg-white border-stone-300"
+                        type="checkbox"
+                    />
+                </th>
+                {% endif %}
+
+                {% for field in fields %}
+                    {% if order_by_field is defined %}
+                    <th>
+                        {% if table_style == "preview" %}
+                        <div class="font-mono text-xs font-normal">
+                            {{ field }}
+                        </div>
+                        {% else %}
+                        <a
+                            data-merge-params
+                            class="font-mono text-xs font-normal flex space-x-1 items-center"
+                            href="?page=1&order_by={{ '-' if not order_by_direction else '' }}{{ field }}">
+                            <span>{{ field }}</span>
+                            {% if field == order_by_field %}
+                            {% if order_by_direction == "-" %}
+                            <span class="text-xs">▼</span>
+                            {% else %}
+                            <span class="text-xs">▲</span>
+                            {% endif %}
+                            {% endif %}
+                        </a>
+                        {% endif %}
+                    </th>
+                    {% else %}
+                    <th class="font-mono text-xs font-normal text-black/60">{{ field }}</th>
+                    {% endif %}
+                {% endfor %}
+
+                {# A th that spans any links columns that will be added #}
+                <th colspan="99"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for object in objects %}
+            <tr>
+
+                {% set row_url = get_object_url(object) %}
+
+                {% if table_style != "preview" and actions %}
+                <td class="p-0 pl-1">
+                    <input data-action-checkbox class="rounded bg-white border-stone-300" type="checkbox" name="{{ get_object_id(object) }}" />
+                </td>
+                {% endif %}
+
+                {% for field in fields %}
+                {# Make every column clickable if it doesn't contain a link already #}
+                <td data-column-autolink="{{ row_url }}">
+                    <div class="max-w-prose truncate">
+                        {% set value = get_field_value(object, field) %}
+                        {% include get_field_value_template(object, field, value) with context %}
+                    </div>
+                </td>
+                {% endfor %}
+
+                {% set object_links = get_object_links(object) %}
+                {% if object_links %}
+                <td class="py-0">
+                    <button data-dropdown class="bg-transparent inline-flex rounded-md border border-transparent hover:bg-stone-100 hover:border-stone-200 px-3 py-1 text-sm font-medium text-black/70 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-three-dots" viewBox="0 0 16 16">
+                            <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3"/>
+                        </svg>
+                        <template>
+                            <div class="py-1">
+                                {% for text, url in object_links.items() %}
+                                <a href="{{ url }}" class="block px-4 py-2 text-sm text-black/70 hover:bg-stone-100 rounded">
+                                    {{ text }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </template>
+                    </button>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if table_style != "preview" and page.has_other_pages() %}
+<footer class="mt-4 sticky bottom-0 [body[data-toolbar-installed]_&]:pb-12 bg-white border-t border-stone-200 py-2">
+    <div class="flex items-center justify-between">
+        <div class="text-xs text-black/50">
+            Page {{ page.number }} of {{ page.paginator.num_pages }} ({{ page.paginator.count }} results, {{ page.paginator.per_page }} per page)
+        </div>
+        <div class="flex items-center justify-center space-x-2">
+            {% if page.has_previous() %}
+            <a data-merge-params href="?page={{ page.previous_page_number() }}">&lsaquo;</a>
+            {% endif %}
+            <form data-autosubmit method="GET">
+                {% if show_search and search_query %}<input type="hidden" name="search" value="{{ search_query }}" />{% endif %}
+                {% if presets and current_preset %}<input type="hidden" name="preset" value="{{ current_preset }}" />{% endif %}
+                <select name="page" class="text-xs py-0.5 pl-2 pr-7">
+                {% for page_num in page.paginator.page_range %}
+                    <option value="{{ page_num }}" {% if page_num == page.number %}selected{% endif %}>Page {{ page_num }}</option>
+                {% endfor %}
+                </select>
+            </form>
+            {% if page.has_next() %}
+            <a data-merge-params href="?page={{ page.next_page_number() }}">&rsaquo;</a>
+            {% endif %}
+        </div>
+    </div>
+</footer>
+{% endif %}
+
+{% endhtmxfragment %}
+
+{% endblock %}
