@@ -1,0 +1,59 @@
+# 🎌 MadMax
+
+> **Unofficial Async Client for MAX Messenger (OneMe platform)**  
+> *Developed by [CTRLJapan](https://github.com/CTRLJapan)*
+
+![PyPI - Version](https://img.shields.io/pypi/v/madmax?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.8+-blue?style=flat-square)
+![License](https://img.shields.io/github/license/CTRLJapan/madmax?style=flat-square)
+
+**MadMax** is a reverse-engineered Python library for interacting with the Russian national messenger **MAX** (backend: `oneme.ru`).  
+It allows you to receive messages and events via WebSocket without using a browser.
+
+---
+
+## 📦 Installation
+
+Since you are cool enough to use the command line:
+
+```bash
+pip install madmax
+```
+
+## 🚀 Quick Start
+```python
+import asyncio
+from madmax import Client
+
+# See "How to get credentials" below
+TOKEN = "YOUR_TOKEN_HERE"
+DEVICE_ID = "YOUR_DEVICE_ID"
+
+client = Client(token=TOKEN, device_id=DEVICE_ID)
+
+@client.event
+async def on_message(message):
+    print(f"[{message.sender_id}] says: {message.text}")
+
+if __name__ == "__main__":
+    client.run()
+```
+
+## 🔑 How to get credentials
+Since MAX does not have an open API, you need to borrow your own session credentials from the browser.
+
+1. Open web.max.ru in Chrome/Edge.
+2. Log in to your account.
+3. Open Developer Tools (**F12**).
+4. Go to **Application** tab -> **Local Storage** -> https://web.max.ru.
+5. Find and copy values for:
+- `__oneme_auth` -> This is your **TOKEN**.
+- `__oneme_device_id` -> This is your **DEVICE_ID**.
+
+**Warning**: Do not share your token with anyone. It gives full access to your account.
+
+## ⚠️ Disclaimer
+This project is for **educational purposes only**.
+- This is **not** an official client.
+- Using self-bots might violate the Terms of Service of the platform.
+- The author (CTRLJapan) is not responsible for any bans or limitations applied to your account.
