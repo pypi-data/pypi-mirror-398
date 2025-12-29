@@ -1,0 +1,327 @@
+# Claude Profile Switcher
+
+[English](#english) | [简体中文](#简体中文)
+
+---
+
+<a id="english"></a>
+## English
+
+A profile manager for Claude Code configurations. Easily switch between different API providers and model configurations via TUI or command line.
+
+## Features
+
+- **TUI Interface**: Interactive terminal UI for managing profiles
+- **CLI Commands**: Quick profile switching and launching from command line
+- Support for multiple API providers (Anthropic, OpenAI-compatible, etc.)
+- Add, edit, and delete custom profiles
+- View current active configuration
+- Auto-save after editing each field
+- Model overrides for haiku, sonnet, and opus
+
+## Installation
+
+### Install from source
+
+```bash
+# Clone the repository
+git clone https://github.com/junity/claude-profile-switcher.git
+cd claude-profile-switcher
+
+# Install in editable mode (for development)
+pip install -e .
+
+# Or install normally
+pip install .
+```
+
+### Build and install from wheel
+
+```bash
+# Build the package
+pip install build
+python -m build
+
+# Install the built wheel
+pip install dist/claude_profile_switcher-0.1.0-py3-none-any.whl
+```
+
+## Usage
+
+### TUI Interface
+
+Launch the interactive TUI interface:
+
+```bash
+claude-profile
+```
+
+**Controls:**
+
+| Key | Action |
+|-----|--------|
+| `w` / `↑` | Navigate up |
+| `s` / `↓` | Navigate down |
+| `Enter` | Switch to selected profile |
+| `→` / `e` | Edit profile |
+| `a` | Add new profile |
+| `d` | Delete profile |
+| `Esc` / `←` / `q` | Go back / Quit |
+
+### Command Line Interface
+
+List all profiles:
+
+```bash
+claude-profile list
+# or using short form
+claude-profile ls
+# or
+claude-profile show
+```
+
+Switch to a specific profile:
+
+```bash
+claude-profile switch my-profile
+# or using short form
+claude-profile s my-profile
+```
+
+Switch to a profile and launch claude-code:
+
+```bash
+claude-profile launch my-profile
+# or using short form
+claude-profile l my-profile
+```
+
+View help:
+
+```bash
+claude-profile --help
+claude-profile switch --help
+```
+
+## Configuration
+
+Profiles are stored in `~/.config/claude-profile-switcher/profiles.json`
+
+## Profile Fields
+
+Each profile contains:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Profile name (unique identifier) |
+| `base_url` | No | API base URL (e.g., `https://api.anthropic.com`) |
+| `api_key` | No | API key for authentication |
+| `haiku_model` | No | Custom model name for Haiku |
+| `sonnet_model` | No | Custom model name for Sonnet |
+| `opus_model` | No | Custom model name for Opus |
+
+Optional fields can be left empty to use Claude Code defaults.
+
+## Example Profiles
+
+### Anthropic (default)
+
+```json
+{
+  "name": "anthropic",
+  "base_url": "https://api.anthropic.com",
+  "api_key": "sk-ant-..."
+}
+```
+
+### OpenAI-compatible
+
+```json
+{
+  "name": "openai-compatible",
+  "base_url": "https://api.openai.com/v1",
+  "api_key": "sk-...",
+  "haiku_model": "gpt-4o-mini",
+  "sonnet_model": "gpt-4o",
+  "opus_model": "o1-preview"
+}
+```
+
+### Local LLM (e.g., LM Studio, Ollama)
+
+```json
+{
+  "name": "local",
+  "base_url": "http://localhost:1234/v1",
+  "api_key": "not-needed",
+  "haiku_model": "local-model-small",
+  "sonnet_model": "local-model-medium",
+  "opus_model": "local-model-large"
+}
+```
+
+## License
+
+MIT License
+
+---
+
+<a id="简体中文"></a>
+## 简体中文
+
+Claude Code 配置文件管理器。通过 TUI 或命令行轻松切换不同的 API 提供商和模型配置。
+
+## 功能特性
+
+- **TUI 界面**：交互式终端 UI 管理配置文件
+- **命令行工具**：快速切换配置和启动 Claude Code
+- **多 API 提供商支持**：Anthropic、OpenAI 兼容接口等
+- **增删改查**：添加、编辑、删除自定义配置
+- **查看当前配置**：显示当前激活的配置
+- **自动保存**：编辑字段后自动保存
+- **模型覆盖**：支持自定义 haiku、sonnet、opus 模型
+
+## 安装
+
+### 从源码安装
+
+```bash
+# 克隆仓库
+git clone https://github.com/junity/claude-profile-switcher.git
+cd claude-profile-switcher
+
+# 开发模式安装（可编辑）
+pip install -e .
+
+# 或正常安装
+pip install .
+```
+
+### 从 wheel 文件安装
+
+```bash
+# 构建包
+pip install build
+python -m build
+
+# 安装构建好的 wheel
+pip install dist/claude_profile_switcher-0.1.0-py3-none-any.whl
+```
+
+## 使用方法
+
+### TUI 界面
+
+启动交互式 TUI 界面：
+
+```bash
+claude-profile
+```
+
+**按键说明：**
+
+| 按键 | 功能 |
+|-----|------|
+| `w` / `↑` | 向上导航 |
+| `s` / `↓` | 向下导航 |
+| `Enter` | 切换到选中的配置 |
+| `→` / `e` | 编辑配置 |
+| `a` | 添加新配置 |
+| `d` | 删除配置 |
+| `Esc` / `←` / `q` | 返回 / 退出 |
+
+### 命令行
+
+列出所有配置：
+
+```bash
+claude-profile list
+# 或使用短格式
+claude-profile ls
+# 或
+claude-profile show
+```
+
+切换到指定配置：
+
+```bash
+claude-profile switch my-profile
+# 或使用短格式
+claude-profile s my-profile
+```
+
+切换配置并启动 claude-code：
+
+```bash
+claude-profile launch my-profile
+# 或使用短格式
+claude-profile l my-profile
+```
+
+查看帮助：
+
+```bash
+claude-profile --help
+claude-profile switch --help
+```
+
+## 配置文件
+
+配置文件存储在 `~/.config/claude-profile-switcher/profiles.json`
+
+## 配置字段
+
+每个配置包含：
+
+| 字段 | 必填 | 说明 |
+|-----|------|-----|
+| `name` | 是 | 配置名称（唯一标识符） |
+| `base_url` | 否 | API 基础 URL（如 `https://api.anthropic.com`） |
+| `api_key` | 否 | API 认证密钥 |
+| `haiku_model` | 否 | 自定义 Haiku 模型名称 |
+| `sonnet_model` | 否 | 自定义 Sonnet 模型名称 |
+| `opus_model` | 否 | 自定义 Opus 模型名称 |
+
+可选字段留空将使用 Claude Code 默认值。
+
+## 配置示例
+
+### Anthropic（默认）
+
+```json
+{
+  "name": "anthropic",
+  "base_url": "https://api.anthropic.com",
+  "api_key": "sk-ant-..."
+}
+```
+
+### OpenAI 兼容接口
+
+```json
+{
+  "name": "openai-compatible",
+  "base_url": "https://api.openai.com/v1",
+  "api_key": "sk-...",
+  "haiku_model": "gpt-4o-mini",
+  "sonnet_model": "gpt-4o",
+  "opus_model": "o1-preview"
+}
+```
+
+### 本地 LLM（如 LM Studio、Ollama）
+
+```json
+{
+  "name": "local",
+  "base_url": "http://localhost:1234/v1",
+  "api_key": "not-needed",
+  "haiku_model": "local-model-small",
+  "sonnet_model": "local-model-medium",
+  "opus_model": "local-model-large"
+}
+```
+
+## 许可证
+
+MIT License
