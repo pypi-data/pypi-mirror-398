@@ -1,0 +1,192 @@
+---
+- name: download images
+  gather_facts: True
+  hosts: hives
+  vars:
+    hive_safe_services: "{%if hive_limit is defined %}{{ groups['services'] | intersect(groups[hive_stage]) | intersect(hive_limit.split(',')  | list) | list}}{% else %}{{ groups['services']  | intersect(groups[hive_stage]) | list }}{% endif %}"
+    ansible_python_interpreter: "{{ hive_home_dir }}/docker/bin/python"
+    tag_mapping_json: "{{ dict() if lookup('first_found', dict(files=[hive_context_dir + '/tag-mapping.json'], skip=true)) == []
+      else lookup('file',hive_context_dir + '/tag-mapping.json') | from_json}}"
+
+  tasks:
+  - name: debug
+    debug:
+      msg: "{{ tag_mapping_json.keys() }}"
+  - name: login to private registry
+    docker_login:
+      registry: "{{ hive_registry }}"
+      username: "{{ hive_safe_docker_login_user }}"
+      password: "{{ lookup('password', hive_context_dir + '/registry_password length=15') }}"
+#     email attribute of docker_login has been removed in community.docker 2.0.0.
+#     cause error: Unsupported parameters for (docker_login) module: email.
+#      email: "{{ hive_safe_email }}"
+    when: not (hive_destroy  | default(false))
+  - name: login to external repository
+    docker_login:
+      registry: "{{ item.repository | default(omit) }}"
+      username: "{{ item.login_user }}"
+      password: "{{ item.password }}"
+#      email: "{{ item.email | default(omit) }}"
+    loop: "{{ hive_ext_repositories }}"
+    when: hive_ext_repositories is defined and not (hive_destroy  | default(false))
+    no_log: True
+  - name: pull docker images
+    docker_image:
+      name: >-
+        {% set hive_safe_autovars = {'target_image': False} %}
+        {%- if hostvars[item].hive_image_name is defined -%}
+          {%- if hive_stage in hostvars[hostvars[item].hive_image_name].hive_pull_on | default([]) -%}
+            {% set _ = hive_safe_autovars.update({'target_image': hostvars[hostvars[item].hive_image_name].hive_pull_from}) %}
+          {%- else -%}
+            {% set _ = hive_safe_autovars.update({'target_image': hive_registry + '/' + hostvars[item].hive_image_name + ':latest' }) %}
+          {%- endif -%}
+        {%- else -%}
+          {% set _ = hive_safe_autovars.update({'target_image': hostvars[item].hive_image}) %}
+        {%- endif -%}
+        {%- if hive_safe_autovars['target_image'] in tag_mapping_json.keys() -%}
+          {% set _ = hive_safe_autovars.update({'target_image': tag_mapping_json[hive_safe_autovars['target_image']]}) %}
+        {%- endif -%}
+        {{ hive_safe_autovars['target_image'] }}
+      # If you add the repository parameter, this module add an unnecessary tag like hive2.pdns:5000
+      # Do not add repository: "{{ hive_registry }}"
+      source: pull
+      force_source: True
+    loop: "{{ hive_safe_services }}"
+    register: hive_safe_pull_result
+    when: not (hive_destroy  | default(false))
+
+- name: setup scripts for services
+  gather_facts: False
+  hosts: repository
+  vars:
+    ansible_python_interpreter: "{{ hive_home_dir }}/docker/bin/python"
+    hive_safe_services: "{%if hive_limit is defined %}{{ groups['services'] | intersect(groups[hive_stage]) | intersect(hive_limit.split(',')) | list}}{% else %}{{ groups['services'] | intersect(groups[hive_stage]) | list}}{% endif %}"
+
+  roles:
+  - service-backup
+  - monitor-service-log
+
+- name: deploy services
+  gather_facts: False
+  hosts: first_hive
+  vars:
+    ansible_python_interpreter: "{{ hive_home_dir }}/docker/bin/python"
+    hive_safe_services: "{%if hive_limit is defined %}{{ groups['services'] | intersect(groups[hive_stage]) | intersect(hive_limit.split(',')) | list}}{% else %}{{ groups['services'] | intersect(groups[hive_stage]) | list}}{% endif %}"
+    tag_mapping_json: "{{ dict() if lookup('first_found', dict(files=[hive_context_dir + '/tag-mapping.json'], skip=true)) == []
+      else lookup('file',hive_context_dir + '/tag-mapping.json') | from_json}}"
+    hive_safe_proxy_setting:
+      HTTP_PROXY: "{{ ansible_env.HTTP_PROXY | default('') }}"
+      http_proxy: "{{ ansible_env.http_proxy  | default('') }}"
+      HTTPS_PROXY: "{{ ansible_env.HTTPS_PROXY | default('') }}"
+      https_proxy: "{{ ansible_env.https_proxy  | default('') }}"
+      NO_PROXY: "{{ ansible_env.NO_PROXY | default('') }}"
+      no_proxy: "{{ ansible_env.no_proxy  | default('') }}"
+      PIP_CERT: "{{ '/etc/cacert_pip.pem' if hive_http_proxy is defined else omit }}"
+      PIP_INDEX_URL: "{{ ansible_env.PIP_INDEX_URL | default('') }}"
+      PIP_TRUSTED_HOST: "{{ ansible_env.PIP_TRUSTED_HOST | default('') }}"
+
+  tasks:
+  - name: get containers for the serivce
+    shell: |
+      docker service ps --format '{% raw %}{"name": "{{.Name}}.{{.ID}}", "node": "{{.Node}}{% endraw %}.{{ hive_name }}"}' --filter desired-state=running --no-trunc {{ item }}
+    changed_when: False
+    check_mode: False
+    failed_when: False
+    register: hive_safe_ps
+    loop: "{{ hive_safe_services }}"
+    when: not (hive_destroy  | default(false))
+  - name: get container info
+    docker_container_info:
+      name: "{{ item.name }}"
+      docker_host: "{{ item.node }}:2376"
+      tls_hostname: "{{ item.node }}"
+      tls: True
+      client_cert: "{{ hive_home_dir }}/.docker/cert.pem"
+      client_key: "{{ hive_home_dir }}/.docker/key.pem"
+      ca_cert: "{{ hive_home_dir }}/.docker/ca.pem"
+    register: hive_safe_container_info
+    loop: "{{ hive_safe_ps.results | map(attribute='stdout_lines') | flatten | map('from_json') | list }}"
+    when: not (hive_destroy  | default(false))
+  - set_fact:
+      hive_repository_server: "{{ ( groups['repository'] | intersect(groups[hive_stage]) | first ) if not hive_shared_repository is defined else 'shared-repository' }}"
+  - name: deploy service
+    docker_swarm_service:
+      name: "{{ item }}"
+      hostname: "{{ item }}"
+      cap_add: "{{ hostvars[item].hive_cap_add | default(omit) }}"
+      cap_drop: "{{ hostvars[item].hive_cap_drop | default(omit) }}"
+      restart_config: "{{ hostvars[item].hive_restart_config | default(omit) }}"
+      stop_grace_period: "{{ hostvars[item].hive_stop_grace_period | default(omit) }}"
+      logging: "{{ hostvars[item].hive_logging | default({
+        'driver': 'syslog',
+        'options': {
+          'syslog-address': ('tcp+tls' if hive_tls_logging else 'udp') + '://' + hive_repository_server + ':' + (hive_safe_syslog_port | string),
+          'syslog-facility': 'local0',
+          'tag': item,
+          'syslog-tls-ca-cert': (hive_home_dir + '/.docker/ca.pem') if hive_tls_logging else omit,
+          'syslog-tls-cert': (hive_home_dir + '/.docker/cert.pem') if hive_tls_logging else omit,
+          'syslog-tls-key': (hive_home_dir + '/.docker/key.pem') if hive_tls_logging else omit
+      } }) }}"
+      image: >-
+        {% set hive_safe_autovars = {'target_image': False} %}
+        {%- if hostvars[item].hive_image_name is defined -%}
+          {%- if hive_stage in hostvars[hostvars[item].hive_image_name].hive_pull_on | default([]) -%}
+            {% set _ = hive_safe_autovars.update({'target_image': hostvars[hostvars[item].hive_image_name].hive_pull_from}) %}
+          {%- else -%}
+            {% set _ = hive_safe_autovars.update({'target_image': hive_registry + '/' + hostvars[item].hive_image_name + ':latest' }) %}
+          {%- endif -%}
+        {%- else -%}
+          {% set _ = hive_safe_autovars.update({'target_image': hostvars[item].hive_image}) %}
+        {%- endif -%}
+        {%- if hive_safe_autovars['target_image'] in tag_mapping_json.keys() -%}
+          {% set _ = hive_safe_autovars.update({'target_image': tag_mapping_json[hive_safe_autovars['target_image']]}) %}
+        {%- endif -%}
+        {{ hive_safe_autovars['target_image'] }}
+      # Docker calls it command, but swarmkit calls it args
+      args: "{{ hostvars[item].hive_command | default(omit) }}"
+      # Docker calls it entrypoint, but swarmkit calls it command
+      command: "{{ hostvars[item].hive_entrypoint | default(omit) }}"
+      env: "{{ hive_safe_proxy_setting | combine(hostvars[item].hive_environment | default({})) }}"
+      publish: "{{ hostvars[item].hive_ports | default(omit) }}"
+      mounts: "{{ hostvars[item].hive_volumes | default(omit) }}"
+      labels: >-
+        {%- set outputs = {'HIVE_STANDALONE': hostvars[item].hive_standalone | default(false) | string } -%}
+        {%- if hostvars[item].hive_labels is defined -%}
+          {%- for key, value in hostvars[item].hive_labels.items() -%}
+            {%- set _ = outputs.update({key: value if value is string else (value | to_json)}) -%}
+          {%- endfor -%}
+        {%- endif -%}
+        {{ outputs }}
+      placement: "{{ hostvars[item].hive_placement | default(omit) }}"
+      healthcheck: "{{ hostvars[item].hive_healthcheck | default(omit) }}"
+      hosts: |-
+        {% set output={} %}
+        {% for host in (groups['servers'] | intersect(groups[hive_stage])) %}
+        {%   set _ = output.update({host: hostvars[host].hive_private_ip}) %}
+        {% endfor %}
+        {{ output | combine(hostvars[item].hive_hosts | default({}))}}
+      dns: "{{ hostvars[item].hive_dns | default(omit) }}"
+      mode: "{{ hostvars[item].hive_mode | default(omit) }}"
+      user: "{{ hostvars[item].hive_user | default(omit) }}"
+      endpoint_mode: "{{ hostvars[item].hive_endpoint_mode | default(omit) }}"
+      replicas: "{{ hostvars[item].hive_replicas | default(omit) }}"
+      working_dir: "{{ hostvars[item].hive_working_dir | default(omit) }}"
+      networks: "{{ hostvars[item].hive_networks | default(groups['networks']) }}"
+      force_update: |
+        {% set hive_safe_autovars = {'force_update': False} %}
+        {% if not (hive_destroy  | default(false)) %}
+          {%- for process in (hive_safe_ps.results | selectattr('item', 'eq', item) | first).stdout_lines | map('from_json') %}
+            {%- set container = hive_safe_container_info.results | selectattr('item.name', 'eq', process.name) | first %}
+            {%- set image_id = (hostvars[process.node].hive_safe_pull_result.results | selectattr('item', 'eq', item) | first).image.Id %}
+            {%- if container.container.Image != image_id %}
+              {%- set _ = hive_safe_autovars.update({'force_update': True}) %}
+            {%- endif %}
+          {%- endfor %}
+        {% endif %}
+        {{ hive_safe_autovars.force_update }}
+      state: "{% if hive_destroy  | default(false) %}absent{% else %}present{% endif %}"
+      limits:
+        cpus: "{{ hostvars[item].hive_cpu_limit | default(omit) }}"
+        memory: "{{ hostvars[item].hive_mem_limit | default(omit) }}"
+    loop: "{{ hive_safe_services }}"
+    register: swarm_service

@@ -1,0 +1,98 @@
+---
+- name: create VPC
+  ec2_vpc_net:
+    name: "{{ hive_safe_vpc_name }}"
+    cidr_block: "{{ hive_cidr }}"
+    region: "{{ hive_region }}"
+    tags:
+      Project: "{{ hive_name }}"
+    state: present
+  register: hive_safe_aws_vpc
+
+- name: setup internet gateway for VPC
+  ec2_vpc_igw:
+    vpc_id: "{{ hive_safe_aws_vpc.vpc.id }}"
+    region: "{{ hive_region }}"
+    state: present
+    tags:
+      Name: "gateway for {{ hive_safe_vpc_name }}"
+      Project: "{{ hive_name }}"
+  register: hive_safe_igw
+
+- debug: var=hive_safe_inbound_rules
+- name: set for published port and name tag to default security group for VPC
+  ec2_group:
+    state: present
+    name: default
+    tags:
+      Name: "group-{{ hive_safe_vpc_name }}"
+      Project: "{{ hive_name }}"
+    vpc_id: "{{hive_safe_aws_vpc.vpc.id }}"
+    description: "default VPC security group"
+    region: "{{ hive_region }}"
+    rules: "{{ hive_safe_inbound_rules }}"
+  register: hive_safe_group
+
+- name: setup subnet for VPC
+  ec2_vpc_subnet:
+    state: present
+    region: "{{ hive_region }}"
+    az: "{{ item.available_zone }}"
+    vpc_id: "{{ hive_safe_aws_vpc.vpc.id }}"
+    cidr: "{{ item.cidr }}"
+    resource_tags:
+      Name: "{{ item.name }}"
+      Project: "{{ hive_name }}"
+  loop: "{{ hive_subnets }}"
+  register: hive_safe_subnets_info
+
+- name: gather default route table facts
+  ec2_vpc_route_table_info:
+    region: "{{ hive_region }}"
+    filters:
+      vpc-id: "{{ hive_safe_aws_vpc.vpc.id }}"
+  register: hive_safe_rtb
+
+- name: set up public subnet route table
+  ec2_vpc_route_table:
+    vpc_id: "{{ hive_safe_aws_vpc.vpc.id }}"
+    route_table_id: "{{ hive_safe_rtb.route_tables[0].id }}"
+    region: "{{ hive_region }}"
+    lookup: id
+    tags:
+      Name: Public for subnet
+      Project: "{{ hive_name }}"
+    subnets: "{{ hive_safe_subnets_info.results | selectattr('item.value.gateway', 'defined') | map(attribute='subnet.id') | list }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ hive_safe_igw.gateway_id }}"
+
+- name: create key pair using key_material obtained using 'file' lookup plugin
+  ec2_key:
+    name: "{{ hive_aws_key_name | default('hive-bulder-' + hive_name) }}"
+    region: "{{ hive_region }}"
+    key_material: "{{ lookup('file', hive_safe_public_key_path) }}"
+
+- name: create instances
+  include_tasks: create_instance.yml
+  loop: "{{ hive_safe_hosts }}"
+  loop_control:
+    loop_var: aws_host
+
+- name: create EFS file system
+  efs:
+    state: present
+    name: "efs-{{ hive_name }}"
+    region: "{{ hive_region }}"
+    tags:
+      Name: "efs-{{ hive_name }}"
+      Project: "{{ hive_name }}"
+    targets: |-
+      {% set targets = [] %}
+      {% for subnet in (hive_safe_subnets_info.results | map(attribute='subnet') | list) %}
+      {%   set _ = targets.append({'subnet_id': subnet.id}) %}
+      {% endfor %}
+      {{ targets }}
+    encrypt: "{{ hive_mirrored_disk_encrypted | default(False) }}"
+    kms_key_id: "{{ (hive_kms_key_id | default(omit)) if (hive_mirrored_disk_encrypted | default(False)) else omit }}"
+  when: (groups['nfs_volumes'] | intersect(groups[hive_stage]) | length) > 0

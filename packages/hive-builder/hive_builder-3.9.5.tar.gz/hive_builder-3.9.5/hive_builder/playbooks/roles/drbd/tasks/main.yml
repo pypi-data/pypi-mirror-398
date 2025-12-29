@@ -1,0 +1,98 @@
+---
+- name: copy selinux module for zabbix-agent
+  copy:
+    src: hive.te
+    dest: /root/hive.te
+  register: result_hive_zabbix_agent_policy
+  when: hive_safe_selinux != 'disabled'
+- name: install selinux module for zabbix-agent
+  make:
+    chdir: /root
+    target: load
+    file: /usr/share/selinux/devel/Makefile
+  become: true
+  when: hive_safe_selinux != 'disabled'
+
+- name: check kernel version
+  shell: uname -r
+  register: uname_result
+  check_mode: False
+  changed_when: False
+# Ansible module unarchive supports extracting files from URL.
+# But there is not a way how to increase timeout in case of network
+# issues. Module get_url has default timeout 10 seconds for URL requests
+# and it can be changed.
+# https://github.com/CentOS-PaaS-SIG/contra-env-setup/pull/12
+- name: download drbd rpm tarball
+  get_url:
+    url: >-
+      {{ hive_drbd_download_url | default(
+        'https://github.com/procube-open/drbd9-rpm/releases/download/'
+        + 'Latests/drbd-9.2.15-v9.29.0-6.12.0-124.8.1.el10_1.x86_64'
+        + '.tar.gz') }}
+    dest: /root/drbd9-rpm.tar.gz
+- name: extract drbd rpm files
+  unarchive:
+    src: /root/drbd9-rpm.tar.gz
+    remote_src: yes
+    dest: /root/
+- name: gather rpm file list
+  shell: ls -1 /root/RPMS/*/*.rpm
+  check_mode: False
+  changed_when: False
+  register: hive_safe_rpms
+- name: install packages
+  yum:
+    state: present
+    name: "{{ hive_safe_rpms.stdout_lines }}"
+    disable_gpg_check: true
+  register: drbd_install
+- name: install LVM tools
+  yum:
+    state: present
+    name: lvm2
+- name: change usage count setting
+  lineinfile:
+    regexp: "usage-count .*;"
+    line: "        usage-count no;"
+    path: /etc/drbd.d/global_common.conf
+    state: present
+- name: setup minor-count configuration
+  lineinfile:
+    insertafter: "# minor-count"
+    line: "        minor-count 128;"
+    path: /etc/drbd.d/global_common.conf
+    state: present
+
+- include_tasks: vg.yml
+  loop: "{{ hive_safe_mirrored_disk_devices }}"
+  loop_control:
+    loop_var: disk
+  when: not (hive_no_mirrored_devices | default(False))
+
+- name: set net.ipv4.tcp_rmem
+  sysctl:
+    name: net.ipv4.tcp_rmem
+    value: "131072 1048576 16777216"
+
+- name: set net.ipv4.tcp_wmem
+  sysctl:
+    name: net.ipv4.tcp_wmem
+    value: "131072 1048576 16777216"
+
+- import_tasks: iptables.yml
+  vars:
+    hive_safe_iptables_name: drbd
+    hive_safe_iptables_dports:
+      - 7000:7999
+    hive_safe_iptables_protocol: tcp
+
+- name: "install drbd resource service template"
+  copy:
+    src: drbd-resource@.service
+    dest: /usr/lib/systemd/system/
+- name: "install waiting drbd device tool"
+  copy:
+    src: waitdevice
+    dest: /usr/bin/
+    mode: 0755

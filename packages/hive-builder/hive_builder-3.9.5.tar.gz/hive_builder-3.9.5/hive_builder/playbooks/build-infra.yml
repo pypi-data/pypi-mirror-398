@@ -1,0 +1,58 @@
+---
+- name: build infrastructure
+  hosts: mother
+
+  tasks:
+  - name: if ssh keypair is prepared or not
+    stat:
+      path: "{{ hive_safe_private_key_path }}"
+    register: hive_safe_private_key_stat
+  - name: generate ssh keypair
+    openssh_keypair:
+      path: "{{ hive_safe_private_key_path }}"
+    when: hive_provider not in ['vagrant'] and not hive_safe_private_key_stat.stat.exists
+  - include_role:
+      name: "{{ hive_provider }}"
+  - import_role:
+      name: ca
+    when: (not hive_destroy  | default(false)) and (not hive_halt  | default(false))
+  - include_role:
+      name: shared-repository
+    when: hive_shared_repository is defined
+
+- name: wait for connectable
+  gather_facts: False
+  hosts: servers
+  vars:
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile={{ hive_context_dir }}/known_hosts"
+  tasks:
+  - wait_for_connection:
+    when: (not hive_destroy  | default(false)) and (not hive_halt  | default(false)) and (hive_provider not in ['kickstart', 'prepared'])
+  - vars:
+      ansible_host: "{{ hive_private_ip }}"
+      ansible_user: "root"
+      ansible_ssh_pass: "{{ hive_root_password }}"
+    when: hive_root_password is defined and not (hive_shared_repository is defined and inventory_hostname in groups['repository'])
+    block:
+    - name: add admin group
+      group:
+        name: "{{ hive_admin_group | default(hive_safe_admin) }}"
+        gid: "{{ hive_admin_gid | default(omit) }}"
+        state: present
+    - name: Allow  passwordless sudo to admin groups
+      copy:
+        content: "%{{ hive_admin_group | default(hive_safe_admin) }} ALL=(ALL) NOPASSWD: ALL"
+        dest: "/etc/sudoers.d/{{ hive_admin_group | default(hive_safe_admin) }}"
+    - name: add admin user
+      user: 
+        name: "{{ hive_safe_admin }}"
+        uid: "{{ hive_admin_uid | default(omit) }}"
+        group: "{{ hive_admin_group | default(hive_safe_admin) }}"
+        state: present
+    - name: set authorized key for hive_users
+      authorized_key:
+        user: "{{ hive_safe_admin }}"
+        state: present
+        key: "{{ lookup('file', hive_safe_public_key_path) }}"
+
+

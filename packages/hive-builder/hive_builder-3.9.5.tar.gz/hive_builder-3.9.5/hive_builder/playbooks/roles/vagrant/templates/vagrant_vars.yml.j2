@@ -1,0 +1,33 @@
+---
+vagrant_ssh_insert_key: "{{ hive_vagrant_ssh_insert_key | default(True) }}"
+vagrant_box_name: "{{ hive_vagrant_box_name | default('almalinux/9') }}"
+{%if hive_dev is defined %}
+vagrant_dev: "{{ hive_dev }}"
+{%endif%}
+{%if hive_bridge is defined %}
+vagrant_bridge: "{{ hive_bridge }}"
+{%endif%}
+{%if hive_vagrant_proxy is defined %}
+HTTP_PROXY: "{{ hive_vagrant_proxy }}"
+NO_PROXY:  "{{ (['localhost', '127.0.0.1'] + hive_safe_servers + hive_safe_services) | join(',')}}"
+{%endif%}
+hive_root_dir: "{{ hive_root_dir }}"
+hive_context_dir: "{{ hive_context_dir }}"
+vagrant_hosts:
+{%for target in (groups['servers'] | intersect(groups[hive_stage])) %}
+  - name: {{ target }}
+    ip: {{ hostvars[target].hive_private_ip }}
+    netmask: "{{ hostvars[target].hive_netmask }}"
+{%if 'hive_memory_size' in hostvars[target] %}
+    memory_size: {{ hostvars[target].hive_memory_size }}
+{%endif%}
+{%if 'hive_cpus' in hostvars[target] %}
+    cpus: {{ hostvars[target].hive_cpus }}
+{%endif%}
+{%if 'hive_disk_size' in hostvars[target] %}
+    disk_size: {{ hostvars[target].hive_disk_size }}
+{%endif%}
+{%if 'hive_mirrored_disk_size' in hostvars[target]  and not (hostvars[target].hive_no_mirrored_device | default(False)) %}
+    mirrored_disk_size: "{{ hostvars[target].hive_mirrored_disk_size}}"
+{%endif%}
+{%endfor%}

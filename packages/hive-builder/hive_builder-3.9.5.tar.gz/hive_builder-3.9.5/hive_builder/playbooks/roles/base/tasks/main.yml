@@ -1,0 +1,260 @@
+---
+# common utiility packages.
+- import_tasks: fixed-yum-url.yml
+  when: hive_yum_url is defined and hive_yum_url != omit
+- import_tasks: growfs.yml
+  when: hive_provider == 'azure' and hive_disk_size is defined and ansible_distribution == 'RedHat'
+- import_tasks: setup_proxy_env.yml
+  when: hive_http_proxy is defined
+- import_tasks: pip_index_url.yml
+  when: hive_pip_index_url is defined
+- name: install nfs utils
+  yum: name=nfs-utils state=present
+  when: groups['nfs_volumes'] | length > 0
+# - name: activate nfs service
+#   service: name=nfs enabled=yes state=started
+#   when: groups['nfs_volumes'] | length > 0 and ansible_distribution == 'Amazon'
+- name: make yum do not update kernel* package
+  lineinfile:
+    path: /etc/yum.conf
+    insertafter: EOF
+    regexp: '^exclude='
+    line: 'exclude=kernel*'
+- name: check kernel version
+  shell: uname -r
+  register: uname_result
+  check_mode: False
+  changed_when: False
+
+
+- debug: var=ansible_distribution
+- debug: var=ansible_distribution_release
+# Azure VM
+# image_name:
+#   offer: RHEL
+#   publisher: RedHat
+#   sku: '86-gen2'
+#   version: latest
+# redhat-release: Red Hat Enterprise Linux release 8.6 (Ootpa)
+# ansible_distribution: RedHat
+# ansible_distribution_release: Ootpa
+# [hiveadmin@hive3 ~]$ sudo dnf list --disableexcludes=main --showduplicates kernel
+# Last metadata expiration check: 0:01:16 ago on Wed 30 Nov 2022 09:55:04 AM UTC.
+# Installed Packages
+# kernel.x86_64    4.18.0-372.9.1.el8     @anaconda                              
+# kernel.x86_64    4.18.0-372.32.1.el8_6  @rhel-8-for-x86_64-baseos-eus-rhui-rpms
+
+# AWS EC2 instance
+# image_name: ami-040ba52d44ed0d114
+# redhat-release: AlmaLinux release 8.4 (Electric Cheetah)
+# ansible_distribution: AlmaLinux
+# ansible_distribution_release: Electric Cheetah
+# (docker) [ec2-user@s-hive0 ~]$ sudo dnf list --disableexcludes=main --showduplicates kernel
+# Last metadata expiration check: 0:04:06 ago on Thu 01 Dec 2022 09:20:26 AM JST.
+# Installed Packages
+# kernel.x86_64    4.18.0-305.19.1.el8_4  @BaseOS
+# kernel.x86_64    4.18.0-425.3.1.el8     @baseos
+
+- name: update kernel for drbd (implicit)
+  yum:
+    name:
+      - "kernel-6.12.0-124.8.1.el10*"
+      - "kernel-modules-extra-6.12.0-124.8.1.el10*"
+    disable_excludes: main
+    state: latest
+  when: hive_kernel_version is not defined 
+    and ansible_distribution in ['CentOS', 'RedHat', 'AlmaLinux']
+    and inventory_hostname in groups['hives']
+  notify: require reboot
+- name: find installed kernel path (implicit)
+  find:
+    paths: /boot
+    patterns: "vmlinuz-6.12.0-124.8.1.el10*"
+  register: found_kernel_implicit
+  when: hive_kernel_version is not defined 
+    and ansible_distribution in ['CentOS', 'RedHat', 'AlmaLinux']
+    and inventory_hostname in groups['hives']
+- name: set default kernel (implicit)
+  command: grubby --set-default "{{ found_kernel_implicit.files[0].path }}"
+  when: hive_kernel_version is not defined 
+    and ansible_distribution in ['CentOS', 'RedHat', 'AlmaLinux']
+    and inventory_hostname in groups['hives']
+    and found_kernel_implicit.matched > 0
+  notify: require reboot
+- name: update kernel for drbd (explicit)
+  yum:
+    name:
+      - "kernel-{{ hive_kernel_version }}"
+      - "kernel-modules-extra-{{ hive_kernel_version }}"
+    disable_excludes: main
+    state: latest
+  when: hive_kernel_version is defined and inventory_hostname in groups['hives']
+  notify: require reboot
+- name: find installed kernel path (explicit)
+  find:
+    paths: /boot
+    patterns: "vmlinuz-{{ hive_kernel_version }}*"
+  register: found_kernel_explicit
+  when: hive_kernel_version is defined and inventory_hostname in groups['hives']
+- name: set default kernel (explicit)
+  command: grubby --set-default "{{ found_kernel_explicit.files[0].path }}"
+  when: hive_kernel_version is defined and inventory_hostname in groups['hives']
+    and found_kernel_explicit.matched > 0
+  notify: require reboot
+- name: install packages
+  yum:
+    state: present
+    name:
+      - wget
+      - vim
+      - unzip
+      - telnet
+      - sysstat
+      - strace
+      - tcpdump
+      - lsof
+      - chrony
+      - conntrack-tools
+      - bash-completion
+      - rsyslog
+      - rsyslog-logrotate
+      - python3-libselinux
+- name: setup pip.conf
+  copy:
+    dest: /etc/pip.conf
+    content: |
+      [global]
+      trusted-host = pypi.org files.pythonhosted.org pypi.python.org
+  when: hive_http_proxy is defined or hive_vagrant_proxy is defined
+- name: install selinux packages
+  yum:
+    state: present
+    name:
+      # - setroubleshoot
+      - selinux-policy-devel
+  when: hive_safe_selinux != 'disabled'
+- name: set selinux mode
+  selinux:
+    policy: targeted
+    state: "{{ hive_safe_selinux }}"
+  notify: require reboot
+  vars:
+    ansible_python_interpreter: "{{ '/usr/bin/python' if ansible_distribution == 'Amazon' else '/usr/libexec/platform-python' }}"
+- name: enable services
+  service: "name={{ item }} enabled=yes state=started"
+  with_items:
+    - sysstat
+- name: set hostname
+  hostname:
+    name: "{{ inventory_hostname.split('.')[0] }}"
+  when: not inventory_hostname in groups['repository'] or not hive_shared_repository is defined
+- name: check /etc/cloud/ directory
+  stat:
+    path: /etc/cloud
+  register: _etc_cloud_
+- name: preserve hostname setting for ec2
+  lineinfile:
+    line: "preserve_hostname: true"
+    path: /etc/cloud/cloud.cfg
+    state: present
+  when: "_etc_cloud_.stat.exists"
+- name: "set timezone"
+  timezone:
+    name: "{{ hive_timezone }}"
+  when: hive_timezone is defined
+# setting up locale if hive_locale is defined
+- name: install packages for locale
+  yum:
+    name: langpacks-{{ hive_locale | regex_replace('LANG=') | regex_replace('_.*') }}.noarch
+    state: latest
+  when: hive_locale is defined
+- name: gather locale info
+  shell: "localectl | grep Locale | sed -e 's/\\s*System Locale: //g'"
+  check_mode: False
+  changed_when: False
+  register: hive_safe_current_locale
+  when: hive_locale is defined
+- name: "set locale"
+  shell: "localectl set-locale {{ hive_locale }}"
+  when:
+  - "hive_locale is defined"
+  - "hive_locale is not in hive_safe_current_locale.stdout"
+# setting up sshd parameters
+- name: Check OpenSSH version
+  shell: sshd -V 2>&1 | grep "^OpenSSH_"
+  register: openssh_version
+  changed_when: false
+- name: Set LoginGraceTime to 0 if OpenSSH version is between 8.5p1 and 9.8p1
+  block:
+    - name: Set LoginGraceTime to 0 in sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?LoginGraceTime'
+        line: 'LoginGraceTime 0'
+        state: present
+      register: login_grace_time_set
+    - name: Restart SSH service
+      service:
+        name: sshd
+        state: restarted
+      when: login_grace_time_set.changed
+  when: openssh_version.stdout is match("OpenSSH_(8\.[5-9]p1|9\.[0-8]p1)")
+- name: disable Password Authentication for sshd
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^PasswordAuthentication"
+    insertafter: "^#PasswordAuthentication"
+    line: "PasswordAuthentication no"
+- name: disable Challenge Response Authentication for sshd
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^ChallengeResponseAuthentication"
+    insertafter: "^#ChallengeResponseAuthentication"
+    line: "ChallengeResponseAuthentication no"
+- name: stop sshd Use DNS
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^UseDNS"
+    insertafter: "^#UseDNS"
+    line: "UseDNS no"
+- name: "patch NetworkManager-wait-online.service to waiting for network connectivity specifically"
+  # Avoid Error on network.service:
+  # Bringing up interface eth0:  Error: Connection activation failed: No suitable device found for this connection.
+  copy:
+    src: NetworkManager-wait-online.service.d
+    dest: /usr/lib/systemd/system/
+    mode: 0644
+    directory_mode: 0755
+  # check if HTTP_PROXY environment variable is set or not
+  # we cannnot use
+  #   when: ansible_env.HTTP_PROXY is defined
+  # because it is depends on gather_facts, but if we do "hive setup-hosts -T base" then
+  # skip gather_facts and ansible_env is not set.
+- name: check whether /etc/environment contains HTTP_PROXY
+  command: "grep '^HTTP_PROXY=' /etc/environment"
+  register: check_http_proxy
+  check_mode: False
+  failed_when: False
+  changed_when: False
+- name: ensures /usr/lib/systemd/system/dnf-makecache.service.d dir exists
+  file: path=/usr/lib/systemd/system/dnf-makecache.service.d state=directory
+  when: check_http_proxy.rc == 0
+- name: make dnf-makecache.service use proxy
+  copy:
+    content: |
+      [Service]
+      EnvironmentFile=-/etc/environment
+    dest: /usr/lib/systemd/system/dnf-makecache.service.d/override.conf
+  when: check_http_proxy.rc == 0
+
+- name: check /sys/fs/cgroup option
+  shell: mount | grep /sys/fs/cgroup | awk '{print $6}'
+  register: mount_options
+  changed_when: false
+- name: remove nsdelegate option from options
+  lineinfile:
+    path: /etc/fstab
+    line: "cgroup2 /sys/fs/cgroup cgroup2 {{ mount_options.stdout | regex_replace(',nsdelegate', '') | regex_replace('[\\(\\)]', '') }} 0 0"
+    state: present
+  when: "'nsdelegate' in mount_options.stdout and inventory_hostname in groups['hives']"
+  notify: require reboot

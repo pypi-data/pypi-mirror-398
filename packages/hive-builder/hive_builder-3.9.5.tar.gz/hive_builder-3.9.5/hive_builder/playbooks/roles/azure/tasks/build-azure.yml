@@ -1,0 +1,111 @@
+---
+- name: Create a resource group
+  azure_rm_resourcegroup:
+    name: "{{ hive_safe_azure_resourcegroup }}"
+    location: "{{ hive_region }}"
+  when: not (hive_prepared_resource_group | default(False))
+
+# Unmanaged disk needs a storage account, but Unmanaged disk does not support Availability zones
+# - name: Create a strorage account
+#   azure_rm_storageaccount:
+#     resource_group: "{{ hive_safe_azure_resourcegroup }}"
+#     name: "sa{{ hive_safe_azure_resourcegroup }}"
+#     type: Standard_RAGRS
+
+- name: construct VPC
+  azure_rm_virtualnetwork:
+    resource_group: "{{ hive_safe_azure_resourcegroup }}"
+    name: "{{ hive_safe_vpc_name }}"
+    address_prefixes: "{{ hive_cidr }}"
+  register: vpc_info
+
+- name: Setup subnet for VPC
+  azure_rm_subnet:
+    resource_group: "{{ hive_safe_azure_resourcegroup }}"
+    name: "{{ item.name }}"
+    address_prefix: "{{ item.cidr }}"
+    virtual_network: "{{ hive_safe_vpc_name }}"
+    service_endpoints:
+      - service: "Microsoft.Storage"
+        locations:
+          - "{{ hive_region }}"
+  loop: "{{ hive_subnets }}"
+  register: subnets_facts
+
+
+- name: Create storage account for NFS shared storage
+  azure_rm_storageaccount:
+    resource_group: "{{ hive_safe_azure_resourcegroup }}"
+    name: "{{ hive_name }}"
+    account_type: Premium_ZRS
+    https_only: False
+    location: "{{ hive_region }}"
+    kind: FileStorage
+    network_acls:
+      bypass: AzureServices
+      default_action: Deny
+      virtual_network_rules: >-
+        {% set network_rules = [] -%}
+        {% for subnet in hive_subnets -%}
+           {% set _ = network_rules.append({
+               'id': '/subscriptions/' + lookup('env','AZURE_SUBSCRIPTION_ID')  + '/resourceGroups/' +
+                  hive_name + '/providers/Microsoft.Network/virtualNetworks/' +
+                  hive_safe_vpc_name + '/subnets/' +
+                  subnet.name,
+               'action': 'Allow'
+             }) -%}
+        {% endfor -%}
+        {{ network_rules }}
+    state: present
+  when: (groups['nfs_volumes']  | default([]) | intersect(groups[hive_stage]) | list | length) > 0
+
+- name: Create Network Security Group for site specific inbound rules from internet
+  azure_rm_securitygroup:
+    resource_group: "{{ hive_safe_azure_resourcegroup }}"
+    name: "sg_{{ hive_name }}"
+    rules:
+    - name: published_ports_udp
+      protocol: Udp
+      destination_port_range: "{{ hive_published_ports_udp}}"
+      priority: 201
+      access: Allow
+      direction: Inbound
+  when: hive_published_ports_udp is defined and hive_published_ports_udp|length > 0
+
+- name: Create Network Security Group for site specific inbound rules from internet
+  azure_rm_securitygroup:
+    resource_group: "{{ hive_safe_azure_resourcegroup }}"
+    name: "sg_{{ hive_name }}"
+    rules:
+    - name: internal
+      priority: 100
+      source_address_prefix: VirtualNetwork
+      access: Allow
+      direction: Inbound
+    - name: published_ports_tcp
+      protocol: Tcp
+      destination_port_range: "{{ [hive_safe_sshd_port] + hive_published_ports_tcp + hive_safe_shared_repository_ports}}"
+      priority: 200
+      access: Allow
+      direction: Inbound
+    - name: deny_tcp
+      protocol: Tcp
+      priority: 400
+      access: Deny
+      direction: Inbound
+    - name: deny_udp
+      protocol: Udp
+      priority: 401
+      access: Deny
+      direction: Inbound
+    - name: allow_icmp
+      protocol: '*'
+      priority: 402
+      access: Allow
+      direction: Inbound
+
+- name: create instances
+  include_tasks: create_instance.yml
+  loop: "{{ hive_safe_hosts }}"
+  loop_control:
+    loop_var: azure_host

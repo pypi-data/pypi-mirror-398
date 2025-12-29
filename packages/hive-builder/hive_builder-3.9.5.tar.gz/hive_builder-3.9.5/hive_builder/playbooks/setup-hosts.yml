@@ -1,0 +1,135 @@
+---
+- name: setup hive servers
+  hosts: servers
+  become: True
+  tags: setup-hosts
+  gather_facts: False
+  vars:
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile={{ hive_context_dir }}/known_hosts"
+  roles:
+    - role: ssh-connection
+      tags: [ 'ssh-connection' ]
+      when: hive_provider in ['kickstart', 'prepared']
+
+- name: get public ip
+  tags: setup-hosts
+  hosts: hosts
+  become: True
+  gather_facts: False
+  roles:
+    - role: get-public-ip
+      tags: [ 'get-public-ip' ]
+      when: hive_shared_repository is defined
+
+- name: setup hive servers
+  hosts: servers
+  become: True
+  tags: setup-hosts
+
+  pre_tasks:
+    # avoid error "The task includes an option with an undefined variable.
+    # The error was: 'ansible_distribution' is undefined" when use --tags option
+    - name: Gathering Facts when use tags option
+      setup:
+      tags: [ 'always' ]
+      when: ansible_facts == {}
+  roles:
+    - role: tls-certificate
+      tags: ["tls-certificate"]
+    - role: base
+      tags: ["base"]
+    - role: hostsfile
+      tags: ["hostsfile"]
+    - role: ntp-client
+      tags: ["ntp-client"]
+      when: hive_ntp_servers is defined and hive_ntp_servers != omit
+    - role: iptables
+      tags: ["iptables"]
+    - role: pip-venv
+      tags: ["pip-venv"]
+    - role: addon
+      tags: ["addon"]
+    - role: internal-network
+      tags: ["internal-network"]
+      when: hive_internal_net_if is defined
+    - role: users
+      tags: ["users"]
+      when: hive_users is defined
+    - role: strict-source-ip
+      tags: ["strict-source-ip"]
+      when: hive_ssh_source_ips is defined
+    - role: docker
+      tags: ["docker"]
+    - role: drbd
+      tags: ["drbd"]
+      when: hive_mirrored_disk_size is defined or hive_provider in ['kickstart', 'prepared']
+    - role: docker-client
+      tags: ["docker-client"]
+    - role: docker-client-proxy
+      tags: ["docker-client-proxy"]
+      when: ansible_env.HTTP_PROXY is defined
+    - role: reboot
+      tags: ["reboot"]
+
+- name: setup hive servers
+  hosts: servers
+  become: True
+  tags: setup-hosts
+
+  pre_tasks:
+    # avoid error "The task includes an option with an undefined variable.
+    # The error was: 'ansible_distribution' is undefined" when use --tags option
+    - name: Gathering Facts when use tags option
+      setup:
+      tags: [ 'always' ]
+      when: ansible_facts == {}
+  roles:
+    - role: follow-swarm-service
+      tags: ["follow-swarm-service"]
+      when: "'hives' in group_names"
+    - role: zabbix-agent
+      tags: ["zabbix-agent"]
+
+- name: setup rsyslogd for hives
+  gather_facts: True
+  hosts: hives
+  
+  roles:
+    - role: rsyslogd-client
+      tags: ["rsyslogd-client"]
+      when: hive_tls_logging
+
+- name: setup repository and zabbix
+  hosts: repository
+  gather_facts: False
+  tags: "repository"
+
+  roles:
+    - role: zabbix
+      tags: ["zabbix"]
+    - role: registry
+      tags: ["registry"]
+    - role: backup-tools
+      tags: ["backup-tools"]
+    - role: rsyslogd
+      tags: ["rsyslogd"]
+
+- name: build cluster
+  hosts: hives
+  gather_facts: False
+  become: True
+  tags: build-cluster
+
+  roles:
+    - role: swarm
+      tags: ["swarm"]
+    - role: reboot
+      tags: ["reboot"]
+
+- name: setup hive servers beforeend setup-hosts
+  hosts: servers
+  become: True
+  tags: beforeend-setup-hosts
+  roles:
+    - role: addon2
+      tags: ["addon2"]

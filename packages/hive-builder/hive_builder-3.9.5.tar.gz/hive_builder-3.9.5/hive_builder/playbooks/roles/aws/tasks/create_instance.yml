@@ -1,0 +1,88 @@
+---
+- set_fact:
+    hive_safe_name: "{{ aws_host.split('.')[0] }}"
+- set_fact:
+    # the device name must match for default device name avoid error:
+    # botocore.exceptions.ClientError: An error occurred (MissingParameter)
+    # when calling the RunInstances operation: The request must contain the parameter size or snapshotId
+    # Amazon Linux: /dev/xvda
+    # Centos: /dev/sda1
+    hive_safe_disks: >-
+      {%- set disks = [{
+        'device_name': "{{ hive_osdisk_device | default('/dev/sda1') }}",
+        'ebs': {
+          'volume_size': hostvars[aws_host].hive_disk_size | default(omit),
+          'delete_on_termination': True,
+          'encrypted': hostvars[aws_host].hive_disk_encrypted | default(False),
+          'kms_key_id': (hostvars[aws_host].hive_kms_key_id | default(omit)) if (hostvars[aws_host].hive_disk_encrypted | default(False)) else omit
+         }
+      }] -%}
+      {%- if hostvars[aws_host].hive_mirrored_disk_size is defined and not (hostvars[aws_host].hive_no_mirrored_device | default(False)) -%}
+        {%- set _ = disks.append({
+          'device_name': '/dev/sdb',
+          'ebs': {
+            'volume_size': hostvars[aws_host].hive_mirrored_disk_size,
+            'delete_on_termination': True,
+            'encrypted': hostvars[aws_host].hive_mirrored_disk_encrypted | default(False),
+            'kms_key_id': (hostvars[aws_host].hive_kms_key_id | default(omit)) if (hostvars[aws_host].hive_mirrored_disk_encrypted | default(False)) else omit
+          }
+        }) -%}
+      {%- endif -%}
+      {{ disks }}
+- debug: var=hive_safe_disks
+
+- name: build ec2 instance
+  ec2_instance:
+    name: "{{ aws_host }}"
+    region: "{{ hive_region }}"
+    vpc_subnet_id: "{{ ( hive_safe_subnets_info.results | selectattr('item.name', 'equalto', hostvars[aws_host].hive_subnet) | first).subnet.id }}"
+    image_id: "{{ hive_safe_image_id }}"
+    instance_type: "{{ hostvars[aws_host].hive_instance_type }}"
+    key_name: "{{ hive_aws_key_name | default('hive-bulder-' + hive_name) }}"
+    volumes: "{{ hive_safe_disks }}"
+    network_interfaces:
+    - assign_public_ip: False
+      private_ip_address: "{{ hostvars[aws_host].hive_private_ip }}"
+    wait: yes
+    security_group: "{{ hive_safe_group.group_id }}"
+    termination_protection: no
+    tags:
+      Project: "{{ hive_name }}"
+    state: running
+  register: hive_safe_ec2
+
+- name: associate the elastic IP with instances
+  # support only for private_ip, secondary_ip or auxiliary_networks are not supported
+  ec2_eip:
+    device_id: "{{ hive_safe_ec2.instances[0].instance_id }}"
+    in_vpc: True
+    release_on_disassociation: "{{ hostvars[aws_host].hive_published_ip is not defined }}"
+    reuse_existing_ip_allowed: "{{ hostvars[aws_host].hive_published_ip is defined }}"
+    region: "{{ hive_region }}"
+    public_ip: "{{ hostvars[aws_host].hive_published_ip | default(omit) }}"
+    tags:
+      Name: "for {{ aws_host }}"
+      Project: "{{ hive_name }}"
+  register: hive_safe_eip
+- debug:
+    msg: "build {{ aws_host }}: EIP={{ hive_safe_eip.public_ip }}, instance_type={{ hostvars[aws_host].hive_instance_type }}"
+
+- name: put ssh_config
+  blockinfile:
+    dest: "{{ hive_context_dir }}/ssh_config"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK {{ aws_host }}"
+    state: present
+    create: yes
+    mode: 0644
+    block: |
+      Host {{ aws_host }}
+        HostName {{ hive_safe_eip.public_ip }}
+        UserKnownHostsFile {{ hive_context_dir }}/known_hosts
+        StrictHostKeyChecking yes
+        User {{ hive_safe_admin }}
+        PasswordAuthentication no
+        IdentityFile {{ hive_safe_private_key_path }}
+        IdentitiesOnly yes
+        LogLevel FATAL
+      {% if hive_http_proxy is defined %}  RemoteForward {{ hive_http_proxy_port }} {{ hive_http_proxy }}{% endif %}
+
