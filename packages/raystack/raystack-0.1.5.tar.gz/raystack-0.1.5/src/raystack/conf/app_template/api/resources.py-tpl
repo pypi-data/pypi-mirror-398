@@ -1,0 +1,34 @@
+from raystack.compat import APIRouter, JSONResponse, Request
+
+from {{ app_name }}.schemas import Item, ItemCreate
+
+
+router = APIRouter()
+
+# In-memory demo data; replace with persistence when needed.
+_items: list[dict] = [
+    Item(id=1, name="Sample item", description="Replace me with your data").dict()
+]
+
+
+@router.get("/", response_model=list[Item])
+async def list_items(request: Request):
+    """Return demo items to prove the stack works without a database."""
+    return JSONResponse(content=_items)
+
+
+@router.get("/{item_id}", response_model=Item)
+async def get_item(request: Request, item_id: int):
+    for item in _items:
+        if item["id"] == item_id:
+            return JSONResponse(content=item)
+    return JSONResponse(status_code=404, content={"message": "Item not found"})
+
+
+@router.post("/", response_model=Item, status_code=201)
+async def create_item(request: Request, item: ItemCreate):
+    """Echo back created data while keeping everything in memory."""
+    next_id = max((existing["id"] for existing in _items), default=0) + 1
+    new_item = Item(id=next_id, **item.dict()).dict()
+    _items.append(new_item)
+    return JSONResponse(status_code=201, content=new_item)
