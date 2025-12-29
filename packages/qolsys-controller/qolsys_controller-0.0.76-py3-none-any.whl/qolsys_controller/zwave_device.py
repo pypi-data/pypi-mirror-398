@@ -1,0 +1,271 @@
+import logging
+
+from .enum_zwave import ZwaveDeviceClass
+from .observable import QolsysObservable
+
+LOGGER = logging.getLogger(__name__)
+
+
+class QolsysZWaveDevice(QolsysObservable):
+    def __init__(self, zwave_dict: dict[str, str]) -> None:
+        super().__init__()
+
+        self._id: str = zwave_dict.get("_id", "")
+        self._node_id: str = zwave_dict.get("node_id", "")
+        self._node_name: str = zwave_dict.get("node_name", "")
+        self._node_type: str = zwave_dict.get("node_type", "")
+        self._node_status: str = zwave_dict.get("node_status", "")
+        self._partition_id: str = zwave_dict.get("partition_id", "")
+        self._node_secure_cmd_cls: str = zwave_dict.get("node_secure_cmd_cls", "")
+        self._node_battery_level: str = zwave_dict.get("node_battery_level", "")
+        self._node_battery_level_value: str = zwave_dict.get("node_battery_level_value", "")
+        self._is_node_listening_node: str = zwave_dict.get("is_node_listening_node", "")
+        self._basic_report_value: str = zwave_dict.get("basic_report_value", "")
+        self._switch_multilevel_report_value: str = zwave_dict.get("switch_multilevel_report_value", "")
+        self._basic_device_type: str = zwave_dict.get("basic_device_type", "")
+        self._generic_device_type: str = zwave_dict.get("generic_device_type", "")
+        self._specific_device_type: str = zwave_dict.get("specific_device_type", "")
+        self._num_secure_command_class: str = zwave_dict.get("num_secure_command_class", "")
+        self._secure_command_class: str = zwave_dict.get("secure_command_class", "")
+        self._manufacture_id: str = zwave_dict.get("manufacture_id", "")
+        self._product_type: str = zwave_dict.get("product_type", "")
+        self._device_protocol: str = zwave_dict.get("device_protocol", "")
+        self._paired_status: str = zwave_dict.get("paired_status", "")
+        self._is_device_sleeping: str = zwave_dict.get("is_device_sleeping", "")
+        self._is_device_hidden: str = zwave_dict.get("is_device_hidden", "")
+        self._last_updated_date: str = zwave_dict.get("last_updated_date", "")
+        self._command_class_list: str = zwave_dict.get("command_class_list", "")
+        self._multisensor_capabilities: str = zwave_dict.get("multisensor_capabilities", "")
+        self._meter_capabilities: str = zwave_dict.get("meter_capabilities", "")
+
+    def update_raw(self, payload: bytes) -> None:
+        LOGGER.debug("Raw Update (node%s) - payload: %s", self.node_id, payload.hex())
+
+    def update_base(self, data: dict[str, str]) -> None:  # noqa: C901, PLR0912, PLR0915
+        # Check if we are updating same node_id
+        node_id_update = data.get("node_id", "")
+        if node_id_update != self._node_id:
+            LOGGER.error(
+                "Updating ZWave%s (%s) with ZWave%s (different node_id)",
+                self.node_id,
+                self.node_name,
+                node_id_update,
+            )
+            return
+
+        self.start_batch_update()
+
+        if "paired_status" in data:
+            self.paired_status = data.get("paired_status", "")
+        if "node_battery_level" in data:
+            self.node_battery_level = data.get("node_battery_level", "")
+        if "node_battery_level_value" in data:
+            self.node_battery_level_value = data.get("node_battery_level_value", "")
+        if "node_status" in data:
+            self.node_status = data.get("node_status", "")
+        if "node_name" in data:
+            self.node_name = data.get("node_name", "")
+        if "node_type" in data:
+            self.node_type = data.get("node_type", "")
+        if "partition_id" in data:
+            self.partition_id = data.get("partition_id", "")
+        if "node_secure_cmd_cls" in data:
+            self._node_secure_cmd_cls = data.get("node_secure_cmd_cls", "")
+        if "is_node_listening_node" in data:
+            self._is_node_listening_node = data.get("is_node_listening_node", "")
+        if "basic_report_value" in data:
+            self._basic_report_value = data.get("basic_report_value", "")
+        if "switch_multilevel_report_value" in data:
+            self._switch_multilevel_report_value = data.get("switch_multilevel_report_value", "")
+        if "basic_device_type" in data:
+            self._basic_device_type = data.get("basic_device_type", "")
+        if "generic_device_type" in data:
+            self._generic_device_type = data.get("generic_device_type", "")
+        if "specific_device_type" in data:
+            self._specific_device_type = data.get("specific_device_type", "")
+        if "num_secure_command_class" in data:
+            self._num_secure_command_class = data.get("num_secure_command_class", "")
+        if "secure_command_class" in data:
+            self._secure_command_class = data.get("secure_command_class", "")
+        if "manufacture_id" in data:
+            self._manufacture_id = data.get("manufacture_id", "")
+        if "product_type" in data:
+            self._product_type = data.get("product_type", "")
+        if "device_protocol" in data:
+            self._device_protocol = data.get("device_protocol", "")
+        if "paired_status" in data:
+            self.paired_status = data.get("paired_status", "")
+        if "is_device_sleeping" in data:
+            self._is_device_sleeping = data.get("is_device_sleeping", "")
+        if "is_device_hidden" in data:
+            self._is_device_hidden = data.get("is_device_hidden", "")
+        if "last_updated_date" in data:
+            self._last_updated_date = data.get("last_updated_date", "")
+        if "command_class_list" in data:
+            self._last_updated_date = data.get("command_class_list", "")
+        if "multisensor_capabilities" in data:
+            self.multisensor_capabilities = data.get("multisensor_capabilities", "")
+        if "meter_capabilities" in data:
+            self._meter_capabilities = data.get("meter_capabilities", "")
+
+        self.end_batch_update()
+
+    # -----------------------------
+    # properties + setters
+    # -----------------------------
+
+    @property
+    def node_id(self) -> str:
+        return self._node_id
+
+    @node_id.setter
+    def node_id(self, value: str) -> None:
+        self._node_id = value
+
+    @property
+    def paired_status(self) -> str:
+        return self._paired_status
+
+    @paired_status.setter
+    def paired_status(self, value: str) -> None:
+        if self._paired_status != value:
+            LOGGER.debug("ZWave%s (%s) - paired_status: %s", self.node_id, self.node_name, value)
+            self._paired_status = value
+            self.notify()
+
+    @property
+    def node_battery_level(self) -> str:
+        return self._node_battery_level
+
+    @node_battery_level.setter
+    def node_battery_level(self, value: str) -> None:
+        if self._node_battery_level != value:
+            LOGGER.debug("ZWave%s (%s) - node_battery_level: %s", self.node_id, self.node_name, value)
+            self._node_battery_level = value
+            self.notify()
+
+    @property
+    def meter_capabilities(self) -> str:
+        return self._meter_capabilities
+
+    @meter_capabilities.setter
+    def meter_capabilities(self, value: str) -> None:
+        if self._meter_capabilities != value:
+            LOGGER.debug("ZWave%s (%s) - meter_capabilities: %s", self.node_id, self.node_name, value)
+            self._meter_capabilities = value
+            self.notify()
+
+    @property
+    def multisensor_capabilities(self) -> str:
+        return self._multisensor_capabilities
+
+    @multisensor_capabilities.setter
+    def multisensor_capabilities(self, value: str) -> None:
+        if self._multisensor_capabilities != value:
+            LOGGER.debug("ZWave%s (%s) - multisensor_capabilities: %s", self.node_id, self.node_name, value)
+            self._multisensor_capabilities = value
+            self.notify()
+
+    @property
+    def node_battery_level_value(self) -> int | None:
+        try:
+            value = int(self._node_battery_level_value)
+            if value >= 0 and value <= 100:
+                return value
+            else:
+                return None
+
+        except ValueError:
+            return None
+
+    @node_battery_level_value.setter
+    def node_battery_level_value(self, value: str) -> None:
+        if self._node_battery_level_value != value:
+            LOGGER.debug("ZWave%s (%s) - node_battery_level_value: %s", self.node_id, self.node_name, value)
+            self._node_battery_level_value = value
+            self.notify()
+
+    @property
+    def node_status(self) -> str:
+        return self._node_status
+
+    @node_status.setter
+    def node_status(self, value: str) -> None:
+        if self._node_status != value:
+            LOGGER.debug("ZWave%s (%s) - node_status: %s", self.node_id, self.node_name, value)
+            self._node_status = value
+            self.notify()
+
+    @property
+    def node_name(self) -> str:
+        return self._node_name
+
+    @node_name.setter
+    def node_name(self, value: str) -> None:
+        if self._node_name != value:
+            LOGGER.debug("ZWave%s (%s) - node_name: %s", self.node_id, self.node_name, value)
+            self._node_name = value
+            self.notify()
+
+    @property
+    def node_type(self) -> str:
+        return self._node_type
+
+    @node_type.setter
+    def node_type(self, value: str) -> None:
+        if self._node_type != value:
+            LOGGER.debug("ZWave%s (%s) - node_type: %s", self.node_id, self.node_name, value)
+            self._node_type = value
+            self.notify()
+
+    @property
+    def partition_id(self) -> str:
+        return self._partition_id
+
+    @partition_id.setter
+    def partition_id(self, value: str) -> None:
+        if self._partition_id != value:
+            LOGGER.debug("ZWave%s (%s) - partition_id: %s", self._node_id, self._node_name, value)
+            self._partition_id = value
+            self.notify()
+
+    @property
+    def generic_device_type(self) -> ZwaveDeviceClass:
+        try:
+            return ZwaveDeviceClass(int(self._generic_device_type))
+        except ValueError:
+            return ZwaveDeviceClass.Unknown
+
+    def is_battery_enabled(self) -> bool:
+        return self.node_battery_level_value is not None
+
+    def to_dict_base(self) -> dict[str, str]:
+        return {
+            "_id": self._id,
+            "node_id": self.node_id,
+            "node_name": self.node_name,
+            "node_type": self.node_type,
+            "node_status": self.node_status,
+            "partition_id": self._partition_id,
+            "node_battery_level": self.node_battery_level,
+            "node_battery_level_value": self._node_battery_level_value,
+            "paired_status": self.paired_status,
+            "node_secure_cmd_cls": self._node_secure_cmd_cls,
+            "is_node_listening_node": self._is_node_listening_node,
+            "basic_report_value": self._basic_report_value,
+            "switch_multilevel_report_value": self._switch_multilevel_report_value,
+            "basic_device_type": self._basic_device_type,
+            "generic_device_type": self._generic_device_type,
+            "specific_device_type": self._specific_device_type,
+            "num_secure_command_class": self._num_secure_command_class,
+            "secure_command_class": self._secure_command_class,
+            "manufacture_id": self._manufacture_id,
+            "product_type": self._product_type,
+            "device_protocol": self._device_protocol,
+            "is_device_sleeping": self._is_device_sleeping,
+            "is_device_hidden": self._is_device_hidden,
+            "last_updated_date": self._last_updated_date,
+            "command_class_list": self._command_class_list,
+            "multisensor_capabilities": self.multisensor_capabilities,
+            "meter_capabilities": self.meter_capabilities,
+        }
