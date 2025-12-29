@@ -1,0 +1,217 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>3</storyId>
+    <title>OpenAPI Specification Integration</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs-bmad/sprint-artifacts/1-3-openapi-specification-integration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>the RabbitMQ Management API OpenAPI specification as the single source of truth</iWant>
+    <soThat>all schemas, operations, and documentation derive from one authoritative source</soThat>
+    <tasks>
+      - Task 1: Source or Create OpenAPI Specification (AC: #1, #3, #4, #5)
+      - Task 2: Create Validation Script (AC: #2, #6)
+      - Task 3: Validate OpenAPI Specification (AC: #2, #3, #4, #5)
+      - Task 4: Integrate Validation into CI/CD Pipeline (AC: #6)
+      - Task 5: Document OpenAPI Integration (AC: #7)
+      - Task 6: Create Unit Tests for Validation Script (AC: #6)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. OpenAPI Specification File Exists: File at docs-bmad/rabbitmq-http-api-openapi.yaml, valid YAML, ~4800 lines
+    2. OpenAPI Schema Validation Passes: Zero errors using openapi-spec-validator library
+    3. Operation Definitions Complete: 100+ operations with unique operationId format {namespace}.{resource}.{action}
+    4. Operation Metadata Complete: Each operation has description, parameters, requestBody (if applicable), responses
+    5. Component Schemas Defined: Standard OpenAPI types with $ref for complex types, required fields marked
+    6. Validation Script Created: scripts/validate_openapi.py with CLI args, returns exit code 0 on success
+    7. Documentation for Deviations: YAML comments for deviations, x- prefixed custom extensions
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs-bmad/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation &amp; MCP Protocol</title>
+        <section>System Architecture Alignment - OpenAPI-Driven Code Generation</section>
+        <snippet>ADR-001 mandates OpenAPI specification as single source of truth for 100+ RabbitMQ Management API operations. Build-time generation pipeline creates Pydantic schemas, operation registry JSON, and semantic embeddings from OpenAPI.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/epics/epic-1-foundation-mcp-protocol.md</path>
+        <title>Epic 1: Foundation &amp; MCP Protocol</title>
+        <section>Story 1.3: OpenAPI Specification Integration</section>
+        <snippet>OpenAPI specification integration provides single source of truth for schemas, operations, and documentation. Specification contains 100+ operation definitions with unique operationId values. All operations have complete metadata.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records (ADRs)</title>
+        <section>ADR-001: OpenAPI-Driven Code Generation</section>
+        <snippet>OpenAPI specification as sole source of truth eliminates drift between documentation and implementation. Type safety with zero runtime overhead. Pre-computed artifacts enable sub-second server startup. Generated code committed to version control.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/sprint-artifacts/1-2-development-quality-tools-cicd-pipeline.md</path>
+        <title>Story 1.2: Development Quality Tools &amp; CI/CD Pipeline</title>
+        <section>Dev Agent Record - CI/CD Infrastructure</section>
+        <snippet>GitHub Actions workflow at .github/workflows/ci.yml runs on pull requests. Python multi-version testing (3.12, 3.13). Quality gates enforce zero test failures, linting, type checking, coverage &gt;80%. Pre-commit hooks configured: black, isort, mypy, ruff.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>scripts/validate_openapi.py</path>
+        <kind>validation script</kind>
+        <symbol>main</symbol>
+        <lines>20-49</lines>
+        <reason>Existing validation script structure - uses OpenAPIParseError from tools.openapi.parser. Script validates contracts in specs/ directory. Needs adaptation for docs-bmad/rabbitmq-http-api-openapi.yaml validation.</reason>
+      </artifact>
+      <artifact>
+        <path>src/tools/openapi/parser.py</path>
+        <kind>parser module</kind>
+        <symbol>parse_openapi_spec</symbol>
+        <lines>29-49</lines>
+        <reason>OpenAPI parsing function with basic validation. Loads YAML, validates version 3.x.x, checks required sections (paths, components). Raises OpenAPIParseError on failure. Reusable for validation script.</reason>
+      </artifact>
+      <artifact>
+        <path>src/tools/openapi/parser.py</path>
+        <kind>parser module</kind>
+        <symbol>OpenAPIParseError</symbol>
+        <lines>25-26</lines>
+        <reason>Custom exception class for OpenAPI parsing errors. Used by validation script for error reporting.</reason>
+      </artifact>
+      <artifact>
+        <path>.github/workflows/ci.yml</path>
+        <kind>ci workflow</kind>
+        <symbol>N/A</symbol>
+        <lines>1-61</lines>
+        <reason>Existing CI workflow with Python 3.12/3.13 testing, uv dependency management, pytest, ruff, mypy steps. Need to add OpenAPI validation step after dependency installation.</reason>
+      </artifact>
+      <artifact>
+        <path>pyproject.toml</path>
+        <kind>config file</kind>
+        <symbol>project.optional-dependencies.dev</symbol>
+        <lines>46-64</lines>
+        <reason>Dev dependencies section. Need to add openapi-spec-validator library. Currently has pytest, black, ruff, mypy, datamodel-code-generator.</reason>
+      </artifact>
+      <artifact>
+        <path>pyproject.toml</path>
+        <kind>config file</kind>
+        <symbol>project.scripts</symbol>
+        <lines>72-76</lines>
+        <reason>CLI script entry points. Already has validate-openapi script mapping. May need to update implementation path if changed.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_quality_tools.py</path>
+        <kind>test file</kind>
+        <symbol>N/A</symbol>
+        <lines>N/A</lines>
+        <reason>Reference for test patterns from Story 1.2. Follow similar comprehensive test structure (27 tests) for validate_openapi tests.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <node>
+        <package>pyyaml</package>
+        <version>>=6.0</version>
+        <reason>YAML parsing for OpenAPI specification file</reason>
+      </node>
+      <node>
+        <package>openapi-spec-validator</package>
+        <version>>=0.7</version>
+        <reason>OpenAPI 3.0 schema validation library (needs to be added)</reason>
+      </node>
+      <node>
+        <package>pytest</package>
+        <version>>=8.0</version>
+        <reason>Unit testing framework for validation script tests</reason>
+      </node>
+      <node>
+        <package>mypy</package>
+        <version>>=1.8</version>
+        <reason>Type checking enforcement (strict mode required)</reason>
+      </node>
+      <node>
+        <package>ruff</package>
+        <version>>=0.2</version>
+        <reason>Fast linting for validation script</reason>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - OpenAPI specification must be stored in docs-bmad/ directory (not hidden .specify/memory/) for visibility and version control
+    - Specification must pass OpenAPI 3.0 schema validation with zero errors using openapi-spec-validator library
+    - All operations must have unique operationId following format: {namespace}.{resource}.{action} (e.g., queues.list, exchanges.create)
+    - Validation script must be standalone Python script (not pytest test) for flexibility in CI/CD integration
+    - Validation script must return exit code 0 on success, non-zero on failure (CI/CD quality gate)
+    - Validation script must pass mypy strict type checking with complete type annotations
+    - Validation script must pass ruff linting (E, F, W, I, N rules)
+    - Black formatting with 88 char line-length enforced
+    - Follow naming conventions: snake_case for functions/modules, PascalCase for classes
+    - CI/CD workflow must run validation step after dependency installation, before tests (fail fast)
+    - Dev dependencies in pyproject.toml only - no separate config files for validation
+    - Generated code (schemas, operation registry) will use OpenAPI as input in future stories (1.4, 1.5, 1.6)
+    - Documentation updates must preserve existing Development Workflow section from Story 1.2
+    - Do not fix pre-existing issues (~60+ mypy type errors noted in Story 1.2)
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>parse_openapi_spec</name>
+      <kind>function signature</kind>
+      <signature>def parse_openapi_spec(path: str) -> dict[str, Any]</signature>
+      <path>src/tools/openapi/parser.py</path>
+      <reason>Reusable OpenAPI parsing function with basic validation. Returns parsed spec dict. Raises OpenAPIParseError on failure.</reason>
+    </interface>
+    <interface>
+      <name>OpenAPIParseError</name>
+      <kind>exception class</kind>
+      <signature>class OpenAPIParseError(Exception): pass</signature>
+      <path>src/tools/openapi/parser.py</path>
+      <reason>Custom exception for OpenAPI parsing errors. Used by validation script for error reporting.</reason>
+    </interface>
+    <interface>
+      <name>validate_spec</name>
+      <kind>external library function</kind>
+      <signature>from openapi_spec_validator import validate_spec</signature>
+      <path>openapi-spec-validator library</path>
+      <reason>OpenAPI 3.0 schema validation function. Validates specification structure against OpenAPI schema. Raises ValidationError on failure.</reason>
+    </interface>
+    <interface>
+      <name>CLI entry point</name>
+      <kind>script entry point</kind>
+      <signature>validate-openapi = "scripts.validate_openapi:main"</signature>
+      <path>pyproject.toml [project.scripts]</path>
+      <reason>CLI script entry point for validation command. Runs as: uv run validate-openapi or uv run python scripts/validate_openapi.py</reason>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Unit tests with pytest framework. Test coverage threshold >80% enforced in CI/CD. Type annotations required (mypy strict mode). Follow patterns from Story 1.2 test_quality_tools.py (27 comprehensive tests). Test files in tests/unit/ directory. Use pytest fixtures for reusable test data. Test both success and failure paths. Test CLI argument parsing. Mock file I/O where appropriate.
+    </standards>
+    <locations>
+      tests/unit/test_validate_openapi.py (new file)
+      scripts/validate_openapi.py (implementation)
+      .github/workflows/ci.yml (CI validation step)
+    </locations>
+    <ideas>
+      AC1: Test validation script exists at expected path (scripts/validate_openapi.py)
+      AC2: Test valid OpenAPI file passes validation (zero errors, exit code 0, docs-bmad/rabbitmq-http-api-openapi.yaml)
+      AC2: Test invalid OpenAPI file fails validation (non-zero exit code, errors printed to stderr)
+      AC2: Test missing required OpenAPI sections (paths, components) raises error
+      AC2: Test invalid OpenAPI version (not 3.x.x) raises error
+      AC3: Test all operations have unique operationId values
+      AC3: Test operationId format follows pattern {namespace}.{resource}.{action}
+      AC4: Test all operations have required fields (description, parameters, responses)
+      AC5: Test component schemas defined with types and required fields
+      AC5: Test schema references ($ref) resolve correctly to defined components
+      AC6: Test validation script handles missing file gracefully (FileNotFoundError or clear error message)
+      AC6: Test CLI arguments work correctly (--spec-path option accepts custom file path)
+      AC6: Test validation error reporting includes path and message details
+      AC6: Test script can be run as part of CI/CD pipeline (exit codes)
+    </ideas>
+  </tests>
+</story-context>

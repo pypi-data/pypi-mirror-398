@@ -1,0 +1,248 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>4</storyId>
+    <title>Pydantic Schema Generation</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs-bmad/sprint-artifacts/stories/1-4-pydantic-schema-generation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer</asA>
+    <iWant>Pydantic models automatically generated from OpenAPI component schemas</iWant>
+    <soThat>all request/response validation is type-safe and synchronized with the API specification</soThat>
+    <tasks>
+      - Task 1: Add datamodel-code-generator to dev dependencies
+      - Task 2: Create schema generation script with CLI argument parsing
+      - Task 3: Implement field type mapping with datamodel-code-generator configuration
+      - Task 4: Add RabbitMQ-specific validators (queue names, vhost, exchange types)
+      - Task 5: Implement change detection (timestamp comparison, --force flag)
+      - Task 6: Validate generated code with mypy --strict
+      - Task 7: Create unit tests for generation script
+      - Task 8: Integrate into CI/CD pipeline
+      - Task 9: Document schema generation process in README.md
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Schema generation script exists at scripts/generate_schemas.py with CLI args (--spec-path, --output-path, --force), executable via uv run python, with default paths configured
+    2. Running script creates src/schemas/generated_schemas.py with Pydantic BaseModel classes, header comment with timestamp indicating auto-generated file and OpenAPI source path
+    3. Field type mapping correct: string→str, integer→int, number→float, boolean→bool, array→List[T], object→Dict[str,Any] or nested BaseModel, nullable→Optional[T], enum→Literal[] or Enum
+    4. Field validation enforced: required fields use Field(...), optional use Optional[T], constraints applied (min/max length, pattern, enum), field descriptions preserved from OpenAPI
+    5. Generated code passes mypy --strict with zero errors, complete type annotations, no implicit Any types
+    6. Change detection: script compares OpenAPI mtime with output mtime, skips if unchanged with "Generated schemas are up-to-date" message unless --force flag, logs generation summary
+    7. RabbitMQ-specific validators using @field_validator with mode='after': queue names (alphanumeric+underscore/dash/dot, 1-255 chars, clear error messages), vhost (URL-safe, default "/"), exchange types (direct/fanout/topic/headers enum validation), durability flags (boolean, default=True)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs-bmad/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Overview</section>
+        <snippet>Epic 1 establishes OpenAPI-driven code generation pipeline with automated Pydantic schema generation from OpenAPI component schemas. Build-time generation creates artifacts consumed at runtime by MCP server.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Services and Modules - Schema Generation</section>
+        <snippet>schemas/generated_schemas.py: Auto-generated Pydantic models from OpenAPI. scripts/generate_schemas.py: OpenAPI → Pydantic code generation. Uses datamodel-code-generator library for conversion.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-001: OpenAPI-Driven Code Generation</section>
+        <snippet>Use OpenAPI specification as single source of truth, generate Pydantic schemas at build-time. Eliminates drift, provides type safety with zero runtime overhead, pre-computed artifacts enable fast startup.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-007: Build-Time vs Runtime Generation</section>
+        <snippet>All generation at build-time, commit artifacts to version control. Eliminates OpenAPI download from runtime dependencies, guarantees reproducible builds, enables offline operation, faster startup.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-008: Pydantic for All Validation</section>
+        <snippet>Use Pydantic exclusively for schema validation. Pydantic V2 required with ConfigDict, Field() for metadata, @field_validator for custom validation. OpenAPI → Pydantic generation well-supported.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/data-architecture.md</path>
+        <title>Data Architecture</title>
+        <section>Core Data Models</section>
+        <snippet>Queue names: 1-255 chars, alphanumeric+underscore/dash/dot. Virtual hosts: URL-safe characters, default "/". Exchange types: direct, fanout, topic, headers (fixed set). Durability flags: boolean.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/data-architecture.md</path>
+        <title>Data Architecture</title>
+        <section>Data Storage Strategy</section>
+        <snippet>Build-time artifacts committed to Git: src/schemas/generated_schemas.py (~1MB Pydantic models), data/openapi-*.yaml (~200KB each). Generated schemas loaded at startup, immutable.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/project-structure.md</path>
+        <title>Project Structure</title>
+        <section>src-layout pattern</section>
+        <snippet>Generated schemas location follows src-layout: src/schemas/generated_schemas.py. Scripts in scripts/ directory alongside validate_openapi.py. Generated artifacts committed to version control for type checking and IDE support.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>scripts/validate_openapi.py</path>
+        <kind>script</kind>
+        <symbol>validate_operationids</symbol>
+        <lines>42-65</lines>
+        <reason>Reference implementation for loading and parsing OpenAPI YAML files. Shows pattern for argparse CLI with --spec-path argument and error handling.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/validate_openapi.py</path>
+        <kind>script</kind>
+        <symbol>main</symbol>
+        <lines>68-143</lines>
+        <reason>Demonstrates CLI structure with argparse, project root path resolution, YAML loading with error handling, and exit codes for CI integration.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/generate_schemas.py</path>
+        <kind>script</kind>
+        <symbol>openapi_to_pydantic</symbol>
+        <lines>52-60</lines>
+        <reason>Existing basic schema generation implementation. Needs enhancement to use datamodel-code-generator library, add type mapping, constraints, and validators.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/generate_schemas.py</path>
+        <kind>script</kind>
+        <symbol>main</symbol>
+        <lines>63-73</lines>
+        <reason>Current implementation iterates over contracts. Needs refactoring to use datamodel-code-generator, add CLI args, change detection, and mypy validation.</reason>
+      </artifact>
+      <artifact>
+        <path>src/tools/schemas/queue.py</path>
+        <kind>model</kind>
+        <symbol>Queue</symbol>
+        <lines>1-77</lines>
+        <reason>Example of manually created Pydantic v2 model showing best practices: BaseModel inheritance, Field() with descriptions and constraints, ConfigDict usage, Optional[T] for nullable fields, @field_validator decorators. Generated schemas should follow this exact pattern and structure.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_validate_openapi.py</path>
+        <kind>test</kind>
+        <symbol>test_validate_openapi_success</symbol>
+        <lines>1-50</lines>
+        <reason>Reference for testing script execution, file fixtures, and validation logic. Pattern to follow for testing generate_schemas.py.</reason>
+      </artifact>
+      <artifact>
+        <path>.github/workflows/ci.yml</path>
+        <kind>ci-config</kind>
+        <symbol>validate-openapi-step</symbol>
+        <lines>47-49</lines>
+        <reason>Shows how to integrate validation scripts into CI pipeline. Add schema generation validation step after this.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="pydantic" version=">=2.0" reason="Core validation framework, required for all Pydantic models" />
+        <package name="pyyaml" version=">=6.0" reason="Load OpenAPI YAML specification files" />
+        <package name="datamodel-code-generator" version=">=0.25" dev="true" reason="OpenAPI to Pydantic conversion library (maintained by pydantic team)" />
+        <package name="mypy" version=">=1.8" dev="true" reason="Type checking for generated code validation" />
+        <package name="black" version=">=24.1" dev="true" reason="Code formatting for generated schemas" />
+        <package name="pytest" version=">=8.0" dev="true" reason="Unit testing framework" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - All generated code MUST pass mypy --strict type checking with zero errors
+    - Generated file must include header comment: "# Auto-generated from OpenAPI - DO NOT EDIT MANUALLY" with timestamp and source OpenAPI path for full traceability
+    - Use Pydantic v2 syntax: ConfigDict, Field(), @field_validator (not v1 Config class or @validator)
+    - Generated schemas committed to version control (not gitignored)
+    - Script must be idempotent: running multiple times produces identical output
+    - Change detection required: compare OpenAPI mtime with output mtime, skip if unchanged with "Generated schemas are up-to-date" message unless --force
+    - OpenAPI specification is single source of truth per ADR-001
+    - Build-time generation only, no runtime code generation per ADR-007
+    - Follow src-layout pattern: generated file at src/schemas/generated_schemas.py
+    - RabbitMQ-specific validators use @field_validator with mode='after', validate: queue names (1-255 chars, alphanumeric+underscore/dash/dot), vhost (URL-safe, default "/"), exchange types (direct/fanout/topic/headers enum), durability (boolean, default=True)
+    - Black formatting with 88 char line-length applied to generated code
+    - Script execution: uv run python scripts/generate_schemas.py
+    - Default paths: spec=docs-bmad/rabbitmq-http-api-openapi.yaml, output=src/schemas/generated_schemas.py
+    - Pre-commit hooks (black, ruff, mypy) must pass for generation script
+    - Validation error messages must be clear and actionable (e.g., "Queue name must be 1-255 characters", "Exchange type must be one of: direct, fanout, topic, headers")
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>datamodel-code-generator CLI</name>
+      <kind>command-line</kind>
+      <signature>datamodel-codegen --input-file-type openapi --output-model-type pydantic_v2.BaseModel --use-standard-collections --use-schema-description --field-constraints --use-default --strict-nullable --input INPUT --output OUTPUT</signature>
+      <path>External package: datamodel-code-generator</path>
+    </interface>
+    <interface>
+      <name>generate_schemas script CLI</name>
+      <kind>command-line</kind>
+      <signature>python scripts/generate_schemas.py [--spec-path PATH] [--output-path PATH] [--force]</signature>
+      <path>scripts/generate_schemas.py</path>
+    </interface>
+    <interface>
+      <name>Pydantic BaseModel</name>
+      <kind>class-interface</kind>
+      <signature>class ModelName(BaseModel): field_name: Type = Field(default, description="...", min_length=N, max_length=M, pattern="...")</signature>
+      <path>pydantic.BaseModel</path>
+    </interface>
+    <interface>
+      <name>Pydantic field_validator</name>
+      <kind>decorator</kind>
+      <signature>@field_validator('field_name', mode='after') @classmethod def validate_field(cls, v: Type) -> Type: ...</signature>
+      <path>pydantic.field_validator</path>
+    </interface>
+    <interface>
+      <name>OpenAPI Component Schemas</name>
+      <kind>data-structure</kind>
+      <signature>components.schemas.{SchemaName}: {type, properties, required, description}</signature>
+      <path>docs-bmad/rabbitmq-http-api-openapi.yaml</path>
+    </interface>
+    <interface>
+      <name>CI/CD Pipeline Integration</name>
+      <kind>github-actions</kind>
+      <signature>- name: Validate Generated Schemas
+  run: |
+    uv run python scripts/generate_schemas.py
+    uv run mypy --strict src/schemas/generated_schemas.py</signature>
+      <path>.github/workflows/ci.yml</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Unit tests using pytest framework. Tests located in tests/unit/ directory with test fixtures for sample OpenAPI files in tests/fixtures/ directory. Test coverage target >95% for generation script (critical path for code correctness). Run with: uv run pytest tests/unit/test_generate_schemas.py -v. Type checking validation: run mypy --strict on generated code in test to validate type safety. Follow naming convention: test_*.py files, test_* functions. Use subprocess.run() to test CLI execution and return codes. Mock file I/O where appropriate to isolate unit tests from filesystem.
+    </standards>
+    <locations>
+      tests/unit/ - unit tests for scripts and models
+      tests/fixtures/ - test data including sample OpenAPI files for generation testing
+      tests/integration/ - integration tests (not required for this story)
+    </locations>
+    <ideas>
+      <idea ac="1">Test script exists and is executable via uv run python scripts/generate_schemas.py</idea>
+      <idea ac="1">Test CLI arguments parsing: --spec-path, --output-path, --force flags</idea>
+      <idea ac="2">Test valid OpenAPI generates non-empty output file with Pydantic models</idea>
+      <idea ac="2">Test generated models have correct names matching OpenAPI component schemas</idea>
+      <idea ac="2">Test file header includes auto-generated comment and timestamp</idea>
+      <idea ac="3">Test field type mapping: string→str, integer→int, number→float, boolean→bool</idea>
+      <idea ac="3">Test array types mapped to List[T] with correct element type</idea>
+      <idea ac="3">Test nested objects mapped to nested BaseModel or Dict[str, Any]</idea>
+      <idea ac="3">Test nullable types use Optional[T] annotation</idea>
+      <idea ac="4">Test required fields use Field(...) ellipsis notation</idea>
+      <idea ac="4">Test optional fields use Optional[T] with default=None</idea>
+      <idea ac="4">Test field constraints applied: min_length, max_length, ge, le, pattern</idea>
+      <idea ac="4">Test field descriptions preserved from OpenAPI in Field(description="...")</idea>
+      <idea ac="5">Test generated code passes mypy --strict validation (run mypy in test)</idea>
+      <idea ac="5">Test all fields have complete type annotations</idea>
+      <idea ac="5">Test no implicit Any types except Dict[str, Any]</idea>
+      <idea ac="6">Test change detection: skip generation if OpenAPI unchanged</idea>
+      <idea ac="6">Test --force flag forces regeneration regardless of timestamps</idea>
+      <idea ac="6">Test generation timestamp in output file header</idea>
+      <idea ac="7">Test RabbitMQ queue name validator present in generated code</idea>
+      <idea ac="7">Test RabbitMQ vhost validator present in generated code</idea>
+      <idea ac="7">Test RabbitMQ exchange type validator present in generated code</idea>
+      <idea ac="7">Test validators use @field_validator decorator with mode='after'</idea>
+    </ideas>
+  </tests>
+</story-context>

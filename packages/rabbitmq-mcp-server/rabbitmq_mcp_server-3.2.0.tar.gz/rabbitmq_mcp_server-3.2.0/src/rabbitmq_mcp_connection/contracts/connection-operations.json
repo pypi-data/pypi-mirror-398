@@ -1,0 +1,457 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "RabbitMQ Connection Operations",
+    "description": "Operações de conexão RabbitMQ acessíveis via MCP call-id tool",
+    "version": "1.0.0",
+    "operations": [
+        {
+            "operation_id": "connection.connect",
+            "name": "Connect to RabbitMQ",
+            "description": "Estabelece conexão AMQP com servidor RabbitMQ usando credenciais fornecidas. Suporta reconexão automática em caso de falha.",
+            "category": "connection",
+            "async": true,
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "host": {
+                        "type": "string",
+                        "description": "Hostname ou IP do RabbitMQ",
+                        "default": "localhost",
+                        "examples": [
+                            "localhost",
+                            "rabbitmq.example.com",
+                            "192.168.1.100"
+                        ]
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Porta AMQP",
+                        "minimum": 1,
+                        "maximum": 65535,
+                        "default": 5672
+                    },
+                    "user": {
+                        "type": "string",
+                        "description": "Usuário para autenticação",
+                        "default": "guest"
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "Senha (será sanitizada em logs)",
+                        "default": "guest"
+                    },
+                    "vhost": {
+                        "type": "string",
+                        "description": "Virtual host",
+                        "default": "/"
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Timeout de conexão em segundos",
+                        "minimum": 1,
+                        "maximum": 300,
+                        "default": 30
+                    },
+                    "heartbeat": {
+                        "type": "integer",
+                        "description": "Intervalo de heartbeat AMQP em segundos (0=disabled)",
+                        "minimum": 0,
+                        "maximum": 3600,
+                        "default": 60
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "connected": {
+                        "type": "boolean",
+                        "description": "Se conexão foi estabelecida"
+                    },
+                    "connection_url": {
+                        "type": "string",
+                        "description": "URL de conexão (senha sanitizada)",
+                        "examples": [
+                            "amqp://guest:***@localhost:5672/"
+                        ]
+                    },
+                    "latency_ms": {
+                        "type": "number",
+                        "description": "Latência da conexão em ms"
+                    },
+                    "server_properties": {
+                        "type": "object",
+                        "description": "Propriedades do servidor RabbitMQ",
+                        "properties": {
+                            "product": {
+                                "type": "string"
+                            },
+                            "version": {
+                                "type": "string"
+                            },
+                            "platform": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "connected",
+                    "connection_url",
+                    "latency_ms"
+                ]
+            },
+            "examples": [
+                {
+                    "title": "Connect to localhost with defaults",
+                    "description": "Conecta ao RabbitMQ local usando credenciais padrão",
+                    "input": {},
+                    "output": {
+                        "connected": true,
+                        "connection_url": "amqp://guest:***@localhost:5672/",
+                        "latency_ms": 123.45,
+                        "server_properties": {
+                            "product": "RabbitMQ",
+                            "version": "3.12.0",
+                            "platform": "Erlang/OTP 25"
+                        }
+                    }
+                },
+                {
+                    "title": "Connect to remote server",
+                    "description": "Conecta a servidor RabbitMQ remoto com credenciais customizadas",
+                    "input": {
+                        "host": "rabbitmq.example.com",
+                        "port": 5672,
+                        "user": "admin",
+                        "password": "secret123",
+                        "vhost": "/production",
+                        "timeout": 30
+                    },
+                    "output": {
+                        "connected": true,
+                        "connection_url": "amqp://admin:***@rabbitmq.example.com:5672/production",
+                        "latency_ms": 234.56
+                    }
+                }
+            ],
+            "errors": [
+                {
+                    "code": "CONNECTION_TIMEOUT",
+                    "message": "Connection timeout exceeded",
+                    "resolution": "Verifique se o servidor está acessível e se o firewall permite conexões na porta AMQP"
+                },
+                {
+                    "code": "AUTHENTICATION_FAILED",
+                    "message": "Invalid credentials",
+                    "resolution": "Verifique usuário e senha. Certifique-se de que o usuário tem permissões no vhost especificado"
+                },
+                {
+                    "code": "VHOST_NOT_FOUND",
+                    "message": "Virtual host does not exist",
+                    "resolution": "Crie o vhost no RabbitMQ ou use um vhost existente"
+                }
+            ]
+        },
+        {
+            "operation_id": "connection.disconnect",
+            "name": "Disconnect from RabbitMQ",
+            "description": "Desconecta graciosamente do RabbitMQ fechando todos os canais e liberando recursos.",
+            "category": "connection",
+            "async": true,
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "force": {
+                        "type": "boolean",
+                        "description": "Se true, força desconexão imediata sem aguardar operações pendentes",
+                        "default": false
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "disconnected": {
+                        "type": "boolean",
+                        "description": "Se desconexão foi bem-sucedida"
+                    },
+                    "graceful": {
+                        "type": "boolean",
+                        "description": "Se foi desconexão limpa (recursos fechados corretamente)"
+                    },
+                    "duration_ms": {
+                        "type": "number",
+                        "description": "Tempo gasto na desconexão em ms"
+                    }
+                },
+                "required": [
+                    "disconnected",
+                    "graceful",
+                    "duration_ms"
+                ]
+            },
+            "examples": [
+                {
+                    "title": "Graceful disconnect",
+                    "description": "Desconecta aguardando operações pendentes",
+                    "input": {
+                        "force": false
+                    },
+                    "output": {
+                        "disconnected": true,
+                        "graceful": true,
+                        "duration_ms": 45.12
+                    }
+                }
+            ],
+            "errors": [
+                {
+                    "code": "NOT_CONNECTED",
+                    "message": "No active connection to disconnect",
+                    "resolution": "Verifique se há uma conexão ativa antes de desconectar"
+                }
+            ]
+        },
+        {
+            "operation_id": "connection.health_check",
+            "name": "Check Connection Health",
+            "description": "Verifica saúde da conexão atual e disponibilidade do broker RabbitMQ. Retorna em <1 segundo.",
+            "category": "monitoring",
+            "async": true,
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "is_connected": {
+                        "type": "boolean",
+                        "description": "Se há conexão AMQP ativa"
+                    },
+                    "broker_available": {
+                        "type": "boolean",
+                        "description": "Se o broker RabbitMQ está respondendo"
+                    },
+                    "is_healthy": {
+                        "type": "boolean",
+                        "description": "Conexão está saudável (connected E broker disponível)"
+                    },
+                    "latency_ms": {
+                        "type": "number",
+                        "description": "Latência da verificação em ms"
+                    },
+                    "last_check": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Timestamp da última verificação"
+                    },
+                    "error_message": {
+                        "type": "string",
+                        "description": "Mensagem de erro se unhealthy"
+                    }
+                },
+                "required": [
+                    "is_connected",
+                    "broker_available",
+                    "is_healthy",
+                    "latency_ms",
+                    "last_check"
+                ]
+            },
+            "examples": [
+                {
+                    "title": "Healthy connection",
+                    "description": "Conexão ativa e broker disponível",
+                    "input": {},
+                    "output": {
+                        "is_connected": true,
+                        "broker_available": true,
+                        "is_healthy": true,
+                        "latency_ms": 12.34,
+                        "last_check": "2025-10-09T14:30:25.123Z"
+                    }
+                },
+                {
+                    "title": "Connection lost",
+                    "description": "Conexão perdida, broker indisponível",
+                    "input": {},
+                    "output": {
+                        "is_connected": false,
+                        "broker_available": false,
+                        "is_healthy": false,
+                        "latency_ms": 0,
+                        "last_check": "2025-10-09T14:30:25.123Z",
+                        "error_message": "Connection closed by server"
+                    }
+                }
+            ],
+            "errors": []
+        },
+        {
+            "operation_id": "connection.get_status",
+            "name": "Get Connection Status",
+            "description": "Retorna estado atual da conexão (disconnected, connecting, connected, reconnecting, failed).",
+            "category": "monitoring",
+            "async": false,
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "enum": [
+                            "disconnected",
+                            "connecting",
+                            "connected",
+                            "reconnecting",
+                            "failed"
+                        ],
+                        "description": "Estado atual da conexão"
+                    },
+                    "connection_url": {
+                        "type": "string",
+                        "description": "URL de conexão configurada (senha sanitizada)"
+                    },
+                    "connected_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Timestamp da conexão (null se desconectado)"
+                    },
+                    "retry_attempts": {
+                        "type": "integer",
+                        "description": "Número de tentativas de reconexão (0 se conectado)"
+                    },
+                    "next_retry_in_seconds": {
+                        "type": "number",
+                        "description": "Segundos até próxima tentativa (null se conectado)"
+                    }
+                },
+                "required": [
+                    "state",
+                    "connection_url",
+                    "retry_attempts"
+                ]
+            },
+            "examples": [
+                {
+                    "title": "Connected state",
+                    "description": "Conexão ativa e saudável",
+                    "input": {},
+                    "output": {
+                        "state": "connected",
+                        "connection_url": "amqp://guest:***@localhost:5672/",
+                        "connected_since": "2025-10-09T14:00:00.000Z",
+                        "retry_attempts": 0,
+                        "next_retry_in_seconds": null
+                    }
+                },
+                {
+                    "title": "Reconnecting state",
+                    "description": "Tentando reconectar após perda de conexão",
+                    "input": {},
+                    "output": {
+                        "state": "reconnecting",
+                        "connection_url": "amqp://guest:***@localhost:5672/",
+                        "connected_since": null,
+                        "retry_attempts": 3,
+                        "next_retry_in_seconds": 8.0
+                    }
+                }
+            ],
+            "errors": []
+        },
+        {
+            "operation_id": "pool.get_stats",
+            "name": "Get Connection Pool Statistics",
+            "description": "Retorna estatísticas do pool de conexões (total, em uso, disponíveis).",
+            "category": "monitoring",
+            "async": false,
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "max_size": {
+                        "type": "integer",
+                        "description": "Tamanho máximo do pool"
+                    },
+                    "total_connections": {
+                        "type": "integer",
+                        "description": "Conexões criadas no pool"
+                    },
+                    "in_use": {
+                        "type": "integer",
+                        "description": "Conexões atualmente em uso"
+                    },
+                    "available": {
+                        "type": "integer",
+                        "description": "Conexões disponíveis"
+                    },
+                    "waiting_for_connection": {
+                        "type": "integer",
+                        "description": "Operações aguardando conexão disponível"
+                    },
+                    "acquire_timeout_seconds": {
+                        "type": "integer",
+                        "description": "Timeout configurado para aquisição"
+                    }
+                },
+                "required": [
+                    "max_size",
+                    "total_connections",
+                    "in_use",
+                    "available",
+                    "waiting_for_connection",
+                    "acquire_timeout_seconds"
+                ]
+            },
+            "examples": [
+                {
+                    "title": "Pool with available connections",
+                    "description": "Pool saudável com conexões disponíveis",
+                    "input": {},
+                    "output": {
+                        "max_size": 5,
+                        "total_connections": 5,
+                        "in_use": 2,
+                        "available": 3,
+                        "waiting_for_connection": 0,
+                        "acquire_timeout_seconds": 10
+                    }
+                },
+                {
+                    "title": "Pool exhausted",
+                    "description": "Todas as conexões em uso, operações aguardando",
+                    "input": {},
+                    "output": {
+                        "max_size": 5,
+                        "total_connections": 5,
+                        "in_use": 5,
+                        "available": 0,
+                        "waiting_for_connection": 3,
+                        "acquire_timeout_seconds": 10
+                    }
+                }
+            ],
+            "errors": []
+        }
+    ],
+    "metadata": {
+        "feature": "002-basic-rabbitmq-connection",
+        "version": "1.0.0",
+        "total_operations": 5,
+        "categories": [
+            "connection",
+            "monitoring"
+        ],
+        "created": "2025-10-09"
+    }
+}

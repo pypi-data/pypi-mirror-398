@@ -1,0 +1,108 @@
+openapi: 3.0.3
+info:
+  title: Sample RabbitMQ API
+  version: 1.0.0
+paths:
+  /api/queues:
+    get:
+      operationId: queues.list
+      summary: List all queues
+      tags:
+        - Queues
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: List of queues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Queue'
+  /api/queues/{vhost}/{name}:
+    parameters:
+      - name: vhost
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: queues.get
+      summary: Get queue details
+      tags:
+        - Queues
+      responses:
+        '200':
+          description: Queue details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Queue'
+    put:
+      operationId: queues.create
+      summary: Create or update a queue
+      tags:
+        - Queues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueueCreate'
+      responses:
+        '201':
+          description: Queue created
+    delete:
+      operationId: queues.delete
+      summary: Delete a queue
+      deprecated: true
+      tags:
+        - Queues
+      responses:
+        '204':
+          description: Queue deleted
+  /api/exchanges/{vhost}:
+    get:
+      operationId: exchanges.list
+      summary: List exchanges
+      tags:
+        - Exchanges
+      parameters:
+        - name: vhost
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of exchanges
+components:
+  schemas:
+    Queue:
+      type: object
+      properties:
+        name:
+          type: string
+        vhost:
+          type: string
+        durable:
+          type: boolean
+    QueueCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        durable:
+          type: boolean

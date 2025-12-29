@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Validate OpenAPI specification
+        run: uv run python scripts/validate_openapi.py --spec-path docs-bmad/rabbitmq-http-api-openapi.yaml
+        continue-on-error: false
+
+      - name: Validate Generated Schemas
+        run: |
+          uv run python scripts/generate_schemas.py --spec-path docs-bmad/rabbitmq-http-api-openapi.yaml
+          uv run mypy --strict src/schemas/generated_schemas.py
+        continue-on-error: false
+
+      - name: Validate Operation Registry
+        run: |
+          uv run python scripts/extract_operations.py --spec-path docs-bmad/rabbitmq-http-api-openapi.yaml --output-path data/operations.json
+          if [ ! -f data/operations.json ]; then
+            echo "ERROR: Operation registry not generated"
+            exit 1
+          fi
+          # Verify registry has expected number of operations
+          operation_count=$(cat data/operations.json | grep -o '"operation_id"' | wc -l)
+          if [ "$operation_count" -lt 100 ]; then
+            echo "ERROR: Expected at least 100 operations, got $operation_count"
+            exit 1
+          fi
+          echo "✓ Operation registry validated: $operation_count operations"
+        continue-on-error: false
+
+      - name: Cache sentence-transformers model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/torch/sentence_transformers
+          key: sentence-transformers-${{ runner.os }}-all-MiniLM-L6-v2
+          restore-keys: |
+            sentence-transformers-${{ runner.os }}-
+
+      - name: Generate and Validate Embeddings
+        run: |
+          uv run python scripts/generate_embeddings.py --registry-path data/operations.json --output-path data/embeddings.json
+          if [ ! -f data/embeddings.json ]; then
+            echo "ERROR: Embeddings file not generated"
+            exit 1
+          fi
+          # Verify embeddings file is valid JSON
+          uv run python -c "import json; data=json.load(open('data/embeddings.json')); print(f'✓ Embeddings validated: {len(data[\"embeddings\"])} operations')"
+          # Verify file size is under 50MB
+          file_size=$(stat -f%z data/embeddings.json 2>/dev/null || stat -c%s data/embeddings.json)
+          max_size=$((50 * 1024 * 1024))
+          if [ "$file_size" -gt "$max_size" ]; then
+            echo "ERROR: Embeddings file too large: $(($file_size / 1024 / 1024))MB"
+            exit 1
+          fi
+          echo "✓ Embeddings file size: $(($file_size / 1024 / 1024))MB"
+        continue-on-error: false
+
+      - name: Run tests with coverage
+        run: uv run pytest
+        continue-on-error: false
+
+      - name: Run linting
+        run: uv run ruff check src/
+        continue-on-error: false
+
+      - name: Run type checking
+        run: uv run mypy src/
+        continue-on-error: false
+
+      - name: Upload coverage reports to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          fail_ci_if_error: false

@@ -1,0 +1,214 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>5</storyId>
+    <title>Operation Registry Generation</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-26T21:40:23.964Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs-bmad/sprint-artifacts/1-5-operation-registry-generation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer</asA>
+    <iWant>a JSON registry mapping operation IDs to HTTP methods, paths, parameters, and documentation</iWant>
+    <soThat>the MCP server can dynamically execute any RabbitMQ Management API operation</soThat>
+    <tasks>
+      - Task 1: Create Operation Extraction Script (AC: #1, #2)
+      - Task 2: Extract HTTP Method and URL Path (AC: #2, #3)
+      - Task 3: Extract Parameter Metadata (AC: #3)
+      - Task 4: Extract Request and Response Schemas (AC: #2)
+      - Task 5: Add AMQP Operations Manually (AC: #5)
+      - Task 6: Enrich with Operation Metadata (AC: #7)
+      - Task 7: Implement Registry Validation (AC: #6)
+      - Task 8: Optimize Registry Structure for Lookups (AC: #4)
+      - Task 9: Create Unit Tests for Extraction Script (AC: #2, #3, #4, #6, #7)
+      - Task 10: Create Performance Benchmark Tests (AC: #4)
+      - Task 11: Integrate into CI/CD Pipeline (AC: #6)
+      - Task 12: Document Registry Structure and Usage (AC: #1, #2)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Registry Generation Script Exists at scripts/extract_operations.py with CLI args --spec-path, --output-path, --include-amqp
+    2. Operation Registry Created at data/operations.json with fields: operation_id, namespace, http_method, url_path, description, parameters, request_schema, response_schema, examples, tags, requires_auth
+    3. Parameter Metadata Complete with name, location (path/query/header/body), type, required, description, schema
+    4. Registry File Size &lt;5MB with O(1) lookups by operation_id (dict structure) and operation lookups &lt;1ms
+    5. AMQP Operations Included: publish, consume, ack, nack, reject marked with protocol="amqp" field
+    6. Registry Validation: no duplicate operation IDs, format validation {namespace}.{action}, namespace consistency, CI/CD validation
+    7. Operation Metadata Enrichment: deprecated, rate_limit_exempt, safety_validation_required for destructive operations
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs-bmad/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation &amp; MCP Protocol</title>
+        <section>Operation Registry Generation</section>
+        <snippet>Operation registry structure: dict with operation_id as key for O(1) lookups. Registry stored as JSON file (not database) for portability. Operation metadata includes: operation_id, namespace, http_method, url_path, description, parameters, request_schema, response_schema.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/epics/epic-1-foundation-mcp-protocol.md</path>
+        <title>Epic 1: Foundation &amp; MCP Protocol</title>
+        <section>Story 1.5: Operation Registry Generation</section>
+        <snippet>Script exists at scripts/extract_operations.py. Registry created at data/operations.json with complete operation metadata. AMQP operations (publish, consume, ack, nack, reject) added manually with protocol="amqp" field.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/data-architecture.md</path>
+        <title>Data Architecture</title>
+        <section>Operation Registry Model</section>
+        <snippet>Operation registry model defines structure: operation_id (str), namespace (str), http_method (str), url_path (str with parameter placeholders), description (str), parameters (Dict[str, ParameterSchema]), request_schema (Optional[Dict]), response_schema (Optional[Dict]), requires_auth (bool), rate_limit_exempt (bool).</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-001: OpenAPI-Driven Code Generation</section>
+        <snippet>OpenAPI specification is single source of truth for operation definitions. Operation registry extracted at build time from OpenAPI paths section. Any changes to operations start with OpenAPI update, then regenerate registry.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-007: Build-Time vs Runtime Generation</section>
+        <snippet>Operation registry generated at build time (not runtime) for performance. Registry loaded into memory at server startup for fast O(1) lookups. Registry is immutable at runtime.</snippet>
+      </doc>
+      <doc>
+        <path>docs-bmad/sprint-artifacts/1-4-pydantic-schema-generation.md</path>
+        <title>Story 1.4: Pydantic Schema Generation</title>
+        <section>Dev Notes - Learnings</section>
+        <snippet>Schema generation script structure can be reused for operations extraction script. Generation script pattern established: argparse CLI, file I/O, validation, change detection. PyYAML for OpenAPI parsing already in dependencies. CLI structure with argparse: --spec-path, --output-path, --force flags.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/tools/openapi/operation_registry.py</path>
+        <kind>service</kind>
+        <symbol>OperationRegistry</symbol>
+        <lines>1-63</lines>
+        <reason>Existing OperationRegistry class that loads operations from OpenAPI at runtime. This story should create a build-time script to generate operations.json, which this class can then load instead of parsing OpenAPI at runtime.</reason>
+      </artifact>
+      <artifact>
+        <path>src/tools/openapi/operation_registry.py</path>
+        <kind>model</kind>
+        <symbol>OperationMetadata</symbol>
+        <lines>25-30</lines>
+        <reason>Existing operation metadata structure. The generated operations.json should contain similar metadata: operation_id, path, method, spec. This can inform the JSON schema design.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/generate_schemas.py</path>
+        <kind>script</kind>
+        <symbol>main</symbol>
+        <lines>1-200</lines>
+        <reason>Reference implementation for generation scripts. Shows argparse CLI pattern, OpenAPI file loading, output file creation, validation, and CI/CD integration patterns to reuse for extract_operations.py.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/validate_openapi.py</path>
+        <kind>script</kind>
+        <symbol>validate_openapi</symbol>
+        <lines>1-100</lines>
+        <reason>Shows OpenAPI validation patterns with PyYAML and jsonschema. Can reuse validation logic to ensure OpenAPI spec is valid before extracting operations.</reason>
+      </artifact>
+      <artifact>
+        <path>src/models/__init__.py</path>
+        <kind>module</kind>
+        <symbol>N/A</symbol>
+        <lines>N/A</lines>
+        <reason>Models directory where operation registry Pydantic models should be defined (e.g., Operation, ParameterSchema classes) for type-safe loading of operations.json.</reason>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/rabbitmq-http-api-openapi.yaml</path>
+        <kind>data</kind>
+        <symbol>N/A</symbol>
+        <lines>N/A</lines>
+        <reason>Input OpenAPI specification file (~4800 lines, 100+ operations) that the extraction script will parse to generate operations.json.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="pyyaml" version="&gt;=6.0" reason="Parse OpenAPI YAML specification files"/>
+        <package name="pydantic" version="&gt;=2.0" reason="Data validation and type-safe models for operation registry"/>
+        <package name="pydantic-settings" version="&gt;=2.0" reason="Configuration management"/>
+        <package name="jsonschema" version="&gt;=4.20" reason="OpenAPI schema validation"/>
+        <package name="pytest" version="&gt;=8.0" reason="Unit testing framework"/>
+        <package name="pytest-benchmark" version="optional" reason="Performance benchmarking for operation lookups"/>
+        <package name="datamodel-code-generator" version="&gt;=0.25" reason="Reference for code generation patterns"/>
+        <package name="black" version="&gt;=24.1" reason="Code formatting"/>
+        <package name="mypy" version="&gt;=1.8" reason="Static type checking"/>
+        <package name="ruff" version="&gt;=0.2" reason="Linting"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - OpenAPI specification at docs-bmad/rabbitmq-http-api-openapi.yaml is single source of truth (ADR-001)
+    - Operation registry must be generated at build time, not runtime (ADR-007)
+    - Registry structure must be dict with operation_id as key for O(1) lookups (performance requirement)
+    - Registry file size must be &lt;5MB for fast distribution and loading
+    - Operation lookup performance target: &lt;1ms at p95 (O(1) dict access)
+    - Registry file load time target: &lt;100ms on reference hardware
+    - All operations must have unique operation_id following format: {namespace}.{action} or {namespace}.{resource}.{action}
+    - Namespaces must be consistent: queues, exchanges, bindings, messages, connections, users, permissions, nodes, cluster, amqp
+    - URL paths must preserve parameter placeholders: /api/queues/{vhost}/{name}
+    - Parameters must be categorized by location: path, query, header, body
+    - AMQP operations (publish, consume, ack, nack, reject) must be added manually with protocol="amqp" field
+    - Generated registry must be committed to git for version control and distribution
+    - Script must pass all pre-commit hooks: black, isort, mypy, ruff
+    - Type checking: mypy --strict with zero errors
+    - Test coverage: &gt;95% for extraction script (critical path)
+    - CI/CD pipeline must validate registry synchronization with OpenAPI
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>extract_operations.py CLI</name>
+      <kind>command-line script</kind>
+      <signature>python scripts/extract_operations.py --spec-path PATH --output-path PATH --include-amqp BOOL</signature>
+      <path>scripts/extract_operations.py</path>
+    </interface>
+    <interface>
+      <name>OperationRegistry.get_operation</name>
+      <kind>method</kind>
+      <signature>get_operation(operation_id: str) -&gt; OperationMetadata | None</signature>
+      <path>src/tools/openapi/operation_registry.py</path>
+    </interface>
+    <interface>
+      <name>OperationRegistry.list_operations</name>
+      <kind>method</kind>
+      <signature>list_operations(tag: str | None = None) -&gt; list[OperationMetadata]</signature>
+      <path>src/tools/openapi/operation_registry.py</path>
+    </interface>
+    <interface>
+      <name>operations.json schema</name>
+      <kind>JSON data structure</kind>
+      <signature>{operation_id: {namespace, http_method, url_path, description, parameters: [{name, location, type, required, description}], request_schema, response_schema, examples, tags, requires_auth, rate_limit_exempt, safety_validation_required, deprecated}}</signature>
+      <path>data/operations.json</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing Framework: pytest with fixtures for test data isolation. Test fixtures in tests/fixtures/ directory for sample OpenAPI files. pytest-benchmark for performance testing with statistical analysis. Test coverage requirements: &gt;95% for critical path components. All tests must pass pre-commit hooks and CI/CD validation. Multi-version Python testing: 3.12 and 3.13.
+    </standards>
+    <locations>
+      - tests/unit/test_extract_operations.py (unit tests for extraction script)
+      - tests/performance/test_operations_registry.py (performance benchmarks)
+      - tests/fixtures/ (sample OpenAPI files for testing)
+    </locations>
+    <ideas>
+      <test criterion="AC1, AC2">Script extracts correct number of operations from sample OpenAPI (use fixture with 10 operations)</test>
+      <test criterion="AC2">Operation entries have all required fields: operation_id, namespace, http_method, url_path, description, parameters, request_schema, response_schema</test>
+      <test criterion="AC3">Parameter metadata correctly extracted: name, location, type, required, description</test>
+      <test criterion="AC2">URL paths preserve parameter placeholders: {vhost}, {name}</test>
+      <test criterion="AC6">Duplicate operation IDs cause validation error</test>
+      <test criterion="AC6">Invalid operation_id format causes validation error</test>
+      <test criterion="AC5">AMQP operations included when --include-amqp=true</test>
+      <test criterion="AC5">AMQP operations excluded when --include-amqp=false</test>
+      <test criterion="AC4">Registry structure is dict with operation_id keys (not array)</test>
+      <test criterion="AC7">Deprecated operations marked from OpenAPI deprecated flag</test>
+      <test criterion="AC7">Safety validation required for DELETE operations</test>
+      <test criterion="AC4">Registry file size &lt;5MB validation (warn but don't fail)</test>
+      <test criterion="AC4">Benchmark registry file load time (should be &lt;100ms)</test>
+      <test criterion="AC4">Benchmark operation lookup by ID (should be &lt;1ms using pytest-benchmark with n=100 runs)</test>
+      <test criterion="AC4">Performance tests report p50, p95, p99 latencies with pass/fail thresholds</test>
+    </ideas>
+  </tests>
+</story-context>

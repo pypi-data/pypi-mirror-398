@@ -1,0 +1,215 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>6</storyId>
+    <title>Semantic Embeddings Generation</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-26T22:49:30.036Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs-bmad/sprint-artifacts/1-6-semantic-embeddings-generation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer</asA>
+    <iWant>pre-computed vector embeddings for all operation descriptions</iWant>
+    <soThat>semantic search queries return relevant operations in &lt;100ms without runtime computation overhead</soThat>
+    <tasks>
+      - Task 1: Create Embedding Generation Script (AC: #1)
+      - Task 2: Extract Operation Descriptions (AC: #2, #3)
+      - Task 3: Generate Embeddings with Sentence-Transformers (AC: #3, #4)
+      - Task 4: Build Output JSON Structure (AC: #6)
+      - Task 5: Save Embeddings File (AC: #2, #6, #7)
+      - Task 6: Test Embedding Quality (AC: #5)
+      - Task 7: Performance Validation (AC: #4)
+      - Task 8: Error Handling and Validation (AC: #7)
+      - Task 9: Documentation (AC: #1, #3)
+      - Task 10: CI/CD Integration (AC: #7)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Embedding Generation Script Exists - Script exists at scripts/generate_embeddings.py, executable via uv run python, accepts CLI arguments for registry-path, output-path, model-name with defaults
+    2. Embeddings File Created - Running script creates data/embeddings.json with pre-computed vectors, includes metadata (model_name, model_version, embedding_dimension=384, generation_timestamp), all 100+ operations have embeddings
+    3. Model Configuration - Uses sentence-transformers library with all-MiniLM-L6-v2 model, produces 384-dimensional embeddings, auto-downloads and caches to ~/.cache/torch/sentence_transformers/
+    4. Performance Requirements - Embeddings file &lt;50MB, loads in &lt;500ms, generation completes in &lt;60 seconds for 100+ operations, uses batch encoding (batch_size=32)
+    5. Embedding Quality - Normalized unit vectors for cosine similarity, test queries show relevant operations ranked higher (similarity &gt;0.6), specific test cases verified
+    6. Output Format - JSON structure with model metadata, embeddings dict mapping operation_id to float array, formatted with indent=2, valid JSON
+    7. Error Handling - Validates operations.json exists and is valid JSON, creates data/ directory if needed, provides clear error messages for model download failures, validates embedding dimensions
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs-bmad/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation &amp; MCP Protocol</title>
+        <section>Semantic Embeddings Strategy (ADR-004, ADR-007)</section>
+        <snippet>Pre-computed embeddings generated at build time using sentence-transformers all-MiniLM-L6-v2 model (384 dimensions), stored as JSON file (&lt;50MB), loaded into memory at server startup for &lt;100ms cosine similarity calculations. Normalized vectors enable efficient dot product similarity.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation &amp; MCP Protocol</title>
+        <section>Model Selection Rationale</section>
+        <snippet>all-MiniLM-L6-v2 chosen for optimal speed/quality balance. Model size ~90MB downloads to ~/.cache/torch/sentence_transformers/ on first run. 384 dimensions sufficient for operation description similarity. Batch encoding (batch_size=32) ensures generation completes in &lt;60 seconds for 100+ operations.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/epics/epic-1-foundation-mcp-protocol.md</path>
+        <title>Epic 1: Foundation &amp; MCP Protocol</title>
+        <section>Story 1.6: Semantic Embeddings Generation</section>
+        <snippet>Pre-computed vector embeddings for all operation descriptions enable semantic search queries to return relevant operations in &lt;100ms without runtime computation overhead. Acceptance criteria include script creation, embeddings file generation, model configuration, performance requirements, quality validation, output format, and error handling.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-004: JSON-based vector storage for MVP</section>
+        <snippet>Use JSON file format for pre-computed embeddings storage in MVP phase. Simple, portable, fast to load (&lt;500ms), no additional dependencies. Pre-computed at build time, not runtime. Migration path to sqlite-vec or vector database in Phase 2 if needed.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/architecture/architecture-decision-records-adrs.md</path>
+        <title>Architecture Decision Records</title>
+        <section>ADR-007: Build-time vs runtime generation</section>
+        <snippet>All code generation (schemas, registries, embeddings) happens at build time, not runtime. Generation scripts in scripts/ directory run during CI/CD pipeline. Outputs are committed to git for distribution. No runtime code generation overhead.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/architecture/implementation-patterns.md</path>
+        <title>Implementation Patterns</title>
+        <section>Type Safety and Validation Requirements</section>
+        <snippet>Type hints required for all function signatures (mypy --strict compliance). Constants defined at module level with UPPER_CASE naming. Pydantic models for data validation. Import order: stdlib → third-party → local modules.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs-bmad/architecture/project-structure.md</path>
+        <title>Project Structure</title>
+        <section>Build-Time Artifacts Location</section>
+        <snippet>data/ directory contains build-time generated artifacts (operations.json, embeddings.json). Generation scripts in scripts/ directory alongside extract_operations.py. Test scripts validate output quality with unit tests in tests/unit/.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>scripts/extract_operations.py</path>
+        <kind>script</kind>
+        <symbol>main</symbol>
+        <lines>1-300</lines>
+        <reason>Pattern for build-time generation script with CLI args (argparse), input validation, JSON output, error handling, and logging. Similar structure should be followed for generate_embeddings.py.</reason>
+      </artifact>
+      <artifact>
+        <path>data/operations.json</path>
+        <kind>data</kind>
+        <symbol>N/A</symbol>
+        <lines>N/A</lines>
+        <reason>Input file for embeddings generation. Contains 100+ operations with operation_id and description fields that need to be embedded. File structure provides example for output format.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/generate_schemas.py</path>
+        <kind>script</kind>
+        <symbol>main</symbol>
+        <lines>1-250</lines>
+        <reason>Another build-time generation script showing patterns for OpenAPI processing, output file creation, validation, and error handling that can be referenced for embeddings script.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sentence-transformers" version=">=2.2.0" reason="Core library for embedding generation using all-MiniLM-L6-v2 model" />
+        <package name="torch" version=">=2.0.0" reason="Required by sentence-transformers (CPU version sufficient for build-time generation)" />
+        <package name="numpy" version=">=1.24.0" reason="For array operations on embeddings (normalization, shape validation)" />
+        <package name="pydantic" version=">=2.0" reason="Data validation for output JSON structure and model metadata" />
+        <package name="pyyaml" version="*" reason="Already in dependencies, may be used for config" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Script must follow existing pattern from extract_operations.py: CLI args with argparse, input validation, error handling, structured logging
+    - All embeddings must be normalized to unit vectors (np.linalg.norm == 1.0) for cosine similarity calculations
+    - Output JSON file must be &lt;50MB for reasonable distribution size and fast loading
+    - Generation must complete in &lt;60 seconds for 100+ operations (use batch_size=32 for efficiency)
+    - Type hints required for all function signatures (mypy --strict compliance)
+    - Constants must be defined at module level: DEFAULT_MODEL_NAME, EMBEDDING_DIMENSION (384), DEFAULT_BATCH_SIZE (32)
+    - Import order: stdlib → third-party → local modules
+    - Script must create data/ directory if it doesn't exist (os.makedirs with exist_ok=True)
+    - Script must validate operations.json exists and is valid JSON before processing
+    - Script must exit with non-zero code on error for CI/CD integration
+    - Model downloads to ~/.cache/torch/sentence_transformers/ automatically on first run (log progress)
+    - Embeddings file must be committed to git for distribution (no runtime generation)
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>generate_embeddings.py CLI</name>
+      <kind>command-line interface</kind>
+      <signature>python scripts/generate_embeddings.py [--registry-path PATH] [--output-path PATH] [--model-name MODEL]</signature>
+      <path>scripts/generate_embeddings.py</path>
+      <details>
+        Arguments:
+        - --registry-path: Path to operations.json (default: data/operations.json)
+        - --output-path: Path to output embeddings.json (default: data/embeddings.json)
+        - --model-name: Sentence-transformers model name (default: all-MiniLM-L6-v2)
+        Exit codes: 0 = success, 1 = error (validation failure, model download failure, etc.)
+      </details>
+    </interface>
+    <interface>
+      <name>embeddings.json format</name>
+      <kind>JSON data structure</kind>
+      <signature>
+        {
+          "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+          "model_version": "string",
+          "embedding_dimension": 384,
+          "generation_timestamp": "ISO 8601 format",
+          "embeddings": {
+            "operation_id": [float, float, ...],
+            ...
+          }
+        }
+      </signature>
+      <path>data/embeddings.json</path>
+      <details>
+        Embeddings dict maps operation_id (string) to 384-element float array (normalized unit vectors).
+        All operation_ids from operations.json must be present.
+        File formatted with indent=2 for human readability.
+        Must be valid JSON parseable by standard libraries.
+      </details>
+    </interface>
+    <interface>
+      <name>SentenceTransformer.encode</name>
+      <kind>library API</kind>
+      <signature>model.encode(sentences: list[str], batch_size: int = 32, normalize_embeddings: bool = True) -&gt; np.ndarray</signature>
+      <path>sentence_transformers library</path>
+      <details>
+        Takes list of description strings, returns numpy array of shape (n_operations, 384).
+        normalize_embeddings=True ensures unit vectors for cosine similarity.
+        batch_size=32 for optimal performance (complete in &lt;60 seconds for 100+ operations).
+        Automatically downloads model to ~/.cache/ on first run.
+      </details>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing follows pytest framework with unit tests in tests/unit/ directory. Scripts are tested via subprocess calls with sample data. Quality validation includes embedding dimension checks, normalization validation (unit vectors), and semantic similarity tests with known query-operation pairs. Performance benchmarks measure generation time (&lt;60s), loading time (&lt;500ms), and query encoding time (&lt;100ms).
+    </standards>
+    <locations>
+      tests/unit/test_embeddings.py - Unit tests for embedding quality validation
+      scripts/test_embeddings.py - Integration test script for semantic similarity validation
+      scripts/benchmark_embeddings.py - Performance benchmark script
+    </locations>
+    <ideas>
+      <test ac="1">Test script exists at scripts/generate_embeddings.py and is executable</test>
+      <test ac="1">Test CLI arguments parsing with default values</test>
+      <test ac="2">Test embeddings.json file creation with correct structure</test>
+      <test ac="2">Test all operations from operations.json have corresponding embeddings</test>
+      <test ac="3">Test model initialization and download on first run</test>
+      <test ac="3">Test embedding dimension is 384 for all vectors</test>
+      <test ac="4">Test file size is &lt;50MB</test>
+      <test ac="4">Test generation completes in &lt;60 seconds for 100+ operations</test>
+      <test ac="4">Test embeddings load into memory in &lt;500ms</test>
+      <test ac="5">Test vectors are normalized (np.linalg.norm == 1.0)</test>
+      <test ac="5">Test query "list queues" returns "queues.list" with similarity &gt;0.8</test>
+      <test ac="5">Test query "delete exchange" returns "exchanges.delete" with similarity &gt;0.8</test>
+      <test ac="6">Test JSON structure matches expected format with all metadata fields</test>
+      <test ac="6">Test JSON is valid and parseable</test>
+      <test ac="7">Test script validates operations.json exists before processing</test>
+      <test ac="7">Test script handles missing operations.json with clear error message</test>
+      <test ac="7">Test script handles invalid JSON with clear error message</test>
+      <test ac="7">Test script creates data/ directory if it doesn't exist</test>
+    </ideas>
+  </tests>
+</story-context>
