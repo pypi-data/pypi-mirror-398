@@ -1,0 +1,108 @@
+# yara-dsl
+
+[![PyPI version](https://badge.fury.io/py/yara-dsl.svg)](https://badge.fury.io/py/yara-dsl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
+**Semantic YARA DSL** - Construction-time validation for malware detection rules
+
+A pure-Python domain-specific language for building guaranteed-valid YARA rules with semantic validation, cross-reference checking, and domain knowledge about PE/ELF files.
+
+## Overview
+
+yara-dsl prevents impossible malware detection rules by validating at construction time rather than runtime. It provides type-safe string definitions (Text, Hex, Regex) with automatic validation and catches logic errors before compilation.
+
+## Key Features
+
+- **Construction-time validation** - Errors caught before rule generation
+- **Cross-reference checking** - Undefined string variables detected automatically
+- **Domain knowledge** - PE/ELF impossibility rules blocked (e.g., >50 sections)
+- **Type-safe strings** - Text, Hex, and Regex patterns with built-in validation
+- **Pure Python** - Zero external dependencies, works everywhere
+- **Metadata validation** - Required author and description fields
+- **Performance guards** - Catches overly broad regex patterns and excessive string counts
+
+## Installation
+
+```bash
+pip install yara-dsl
+```
+
+## Quick Start
+
+```python
+from yara_dsl import Rule, Text, Hex, Regex
+
+# Create a validated ransomware detection rule
+rule = (Rule("LockBit_Detection")
+    .meta(
+        author="security-team@example.com",
+        description="Detects LockBit variants"
+    )
+    .strings(
+        Text("a", "LockBit", modifiers="nocase fullword"),
+        Hex("b", "52 41 4E 53 4F 4D 57 41 52 45"),
+        Regex("c", r"[a-f0-9]{32}@lockbit\.io")
+    )
+    .condition("all of them")
+)
+
+# Generates guaranteed-valid YARA
+yara_source = rule.compile()
+print(yara_source)
+```
+
+## Validation Examples
+
+yara-dsl catches errors that raw YARA would accept:
+
+| Invalid Pattern | Issue |
+|-----------------|-------|
+| `Text("ab")` | Text too short (minimum 4 characters) |
+| `$z` in condition, undefined | Undefined string reference |
+| `Regex(".*")` | Performance risk pattern |
+| `pe.sections > 50` | Impossible PE characteristic |
+| Less than 3 strings | Insufficient pattern matching |
+| No metadata | Missing required author/description |
+
+## API Reference
+
+### Rule Class
+
+- `Rule(name)` - Create a new rule
+- `.meta(**kwargs)` - Add metadata
+- `.strings(*string_objs)` - Add string patterns (max 20)
+- `.condition(expr)` - Set detection condition
+- `.semantic_lint()` - Validate before compiling
+- `.compile()` - Generate YARA source code
+
+### String Types
+
+- `Text(id, value, modifiers="")` - Plain text strings (min 4 chars)
+- `Hex(id, value, modifiers="")` - Hexadecimal patterns
+- `Regex(id, value, modifiers="")` - Regular expressions (min 8 chars, no .*)
+
+### Example: Error Handling
+
+```python
+from yara_dsl import Rule, Text, Severity
+
+try:
+    rule = Rule("MyRule")
+    rule.strings(Text("a", "x"))  # Too short!
+except ValueError as e:
+    print(f"Error: {e}")
+```
+
+## Use Cases
+
+- SOC teams building detection rules for new malware variants
+- Threat intelligence teams creating standardized rule repositories
+- Security research requiring validated pattern matching
+- Automated rule generation pipelines needing safety guarantees
+
+## License
+
+MIT - See [LICENSE](LICENSE)
+
+Built for security teams and threat intelligence researchers.
