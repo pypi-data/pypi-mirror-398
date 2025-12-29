@@ -1,0 +1,7 @@
+from IPython.display import HTML
+
+def display_feedback_form():
+    html_content = """
+<form> <div> <label for="enter_your_email">Enter your email</label> <input type="email" id="enter_your_email" name="enter_your_email" required> </div> <div> <label for="enter_your_full_name">Enter your full name</label> <input type="text" id="enter_your_full_name" name="enter_your_full_name" required> </div> <div> <label for="enter_your">Enter your phone number</label> <input type="tel" id="enter_your" name="enter_your" required> </div> <div> <label for="give_your_feedback_about_the_library">Give your feedback about the library</label> <input type="text" id="give_your_feedback_about_the_library" name="give_your_feedback_about_the_library" required> </div> <div> <label for="any_trobleshoots_in_the_library">Any troubleshoots in the library</label> <input type="radio" id="any_trobleshoots_in_the_library_0" name="any_trobleshoots_in_the_library" value="option1" required> <label for="any_trobleshoots_in_the_library_0">Yes</label> <input type="radio" id="any_trobleshoots_in_the_library_1" name="any_trobleshoots_in_the_library" value="option2" required> <label for="any_trobleshoots_in_the_library_1">No</label> </div> <div> <label for="upload_your_poblem_in_a_file_pdf_content">Upload your poblem in a file pdf content</label> <input type="file" id="upload_your_poblem_in_a_file_pdf_content" name="upload_your_poblem_in_a_file_pdf_content" required> </div> <button type="submit">Submit</button> </form>
+    """
+    return HTML(html_content)
