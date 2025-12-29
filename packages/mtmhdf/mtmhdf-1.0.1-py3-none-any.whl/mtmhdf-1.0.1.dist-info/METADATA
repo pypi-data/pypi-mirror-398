@@ -1,0 +1,135 @@
+Metadata-Version: 2.4
+Name: mtmhdf
+Version: 1.0.1
+Summary: imutum's packages for HDF
+License: MIT License
+        
+        Copyright (c) 2023 imutum
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Classifier: Development Status :: 3 - Alpha
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyhdf>=0.10.5
+Requires-Dist: netcdf4>=1.6.5
+Requires-Dist: numpy>=1.23.0
+Dynamic: license-file
+
+# mtmhdf
+
+`mtmhdf` 是一个用于读取 HDF4 和 HDF5 (包括 NetCDF) 文件的 Python 库。它提供了清晰的接口来处理不同格式的 HDF 文件，并支持自动的数值缩放（Scale）和偏移（Offset）处理，以及掩膜（Mask）处理。
+
+## 主要功能
+
+*   **格式支持**：提供 `HDF4Reader` 和 `HDF5Reader` 类，分别处理 HDF4 和 HDF5/NetCDF 格式。
+*   **自动处理**：支持读取数据时自动应用 `scale_factor` 和 `add_offset`，以及处理 `_FillValue`。
+*   **灵活模式**：提供 `native`（原生）和 `manual`（手动）模式，允许用户自定义数据转换方式。
+*   **位操作**：支持 `readbit` 方法，方便提取特定位的数据。
+
+## 安装
+
+本项目依赖于 Python 3.11+。
+
+### 依赖项
+
+*   `pyhdf >= 0.10.5`
+*   `netCDF4 >= 1.6.5`
+*   `numpy >= 1.23.0`
+
+### 安装方法
+
+你可以通过 pip 安装本项目（假设已发布或本地安装）：
+
+```bash
+pip install .
+```
+
+或者使用 `requirements.txt` 安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 使用示例
+
+### 基础读取
+
+根据文件格式选择对应的 Reader 类：
+
+```python
+from mtmhdf import HDF4Reader, HDF5Reader
+
+# 读取 HDF4 文件 (.hdf, .hdf4)
+hdf4 = HDF4Reader("MOD021KM.A2025001.0000.061.2025001132345.hdf")
+
+# 读取 HDF5 或 NetCDF 文件 (.h5, .he5, .hdf5, .nc)
+hdf5 = HDF5Reader("data.h5")
+
+# 获取文件中的所有数据集名称
+print(hdf4.keys())
+
+# 获取文件全局属性信息
+print(hdf4.infos())
+
+# 读取数据集（默认自动应用 scale, offset 和 mask）
+data = hdf4["Latitude"]
+print(data)
+```
+
+### 高级用法
+
+#### 自定义读取选项
+
+你可以通过 `read` 方法控制读取行为：
+
+```python
+# 读取数据，但不进行自动缩放和偏移，也不进行掩膜处理
+raw_data = hdf4.read("Latitude", isScaleAndOffset=False, isMasked=False)
+
+# 获取原始数据对象（未经过任何处理）
+raw_obj = hdf4.readraw("Latitude")
+```
+
+#### 位操作读取
+
+对于包含位标志的数据集，可以使用 `readbit` 提取特定位的值：
+
+```python
+# 读取 "Cloud_Mask" 数据集的第 0 到第 2 位（左开右闭，即位 0, 1）
+# bit_start_pos: 起始位
+# bit_end_pos: 结束位 (不包含)
+cloud_flags = hdf4.readbit("Cloud_Mask", 0, 2)
+```
+
+## 支持的文件格式
+
+*   **HDF4**: `.hdf`, `.hdf4` (使用 `HDF4Reader`)
+*   **HDF5 / NetCDF**: `.h5`, `.he5`, `.hdf5`, `.nc` (使用 `HDF5Reader`)
+
+## 开源协议
+
+MIT License
