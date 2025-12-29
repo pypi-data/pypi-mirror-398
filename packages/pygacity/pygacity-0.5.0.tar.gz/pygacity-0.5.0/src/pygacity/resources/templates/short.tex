@@ -1,0 +1,99 @@
+% Author: Cameron F. Abrams, <cfa22@drexel.edu>
+%
+% Short-answer, multiple-choice, fill-in-the-blank, and true/false questions
+%
+% To use this template, create a yaml file containing a list
+% of items, each of which needs the following key:value pairs:
+%
+%  T: the question type, one of 'short_answer', 'multiple_choice',
+%     'fill_in_the_blank', or 'true_false'
+%  Q: the question text
+%  choices: (for multiple_choice only) a dict of choice_label: choice_text pairs
+%  A: the answer(s)
+%  text: an explanation to be included in the solutions
+%  
+% refer to this in as the 'config' in the exam description yaml file.  If you
+% are building a series of exams in a subdirectory, prepend the name with 
+% '../' 
+\begin{pycode}
+config = {}
+configfilename = '<<<config>>>'
+idx = <<<idx>>>
+is_top_level = not '.' in str(idx)
+first_ordinal = '1' if is_top_level else 'a'
+group = <<<group>>>
+instructions = 'Short-answer, multiple-choice, fill-in-the-blank, and/or true/false questions.'
+
+with open(configfilename, 'r') as f:
+    SQ = yaml.safe_load(f)
+if 'content' in SQ and 'config' in SQ:
+    config = SQ['config']
+    questions = SQ['content']
+    count = config.get('count',len(questions))
+    shuffle = config.get('shuffle', False)
+    global_qtype = config.get('type', 'fill_in_the_blank')
+    if shuffle: 
+        rng.shuffle(questions)
+    count = config.get('count',len(questions))
+    questions = questions[:count]
+    instructions = config.get('instructions', instructions)
+    shuffle_choices = config.get('shuffle_choices', False)
+    if shuffle_choices:
+        for qdict in questions:
+            qtype = qdict.get('T', global_qtype)
+            if qtype != 'multiple_choice':
+                continue
+            correct_choice_text = qdict['choices'][qdict['A']]
+            all_choice_texts = list(qdict['choices'].values())
+            rng.shuffle(all_choice_texts)
+            qdict['choices'] = dict(zip(qdict['choices'].keys(), all_choice_texts))
+            for clabel, ctext in qdict['choices'].items():
+                if ctext == correct_choice_text:
+                    qdict['A'] = clabel
+else:
+    questions = SQ
+answers = [x['A'] for x in questions]
+
+if 'AnsSet' in locals():
+    for l, t in zip([chr(ord('a')+x) for x in range(len(answers))], answers):
+        AnsSet.register(idx, group=group, label=l, value=t)
+else:
+    soln = f'{serial}_{idx}_soln.yaml'
+    with open(soln,'w') as f:
+        yaml.dump(dict(source=f'short.tex', serial=serial, answers=answers),f)
+\end{pycode}
+\py{instructions}
+\begin{pycode}
+print(r'\begin{enumerate}'+'\n')
+for iidx, qdict in enumerate(questions):
+    iidx_char = str(iidx+1) if first_ordinal == 1 else chr(ord(first_ordinal)+iidx)
+    qtext = qdict['Q']
+    answer = qdict['A']
+    explanation = qdict.get('text', '')
+    qtype = qdict.get('T', global_qtype)
+    match qtype:
+        case 'short_answer':
+            print(r'\item[' + iidx_char + '.] ' + qtext + '\n')
+            print(r'\ifshowsolutions\textcolor{blue}{' + str(answer).strip() + r'}' + '\n')
+            print(r'\textcolor{red}{'+explanation+r'}'+'\n')
+            print(r'\else\vspace{1.4cm}\fi'+'\n')
+        case 'multiple_choice':
+            print(r'\item['+iidx_char+r'.] '+qtext+'\n')
+            print(r'\begin{itemize}'+'\n')
+            for clabel, ctext in qdict['choices'].items():
+                print(r'\mcchoiceitem{'+clabel+r'}{'+answer+r'} '+str(ctext)+'\n')
+            print(r'\end{itemize}'+'\n')
+            print(r'\ifshowsolutions\textcolor{red}{'+explanation+r'}\fi'+'\n')
+        case 'true_false':
+            print(r'\tfitem{'+iidx_char+r'}{'+answer+r'} '+qtext+'\n')
+            print(r'\ifshowsolutions\textcolor{red}{'+explanation+r'}\fi'+'\n')
+        case 'fill_in_the_blank':
+            qtext = qtext.replace('___', r'\fitanswerslot{'+str(answer).strip()+r'}')
+            print(r'\item[' + iidx_char + '.] ' + qtext + '\n')
+            print(r'\ifshowsolutions\textcolor{red}{'+explanation+r'}\fi'+'\n')
+
+print(r'\end{enumerate}'+'\n')
+if config.get('clearpage', False):
+    print(r'\clearpage'+'\n')
+\end{pycode}
+
