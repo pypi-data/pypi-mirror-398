@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.secatorManager.name }}
+  labels:
+    name: secator-manager
+spec:
+  automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+  containers:
+  - name: secator-manager
+    image: {{ .Values.secatorManager.image }}
+    securityContext:
+{{- toYaml .Values.secatorManager.securityContext | nindent 6 }}
+    resources: 
+{{- toYaml .Values.secatorManager.resources | nindent 6 }}
+    command: ["sleep"]
+    args: ["infinity"]
+    env:
+    - name: SECATOR_CELERY_BROKER_URL
+      value: "redis://{{ .Values.redis.name }}:{{ .Values.redis.port }}/0"
+    - name: SECATOR_CELERY_RESULT_BACKEND
+      value: "redis://{{ .Values.redis.name }}:{{ .Values.redis.port }}/0"
