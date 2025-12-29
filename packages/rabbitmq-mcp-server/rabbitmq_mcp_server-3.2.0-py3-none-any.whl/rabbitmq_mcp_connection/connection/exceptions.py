@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+"""
+Copyright (C) 2025 Luciano Guerche
+
+This file is part of rabbitmq-mcp-server.
+
+rabbitmq-mcp-server is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+rabbitmq-mcp-server is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with rabbitmq-mcp-server. If not, see <https://www.gnu.org/licenses/>.
+"""
+
+"""Exceções específicas para operações de conexão RabbitMQ."""
+
+
+class ConnectionError(RuntimeError):
+    """Erro base para falhas relacionadas à conexão AMQP."""
+
+
+class ConnectionTimeoutError(ConnectionError):
+    """Falha por exceder o tempo limite durante o estabelecimento da conexão."""
+
+
+class AuthenticationError(ConnectionError):
+    """Falha de autenticação com RabbitMQ."""
+
+
+class VHostNotFoundError(ConnectionError):
+    """Virtual host especificado não existe ou não pode ser acessado."""
+
+
+class PoolError(RuntimeError):
+    """Erro genérico para operações do pool de conexões."""
+
+
+class PoolTimeoutError(PoolError):
+    """Timeout aguardando uma conexão disponível no pool."""
