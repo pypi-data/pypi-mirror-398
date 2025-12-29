@@ -1,0 +1,517 @@
+use std::rc::Rc;
+
+#[cfg(not(target_arch = "wasm32"))]
+use crate::server::Server;
+#[cfg(target_arch = "wasm32")]
+use crate::server::Server;
+use crate::server::configuration::RequestMethod;
+use crate::server::lsp::CanceledError;
+use crate::server::lsp::QLeverException;
+use crate::server::lsp::SparqlEngine;
+use crate::sparql::results::SparqlResult;
+#[cfg(not(target_arch = "wasm32"))]
+use futures::lock::Mutex;
+#[cfg(target_arch = "wasm32")]
+use futures::lock::Mutex;
+#[cfg(target_arch = "wasm32")]
+use lazy_sparql_result_reader::parser::PartialResult;
+use serde::{Deserialize, Serialize};
+use urlencoding::encode;
+use wasm_bindgen::JsValue;
+use web_sys::AbortController;
+
+/// Everything that can go wrong when sending a SPARQL request
+/// - `Timeout`: The request took to long
+/// - `Connection`: The Http connection could not be established
+/// - `Response`: The responst had a non 200 status code
+/// - `Deserialization`: The response could not be deserialized
+#[derive(Debug)]
+pub(super) enum SparqlRequestError {
+    Timeout,
+    Connection(ConnectionError),
+    Response(String),
+    Deserialization(String),
+    QLeverException(QLeverException),
+    Canceled(CanceledError),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionError {
+    pub query: String,
+    pub status_text: String,
+}
+
+#[derive(Debug)]
+pub struct Window {
+    window_size: u32,
+    window_offset: u32,
+}
+
+impl Window {
+    pub fn new(window_size: u32, window_offset: u32) -> Self {
+        Self {
+            window_size,
+            window_offset,
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn rewrite(&self, query: &str) -> Option<String> {
+        use ll_sparql_parser::{
+            ast::{AstNode, QueryUnit},
+            parse_query,
+        };
+
+        let syntax_tree = QueryUnit::cast(parse_query(query))?;
+        let select_query = syntax_tree.select_query()?;
+        Some(format!(
+            "{}{}{}",
+            &query[0..select_query.syntax().text_range().start().into()],
+            format!(
+                "SELECT * WHERE {{\n{}\n}}\nLIMIT {}\nOFFSET {}",
+                select_query.text(),
+                self.window_size,
+                self.window_offset
+            ),
+            &query[select_query.syntax().text_range().end().into()..]
+        ))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) async fn execute_query(
+    _server_rc: Rc<Mutex<Server>>,
+    url: &str,
+    query: &str,
+    _query_id: Option<&str>,
+    _engine: Option<SparqlEngine>,
+    timeout_ms: Option<u32>,
+    method: RequestMethod,
+    window: Option<Window>,
+    lazy: bool,
+) -> Result<Option<SparqlResult>, SparqlRequestError> {
+    if lazy {
+        log::warn!("Lazy Query execution is not implemented for non wasm targets");
+    }
+    use reqwest::Client;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    let query = window
+        .and_then(|window| window.rewrite(query))
+        .unwrap_or(query.to_string());
+
+    let request = match method {
+        RequestMethod::GET => Client::new()
+            .get(format!("{}?query={}", url, encode(&query)))
+            .header(
+                "Content-Type",
+                "application/x-www-form-urlencoded;charset=UTF-8",
+            )
+            .header("Accept", "application/sparql-results+json")
+            .header("User-Agent", "qlue-ls/1.0")
+            .send(),
+        RequestMethod::POST => Client::new()
+            .post(url)
+            .header(
+                "Content-Type",
+                "application/x-www-form-urlencoded;charset=UTF-8",
+            )
+            .header("Accept", "application/sparql-results+json")
+            .header("User-Agent", "qlue-ls/1.0")
+            .form(&[("query", &query)])
+            .send(),
+    };
+
+    // FIXME: Proper timout / cancel solution for native target
+    let duration = Duration::from_millis(timeout_ms.unwrap_or(5000) as u64);
+    let request = timeout(duration, request);
+
+    let response = request
+        .await
+        .map_err(|_| SparqlRequestError::Timeout)?
+        .map_err(|err| {
+            SparqlRequestError::Connection(ConnectionError {
+                status_text: err.to_string(),
+                query,
+            })
+        })?
+        .error_for_status()
+        .map_err(|err| {
+            log::debug!("Error: {:?}", err.status());
+            SparqlRequestError::Response("failed".to_string())
+        })?;
+
+    let result = response
+        .json::<SparqlResult>()
+        .await
+        .map_err(|err| SparqlRequestError::Deserialization(err.to_string()))?;
+    Ok(Some(result))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) async fn check_server_availability(url: &str) -> bool {
+    use reqwest::Client;
+    let response = Client::new().get(url).send();
+    response.await.is_ok_and(|res| res.status() == 200)
+    // let opts = RequestInit::new();
+    // opts.set_method("GET");
+    // opts.set_mode(RequestMode::Cors);
+    // let request = Request::new_with_str_and_init(url, &opts).expect("Failed to create request");
+    // let resp_value = match JsFuture::from(worker_global.fetch_with_request(&request)).await {
+    //     Ok(resp) => resp,
+    //     Err(_) => return false,
+    // };
+    // let resp: Response = resp_value.dyn_into().unwrap();
+    // resp.ok()
+}
+
+pub(crate) async fn execute_construct_query(
+    server_rc: Rc<Mutex<Server>>,
+    url: &str,
+    query: &str,
+    query_id: Option<&str>,
+    engine: Option<SparqlEngine>,
+) -> Result<Option<SparqlResult>, SparqlRequestError> {
+    use js_sys::JsString;
+    use std::str::FromStr;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::{Request, RequestInit, Response, WorkerGlobalScope};
+
+    use lazy_sparql_result_reader::parser::PartialResult;
+
+    let opts = RequestInit::new();
+
+    let request = match engine {
+        Some(SparqlEngine::QLever) => {
+            opts.set_method("POST");
+            let body = format!("send=100&query={}", js_sys::encode_uri_component(query));
+            opts.set_body(&JsString::from_str(&body).unwrap());
+            let request = Request::new_with_str_and_init(url, &opts).unwrap();
+            request
+                .headers()
+                .set("Content-Type", "application/x-www-form-urlencoded")
+                .unwrap();
+            if let Some(id) = query_id {
+                request.headers().set("Query-Id", id).unwrap();
+            }
+            request
+        }
+        _ => {
+            opts.set_method("POST");
+            opts.set_body(&JsString::from_str(query).unwrap());
+            let request = Request::new_with_str_and_init(url, &opts).unwrap();
+            request
+                .headers()
+                .set("Content-Type", "application/sparql-query")
+                .unwrap();
+            request
+        }
+    };
+    request
+        .headers()
+        .set("Accept", "application/sparql-results+json")
+        .unwrap();
+
+    // Get global worker scope
+    let worker_global: WorkerGlobalScope = js_sys::global().unchecked_into();
+
+    // Perform the fetch request and await the response
+    let resp_value = JsFuture::from(worker_global.fetch_with_request(&request))
+        .await
+        .map_err(|err| {
+            log::error!("error: {err:?}");
+            SparqlRequestError::Connection(ConnectionError {
+                status_text: format!("{err:?}"),
+                query: query.to_string(),
+            })
+        })?;
+
+    // Cast the response value to a Response object
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    // Check if the response status is OK (200-299)
+    if !resp.ok() {
+        return match resp.json() {
+            Ok(json) => match JsFuture::from(json).await {
+                Ok(js_value) => match serde_wasm_bindgen::from_value(js_value) {
+                    Ok(err) => Err(SparqlRequestError::QLeverException(err)),
+                    Err(err) => Err(SparqlRequestError::Deserialization(format!(
+                        "Could not deserialize error message: {}",
+                        err
+                    ))),
+                },
+                Err(err) => Err(SparqlRequestError::Deserialization(format!(
+                    "Query failed! Response did not provide a json body but this could not be cast to rust JsValue.\n{:?}",
+                    err
+                ))),
+            },
+            Err(err) => Err(SparqlRequestError::Deserialization(format!(
+                "Query failed! Response did not provide a json body.\n{err:?}"
+            ))),
+        };
+    }
+    // Get the response body as text and await it
+    let text = JsFuture::from(resp.text().map_err(|err| {
+        SparqlRequestError::Response(format!("Response has no text:\n{:?}", err))
+    })?)
+    .await
+    .map_err(|err| {
+        SparqlRequestError::Response(format!("Could not read Response text:\n{:?}", err))
+    })?
+    .as_string()
+    .unwrap();
+    log::info!("{}", text);
+    // Return the text as a JsValue
+    let result = serde_json::from_str(&text)
+        .map_err(|err| SparqlRequestError::Deserialization(err.to_string()))?;
+    Ok(Some(result))
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) async fn execute_query(
+    server_rc: Rc<Mutex<Server>>,
+    url: &str,
+    query: &str,
+    query_id: Option<&str>,
+    engine: Option<SparqlEngine>,
+    timeout_ms: Option<u32>,
+    method: RequestMethod,
+    _window: Option<Window>,
+    lazy: bool,
+) -> Result<Option<SparqlResult>, SparqlRequestError> {
+    use js_sys::JsString;
+    use std::str::FromStr;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::{AbortSignal, Request, RequestInit, Response, WorkerGlobalScope};
+
+    use lazy_sparql_result_reader::parser::PartialResult;
+
+    let opts = RequestInit::new();
+    if let Some(timeout_ms) = timeout_ms {
+        opts.set_signal(Some(&AbortSignal::timeout_with_u32(timeout_ms)));
+    } else if let Some(query_id) = query_id {
+        let controller = AbortController::new().expect("AbortController should be creatable");
+
+        opts.set_signal(Some(&controller.signal()));
+        server_rc.lock().await.state.add_running_request(
+            query_id.to_string(),
+            Box::new(move || {
+                controller.abort_with_reason(&JsValue::from_str("Query was canceled"));
+            }),
+        );
+    }
+
+    let request = match (&method, engine) {
+        (RequestMethod::GET, _) => {
+            opts.set_method("GET");
+            Request::new_with_str_and_init(&format!("{url}?query={}", encode(query)), &opts)
+                .unwrap()
+        }
+        (RequestMethod::POST, Some(SparqlEngine::QLever)) => {
+            opts.set_method("POST");
+            // FIXME: Here the send limit is hardcoded to 10000
+            // this is due to the internal batching of QLever
+            // A lower send limit causes QLever not imediatly sending the result.
+            let body = format!("send=10000&query={}", js_sys::encode_uri_component(query));
+            opts.set_body(&JsString::from_str(&body).unwrap());
+            let request = Request::new_with_str_and_init(url, &opts).unwrap();
+            request
+                .headers()
+                .set("Content-Type", "application/x-www-form-urlencoded")
+                .unwrap();
+            if let Some(id) = query_id {
+                request.headers().set("Query-Id", id).unwrap();
+            }
+            request
+        }
+        (RequestMethod::POST, _) => {
+            opts.set_method("POST");
+            opts.set_body(&JsString::from_str(query).unwrap());
+            let request = Request::new_with_str_and_init(url, &opts).unwrap();
+            request
+                .headers()
+                .set("Content-Type", "application/sparql-query")
+                .unwrap();
+            request
+        }
+    };
+    request
+        .headers()
+        .set("Accept", "application/sparql-results+json")
+        .unwrap();
+
+    // Currently blocked by CORS...
+    // request.headers().set("User-Agent", "qlue-ls/1.0").unwrap();
+
+    // Get global worker scope
+    let worker_global: WorkerGlobalScope = js_sys::global().unchecked_into();
+
+    // Perform the fetch request and await the response
+    let resp_value = JsFuture::from(worker_global.fetch_with_request(&request))
+        .await
+        .map_err(|err| {
+            log::error!("error: {err:?}");
+            let was_canceled = err
+                .dyn_ref::<web_sys::DomException>()
+                .map(|e| e.name() == "AbortError")
+                .unwrap_or(false);
+            if was_canceled {
+                SparqlRequestError::Canceled(CanceledError {
+                    query: query.to_string(),
+                })
+            } else {
+                SparqlRequestError::Connection(ConnectionError {
+                    status_text: format!("{err:?}"),
+                    query: query.to_string(),
+                })
+            }
+        })?;
+
+    // Cast the response value to a Response object
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    // Check if the response status is OK (200-299)
+    if !resp.ok() {
+        return match resp.json() {
+            Ok(json) => match JsFuture::from(json).await {
+                Ok(js_value) => match serde_wasm_bindgen::from_value(js_value) {
+                    Ok(err) => Err(SparqlRequestError::QLeverException(err)),
+                    Err(err) => Err(SparqlRequestError::Deserialization(format!(
+                        "Could not deserialize error message: {}",
+                        err
+                    ))),
+                },
+                Err(err) => Err(SparqlRequestError::Deserialization(format!(
+                    "Query failed! Response did not provide a json body but this could not be cast to rust JsValue.\n{:?}",
+                    err
+                ))),
+            },
+            Err(err) => Err(SparqlRequestError::Deserialization(format!(
+                "Query failed! Response did not provide a json body.\n{err:?}"
+            ))),
+        };
+    }
+    if lazy {
+        if let Err(err) = lazy_sparql_result_reader::read(
+            resp.body().unwrap(),
+            100,
+            Some(100),
+            0,
+            async |mut partial_result: PartialResult| {
+                use crate::server::lsp::PartialSparqlResultNotification;
+                let server = server_rc.lock().await;
+                compress_result_uris(&*server, &mut partial_result);
+                if let Err(err) =
+                    server.send_message(PartialSparqlResultNotification::new(partial_result))
+                {
+                    log::error!(
+                        "Could not send Partial-Sparql-Result-Notification:\n{:?}",
+                        err
+                    );
+                }
+            },
+        )
+        .await
+        {
+            log::error!("An error occured while reading sparql results:\n{err:?}");
+            Err(SparqlRequestError::Deserialization(format!("{err:?}")))
+        } else {
+            Ok(None)
+        }
+    } else {
+        // Get the response body as text and await it
+        let text = JsFuture::from(resp.text().map_err(|err| {
+            SparqlRequestError::Response(format!("Response has no text:\n{:?}", err))
+        })?)
+        .await
+        .map_err(|err| {
+            SparqlRequestError::Response(format!("Could not read Response text:\n{:?}", err))
+        })?
+        .as_string()
+        .unwrap();
+        // Return the text as a JsValue
+        let result = serde_json::from_str(&text)
+            .map_err(|err| SparqlRequestError::Deserialization(err.to_string()))?;
+        Ok(Some(result))
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn compress_result_uris(server: &Server, partial_result: &mut PartialResult) {
+    use lazy_sparql_result_reader::sparql::RDFValue;
+    if let PartialResult::Bindings(bindings) = partial_result {
+        for binding in bindings.iter_mut() {
+            for (_, rdf_term) in binding.0.iter_mut() {
+                if let RDFValue::Uri { value, curie } = rdf_term {
+                    *curie = server
+                        .state
+                        .get_default_converter()
+                        .and_then(|converer| converer.compress(value).ok());
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) async fn check_server_availability(url: &str) -> bool {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::{Request, RequestInit, RequestMode, Response, WorkerGlobalScope};
+
+    let worker_global: WorkerGlobalScope = js_sys::global().unchecked_into();
+    let opts = RequestInit::new();
+    opts.set_method("GET");
+    opts.set_mode(RequestMode::Cors);
+    let request = Request::new_with_str_and_init(url, &opts).expect("Failed to create request");
+    let resp_value = match JsFuture::from(worker_global.fetch_with_request(&request)).await {
+        Ok(resp) => resp,
+        Err(_) => return false,
+    };
+    let resp: Response = resp_value.dyn_into().unwrap();
+    resp.ok()
+}
+
+#[cfg(test)]
+mod test {
+    use indoc::indoc;
+
+    use crate::server::sparql_operations::Window;
+
+    #[test]
+    fn window_rewrite_query() {
+        let window = Window {
+            window_size: 100,
+            window_offset: 20,
+        };
+        let query = indoc! {
+            "Prefix ab: <ab>
+             Select * WHERE {
+               ?a ?b ?c
+             }
+             Limit 1000
+             VALUES ?x {42}
+            "
+        };
+        assert_eq!(
+            window.rewrite(&query).expect("Should add request window"),
+            indoc! {
+            "Prefix ab: <ab>
+             SELECT * WHERE {
+             Select * WHERE {
+               ?a ?b ?c
+             }
+             Limit 1000
+             }
+             LIMIT 100
+             OFFSET 20
+             VALUES ?x {42}
+            "
+            }
+        );
+    }
+}
