@@ -1,0 +1,96 @@
+from io import BytesIO
+import os
+from pathlib import Path
+import time
+import cv2
+import fitz
+from fitz import Document,Page
+import numpy as np
+os.environ["PPSTRUCTURE_HOME"] = "./model"
+os.environ["FLAGS_allocator_strategy"] = "auto_growth"  # 关键！必须在 import paddle 前设置
+
+# 可选：限制最大显存（单位 MB）
+os.environ["FLAGS_fraction_of_gpu_memory_to_use"] = "0.7"  # 最多用 50% 显存
+from paddleocr import PPStructureV3
+import logging
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+#DISABLE_MODEL_SOURCE_CHECK` to `True`
+def is_integer(s: str) -> bool:
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+def extract_pdf(file_input:bytes,device:str="cpu",layout_dpi:int=120,crop_dpi:int=300):
+    """
+    Extract text from PDF file
+    parameters:
+    file_input: bytes file to extract
+    device: str 'cpu' or 'gpu'
+    layout_dpi: int default 120 dpi too big will cause OOM
+    crop_dpi: int default 300 dpi,
+    return: dict
+    """
+    mission_begin = time.perf_counter()
+    pipeline = PPStructureV3(
+        lang="ch",#en
+        #use_doc_orientation_classify=True,#通过 use_doc_orientation_classify 指定是否使用文档方向分类模型
+        use_doc_unwarping=False, # 通过 use_doc_unwarping 指定是否使用文本图像矫正模块
+        use_textline_orientation=True, # 通过 use_textline_orientation 指定是否使用文本行方向分类模型
+        device=device,
+    )
+    doc: Document = fitz.open(stream=BytesIO(file_input))
+    all_markdown = ""
+    final_result = {}
+    index = 1
+
+    for page_index, page in enumerate(doc):
+        begin = time.perf_counter()
+        page: Page = page
+        pix_layout = page.get_pixmap(dpi=layout_dpi)
+        img = np.frombuffer(pix_layout.samples, dtype=np.uint8).reshape(pix_layout.h, pix_layout.w, pix_layout.n).copy()
+        crop_img = None
+        if pix_layout.n == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        try:
+            scale = crop_dpi/layout_dpi
+            crop_width = int(pix_layout.width *scale)
+            crop_height = int(pix_layout.height *scale)
+            result = pipeline.predict(img)
+            if len(result)>0:
+                final_result[index] = {}
+            latex = result[0].latex
+            for lat in latex["images"]:
+                from PIL import Image
+                save_path = "./"+lat["path"]
+                box = [int(str) for str in lat["path"].replace('.','_').split('_') if is_integer(str)]
+                box = [int(val *(300/120)) for val in box]
+                box = [box[0]-15 if box[0]>15 else 0,
+                       box[1]-15 if box[1]>15 else 0,
+                       box[2]+15 if box[2]+15 <crop_width else crop_width,
+                       box[3]+15 if box[3]+15 <crop_height else crop_height]
+                if crop_img is None:
+                    crop_layout = page.get_pixmap(dpi=300)
+                    crop_img = np.frombuffer(crop_layout.samples, dtype=np.uint8).reshape(crop_layout.h, crop_layout.w, crop_layout.n).copy()
+                    if pix_layout.n == 4:
+                        crop_img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                corp_figure = Image.fromarray(crop_img[box[1]:box[3], box[0]:box[2]])
+
+                path = os.path.basename(lat["path"])
+                # lat["img"].save(save_path)
+                # corp_figure.save(save_path)
+                if "images" not in final_result[index]:
+                    final_result[index]["images"] = []
+                final_result[index]["images"].append({"path": path,"img": corp_figure})
+            final_result[index]["markdown"] = result[0].markdown["markdown_texts"]
+            all_markdown += result[0].markdown["markdown_texts"]
+            all_markdown += f"\n----------{index}----------\n\n"
+        except Exception as e:
+            logging.exception(f"extract page{index} failed",e)
+        index += 1
+        logging.debug(f"Page {index} done in {time.perf_counter() - begin}s")
+    # if all_markdown is not None:
+    #     with open("./tests/esp32_datasheet_en.md", "w",encoding="utf-8") as f:
+    #         f.write(all_markdown)
+    logging.debug(f"Total time: {time.perf_counter() - mission_begin}s")
+    return final_result
