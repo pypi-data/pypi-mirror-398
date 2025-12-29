@@ -1,0 +1,239 @@
+Metadata-Version: 2.4
+Name: analysis3054
+Version: 0.3.23
+Summary: Advanced time-series analytics and forecasting toolkit for commodity and power trading
+Author-email: Hoff <you@example.com>
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas>=2.3.3
+Requires-Dist: numpy>=2.4.0
+Requires-Dist: pycountry>=24.6.1
+Requires-Dist: plotly>=6.5.0
+Requires-Dist: statsmodels>=0.14.6
+Requires-Dist: scipy>=1.16.3
+Requires-Dist: holidays>=0.87
+Requires-Dist: chronos-forecasting==2.2.2
+Requires-Dist: autogluon.timeseries==1.5.0
+Requires-Dist: requests>=2.32.5
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: playwright>=1.57.0
+Requires-Dist: beautifulsoup4>=4.12.3
+Requires-Dist: pdfplumber>=0.11.8
+Provides-Extra: stats
+Requires-Dist: pmdarima>=2.1.1; extra == "stats"
+Requires-Dist: arch>=8.0.0; extra == "stats"
+Provides-Extra: ml
+Requires-Dist: scikit-learn>=1.8.0; extra == "ml"
+Requires-Dist: xgboost>=3.1.2; extra == "ml"
+Requires-Dist: lightgbm>=4.6.0; extra == "ml"
+Requires-Dist: catboost>=1.2.8; extra == "ml"
+Provides-Extra: dl
+Requires-Dist: tensorflow>=2.20.0; extra == "dl"
+Provides-Extra: prophet
+Requires-Dist: prophet>=1.2.1; extra == "prophet"
+Requires-Dist: neuralprophet>=0.8.0; extra == "prophet"
+Provides-Extra: physics
+Requires-Dist: torch>=2.9.1; extra == "physics"
+Requires-Dist: torchdiffeq>=0.2.5; extra == "physics"
+Requires-Dist: PyWavelets>=1.9.0; extra == "physics"
+Provides-Extra: tbats
+Requires-Dist: tbats>=1.1.3; extra == "tbats"
+Provides-Extra: autogluon
+Requires-Dist: autogluon==1.5.0; extra == "autogluon"
+Provides-Extra: plot
+Requires-Dist: plotly>=6.5.0; extra == "plot"
+Provides-Extra: ocr
+Requires-Dist: pytesseract>=0.3.13; extra == "ocr"
+Requires-Dist: pypdfium2>=4.30.0; extra == "ocr"
+Provides-Extra: all
+Requires-Dist: analysis3054[autogluon,dl,ml,ocr,physics,plot,prophet,stats,tbats]; extra == "all"
+Dynamic: license-file
+
+# Analysis3054
+
+Analysis3054 is a unified analytics and forecasting toolkit for energy, commodities, and demand planning. The goal is to make advanced forecasting, diagnostics, and data acquisition feel like one cohesive workflow. A key example is `LA_refinery`, which automates Louisiana DNR SONRIS refinery activity downloads and returns a clean pandas DataFrame so analysts can get reliable refinery data without manual portal work.
+
+## Key capabilities
+- LA DNR refinery scraping via `LA_refinery` (Playwright-backed).
+- Classical stats, ML, DL, and foundation-model forecasting (Chronos-2, TimesFM, Chronos Bolt).
+- Intraday burn forecasting with covariates and quantile intervals.
+- Fast API ingestion with async HTTP/2, retries, and background execution.
+- Holiday calendars and market-holiday lookups for energy and finance workflows.
+- Plotly-based visualization for forecasts, bands, and diagnostics.
+
+## Installation
+
+```bash
+pip install analysis3054
+```
+
+Optional extras:
+
+```bash
+pip install "analysis3054[stats]"    # pmdarima + arch
+pip install "analysis3054[ml]"       # scikit-learn + boosted trees
+pip install "analysis3054[dl]"       # tensorflow
+pip install "analysis3054[prophet]"  # prophet + neuralprophet
+pip install "analysis3054[tbats]"    # tbats
+pip install "analysis3054[physics]"  # torch + torchdiffeq + PyWavelets
+pip install "analysis3054[autogluon]"# AutoGluon
+pip install "analysis3054[test]"     # pytest + pytest-anyio
+pip install "analysis3054[all]"      # everything
+```
+
+Playwright (required for `LA_refinery`):
+
+```bash
+pip install playwright
+playwright install
+```
+
+## Quickstart (LA_refinery)
+
+```python
+from analysis3054 import LA_refinery
+
+# Scrape Louisiana DNR SONRIS refinery activity
+# Requires: pip install playwright && playwright install
+
+df = LA_refinery(start_date="01-JAN-2018")
+print(df.head())
+```
+
+## Additional examples
+
+### Forecasting engine
+```python
+import pandas as pd
+from analysis3054 import build_default_engine
+
+engine = build_default_engine()
+res = engine.forecast(
+    df=dataframe,
+    date_col="date",
+    target_cols=["demand"],
+    horizon=14,
+    model="harmonic",
+)
+print(res.forecasts.tail())
+```
+
+### API ingestion
+```python
+from analysis3054 import fetch_apis_to_dataframe
+
+endpoints = [
+    "https://api.example.com/v1/events",
+    {"url": "https://api.example.com/v1/users", "params": {"page": 1}},
+]
+
+frame = fetch_apis_to_dataframe(
+    endpoints,
+    max_workers=16,
+    sort_by="timestamp",
+    transform=lambda df: df.assign(volume_pct=df["volume"] / df["volume"].sum()),
+)
+print(frame.head())
+```
+
+## Public API reference (functions and classes)
+
+### Core plotting
+- `five_year_plot` (EIA-style 5-year band plot)
+- `forecast_plot`, `cumulative_return_plot`, `max_drawdown`, `acf_pacf_plot`
+
+### Data utilities (`analysis3054.utils`)
+- `conditional_column_merge`, `conditional_row_merge`, `nearest_key_merge`, `coalesce_merge`
+- `rolling_fill`, `add_time_features`, `resample_time_series`, `winsorize_columns`
+- `add_lag_features`, `scale_columns`, `rolling_window_features`
+- `data_quality_report`, `df_split`, `get_padd`
+- `ensure_env_variables`, `configure_snowflake_connector`, `EnvVariableRequest`
+
+### Forecast engine
+- `ForecastEngine`, `EngineForecastResult`, `build_default_engine`
+
+### Auto-ML forecasting (`analysis3054.auto_ml_forecasting`)
+- `auto_generate_features`, `FeatureEngineeringResult`, `MLForecastResult`
+- `chronos2_auto_covariate_forecast`
+- `gradient_boosting_covariate_forecast`, `random_forest_covariate_forecast`, `ridge_covariate_forecast`
+- `elastic_net_covariate_forecast`, `bayesian_ridge_covariate_forecast`, `huber_covariate_forecast`
+- `pls_covariate_forecast`, `fourier_ridge_seasonal_forecast`, `hist_gradient_direct_forecast`
+- `svr_high_frequency_forecast`, `xgboost_covariate_forecast`, `lightgbm_covariate_forecast`
+- `catboost_covariate_forecast`, `stacked_meta_ensemble_forecast`
+
+### Forecasting (classical + advanced)
+- Statistical: `arima_forecast`, `auto_arima_forecast`, `ets_forecast`, `var_forecast`, `vecm_forecast`
+- Regime/structural: `markov_switching_forecast`, `unobserved_components_forecast`, `dynamic_factor_forecast`
+- Volatility: `garch_forecast`
+- Seasonal/other: `theta_forecast`, `sarimax_forecast`
+- ML/DL: `lstm_forecast`, `tcn_forecast`, `transformer_forecast`
+- Boosted/trees: `xgboost_forecast`, `lightgbm_forecast`, `catboost_forecast`, `knn_forecast`
+- Others: `bats_forecast`, `neuralprophet_forecast`, `elastic_net_forecast`, `svr_forecast`
+- Hybrids: `stl_fourier_kalman_forecast`, `regime_switching_forecast`, `quantile_projection_forecast`,
+  `wavelet_multiresolution_forecast`, `latent_factor_state_forecast`
+- Blends: `adaptive_forecast`, `dynamic_forecast_blend`, `auto_error_correcting_forecast`,
+  `forecasting_playbook_examples`
+
+### Chronos-2 / Chronos Bolt / TimesFM
+- `chronos2_forecast`, `chronos2_univariate_forecast`, `chronos2_multivariate_forecast`,
+  `chronos2_covariate_forecast`, `chronos2_weekly_implied_demand`, `chronos2_feature_generator`
+- `chronos2_quantile_forecast`, `chronos2_anomaly_detection`, `chronos2_impute_missing`
+- `chronos_bolt_forecast`, `chronos_bolt_backtest`, `chronos_bolt_hyperparam_search`,
+  `chronos_bolt_multi_target_forecast`, `chronos_bolt_quantile_forecast`,
+  `chronos_bolt_anomaly_detection`, `chronos_bolt_impute_missing`
+- `timesfm_forecast`
+
+### Intraday burn forecasting
+- `intraday_load_burn_forecast`, `forecast_distillate_burn`, `intraday_gp_forecast`
+- `intraday_sarimax_forecast`, `intraday_quantile_regression_forecast`
+- `forecast_major_burn_days`, `hierarchical_reconciled_burn_forecast`, `load_weather_interaction_forecast`
+- `hist_gradient_burn_forecast`
+
+### AutoGluon forecasting
+- `autogluon_tabular_burn_forecast`, `autogluon_tabular_burn_classifier`
+- `autogluon_timeseries_forecast`, `autogluon_timeseries_forecast_general`
+- `autogluon_chronos2_forecast`
+
+### Statistics and diagnostics
+- `hurst_exponent`, `dfa_exponent`, `rolling_sharpe_ratio`, `sample_entropy`, `higuchi_fractal_dimension`
+- `rolling_zscore`, `mann_kendall_test`, `bollinger_bands`, `stationarity_tests`
+- `trend_seasonality_strength`, `box_cox_transform`, `seasonal_adjust`
+- `cross_correlation_plot`, `partial_autocorrelation_plot`, `pca_decomposition`, `granger_causality_matrix`
+
+### Regression and ensembles
+- `ols_regression`, `rolling_correlation`, `cusum_olsresid_test`
+- `model_leaderboard`, `simple_ensemble`
+
+### Finance
+- `liquidity_adjusted_volatility`, `rolling_beta`
+
+### Physics-inspired forecasting
+- `multi_resolution_wavelet_decompose`
+- `ODEFunc`, `NeuralODEBlock`, `SobolevLoss`
+- `KoopmanSpectralDecomposer`, `rolling_hurst_router`
+- `plot_scalogram`, `plot_phase_portrait`, `plot_forecast_trajectory`
+
+### Calendars and holidays
+- `available_holiday_calendars`, `get_holidays`, `get_holidays_between`
+- `resolve_iso_code`, `get_market_code`, `is_holiday`, `is_financial_holiday`, `is_platts_holiday`
+
+### Data ingestion and communications
+- `fetch_apis_to_dataframe`
+- `send_email`, `EmailContent`
+- `InboxCleaner`, `ArchiveConfig`, `ConnectionConfig`, `KeywordRule`, `RetentionPolicy`, `InboxCleanReport`, `clean_inbox`
+
+### External data clients
+- `RefinedFuelsUSMDClient`, `request_access_token`
+- `LA_refinery`, `fetch_la_refinery_data`, `ScraperError`
+
+## Testing
+
+```bash
+pip install "analysis3054[test]"
+pytest -q
+```
+
+## License
+MIT
