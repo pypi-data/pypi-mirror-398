@@ -1,0 +1,148 @@
+[project]
+name = "nonebot-plugin-fortnite"
+version = "0.6.7"
+description = "堡垒之夜插件"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "fllesser", email = "fllessive@gmail.com" }]
+keywords = ["fortnite", "nonebot", "nonebot2"]
+dependencies = [
+  "pillow>=11.2.1",
+  "aiofiles>=25.1.0",
+  "httpx>=0.28.1,<1.0.0",
+  "nonebot2>=2.4.3,<3.0.0",
+  "fortnite-api[speed]>=3.3.0,<4.0.0",
+  "nonebot-plugin-alconna>=0.59.4,<1.0.0",
+  "nonebot-plugin-apscheduler>=0.5.0,<1.0.0",
+  "nonebot-plugin-htmlrender>=0.6.7",
+  "nonebot-plugin-localstore>=0.7.4,<1.0.0",
+  "nonebot-plugin-uninfo>=0.10.1,<1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/fllesser/nonebot-plugin-fortnite"
+Issues = "https://github.com/fllesser/nonebot-plugin-fortnite/issues"
+Repository = "https://github.com/fllesser/nonebot-plugin-fortnite.git"
+
+[dependency-groups]
+dev = [
+  "bump-my-version>=1.2.5",
+  "ruff>=0.14.10,<1.0.0",
+  "playwright==1.55.0",
+  "nonebot2[fastapi]>=2.4.4,<3.0.0",
+  "nonebot-adapter-onebot>=2.4.6,<3.0.0",
+  "nonebot-plugin-htmlrender==0.7.0a3",
+  { include-group = "test" },
+]
+test = [
+  "nonebug>=0.4.3,<1.0.0",
+  "pytest>=9.0.2,<10.0.0",
+  "poethepoet>=0.39.0",
+  "pytest-asyncio>=1.3.0,<1.4.0",
+  "pytest-cov>=7.0.0",
+  "pytest-xdist>=3.8.0,<4.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+nonebug = { git = "https://github.com/fllesser/nonebug" }
+
+[tool.bumpversion]
+tag = true
+commit = true
+current_version = "0.6.7"
+message = "release: bump vesion from {current_version} to {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "uv.lock"
+search = "name = \"nonebot-plugin-fortnite\"\nversion = \"{current_version}\""
+replace = "name = \"nonebot-plugin-fortnite\"\nversion = \"{new_version}\""
+
+[tool.coverage.report]
+show_missing = true # 相当于 --cov-report=term-missing:cite[1]
+exclude_lines = [
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@overload",
+  "except ImportError:",
+  "except Exception:",
+]
+
+[tool.nonebot]
+plugins = ["nonebot_plugin_fortnite"]
+
+[tool.poe.tasks]
+test-matcher = "pytest tests/test_matcher.py --cov=src --cov-report xml --junitxml=./junit.xml"
+test-screenshot = "pytest tests/test_screenshot.py --cov=src --cov-report xml --junitxml=./junit.xml -n auto"
+bump = "bump-my-version bump"
+show-bump = "bump-my-version show-bump"
+
+[tool.pyright]
+pythonVersion = "3.10"
+pythonPlatform = "All"
+defineConstant = { PYDANTIC_V2 = true }
+typeCheckingMode = "standard"
+disableBytesTypePromotions = true
+executionEnvironments = [
+  { root = "./tests", extraPaths = [
+    "./src",
+  ] },
+  { root = "./src" },
+]
+
+[tool.pytest]
+addopts = [
+  "-v",                    # 详细输出
+  "-s",                    # 显示打印信息
+  "-ra",                   # 显示所有测试结果摘要
+  "--tb=short",            # 简短的错误回溯
+  "--strict-markers",      # 严格标记模式
+  "--import-mode=prepend", # 导入模式
+]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+  "F",     # Pyflakes
+  "W",     # pycodestyle warnings
+  "E",     # pycodestyle errors
+  "I",     # isort
+  "Q",     # flake8-quotes
+  "UP",    # pyupgrade
+  "PT",    # flake8-pytest-style
+  "C4",    # flake8-comprehensions
+  "T10",   # flake8-debugger
+  "T20",   # flake8-print
+  "PYI",   # flake8-pyi
+  "TID",   # flake8-tidy-imports
+  "RUF",   # Ruff-specific rules
+  "ASYNC", # flake8-async
+]
+ignore = [
+  "E402",   # module-import-not-at-top-of-file
+  "UP037",  # quoted-annotation
+  "RUF001", # ambiguous-unicode-character-string
+  "RUF002", # ambiguous-unicode-character-docstring
+  "RUF003", # ambiguous-unicode-character-comment
+  "W191",   # indentation contains tabs
+]
+
+[tool.ruff.lint.isort]
+length-sort = true
+known-first-party = ["tests/*"]
+extra-standard-library = ["typing_extensions"]
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
