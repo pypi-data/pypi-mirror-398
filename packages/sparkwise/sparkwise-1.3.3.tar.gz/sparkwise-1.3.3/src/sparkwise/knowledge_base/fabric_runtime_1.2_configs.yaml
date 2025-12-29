@@ -1,0 +1,809 @@
+# Microsoft Fabric Runtime 1.2 Configuration Knowledge Base
+# These are the actual runtime configurations from Fabric Spark Runtime 1.2
+
+# ============================================================================
+# CRITICAL: Native Execution Engine (Velox/Gluten) Configurations
+# ============================================================================
+
+spark.native.enabled:
+  description: "FABRIC RUNTIME 1.2: Controls Native Execution Engine (Velox). In Runtime 1.2, this defaults to FALSE but should be enabled for 3-10x performance."
+  default: "false"
+  fabric_runtime_1.2: "false"
+  scope: "session-immutable"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - Enable for analytical queries without Python UDFs"
+    python_udfs: "false - Python UDFs force fallback to row-based execution"
+  why_this_default: "Defaults to false for backward compatibility with Python UDFs and unsupported operators. Enable explicitly for SQL-heavy workloads."
+  when_to_change: "Change to true for SQL/DataFrame operations without Python UDFs to get 3-10x speedup"
+  related:
+    - "spark.gluten.memory.offHeap.size.in.bytes"
+    - "spark.plugins"
+  examples:
+    - "spark.conf.set('spark.native.enabled', 'true')  # Enable Velox"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "velox"
+    - "critical"
+    - "performance"
+
+spark.gluten.memory.offHeap.size.in.bytes:
+  description: "Off-heap memory allocated for Velox Native Engine. Fabric Runtime 1.2 sets this to ~56GB for medium nodes."
+  default: "56824220876 (56GB)"
+  fabric_runtime_1.2: "56824220876"
+  scope: "session-immutable"
+  type: "long"
+  recommendations:
+    automatic: "Let Fabric auto-configure based on pool size"
+  why_this_default: "Calculated automatically based on executor memory: 56GB executor → ~56GB off-heap for Velox"
+  when_to_change: "Don't change - Fabric auto-tunes based on pool configuration"
+  related:
+    - "spark.native.enabled"
+    - "spark.gluten.memory.dynamic.offHeap.sizing.enabled"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "velox"
+    - "memory"
+
+spark.gluten.memory.dynamic.offHeap.sizing.enabled:
+  description: "Enables dynamic off-heap memory sizing for Velox based on workload"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - allows Velox to adapt memory usage"
+  why_this_default: "Enables Velox to dynamically adjust memory allocation based on query complexity"
+  when_to_change: "Keep as true unless experiencing memory issues"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "velox"
+    - "memory"
+
+spark.gluten.numTaskSlotsPerExecutor:
+  description: "Number of concurrent task slots per executor for Velox execution"
+  default: "8"
+  fabric_runtime_1.2: "8"
+  scope: "session-immutable"
+  type: "int"
+  recommendations:
+    automatic: "Matches spark.executor.cores - don't change"
+  why_this_default: "Set to match executor cores (8) for optimal parallelism"
+  when_to_change: "Don't change - auto-configured by Fabric"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "velox"
+    - "parallelism"
+
+spark.gluten.sql.columnar.backend.velox.IOThreads:
+  description: "Number of I/O threads for Velox native engine file operations"
+  default: "64"
+  fabric_runtime_1.2: "64"
+  scope: "session"
+  type: "int"
+  recommendations:
+    all_workloads: "64 - good default for OneLake I/O"
+  why_this_default: "Tuned for OneLake parallel I/O on Fabric infrastructure"
+  when_to_change: "Rarely - only if I/O bottlenecks detected"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "velox"
+    - "io"
+
+# ============================================================================
+# Fabric Resource Profiles - Workload Optimization Presets
+# ============================================================================
+
+spark.fabric.resourceProfile.default:
+  description: "FABRIC CRITICAL: Default resource profile with V-Order enabled and 1GB optimize write binning"
+  default: '{ "spark.sql.parquet.vorder.default": "true", "spark.databricks.delta.optimizeWrite.enabled": "true", "spark.databricks.delta.optimizeWrite.binSize": "1g" }'
+  fabric_runtime_1.2: "V-Order ON, OptimizeWrite ON, 1GB bins"
+  scope: "cluster"
+  type: "json"
+  recommendations:
+    balanced_workloads: "Use default profile for mixed read/write"
+  why_this_default: "Optimized for Power BI Direct Lake (V-Order) + write performance (1GB files)"
+  when_to_change: "Use specialized profiles for read-heavy or write-heavy workloads"
+  related:
+    - "spark.fabric.resourceProfile.readHeavyForPBI"
+    - "spark.fabric.resourceProfile.writeHeavy"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "resource-profile"
+    - "critical"
+
+spark.fabric.resourceProfile.readHeavyForPBI:
+  description: "Resource profile optimized for Power BI read-heavy workloads with V-Order"
+  default: '{ "spark.sql.parquet.vorder.default": "true", "spark.databricks.delta.optimizeWrite.enabled": "true", "spark.databricks.delta.optimizeWrite.binSize": "1g" }'
+  fabric_runtime_1.2: "Same as default - V-Order ON, 1GB bins"
+  scope: "cluster"
+  type: "json"
+  recommendations:
+    power_bi: "Use when primary consumer is Power BI Direct Lake"
+  why_this_default: "V-Order provides 3-10x faster reads in Power BI"
+  when_to_change: "Switch to readHeavyForSpark if using Spark (not PBI) for reads"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "power-bi"
+    - "resource-profile"
+
+spark.fabric.resourceProfile.readHeavyForSpark:
+  description: "Resource profile optimized for Spark read-heavy workloads (V-Order OFF)"
+  default: '{ "spark.databricks.delta.optimizeWrite.enabled": "true", "spark.databricks.delta.optimizeWrite.partitioned.enabled": "true", "spark.databricks.delta.optimizeWrite.binSize": "128" }'
+  fabric_runtime_1.2: "V-Order OFF, 128MB bins, partitioned optimize"
+  scope: "cluster"
+  type: "json"
+  recommendations:
+    spark_analytics: "Use when Spark (not PBI) reads data frequently"
+  why_this_default: "V-Order adds write overhead - disable if PBI not used. Smaller 128MB files better for Spark reads."
+  when_to_change: "Use when Power BI is not the primary consumer"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "resource-profile"
+
+spark.fabric.resourceProfile.writeHeavy:
+  description: "Resource profile optimized for write-heavy workloads (V-Order OFF, small files)"
+  default: '{ "spark.sql.parquet.vorder.default": "false", "spark.databricks.delta.optimizeWrite.binSize": "128", "spark.databricks.delta.optimizeWrite.partitioned.enabled": "true" }'
+  fabric_runtime_1.2: "V-Order OFF, 128MB bins, partitioned optimize"
+  scope: "cluster"
+  type: "json"
+  recommendations:
+    etl_pipelines: "Use for frequent writes with minimal reads"
+  why_this_default: "V-Order adds ~20% write overhead - disable for write-heavy ETL"
+  when_to_change: "Use when write throughput is critical and reads are rare"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "resource-profile"
+    - "etl"
+
+# ============================================================================
+# Delta Lake Optimizations - Fabric Runtime 1.2 Defaults
+# ============================================================================
+
+spark.databricks.delta.optimizeWrite.binSize:
+  description: "Target file size for Optimize Write - Runtime 1.2 defaults to 1GB (vs 128MB OSS)"
+  default: "1g"
+  fabric_runtime_1.2: "1g (1073741824 bytes)"
+  scope: "session"
+  type: "string"
+  recommendations:
+    large_tables: "1g - good for large Fabric tables"
+    partitioned_tables: "128m - better for highly partitioned tables"
+  why_this_default: "1GB files optimal for OneLake + Power BI + minimize file count overhead"
+  when_to_change: "Reduce to 128MB for highly partitioned tables to avoid write amplification"
+  related:
+    - "spark.databricks.delta.optimizeWrite.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.optimizeWrite.binSize', '128m')  # For partitioned tables"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "delta"
+    - "optimization"
+
+spark.databricks.delta.optimizeWrite.enabled:
+  description: "Automatically optimizes file sizes during writes - ENABLED by default in Fabric Runtime 1.2"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - prevents small file problem"
+  why_this_default: "Fabric enables by default to prevent small file accumulation"
+  when_to_change: "Keep true unless very small tables (<10MB) where overhead matters"
+  related:
+    - "spark.databricks.delta.autoCompact.enabled"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "delta"
+    - "critical"
+
+spark.databricks.delta.vacuum.parallelDelete.enabled:
+  description: "Enables parallel file deletion during VACUUM operations for faster cleanup"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - significantly faster VACUUM"
+  why_this_default: "OneLake supports parallel deletes efficiently"
+  when_to_change: "Keep true - no downside"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "delta"
+    - "maintenance"
+
+spark.delta.logStore.class:
+  description: "FABRIC CRITICAL: Uses AzureLogStore for Delta transaction log on OneLake"
+  default: "org.apache.spark.sql.delta.storage.AzureLogStore"
+  fabric_runtime_1.2: "org.apache.spark.sql.delta.storage.AzureLogStore"
+  scope: "cluster-immutable"
+  type: "string"
+  recommendations:
+    all_workloads: "Don't change - required for OneLake"
+  why_this_default: "OneLake requires Azure-specific log store for ACID transactions"
+  when_to_change: "Never - breaks Delta on Fabric"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "delta"
+    - "critical"
+
+# ============================================================================
+# V-Order (Parquet Optimization for Power BI)
+# ============================================================================
+
+spark.sql.parquet.vorder.default:
+  description: "FABRIC CRITICAL: Enables V-Order by default for all Parquet writes - 3-10x faster Power BI reads"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    power_bi: "true - REQUIRED for Direct Lake"
+    spark_only: "false - adds 20% write overhead without PBI benefit"
+  why_this_default: "Fabric assumes Power BI is primary consumer - V-Order optimizes for analytical reads"
+  when_to_change: "Set to false if Power BI not used and write performance critical"
+  related:
+    - "spark.sql.parquet.native.writer.enabled"
+    - "spark.microsoft.delta.parquet.vorder.property.autoset.enabled"
+  examples:
+    - "spark.conf.set('spark.sql.parquet.vorder.default', 'true')  # For Power BI"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "v-order"
+    - "power-bi"
+    - "critical"
+
+spark.sql.parquet.vorder.autoEncoding:
+  description: "Auto-selects optimal encoding for V-Order columns based on data characteristics"
+  default: "false"
+  fabric_runtime_1.2: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "false - use default encodings"
+  why_this_default: "Manual encoding control provides more predictable performance"
+  when_to_change: "Rarely - only for experimental tuning"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "v-order"
+
+spark.sql.parquet.vorder.dictionaryPageSize:
+  description: "Dictionary page size for V-Order Parquet files"
+  default: "1g"
+  fabric_runtime_1.2: "1g"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "1g - matches file binning size"
+  why_this_default: "Large dictionary pages reduce overhead for Power BI reads"
+  when_to_change: "Don't change unless memory issues"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "v-order"
+
+spark.sql.parquet.native.writer.enabled:
+  description: "Uses native (C++) Parquet writer for better performance with V-Order"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - 2-5x faster writes"
+  why_this_default: "Native writer required for V-Order + much faster than JVM writer"
+  when_to_change: "Keep true - no downside"
+  related:
+    - "spark.sql.parquet.writerPluginClass"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "parquet"
+    - "performance"
+
+spark.sql.parquet.native.writer.memory:
+  description: "Memory allocated per task for native Parquet writer"
+  default: "1g"
+  fabric_runtime_1.2: "1g"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "1g - matches optimize write bin size"
+  why_this_default: "1GB allows writing full optimized files in memory before flush"
+  when_to_change: "Reduce if OOM errors, increase for very wide tables"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "parquet"
+    - "memory"
+
+spark.microsoft.delta.parquet.vorder.property.autoset.enabled:
+  description: "Automatically sets V-Order property on Delta tables at creation time"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - ensures V-Order applied to new tables"
+  why_this_default: "Fabric wants all tables V-Order enabled by default for Power BI"
+  when_to_change: "Keep true unless explicitly managing table properties"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "delta"
+    - "v-order"
+
+# ============================================================================
+# SQL Optimizations - Fabric Runtime 1.2 Tuning
+# ============================================================================
+
+spark.sql.files.maxPartitionBytes:
+  description: "Maximum bytes to pack into a single partition when reading files"
+  default: "134217728 (128MB)"
+  fabric_runtime_1.2: "134217728"
+  scope: "session"
+  type: "long"
+  recommendations:
+    small_clusters: "128MB - good default"
+    large_clusters: "256MB-512MB for fewer tasks"
+  why_this_default: "128MB provides good parallelism for typical Fabric node sizes"
+  when_to_change: "Increase for large clusters to reduce task overhead"
+  related:
+    - "spark.sql.adaptive.coalescePartitions.enabled"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "sql"
+    - "partitioning"
+
+spark.sql.autoBroadcastJoinThreshold:
+  description: "Maximum size of table to broadcast for joins"
+  default: "26214400 (25MB)"
+  fabric_runtime_1.2: "26214400"
+  scope: "session"
+  type: "long"
+  recommendations:
+    small_tables: "25MB - good default"
+    large_memory: "50MB-100MB if executors have 56GB+ memory"
+  why_this_default: "25MB safe for most executor sizes, avoids broadcast timeouts"
+  when_to_change: "Increase for large executors (56GB+) to broadcast larger dimension tables"
+  examples:
+    - "spark.conf.set('spark.sql.autoBroadcastJoinThreshold', 52428800)  # 50MB"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "sql"
+    - "joins"
+
+spark.sql.cbo.enabled:
+  description: "Cost-Based Optimizer - uses statistics to choose optimal query plans"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - significantly better join ordering"
+  why_this_default: "CBO dramatically improves complex query performance"
+  when_to_change: "Keep true - run ANALYZE TABLE to collect stats"
+  related:
+    - "spark.sql.cbo.joinReorder.enabled"
+    - "spark.sql.statistics.fallBackToHdfs"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "sql"
+    - "optimization"
+
+spark.sql.cbo.joinReorder.enabled:
+  description: "Allows CBO to reorder joins for optimal execution plan"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - essential for multi-join queries"
+  why_this_default: "Join order can change performance by 10-100x"
+  when_to_change: "Keep true - requires column stats (ANALYZE TABLE)"
+  related:
+    - "spark.sql.cbo.enabled"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "sql"
+    - "joins"
+
+spark.sql.optimizer.runtime.bloomFilter.enabled:
+  description: "Enables runtime bloom filter optimization for joins to skip partitions"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - can provide 2-10x speedup for selective joins"
+  why_this_default: "Bloom filters dramatically reduce data read for selective joins"
+  when_to_change: "Keep true - no downside"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "sql"
+    - "optimization"
+
+spark.sql.adaptive.customCostEvaluatorClass:
+  description: "Custom cost evaluator for AQE that's Velox-aware"
+  default: "org.apache.spark.sql.execution.adaptive.GlutenCostEvaluator"
+  fabric_runtime_1.2: "org.apache.spark.sql.execution.adaptive.GlutenCostEvaluator"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "Use default - optimized for Velox"
+  why_this_default: "Gluten cost evaluator accounts for columnar execution costs"
+  when_to_change: "Don't change"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "sql"
+    - "aqe"
+
+# ============================================================================
+# Shuffle and I/O Optimizations
+# ============================================================================
+
+spark.shuffle.file.buffer:
+  description: "Buffer size for shuffle file writes"
+  default: "1m"
+  fabric_runtime_1.2: "1m"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "1m - good default"
+  why_this_default: "1MB buffer provides good throughput without excessive memory"
+  when_to_change: "Rarely - only for very large shuffles"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "shuffle"
+    - "io"
+
+spark.shuffle.unsafe.file.output.buffer:
+  description: "Buffer size for unsafe shuffle output"
+  default: "5m"
+  fabric_runtime_1.2: "5m"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "5m - reduces syscalls for large shuffles"
+  why_this_default: "Larger buffer (5MB) reduces I/O overhead for Fabric's network"
+  when_to_change: "Reduce if memory constrained"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "shuffle"
+    - "io"
+
+spark.shuffle.io.backLog:
+  description: "Backlog size for shuffle server connections"
+  default: "8192"
+  fabric_runtime_1.2: "8192"
+  scope: "session"
+  type: "int"
+  recommendations:
+    all_workloads: "8192 - handles large clusters well"
+  why_this_default: "High backlog prevents connection rejections in large clusters"
+  when_to_change: "Don't change"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "shuffle"
+    - "network"
+
+spark.shuffle.io.serverThreads:
+  description: "Number of threads for shuffle server to handle requests"
+  default: "128"
+  fabric_runtime_1.2: "128"
+  scope: "session"
+  type: "int"
+  recommendations:
+    all_workloads: "128 - good for high concurrency"
+  why_this_default: "High thread count handles concurrent shuffle requests efficiently"
+  when_to_change: "Don't change"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "shuffle"
+    - "concurrency"
+
+spark.io.compression.lz4.blockSize:
+  description: "Block size for LZ4 compression"
+  default: "128kb"
+  fabric_runtime_1.2: "128kb"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "128kb - good compression/speed tradeoff"
+  why_this_default: "128KB blocks provide good compression ratio without excessive CPU"
+  when_to_change: "Don't change"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "compression"
+
+# ============================================================================
+# Serialization and Memory Management
+# ============================================================================
+
+spark.serializer:
+  description: "Serializer for objects - Kryo is faster than Java serialization"
+  default: "org.apache.spark.serializer.KryoSerializer"
+  fabric_runtime_1.2: "org.apache.spark.serializer.KryoSerializer"
+  scope: "session-immutable"
+  type: "string"
+  recommendations:
+    all_workloads: "KryoSerializer - 10x faster than Java"
+  why_this_default: "Kryo provides much better performance for shuffle/caching"
+  when_to_change: "Don't change - Kryo is superior"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "serialization"
+    - "performance"
+
+spark.kryoserializer.buffer.max:
+  description: "Maximum Kryo serialization buffer size"
+  default: "128m"
+  fabric_runtime_1.2: "128m"
+  scope: "session"
+  type: "string"
+  recommendations:
+    all_workloads: "128m - handles large objects"
+  why_this_default: "128MB allows serializing large objects without errors"
+  when_to_change: "Increase if 'buffer overflow' errors occur"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "serialization"
+
+# ============================================================================
+# Scheduler and Resource Management
+# ============================================================================
+
+spark.scheduler.mode:
+  description: "Task scheduling mode - FAIR allows concurrent jobs, FIFO runs jobs sequentially"
+  default: "FAIR"
+  fabric_runtime_1.2: "FAIR"
+  scope: "session"
+  type: "string"
+  recommendations:
+    notebooks: "FAIR - allows multiple cell executions"
+    pipelines: "FIFO - simpler for single-job workflows"
+  why_this_default: "FAIR scheduling better for interactive notebooks with multiple queries"
+  when_to_change: "Use FIFO for batch pipelines where jobs should run sequentially"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "scheduler"
+
+spark.locality.wait:
+  description: "Time to wait for data-local task scheduling before moving to next locality level"
+  default: "1"
+  fabric_runtime_1.2: "1"
+  scope: "session"
+  type: "int"
+  recommendations:
+    all_workloads: "1s - low wait time for cloud storage"
+  why_this_default: "OneLake is remote storage - data locality less important than on HDFS"
+  when_to_change: "Don't change - cloud storage has different characteristics than HDFS"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "scheduler"
+
+spark.dynamicAllocation.disableIfMinMaxNotSpecified.enabled:
+  description: "Disables dynamic allocation if min/max executors not specified"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - prevents uncontrolled scaling"
+  why_this_default: "Ensures dynamic allocation only used when properly configured"
+  when_to_change: "Keep true for safety"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "dynamic-allocation"
+
+# ============================================================================
+# Hadoop/Azure Storage Optimizations
+# ============================================================================
+
+spark.hadoop.parquet.block.size:
+  description: "Parquet file row group size"
+  default: "1073741824 (1GB)"
+  fabric_runtime_1.2: "1073741824"
+  scope: "session"
+  type: "long"
+  recommendations:
+    all_workloads: "1GB - matches optimize write bin size"
+  why_this_default: "Large row groups optimal for analytical queries"
+  when_to_change: "Don't change"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "parquet"
+
+spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version:
+  description: "Output committer algorithm version - v2 is faster"
+  default: "2"
+  fabric_runtime_1.2: "2"
+  scope: "session"
+  type: "int"
+  recommendations:
+    all_workloads: "2 - much faster than v1"
+  why_this_default: "Version 2 parallelizes commit phase for faster writes"
+  when_to_change: "Don't change"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "hadoop"
+
+# ============================================================================
+# OpenLineage (Lineage Tracking)
+# ============================================================================
+
+spark.openlineage.integration.spark.sql.enabled:
+  description: "Enables automatic lineage tracking for Spark SQL operations"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - provides data lineage visibility"
+  why_this_default: "Fabric automatically tracks lineage for governance/compliance"
+  when_to_change: "Keep true unless lineage not needed and want minimal overhead"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "lineage"
+
+spark.openlineage.columnLineage.datasetLineageEnabled:
+  description: "Enables column-level lineage tracking"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - detailed lineage for compliance"
+  why_this_default: "Column lineage essential for data governance and impact analysis"
+  when_to_change: "Keep true for governance requirements"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "lineage"
+
+# ============================================================================
+# RDD and Compression
+# ============================================================================
+
+spark.rdd.compress:
+  description: "Compresses RDD partitions when spilling or caching"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - saves memory and disk"
+  why_this_default: "Compression reduces memory usage with minimal CPU overhead"
+  when_to_change: "Keep true - benefits outweigh costs"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "compression"
+    - "rdd"
+
+# ============================================================================
+# UI and Monitoring
+# ============================================================================
+
+spark.ui.prometheus.enabled:
+  description: "Enables Prometheus metrics endpoint for monitoring"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - enables metrics collection"
+  why_this_default: "Fabric uses Prometheus for monitoring infrastructure"
+  when_to_change: "Keep true"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "monitoring"
+
+# ============================================================================
+# Decommissioning (Graceful Executor Shutdown)
+# ============================================================================
+
+spark.decommission.enabled:
+  description: "Enables graceful executor decommissioning for dynamic allocation"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - prevents data loss during scale-down"
+  why_this_default: "Allows executors to migrate data before shutdown"
+  when_to_change: "Keep true for stability"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "dynamic-allocation"
+
+spark.storage.decommission.enabled:
+  description: "Enables storage migration during executor decommissioning"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - prevents cached data loss"
+  why_this_default: "Migrates cached RDDs before executor shutdown"
+  when_to_change: "Keep true"
+  related:
+    - "spark.decommission.enabled"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "dynamic-allocation"
+
+# ============================================================================
+# Arrow (PySpark Optimization)
+# ============================================================================
+
+spark.sql.execution.arrow.pyspark.enabled:
+  description: "Enables Apache Arrow for efficient data transfer between JVM and Python"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    pyspark: "true - 10-100x faster than pickling"
+  why_this_default: "Arrow provides near-zero-copy data transfer for PySpark"
+  when_to_change: "Keep true for PySpark workloads"
+  related:
+    - "spark.sql.execution.arrow.pyspark.fallback.enabled"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "pyspark"
+    - "arrow"
+    - "performance"
+
+spark.sql.execution.arrow.pyspark.fallback.enabled:
+  description: "Falls back to non-Arrow serialization if Arrow fails"
+  default: "true"
+  fabric_runtime_1.2: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_workloads: "true - safety net for unsupported types"
+  why_this_default: "Ensures PySpark works even with Arrow-unsupported data types"
+  when_to_change: "Keep true"
+  tags:
+    - "fabric"
+    - "runtime-1.2"
+    - "pyspark"
+    - "arrow"

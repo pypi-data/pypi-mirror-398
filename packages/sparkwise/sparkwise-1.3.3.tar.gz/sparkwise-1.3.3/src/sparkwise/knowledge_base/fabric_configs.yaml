@@ -1,0 +1,324 @@
+# Microsoft Fabric Spark-Specific Configuration Knowledge Base
+
+spark.native.enabled:
+  description: "FABRIC CRITICAL: Enables the Native Execution Engine (Velox) for vectorized query processing in Microsoft Fabric. This is the #1 performance feature in Fabric Spark."
+  default: "true"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    all_fabric: "true - ALWAYS enable on Fabric"
+  fabric_specific: "This enables Velox-based columnar execution, providing 3-10x performance improvements. Avoid Python UDFs (use pyspark.sql.functions instead) to maintain native execution. Check physical plans for 'Velox' keywords."
+  related:
+    - "spark.sql.adaptive.enabled"
+  examples:
+    - "spark.conf.set('spark.native.enabled', 'true')"
+  tags:
+    - "fabric"
+    - "native"
+    - "velox"
+    - "critical"
+    - "performance"
+
+spark.sql.parquet.vorder.enabled:
+  description: "FABRIC CRITICAL: Enables V-Order write format, optimizing Parquet files for analytical read patterns. Essential for Power BI Direct Lake and fast queries."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    power_bi: "true - REQUIRED for Direct Lake"
+    all_fabric: "true - benefits all analytical queries"
+  fabric_specific: "V-Order is a Microsoft innovation for Fabric. Reorganizes columns within Parquet files for optimal read performance. Provides 3-10x faster reads in Power BI and other analytical tools. Always enable for production lakehouse tables."
+  related:
+    - "spark.sql.parquet.columnarReaderBatchSize"
+  examples:
+    - "spark.conf.set('spark.sql.parquet.vorder.enabled', 'true')"
+  tags:
+    - "fabric"
+    - "v-order"
+    - "power-bi"
+    - "direct-lake"
+    - "critical"
+    - "parquet"
+
+spark.microsoft.delta.optimizeWrite.enabled:
+  description: "FABRIC-SPECIFIC: Microsoft Fabric's version of Optimize Write for Delta tables in OneLake. Prevents small file accumulation."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    streaming: "true - CRITICAL for streaming workloads"
+    all_writes: "true - recommended for all write-heavy workloads"
+  fabric_specific: "This is the Fabric-native config (preferred over spark.databricks.delta.optimizeWrite.enabled). Automatically bins files into optimal sizes (~128MB) during write, reducing need for manual OPTIMIZE commands."
+  related:
+    - "spark.databricks.delta.optimizeWrite.enabled"
+    - "spark.databricks.delta.autoCompact.enabled"
+  examples:
+    - "spark.conf.set('spark.microsoft.delta.optimizeWrite.enabled', 'true')"
+  tags:
+    - "fabric"
+    - "delta"
+    - "optimization"
+    - "write"
+    - "small-files"
+
+spark.fabric.pool.name:
+  description: "Indicates the type of Spark pool being used in Fabric (Starter Pool vs Custom Pool)."
+  default: "N/A"
+  scope: "cluster"
+  type: "string"
+  recommendations:
+    small_jobs: "Starter Pool - instant startup, no cold-start"
+    large_jobs: "Custom Pool - more resources, 3-5min cold-start"
+  fabric_specific: "Fabric provides two pool types: Starter Pools (instant startup, limited to ~12 nodes) and Custom Pools (configurable size, 3-5min cold-start). Use Starter Pools unless you need >12 executors."
+  related:
+    - "spark.dynamicAllocation.maxExecutors"
+    - "spark.fabric.resourceProfile"
+  examples:
+    - "# This is set automatically by Fabric workspace settings"
+  tags:
+    - "fabric"
+    - "pooling"
+    - "resources"
+
+spark.fabric.resourceProfile:
+  description: "FABRIC CRITICAL: Selects predefined Spark resource profiles optimized for specific workload patterns. Simplifies configuration tuning."
+  default: "writeHeavy"
+  scope: "session"
+  type: "string"
+  recommendations:
+    etl_ingestion: "writeHeavy - optimized for ETL and data ingestion (default for new workspaces)"
+    analytics_spark: "readHeavyForSpark - optimized for analytical Spark queries"
+    power_bi: "readHeavyForPBI - optimized for Power BI Direct Lake queries"
+    custom_needs: "custom - user-defined configuration for specific requirements"
+  fabric_specific: |
+    Microsoft Fabric resource profiles provide workload-optimized Spark settings:
+    
+    **writeHeavy (DEFAULT for new workspaces):**
+    - V-Order: DISABLED (spark.sql.parquet.vorder.default=false)
+    - Optimize Write: NULL/DISABLED (spark.databricks.delta.optimizeWrite.enabled=null)
+    - Optimize Write Partitioned: ENABLED (spark.databricks.delta.optimizeWrite.partitioned.enabled=true)
+    - Bin Size: 128MB (spark.databricks.delta.optimizeWrite.binSize=128)
+    - Use Case: ETL pipelines, data ingestion, batch transformations
+    - Benefits: Maximum write throughput, faster data loading
+    
+    **readHeavyForSpark:**
+    - Optimize Write: ENABLED (spark.databricks.delta.optimizeWrite.enabled=true)
+    - Optimize Write Partitioned: ENABLED (spark.databricks.delta.optimizeWrite.partitioned.enabled=true)
+    - Bin Size: 128MB (spark.databricks.delta.optimizeWrite.binSize=128)
+    - Use Case: Interactive Spark queries, analytical workloads
+    - Benefits: Balanced read/write performance
+    
+    **readHeavyForPBI:**
+    - V-Order: ENABLED (spark.sql.parquet.vorder.default=true)
+    - Optimize Write: ENABLED (spark.databricks.delta.optimizeWrite.enabled=true)
+    - Bin Size: 1GB (spark.databricks.delta.optimizeWrite.binSize=1g)
+    - Use Case: Power BI dashboards, Direct Lake scenarios
+    - Benefits: 3-10x faster reads for BI tools
+    
+    **custom:**
+    - Fully user-defined configuration
+    - Name your profile meaningfully (e.g., 'fastIngestProfile', 'lowLatencyAnalytics')
+    - Define all settings manually
+    
+    **Configuration methods:**
+    1. Environment level: Set in Fabric Environment settings (applies to all sessions)
+    2. Runtime: spark.conf.set('spark.fabric.resourceProfile', 'readHeavyForSpark')
+    
+    **Runtime settings override environment settings**
+  why_this_default: "New Fabric workspaces default to writeHeavy for optimal ETL/ingestion performance. V-Order is disabled by default and must be manually enabled if needed for Power BI scenarios."
+  related:
+    - "spark.sql.parquet.vorder.enabled"
+    - "spark.databricks.delta.optimizeWrite.enabled"
+    - "spark.microsoft.delta.optimizeWrite.enabled"
+    - "spark.databricks.delta.optimizeWrite.binSize"
+  examples:
+    - "spark.conf.set('spark.fabric.resourceProfile', 'readHeavyForSpark')  # Switch to read-optimized"
+    - "spark.conf.set('spark.fabric.resourceProfile', 'writeHeavy')  # Maximum write throughput"
+    - "spark.conf.set('spark.fabric.resourceProfile', 'readHeavyForPBI')  # Power BI optimization"
+  tags:
+    - "fabric"
+    - "resource-profile"
+    - "performance"
+    - "tuning"
+    - "critical"
+
+spark.sql.warehouse.dir:
+  description: "FABRIC: Points to the OneLake storage location for managed tables in Fabric Lakehouse."
+  default: "OneLake path"
+  scope: "session"
+  type: "string"
+  fabric_specific: "In Fabric, this points to your Lakehouse's OneLake storage (abfss://...). Managed tables are automatically stored here with optimized settings for Fabric."
+  related:
+    - "spark.sql.catalogImplementation"
+  tags:
+    - "fabric"
+    - "onelake"
+    - "storage"
+    - "lakehouse"
+
+spark.databricks.delta.vacuum.parallelDelete.enabled:
+  description: "Enables parallel deletion during VACUUM operations for faster cleanup of old files."
+  default: "false"
+  scope: "session"
+  type: "boolean"
+  recommendations:
+    large_tables: "true - faster VACUUM for tables with many files"
+  fabric_specific: "Recommended for large Fabric lakehouse tables to speed up maintenance operations."
+  related:
+    - "spark.databricks.delta.retentionDurationCheck.enabled"
+  examples:
+    - "spark.conf.set('spark.databricks.delta.vacuum.parallelDelete.enabled', 'true')"
+  tags:
+    - "fabric"
+    - "delta"
+    - "vacuum"
+    - "maintenance"
+
+spark.sql.sources.parallelPartitionDiscovery.threshold:
+  description: "Controls when Spark switches to parallel partition discovery. Lower values improve metadata discovery for partitioned tables."
+  default: "32"
+  scope: "session"
+  type: "int"
+  recommendations:
+    many_partitions: "16 - for heavily partitioned tables"
+    few_partitions: "32 - default is fine"
+  fabric_specific: "OneLake performance: Lower this if you have >100 partitions in your lakehouse tables."
+  related:
+    - "spark.sql.sources.parallelPartitionDiscovery.parallelism"
+  examples:
+    - "spark.conf.set('spark.sql.sources.parallelPartitionDiscovery.threshold', '16')"
+  tags:
+    - "fabric"
+    - "partitions"
+    - "metadata"
+    - "onelake"
+
+# Fabric Capacity-Specific Guidance
+fabric.capacity.sku:
+  description: "Fabric Capacity SKU determines available compute resources. Different SKUs have different Starter Pool limits."
+  default: "N/A"
+  scope: "N/A"
+  type: "reference"
+  fabric_specific: |
+    Fabric Capacity Limits for Starter Pools:
+    - F2: 1 node, 2 vCores
+    - F4: 1 node, 4 vCores
+    - F8: 2 nodes, 8 vCores
+    - F16: 4 nodes, 16 vCores
+    - F32: 8 nodes, 32 vCores
+    - F64: 12 nodes, 64 vCores (typical production)
+    - F128+: 24+ nodes, use Custom Pools for larger
+    
+    Recommendation: Use Starter Pools if your job fits within your SKU limits.
+    Starter Pools save 3-5 minutes of cold-start time per run.
+  tags:
+    - "fabric"
+    - "capacity"
+    - "pooling"
+    - "sizing"
+
+fabric.native.execution.fallback:
+  description: "Common reasons for Native Execution Engine fallback to row-based processing."
+  default: "N/A"
+  scope: "N/A"
+  type: "reference"
+  fabric_specific: |
+    Native Execution (Velox) may fallback to row-based processing when:
+    1. Python UDFs are used (use pyspark.sql.functions instead)
+    2. Unsupported operators (check Fabric documentation)
+    3. Complex nested operations
+    4. Certain window functions
+    
+    How to detect:
+    - Check physical plan for 'Velox', 'VeloxColumnarToRowExec'
+    - Look for 'BatchEvalPython' (indicates UDF fallback)
+    - Use sparklore analyze with DataFrame for automatic detection
+    
+    Solutions:
+    - Replace Python UDFs with native SQL functions
+    - Simplify complex transformations
+    - Break down nested operations
+  related:
+    - "spark.native.enabled"
+  tags:
+    - "fabric"
+    - "native"
+    - "velox"
+    - "troubleshooting"
+
+fabric.starter.pool.immutable.configs:
+  description: "CRITICAL: Session-immutable Spark configurations that force Custom Pool usage instead of Starter Pool."
+  default: "N/A"
+  scope: "N/A"
+  type: "reference"
+  fabric_specific: |
+    **WARNING**: Changing ANY of these configs will PREVENT Starter Pool usage and force a Custom Pool session.
+    Custom Pools have 3-5 minute cold-start time vs instant Starter Pool startup.
+    
+    **Common configs that break Starter Pools:**
+    - spark.executor.cores
+    - spark.executor.memory
+    - spark.executor.instances
+    - spark.driver.memory
+    - spark.driver.cores
+    - spark.dynamicAllocation.enabled
+    - spark.dynamicAllocation.minExecutors
+    - spark.dynamicAllocation.maxExecutors
+    - spark.serializer (changing from default)
+    - spark.sql.adaptive.enabled (changing from default)
+    - spark.master
+    - spark.app.name (changing from default)
+    - spark.local.dir
+    - spark.cores.max
+    
+    **Impact of setting immutable configs:**
+    ❌ 3-5 minute cold-start for Custom Pool
+    ❌ Uses dedicated capacity resources
+    ❌ No instant session startup
+    
+    **When you SHOULD use Custom Pools (by setting immutable configs):**
+    ✅ Need >12 executors (Starter Pool limit varies by SKU)
+    ✅ Need specific memory/core configurations
+    ✅ Long-running production jobs where cold-start is amortized
+    ✅ Jobs requiring >100GB total memory
+    
+    **Best Practice:**
+    - Keep default configs for dev/test (use Starter Pool)
+    - Only set immutable configs when absolutely needed
+    - Use spark.conf.set() for mutable configs instead
+    - Check SparkLore's pool checker: sparklore.diagnose.analyze()
+    
+    **Full list of 800+ immutable configs includes:**
+    spark.acls.enable, spark.admin.acls, spark.app.name, spark.archives,
+    spark.authenticate.*, spark.barrier.sync.timeout, spark.broadcast.*,
+    spark.checkpoint.*, spark.cores.max, spark.deploy.*, spark.driver.*,
+    spark.dynamicAllocation.*, spark.eventLog.*, spark.excludeOnFailure.*,
+    spark.executor.* (all executor configs), spark.extraListeners, spark.files.*,
+    spark.hadoop.*, spark.history.*, spark.io.*, spark.jars.*, spark.kerberos.*,
+    spark.kryo.*, spark.kubernetes.*, spark.local.dir, spark.locality.*,
+    spark.master, spark.memory.* (all memory configs), spark.metrics.*,
+    spark.network.*, spark.plugins, spark.port.maxRetries, spark.pyspark.*,
+    spark.python.*, spark.r.*, spark.rdd.*, spark.resources.*, spark.rpc.*,
+    spark.scheduler.*, spark.security.*, spark.serializer, spark.shuffle.*,
+    spark.speculation.*, spark.storage.*, spark.streaming.*, spark.task.*,
+    spark.ui.*, spark.worker.* and many more.
+    
+    **See full list:** https://spark.apache.org/docs/latest/configuration.html
+  related:
+    - "spark.fabric.pool.name"
+    - "fabric.capacity.sku"
+  examples:
+    - |
+      # ❌ BAD: Forces Custom Pool (3-5min cold-start)
+      spark.conf.set('spark.executor.memory', '8g')
+      
+      # ✅ GOOD: Use Starter Pool defaults unless necessary
+      # (Starter Pool auto-configures memory based on SKU)
+  tags:
+    - "fabric"
+    - "pooling"
+    - "starter-pool"
+    - "custom-pool"
+    - "critical"
+    - "performance"
+    - "cold-start"
