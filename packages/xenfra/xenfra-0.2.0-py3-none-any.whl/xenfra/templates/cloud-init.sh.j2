@@ -1,0 +1,68 @@
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+LOG="/root/setup.log"
+touch $LOG
+
+echo "--------------------------------" >> $LOG
+echo "🧘 XENFRA: Context-Aware Boot" >> $LOG
+echo "--------------------------------" >> $LOG
+
+# Create App Directory
+mkdir -p /root/app
+cd /root/app
+
+# --- AGGRESSIVE FIX: KILL BACKGROUND UPDATES ---
+echo "⚔️  [0/6] Stopping Background Updates..." >> $LOG
+systemctl stop unattended-upgrades.service || true
+systemctl stop apt-daily.service || true
+systemctl stop apt-daily-upgrade.service || true
+systemctl kill --kill-who=all apt-daily.service || true
+systemctl kill --kill-who=all apt-daily-upgrade.service || true
+
+# Force remove locks if they exist
+rm -f /var/lib/dpkg/lock*
+rm -f /var/lib/apt/lists/lock
+rm -f /var/cache/apt/archives/lock
+dpkg --configure -a || true
+# -----------------------------------------------
+
+# 1. System Updates
+echo "🔄 [1/5] Refreshing Package Lists..." >> $LOG
+apt-get update
+apt-get install -y python3-pip git curl
+
+# 2. Install Docker & Compose
+echo "🐳 [2/5] Installing Docker..." >> $LOG
+apt-get install -y docker.io || (curl -fsSL https://get.docker.com | sh)
+echo "🎶 [3/5] Installing Docker Compose..." >> $LOG
+apt-get install -y docker-compose-v2
+
+# --- DOCKERIZED DEPLOYMENT ---
+echo "📦 [4/5] Installing Caddy..." >> $LOG
+apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -LsSf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -LsSf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+apt-get update
+apt-get install -y caddy
+
+{% if domain %}
+# Dynamically generate Caddyfile content
+echo "🔒 Writing Caddyfile for {{ domain }}..." >> $LOG
+cat << EOF > /etc/caddy/Caddyfile
+{{ domain }}:80, {{ domain }}:443 {
+    reverse_proxy localhost:{{ port | default(8000) }}
+    tls {{ email }}
+}
+EOF
+{% endif %}
+
+{% if domain %}
+echo "🚀 [5/5] Starting Caddy..." >> $LOG
+systemctl restart caddy
+{% else %}
+echo "✅ [5/5] Skipping Caddy start (no domain specified)." >> $LOG
+{% endif %}
+
+# Finish
+echo "✅ SETUP SCRIPT COMPLETE" >> $LOG
+touch /root/setup_complete
