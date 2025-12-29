@@ -1,0 +1,93 @@
+import os
+
+from pydantic import BaseModel, Field
+from temporalio import activity, workflow
+
+from application_sdk.constants import (
+    APPLICATION_NAME,
+    DEPLOYMENT_NAME,
+    OBSERVABILITY_DIR,
+    TEMPORARY_PATH,
+)
+from application_sdk.observability.context import correlation_context
+
+
+class WorkflowContext(BaseModel):
+    """Workflow context.
+
+    This model supports dynamic correlation context fields (atlan- prefixed)
+    through Pydantic's extra="allow" configuration.
+    """
+
+    model_config = {"extra": "allow"}
+
+    in_workflow: str = Field(default="false")
+    in_activity: str = Field(default="false")
+    workflow_id: str = Field(init=False, default="")
+    workflow_type: str = Field(init=False, default="")
+    namespace: str = Field(init=False, default="")
+    task_queue: str = Field(init=False, default="")
+    attempt: str = Field(init=False, default="0")
+    activity_id: str = Field(init=False, default="")
+    activity_type: str = Field(init=False, default="")
+    workflow_run_id: str = Field(init=False, default="")
+
+
+def get_observability_dir() -> str:
+    """Build the observability path using deployment name.
+
+    Returns:
+        str: The built observability path using deployment name.
+    """
+    return os.path.join(
+        TEMPORARY_PATH,
+        OBSERVABILITY_DIR.format(
+            application_name=APPLICATION_NAME, deployment_name=DEPLOYMENT_NAME
+        ),
+    )
+
+
+def get_workflow_context() -> WorkflowContext:
+    """Get the workflow context.
+
+    Returns:
+        WorkflowContext: The workflow context.
+    """
+
+    context = WorkflowContext(in_workflow="false", in_activity="false")
+
+    try:
+        workflow_info = workflow.info()
+        if workflow_info:
+            context.workflow_id = workflow_info.workflow_id or ""
+            context.workflow_run_id = workflow_info.run_id or ""
+            context.workflow_type = workflow_info.workflow_type or ""
+            context.namespace = workflow_info.namespace or ""
+            context.task_queue = workflow_info.task_queue or ""
+            context.attempt = str(workflow_info.attempt or 0)
+            context.in_workflow = "true"
+    except Exception:
+        pass
+
+    try:
+        activity_info = activity.info()
+        if activity_info:
+            context.in_activity = "true"
+            context.workflow_id = activity_info.workflow_id or ""
+            context.workflow_run_id = activity_info.workflow_run_id or ""
+            context.activity_id = activity_info.activity_id or ""
+            context.activity_type = activity_info.activity_type or ""
+            context.task_queue = activity_info.task_queue or ""
+            context.attempt = str(activity_info.attempt or 0)
+    except Exception:
+        pass
+
+    # Get correlation context from context variable (atlan- prefixed headers)
+    corr_ctx = correlation_context.get()
+    if corr_ctx:
+        # Add all correlation context fields as extra attributes
+        for key, value in corr_ctx.items():
+            if key.startswith("atlan-") and value:
+                setattr(context, key, str(value))
+
+    return context
