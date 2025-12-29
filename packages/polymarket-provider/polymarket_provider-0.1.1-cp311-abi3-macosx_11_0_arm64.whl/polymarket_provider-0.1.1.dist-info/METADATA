@@ -1,0 +1,96 @@
+Metadata-Version: 2.4
+Name: polymarket-provider
+Version: 0.1.1
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Rust
+Classifier: Topic :: Database
+Summary: Polymarket data provider for Python - Query Polymarket data from local DuckDB
+Keywords: polymarket,duckdb,prediction-market
+Author: cupnfish
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/cupnfish/polymarket-hyperindex
+Project-URL: Repository, https://github.com/cupnfish/polymarket-hyperindex
+
+# polymarket-provider
+
+Polymarket data provider for Python, built with Rust and PyO3.
+
+## Features
+
+- Query Polymarket on-chain data (order filled events, FPMM transactions)
+- Query Polymarket off-chain data (markets, market tokens)
+- Query historical time series data for trading analysis
+- Time-travel queries with `simulation_time` parameter
+- Built on DuckDB for fast local queries
+- Python 3.11+ support with abi3 compatibility
+
+## Installation
+
+```bash
+pip install polymarket-provider
+```
+
+### uv
+
+```bash
+uv add polymarket-provider
+# or
+uv pip install polymarket-provider
+```
+
+## Quick Start
+
+```python
+from polymarket_provider import DataProvider
+
+# Create provider with default DB paths
+provider = DataProvider()
+
+# Query markets
+markets = provider.off_chain.markets(limit=10)
+for market in markets:
+    print(f"{market.question}: {market.outcome}")
+
+# Query on-chain events
+orders = provider.on_chain.order_filled_events(limit=10)
+
+# Query time series data
+ts = provider.trading.timeseries(market_id="...", limit=100)
+```
+
+## Time Travel Queries
+
+```python
+from datetime import datetime, timezone
+
+# Query data as of a specific time
+ts = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
+provider = DataProvider(simulation_time=ts)
+
+# Or set it later
+provider.set_simulation_time(ts)
+```
+
+## Requirements
+
+- Python 3.11+
+- Local DuckDB database files
+
+## Publishing
+
+```bash
+maturin publish --release
+```
+
+## License
+
+MIT
+
