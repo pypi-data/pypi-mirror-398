@@ -1,0 +1,166 @@
+"""
+Copyright 2021 DataRobot, Inc. and its affiliates.
+All rights reserved.
+This is proprietary source code of DataRobot, Inc. and its affiliates.
+Released under the terms of DataRobot Tool and Utility Agreement.
+"""
+
+import logging
+import threading
+
+from flask import Flask
+from datarobot_drum.drum.gunicorn.context import WorkerCtx
+
+from datarobot_drum.drum.exceptions import UnrecoverableError
+
+#!/usr/bin/env python3
+
+"""
+Custom model runner is a tool to work with user models in scoring, custom tasks, custom estimator tasks, and other
+modes.
+
+Examples:
+
+    # Prepare custom_model folder containing model artifact.
+    # It also and may contain custom.py file implementing custom predict() method.
+
+    # Run binary classification user model in a batch prediction mode. If output parameter is omitted,
+    # results will be printed.
+    drum score --code-dir ~/custom_model3/ --input input.csv --output output.csv --positive-class-label yes
+          --negative-class-label no
+
+    # Run regression user model in a predict mode.
+    drum score --code-dir ~/custom_model3/ --input input.csv --output output.csv
+
+    # Run binary classification user model in a prediction server mode.
+    drum server --code-dir ~/custom_model3/ --positive-class-label yes --negative-class-label no
+          --address host:port
+
+    # Run regression user model in a prediction server mode.
+    drum server --code-dir ~/custom_model3/ --address host:port
+
+    # Run binary classification user model in fit mode.
+    drum fit --code-dir <custom code dir> --input <input.csv> --output <output_dir> --target-type binary --target <target feature> --positive-class-label <class-label-1> --negative-class-label <class-label-0> --verbose
+
+    # Run regression user model in fit mode.
+    drum fit --code-dir <custom code dir> --input <input.csv> --output <output_dir> --target-type regression --target <target feature> --verbose
+"""
+import os
+import signal
+import sys
+
+from datarobot_drum.drum.common import config_logging, setup_otel
+from datarobot_drum.drum.utils.setup import setup_options
+from datarobot_drum.drum.enum import RunMode
+from datarobot_drum.drum.enum import ExitCodes
+from datarobot_drum.drum.exceptions import DrumSchemaValidationException
+from datarobot_drum.drum.runtime import DrumRuntime
+from datarobot_drum.runtime_parameters.runtime_parameters import (
+    RuntimeParameters,
+)
+
+
+def main(flask_app: Flask = None, worker_ctx: WorkerCtx = None):
+    """
+    The main entry point for the custom model runner.
+
+    This function initializes the runtime environment, sets up logging, handles
+    signal interruptions, and starts the CMRunner for executing user-defined models.
+
+    Args:
+        flask_app: Optional[Flask] Flask application instance, used when running using command line.
+        worker_ctx: Optional gunicorn worker context (WorkerCtx), used for managing cleanup tasks in a
+                    multi-worker setup (e.g., Gunicorn).
+
+    Returns:
+        None
+    """
+    with DrumRuntime(flask_app) as runtime:
+        config_logging()
+
+        if worker_ctx:
+            # Perform cleanup specific to the Gunicorn worker being terminated.
+            # Gunicorn spawns multiple worker processes to handle requests. Each worker has its own context,
+            # and this ensures that only the resources associated with the current worker are released.
+            # defer_cleanup simply saves methods to be executed during worker restart or shutdown.
+            # More details in https://github.com/datarobot/datarobot-custom-templates/pull/419
+            if runtime.options and RunMode(runtime.options.subparser_name) == RunMode.SERVER:
+                if runtime.cm_runner:
+                    worker_ctx.defer_cleanup(
+                        lambda: runtime.cm_runner.terminate(), desc="runtime.cm_runner.terminate()"
+                    )
+            if runtime.trace_provider is not None:
+                worker_ctx.defer_cleanup(
+                    lambda: runtime.trace_provider.shutdown(),
+                    desc="runtime.trace_provider.shutdown()",
+                )
+            if runtime.metric_provider is not None:
+                worker_ctx.defer_cleanup(
+                    lambda: runtime.metric_provider.shutdown(),
+                    desc="runtime.metric_provider.shutdown()",
+                )
+            if runtime.log_provider is not None:
+                worker_ctx.defer_cleanup(
+                    lambda: runtime.log_provider.shutdown(), desc="runtime.log_provider.shutdown()"
+                )
+
+        def signal_handler(sig, frame):
+            # The signal is assigned so the stacktrace is not presented when Ctrl-C is pressed.
+            # The cleanup itself is done only if we are NOT running in performance test mode which
+            # has its own cleanup
+            print("\nCtrl+C pressed, aborting drum")
+
+            if runtime.options and RunMode(runtime.options.subparser_name) == RunMode.SERVER:
+                if runtime.cm_runner:
+                    runtime.cm_runner.terminate()
+            # Let traceer offload accumulated spans before shutdown.
+            if runtime.trace_provider is not None:
+                runtime.trace_provider.shutdown()
+            if runtime.metric_provider is not None:
+                runtime.metric_provider.shutdown()
+            if runtime.log_provider is not None:
+                runtime.log_provider.shutdown()
+
+            os._exit(130)
+
+        try:
+            options = setup_options()
+            runtime.options = options
+        except Exception as exc:
+            print(str(exc))
+            exit(255)
+
+        trace_provider, metric_provider, log_provider = setup_otel(RuntimeParameters, options)
+        runtime.trace_provider = trace_provider
+        runtime.metric_provider = metric_provider
+        runtime.log_provider = log_provider
+
+        if worker_ctx is None:
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+
+        from datarobot_drum.drum.drum import CMRunner
+
+        try:
+            runtime.cm_runner = CMRunner(runtime, flask_app, worker_ctx)
+            runtime.cm_runner.run()
+        except DrumSchemaValidationException:
+            sys.exit(ExitCodes.SCHEMA_VALIDATION_ERROR.value)
+
+
+def _handle_thread_exception(args):
+    """
+    This global hook is called for any unhandled exception in any thread.
+    """
+    if issubclass(args.exc_type, UnrecoverableError):
+        logging.critical(
+            f"CRITICAL: An unrecoverable error occurred in thread '{args.thread.name}': {args.exc_value}. Terminating process immediately.",
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        )
+        os._exit(1)
+
+
+threading.excepthook = _handle_thread_exception
+
+if __name__ == "__main__":
+    main()
