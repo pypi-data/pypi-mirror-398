@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags for dynamic versioning
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Deploy docs
+        run: |
+          # Build documentation
+          uv run mkdocs build -d site/
+
+          # Clone existing docs repo to preserve history
+          git clone https://${{ secrets.DOCS_DEPLOY_TOKEN }}@github.com/${{ github.repository_owner }}/holodeck-docs.git docs-repo || {
+            # If repo doesn't exist or is empty, initialize it
+            mkdir docs-repo
+            cd docs-repo
+            git init
+            git checkout -b main
+            cd ..
+          }
+
+          cd docs-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Remove old files (except .git and CNAME) and copy new ones
+          find . -maxdepth 1 ! -name '.git' ! -name '.' ! -name 'CNAME' -exec rm -rf {} +
+          cp -r ../site/* .
+
+          # Commit and push if there are changes
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to documentation"
+          else
+            git commit -m "Deploy documentation for ${{ github.ref_name }}"
+            git push origin main
+          fi
+        env:
+          DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
