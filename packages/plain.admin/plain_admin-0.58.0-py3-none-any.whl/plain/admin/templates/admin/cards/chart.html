@@ -1,0 +1,31 @@
+{% extends "admin/cards/base.html" %}
+
+{% block content %}
+<canvas id="card-chart-{{ slug }}"></canvas>
+{{ chart_data|json_script(slug, request.csp_nonce) }}
+<script nonce="{{ request.csp_nonce }}">
+  (function() {
+    function renderChart() {
+      const ctx = document.getElementById('card-chart-{{ slug }}');
+      const dataElement = document.getElementById('{{ slug }}');
+
+      // Only render if both elements exist on the page
+      if (!ctx || !dataElement) {
+        return;
+      }
+
+      const data = JSON.parse(dataElement.textContent);
+
+      if (ctx._chart) {
+        ctx._chart.destroy();
+      }
+
+      const chart = new Chart(ctx, data);
+      ctx._chart = chart;
+    }
+
+    document.addEventListener('DOMContentLoaded', renderChart);
+    document.addEventListener('htmx:afterSwap', renderChart);
+  })();
+</script>
+{% endblock %}
