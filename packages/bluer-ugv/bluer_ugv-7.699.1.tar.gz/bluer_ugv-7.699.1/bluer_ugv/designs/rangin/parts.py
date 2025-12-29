@@ -1,0 +1,16 @@
+dict_of_parts = {
+    "SLA-Battery": "12 V, 100 Ah",
+    "li-ion-battery": "12 V, 100 Ah",
+    "dc-circuit-breaker": "40 A",
+    "TV": "2 x 40 inch",
+    "power-inverter": "continuous output ≥ 400-500 W, surge output ≥ 800 W",
+    "power-adapter": "12V DC, 1 A",
+    "li-ion-charger": "",
+    "TV-bracket": "2 x",
+    "dc-volt-meter": "0 - 50 V, 0 - 50 A",
+    "mcb": "2 - 3 A @ 220 V AC",
+    "ac-volt-meter": "220 V, 5 A",
+    "emergency-stop": "100 A DC or relay-controlled",
+    "safety-fuse": "30 mA trip",
+    "relay": "12 V DC, 25 A",
+}
