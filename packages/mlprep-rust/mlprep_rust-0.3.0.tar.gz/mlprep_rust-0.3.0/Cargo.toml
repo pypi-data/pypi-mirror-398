@@ -1,0 +1,58 @@
+[workspace]
+resolver = "2"
+
+[package]
+name = "mlprep-rust"
+version = "0.3.0"
+edition = "2021"
+description = "High-performance no-code data preprocessing engine"
+authors = ["Takuro Wada <public@takuro.t>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/takurot/mlprep"
+homepage = "https://github.com/takurot/mlprep"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "mlprep"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mlprep"
+path = "src/main.rs"
+
+[dependencies]
+pyo3 = { version = "0.23" }
+polars = { version = "0.46", features = ["lazy", "csv", "parquet", "sql", "streaming"] }
+pyo3-polars = { version = "0.20" }
+anyhow = "1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_yaml = "0.9.34"
+regex = "1.10"
+serde_json = "1.0.145"
+clap = { version = "4.5.53", features = ["derive"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
+indicatif = "0.18.3"
+miette = { version = "5.10", features = ["fancy"] }
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = []
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
