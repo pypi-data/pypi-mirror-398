@@ -1,0 +1,262 @@
+Metadata-Version: 2.4
+Name: a2ui-pydantic
+Version: 0.1.1
+Summary: A2UI Pydantic Schema
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pydantic>=2.12.5
+Dynamic: license-file
+
+# a2ui-pydantic
+
+[![CI](https://github.com/nurokhq/a2ui-pydantic/actions/workflows/check.yml/badge.svg)](https://github.com/nurokhq/a2ui-pydantic/actions/workflows/check.yml)
+[![codecov](https://codecov.io/gh/nurokhq/a2ui-pydantic/graph/badge.svg?token=qFWVcSbRdk)](https://codecov.io/gh/nurokhq/a2ui-pydantic)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A Python implementation of the [A2UI (Agent to UI) protocol](https://a2ui.org/) using Pydantic. This library provides type-safe, validated models for building AI agent interfaces that render natively across web, mobile, and desktop platforms.
+
+## About A2UI
+
+A2UI is a protocol that enables AI agents to generate rich, interactive user interfaces through declarative component descriptions. Instead of executing arbitrary code, agents send structured JSON messages that clients render using their own native widgets. Learn more at [a2ui.org](https://a2ui.org/).
+
+## Features
+
+- ✅ **Complete A2UI v0.8 Schema Support** - Full implementation of the A2UI specification
+- ✅ **Type-Safe Models** - Built with Pydantic v2 for runtime validation and type checking
+- ✅ **18 Component Types** - Text, Image, Button, Form inputs, Layout containers, and more
+- ✅ **Message Types** - BeginRendering, SurfaceUpdate, DataModelUpdate, DeleteSurface
+- ✅ **Data Binding** - Support for literal values and data model path references
+- ✅ **Comprehensive Validation** - Automatic validation of required fields, enums, and constraints
+- ✅ **Python 3.11+** - Modern Python with type hints throughout
+
+## Installation
+
+### Using uv (Recommended)
+
+```bash
+uv add a2ui-pydantic
+```
+
+### Using pip
+
+```bash
+pip install a2ui-pydantic
+```
+
+### From Source
+
+```bash
+git clone https://github.com/nurokhq/a2ui-pydantic.git
+cd a2ui-pydantic
+uv sync --all-groups
+```
+
+## Quick Start
+
+### Creating a Simple UI Message
+
+```python
+from a2ui_pydantic import (
+    A2UIMessage,
+    BeginRendering,
+    SurfaceUpdate,
+    SurfaceComponent,
+    ComponentWrapper,
+    TextComponent,
+    ButtonComponent,
+    Action,
+    Styles,
+)
+
+# Create a begin rendering message
+message = A2UIMessage(
+    beginRendering=BeginRendering(
+        surfaceId="main",
+        root="header",
+        styles=Styles(
+            font="Roboto",
+            primaryColor="#00BFFF"
+        )
+    )
+)
+
+# Create a surface with components
+text_comp = TextComponent(
+    text={"literalString": "Welcome to A2UI"},
+    usageHint="h1"
+)
+
+button_comp = ButtonComponent(
+    child="button-text",
+    action=Action(name="submit", context=[])
+)
+
+update_message = A2UIMessage(
+    surfaceUpdate=SurfaceUpdate(
+        surfaceId="main",
+        components=[
+            SurfaceComponent(
+                id="header",
+                component=ComponentWrapper(Text=text_comp)
+            ),
+            SurfaceComponent(
+                id="button-text",
+                component=ComponentWrapper(Text=TextComponent(
+                    text={"literalString": "Click Me"}
+                ))
+            ),
+            SurfaceComponent(
+                id="submit-btn",
+                component=ComponentWrapper(Button=button_comp)
+            )
+        ]
+    )
+)
+
+# Serialize to JSON
+import json
+print(json.dumps(message.model_dump(by_alias=True), indent=2))
+```
+
+### Using Data Binding
+
+```python
+from a2ui_pydantic import (
+    DataModelUpdate,
+    DataModelEntry,
+    TextComponent,
+)
+
+# Update data model
+data_update = DataModelUpdate(
+    surfaceId="main",
+    path="/user",
+    contents=[
+        DataModelEntry(key="name", valueString="Alice"),
+        DataModelEntry(key="age", valueNumber=30),
+    ]
+)
+
+# Reference data in components
+text_with_binding = TextComponent(
+    text={"path": "/user/name"}  # Binds to data model
+)
+```
+
+## Project Structure
+
+```
+a2ui_pydantic/
+├── __init__.py          # Public API exports
+├── base.py              # Base models (Literal*OrPath, etc.)
+├── components.py        # All 18 component types
+├── messages.py          # Message types (A2UIMessage, etc.)
+├── data_model.py        # Data model structures
+├── actions.py           # Action and context models
+└── enums.py             # Enumeration types
+```
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/nurokhq/a2ui-pydantic.git
+cd a2ui-pydantic
+
+# Install with dev dependencies
+uv sync --all-groups
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest tests/
+
+# Run with coverage
+uv run pytest tests/ --cov=a2ui_pydantic --cov-report=term
+
+# Run specific test file
+uv run pytest tests/test_components.py
+```
+
+### Linting and Type Checking
+
+```bash
+# Run pylint
+uv run pylint a2ui_pydantic tests
+
+# Run mypy
+uv run mypy a2ui_pydantic tests
+
+# Run bandit (security)
+uv run bandit -r a2ui_pydantic
+```
+
+## Component Reference
+
+The library supports all A2UI v0.8 components:
+
+**Content Components:**
+- `TextComponent` - Text with usage hints (h1-h5, body, caption)
+- `ImageComponent` - Images with fit modes and usage hints
+- `IconComponent` - Icons from the A2UI icon set
+- `VideoComponent` - Video playback
+- `AudioPlayerComponent` - Audio playback with description
+
+**Layout Components:**
+- `RowComponent` - Horizontal layout with distribution/alignment
+- `ColumnComponent` - Vertical layout with distribution/alignment
+- `ListComponent` - List with direction (vertical/horizontal)
+- `CardComponent` - Card container
+- `TabsComponent` - Tabbed interface
+- `DividerComponent` - Visual separator
+- `ModalComponent` - Modal dialog
+
+**Form Components:**
+- `ButtonComponent` - Button with actions
+- `CheckBoxComponent` - Checkbox input
+- `TextFieldComponent` - Text input (short/long/obscured/number/date)
+- `DateTimeInputComponent` - Date and time picker
+- `MultipleChoiceComponent` - Multi-select options
+- `SliderComponent` - Numeric slider
+
+## Message Types
+
+- **`BeginRendering`** - Initialize a new surface with root component and styles
+- **`SurfaceUpdate`** - Update or create a surface with components
+- **`DataModelUpdate`** - Update the data model for a surface
+- **`DeleteSurface`** - Remove a surface
+
+## Data Binding
+
+Components support two value types:
+
+1. **Literal Values** - Direct values (e.g., `{"literalString": "Hello"}`)
+2. **Path References** - Data model paths (e.g., `{"path": "/user/name"}`)
+
+This enables dynamic UIs where component values are bound to a data model that can be updated independently.
+
+## Resources
+
+- **[A2UI Official Website](https://a2ui.org/)** - Protocol documentation and guides
+- **[A2UI Specification](https://a2ui.org/specifications/v0.8/)** - Complete technical specification
+- **[A2UI GitHub](https://github.com/google/A2UI)** - Official A2UI repository
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request to the [GitHub repository](https://github.com/nurokhq/a2ui-pydantic).
+
+## Status
+
+This library implements the **A2UI v0.8 (Stable)** specification. The A2UI protocol is currently in public preview and may evolve. This library will be updated to track specification changes.
+
