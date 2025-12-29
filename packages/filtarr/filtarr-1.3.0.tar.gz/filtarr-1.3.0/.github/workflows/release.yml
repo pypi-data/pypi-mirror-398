@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "The tag name to release"
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run linter
+        run: uv run ruff check src tests
+
+      - name: Run type checker
+        run: uv run mypy src
+
+      - name: Run tests
+        run: uv run pytest --tb=short
+
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Use input tag_name when called via workflow_call, otherwise use git ref
+      RELEASE_TAG: ${{ inputs.tag_name || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Use the resolved tag for semver parsing
+          tags: |
+            # Tag with full semver (v1.2.3 -> 1.2.3)
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            # Tag with major.minor (1.2)
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
+            # Tag with major only (1)
+            type=semver,pattern={{major}},value=${{ env.RELEASE_TAG }}
+            # Tag as latest for stable releases (no prerelease suffix)
+            type=raw,value=latest,enable=${{ !contains(env.RELEASE_TAG, '-') }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  create-release:
+    name: Update GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: build-and-push
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag_name || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Update GitHub Release with Docker info
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          append_body: true
+          body: |
+
+            ## Docker Image
+
+            Pull the image from GitHub Container Registry:
+
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_TAG }}
+            ```
+
+            Or use the `latest` tag:
+
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ```
+
+            ## Quick Start
+
+            ```bash
+            docker run -d \
+              -p 8080:8080 \
+              -e FILTARR_RADARR_URL="http://radarr:7878" \
+              -e FILTARR_RADARR_API_KEY="your-key" \
+              -e FILTARR_SONARR_URL="http://sonarr:8989" \
+              -e FILTARR_SONARR_API_KEY="your-key" \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ```
