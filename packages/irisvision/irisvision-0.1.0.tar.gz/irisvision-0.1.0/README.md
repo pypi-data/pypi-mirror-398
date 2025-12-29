@@ -1,0 +1,179 @@
+# 🇦🇪 IrisVision - Face Recognition Suite
+
+[![PyPI version](https://badge.fury.io/py/irisvision.svg)](https://badge.fury.io/py/irisvision)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Made in Emirates](https://img.shields.io/badge/Made%20in-Emirates%20🇦🇪-green.svg)](https://github.com/vCodesUAE)
+
+**IrisVisionAixL** - A high-accuracy face recognition model achieving **98.58% accuracy**, designed and trained in Dubai, UAE.
+
+## ✨ Features
+
+- 🎯 **98.58% Accuracy** - Beats Buffalo_L benchmark
+- 📐 **512-dimensional embeddings** - Compact and efficient
+- 🚀 **Easy to use** - Simple API for encoding, comparing, and verifying faces
+- ☁️ **Auto-download** - Model weights automatically downloaded from HuggingFace
+- 🔧 **Production-ready** - Optimized for real-world deployment
+- 🇦🇪 **Made in Emirates** - Product of Dubai
+
+## 📦 Installation
+
+```bash
+pip install irisvision
+```
+
+## 🚀 Quick Start
+
+```python
+from irisvision import IrisVisionAixL
+
+# Load model (auto-downloads from HuggingFace)
+model = IrisVisionAixL.load()
+
+# Encode a face image
+embedding = model.encode("face.jpg")  # Returns (512,) numpy array
+
+# Compare two faces
+similarity = model.compare(emb1, emb2)  # Returns 0.0 to 1.0
+
+# Verify if same person
+is_match, score = model.verify(emb1, emb2, threshold=0.4)
+```
+
+## 📖 API Reference
+
+### `IrisVisionAixL.load()`
+
+Load the model from HuggingFace Hub.
+
+```python
+model = IrisVisionAixL.load(
+    repo_id="vCodesUAE/IrisVisionAixL",  # Optional: custom repo
+    device="cuda",                        # Optional: "cuda" or "cpu"
+    token="hf_xxx"                        # Optional: HuggingFace token for private repos
+)
+```
+
+### `model.encode(image)`
+
+Extract face embedding from an image.
+
+```python
+# From file path
+embedding = model.encode("path/to/face.jpg")
+
+# From PIL Image
+from PIL import Image
+img = Image.open("face.jpg")
+embedding = model.encode(img)
+
+# From numpy array
+import numpy as np
+img_array = np.array(img)
+embedding = model.encode(img_array)
+
+# Batch encoding
+embeddings = model.encode([img1, img2, img3])
+```
+
+**Returns:** `numpy.ndarray` of shape `(512,)` or `(N, 512)` for batch
+
+### `model.compare(emb1, emb2)`
+
+Calculate cosine similarity between two embeddings.
+
+```python
+similarity = model.compare(emb1, emb2)
+# Returns: float between -1.0 and 1.0 (higher = more similar)
+```
+
+### `model.verify(emb1, emb2, threshold=0.4)`
+
+Verify if two embeddings belong to the same person.
+
+```python
+is_match, score = model.verify(emb1, emb2, threshold=0.4)
+# Returns: (bool, float)
+```
+
+## 🏢 Production Example: Attendance System
+
+```python
+from irisvision import IrisVisionAixL
+import numpy as np
+
+class AttendanceSystem:
+    def __init__(self):
+        self.model = IrisVisionAixL.load()
+        self.employees = {}  # name -> embedding
+    
+    def register(self, name, face_image):
+        """Register a new employee"""
+        self.employees[name] = self.model.encode(face_image)
+    
+    def identify(self, face_image, threshold=0.4):
+        """Identify an employee from face"""
+        embedding = self.model.encode(face_image)
+        
+        best_match = None
+        best_score = -1
+        
+        for name, stored_emb in self.employees.items():
+            score = self.model.compare(embedding, stored_emb)
+            if score > best_score:
+                best_score = score
+                best_match = name
+        
+        if best_score >= threshold:
+            return best_match, best_score
+        return None, best_score
+
+# Usage
+system = AttendanceSystem()
+system.register("Padam", "padam_face.jpg")
+system.register("Ahmed", "ahmed_face.jpg")
+
+name, score = system.identify("unknown_face.jpg")
+if name:
+    print(f"Identified: {name} (score: {score:.2f})")
+```
+
+## 🔧 Technical Details
+
+| Specification | Value |
+|---------------|-------|
+| Architecture | IResNet-100 |
+| Configuration | [3, 13, 30, 3] |
+| Embedding Dimension | 512 |
+| Input Size | 112 × 112 |
+| Training Loss | ArcFace |
+| Accuracy | 98.58% |
+| Parameters | ~65M |
+
+## 📊 Model Performance
+
+| Metric | Value |
+|--------|-------|
+| Validation Accuracy | 98.58% |
+| Classes | 405 |
+| Embedding Norm | 1.0 (L2 normalized) |
+
+## 🔗 Links
+
+- **Model Hub:** [huggingface.co/vCodesUAE/IrisVisionAixL](https://huggingface.co/vCodesUAE/IrisVisionAixL)
+- **GitHub:** [github.com/vCodesUAE/irisvision](https://github.com/vCodesUAE/irisvision)
+- **Organization:** [vCodesUAE](https://github.com/vCodesUAE)
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+## 🙏 Acknowledgments
+
+- Made with ❤️ in Dubai, UAE 🇦🇪
+- Built by [vCodesUAE](https://github.com/vCodesUAE)
+- Powered by PyTorch and HuggingFace
+
+---
+
+**🇦🇪 Made in Emirates | Product of Dubai**
