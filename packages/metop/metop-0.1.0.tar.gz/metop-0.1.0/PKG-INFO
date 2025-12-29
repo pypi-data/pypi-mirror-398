@@ -1,0 +1,121 @@
+Metadata-Version: 2.4
+Name: metop
+Version: 0.1.0
+Summary: macOS GPU/ANE Monitor for Apple Silicon
+Author: metop contributors
+License: MIT
+Project-URL: Homepage, https://github.com/FanBB2333/metop
+Project-URL: Documentation, https://github.com/FanBB2333/metop#readme
+Project-URL: Repository, https://github.com/FanBB2333/metop
+Project-URL: Issues, https://github.com/FanBB2333/metop/issues
+Keywords: macos,gpu,ane,metal,mps,monitor,apple-silicon,m1,m2,m3
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: System :: Monitoring
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: rich>=13.0.0
+Requires-Dist: psutil>=5.9.0
+Provides-Extra: fast
+Requires-Dist: pyobjc-framework-Cocoa>=9.0; extra == "fast"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Dynamic: license-file
+
+# metop
+
+A Python-based GPU/ANE monitoring tool for Apple Silicon Macs. Like `nvtop` or `nvidia-smi`, but for Metal and the Neural Engine.
+
+## Features
+
+- **GPU Monitoring** (no sudo required)
+  - Device, Renderer, and Tiler utilization percentage
+  - GPU memory usage (in-use vs allocated)
+  - Real-time sparkline history
+
+- **ANE + Power Metrics** (requires sudo / `powermetrics`)
+  - CPU/GPU/ANE/Total power (mW/W)
+  - GPU/ANE frequency and active/idle residency (when available)
+  - ANE utilization estimated from residency (fallback: power-based)
+  
+- **System Info**
+  - Chip detection (M1/M2/M3/M4 series)
+  - CPU/GPU/ANE core counts
+  - Memory usage and swap
+
+## Installation
+
+```bash
+# Install from source
+pip install -e .
+
+# Or with optional fast IOKit bindings
+pip install -e ".[fast]"
+```
+
+## Usage
+
+```bash
+# Basic monitoring (GPU only)
+metop
+
+# Enable ANE + power metrics (requires sudo)
+sudo metop
+
+# Custom refresh interval (500ms)
+metop -i 500
+
+# Disable ANE/powermetrics even with sudo
+metop --no-ane
+
+# Debug mode (single sample, raw output)
+metop --debug
+```
+
+## Screenshot
+
+![metop main screen](resources/sample1.png)
+
+## How It Works
+
+### GPU Monitoring
+Uses `IOKit` via `ioreg` command to query the `AGXAccelerator` driver's `PerformanceStatistics`. This provides:
+- `Device Utilization %` - Overall GPU busy percentage
+- `Renderer Utilization %` - Shader/compute units
+- `Tiler Utilization %` - Geometry processing
+
+### ANE + Power Metrics
+Uses `powermetrics` (`-f plist`) to collect CPU/GPU/ANE power and residency/frequency data. Requires `sudo` because `powermetrics` needs root access.
+
+ANE utilization is estimated from:
+- preferred: ANE active residency reported by `powermetrics`
+- fallback: power-based estimate
+
+```
+utilization = (current_power / max_power) * 100%
+```
+
+## Requirements
+
+- macOS Monterey (12.0) or later
+- Apple Silicon Mac (M1/M2/M3/M4 series)
+- Python 3.9+
+- `rich` (terminal UI)
+- `psutil` (memory stats)
+
+## License
+
+MIT License
