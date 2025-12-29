@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="OmicVerse Single Cell Analysis Platform">
+    <meta name="keyword" content="single cell, analysis, omicverse, scanpy">
+    <meta name="author" content="OmicVerse Team">
+    <link rel="icon" href="static/picture/favicon.ico" type="image/x-icon">
+    <title>OmicVerse || Single-cell Analysis</title>
+    
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap.min.css">
+    <!-- Vendors CSS -->
+    <link rel="stylesheet" type="text/css" href="static/css/vendors.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/daterangepicker.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" type="text/css" href="static/css/theme.min.css">
+    <!-- Dark Mode CSS -->
+    <link rel="stylesheet" type="text/css" href="static/css/dark-mode.css">
+    <!-- Single Cell Analysis CSS - Fixed Version -->
+    <link rel="stylesheet" href="static/css/single-cell-fixed.css">
+    <!-- Custom deep-green theme overrides -->
+    <link rel="stylesheet" href="static/css/custom-theme.css">
+    <!-- Plotly.js for visualization -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- High-performance visualization dependencies -->
+    <script src="node_modules/regl/dist/regl.js"></script>
+    <script src="node_modules/gl-matrix/gl-matrix.js"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Prism.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <!-- Feather图标替换为Font Awesome图标 -->
+    <style>
+        /* 使用Font Awesome图标替换Feather图标 */
+        .feather-filter:before { content: "\f0b0"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-chevron-right:before { content: "\f054"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-layers:before { content: "\f5fd"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-grid:before { content: "\f009"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-dna:before { content: "\f471"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-align-left:before { content: "\f036"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-arrow-right:before { content: "\f061"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-search:before { content: "\f002"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-maximize:before { content: "\f31e"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-minimize:before { content: "\f2d1"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+        /* Code Editor Styles - JupyterLab-like */
+        .code-cell {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            background: #fff;
+            transition: box-shadow 0.2s;
+        }
+        .code-cell:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .code-cell-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 12px;
+            background: transparent;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .code-cell-input {
+            padding: 0;
+            position: relative;
+        }
+        .code-cell-input textarea,
+        .code-cell-input pre[class*="language-"] {
+            width: 100%;
+            min-height: auto;
+            border: none;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .code-cell-input textarea {
+            resize: none;
+            overflow: auto;
+            background: transparent;
+            color: transparent !important;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 0 transparent;
+            -webkit-text-stroke: 0 transparent;
+            caret-color: #111827;
+            position: relative;
+            z-index: 2;
+        }
+        .code-cell.cell-markdown .code-input,
+        .code-cell.cell-raw .code-input {
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827;
+            text-shadow: none;
+            max-height: 420px;
+            overflow: auto;
+        }
+        .markdown-render {
+            display: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: text;
+            color: #111827;
+            user-select: none;
+            pointer-events: auto;
+        }
+        .markdown-render h1,
+        .markdown-render h2,
+        .markdown-render h3 {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 6px;
+        }
+        .markdown-render code {
+            background: #f3f4f6;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+        }
+        .markdown-render pre {
+            background: #f6f8fa;
+            padding: 10px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        .markdown-render blockquote {
+            border-left: 3px solid #e5e7eb;
+            padding-left: 10px;
+            color: #6b7280;
+        }
+        .code-cell-input .code-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: transparent;
+            z-index: 1;
+            color: #111827;
+            white-space: pre;
+            overflow: hidden;
+        }
+        .code-cell-input .code-highlight code {
+            display: block;
+        }
+        .code-cell-output {
+            padding: 12px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 12px;
+            display: none;
+            overflow: auto;
+        }
+        .code-cell-output.markdown {
+            font-family: inherit;
+            background: #fff;
+            color: #111827;
+        }
+        .code-cell-output.has-content {
+            display: block;
+        }
+        .code-cell-output.error {
+            color: #dc3545;
+            background: #f8d7da;
+        }
+        .code-cell-output.success {
+            color: #198754;
+        }
+        .code-output-text {
+            margin: 0 0 8px 0;
+            white-space: pre-wrap;
+        }
+        .ansi-black { color: #111827; }
+        .ansi-red { color: #dc2626; }
+        .ansi-green { color: #16a34a; }
+        .ansi-yellow { color: #ca8a04; }
+        .ansi-blue { color: #2563eb; }
+        .ansi-magenta { color: #7c3aed; }
+        .ansi-cyan { color: #0891b2; }
+        .ansi-white { color: #e5e7eb; }
+        .ansi-bright-black { color: #6b7280; }
+        .ansi-bright-red { color: #ef4444; }
+        .ansi-bright-green { color: #22c55e; }
+        .ansi-bright-yellow { color: #facc15; }
+        .ansi-bright-blue { color: #60a5fa; }
+        .ansi-bright-magenta { color: #a78bfa; }
+        .ansi-bright-cyan { color: #22d3ee; }
+        .ansi-bright-white { color: #ffffff; }
+        .code-output-figure {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            background: #fff;
+            margin-top: 8px;
+        }
+        .cell-number {
+            color: #6c757d;
+            font-weight: 500;
+            font-size: 11px;
+            font-family: monospace;
+        }
+        .cell-toolbar {
+            display: flex;
+            gap: 4px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .cell-toolbar .form-select {
+            height: 22px;
+            font-size: 11px;
+            padding: 0 6px;
+            border-radius: 4px;
+        }
+        .code-cell:hover .cell-toolbar {
+            opacity: 1;
+        }
+        .cell-toolbar .btn {
+            padding: 2px 8px;
+            font-size: 11px;
+        }
+        .code-cell-output.collapsed {
+            display: none;
+        }
+        .code-cell-output.partial {
+            max-height: 140px;
+            overflow: auto;
+        }
+        .output-hidden-note {
+            display: none;
+            padding: 6px 12px;
+            font-size: 12px;
+            color: #6b7280;
+            background: #f3f4f6;
+            border-top: 1px dashed #e5e7eb;
+        }
+        .output-hidden-note.visible {
+            display: block;
+        }
+        .code-toolbar-group .btn[data-label] {
+            position: relative;
+        }
+        .code-toolbar-group .btn[data-label]:hover::after {
+            content: attr(data-label);
+            position: absolute;
+            top: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            background: #111827;
+            color: #fff;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            z-index: 10;
+        }
+
+        /* Prism.js code highlighting integration */
+        .code-cell-input pre[class*="language-"] {
+            margin: 0;
+            border-radius: 0;
+        }
+
+        /* Page header toolbar styling */
+        #code-editor-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .code-toolbar-group {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .code-toolbar-group .form-select {
+            border: none;
+            border-radius: 0;
+            padding: 6px 30px 6px 10px;
+            font-size: 12px;
+            min-width: 180px;
+        }
+        .code-toolbar-group .form-select:focus {
+            box-shadow: none;
+        }
+        .code-toolbar-group .btn {
+            border-radius: 0;
+            border: none;
+            border-right: 1px solid #e5e7eb;
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+        .code-toolbar-group .btn:last-child {
+            border-right: none;
+        }
+        .code-toolbar-separator {
+            width: 1px;
+            height: 24px;
+            background: #e5e7eb;
+            margin: 0 4px;
+        }
+        .code-toolbar-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-right: 8px;
+        }
+        .agent-view {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+        .agent-panel {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            min-height: 520px;
+        }
+        .agent-panel-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .agent-panel-title {
+            font-weight: 600;
+            color: #283c50;
+        }
+        .agent-messages {
+            flex: 1;
+            padding: 18px;
+            overflow-y: auto;
+            background: #f8fafc;
+        }
+        .agent-message {
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            max-width: 75%;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        .agent-message p {
+            margin: 0 0 8px;
+        }
+        .agent-message p:last-child {
+            margin-bottom: 0;
+        }
+        .agent-message ul {
+            padding-left: 18px;
+            margin: 8px 0;
+        }
+        .agent-message blockquote {
+            margin: 8px 0;
+            padding-left: 10px;
+            border-left: 2px solid rgba(148, 163, 184, 0.5);
+            color: #64748b;
+        }
+        .agent-message code {
+            background: rgba(15, 23, 42, 0.08);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .agent-message h1,
+        .agent-message h2,
+        .agent-message h3 {
+            margin: 6px 0;
+            font-size: 14px;
+        }
+        .agent-message.user {
+            background: #dbeafe;
+            color: #1e3a8a;
+            margin-left: auto;
+        }
+        .agent-message.assistant {
+            background: #ecfdf3;
+            color: #065f46;
+            margin-right: auto;
+        }
+        .agent-message pre {
+            background: #0f172a;
+            color: #e5e7eb;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 8px 0 0;
+        }
+        .agent-input {
+            border-top: 1px solid #e5e7eb;
+            padding: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: #ffffff;
+        }
+        .agent-input textarea {
+            flex: 1;
+            resize: none;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-height: 44px;
+            font-size: 14px;
+        }
+        .agent-input .btn {
+            white-space: nowrap;
+        }
+
+        .file-manager {
+            display: none;
+            padding: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .fm-section {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+        }
+        .fm-section:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+        .fm-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+        .fm-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .fm-section-toggle {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        .file-manager-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .file-manager-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .file-manager-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .file-manager-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .file-manager-path {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+        .file-manager-up {
+            cursor: pointer;
+            font-size: 11px;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+        .file-manager-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #374151;
+        }
+        .file-manager-item .file-icon {
+            margin-right: 6px;
+            color: #6b7280;
+        }
+        .file-manager-item.is-dir .file-icon {
+            color: #2563eb;
+        }
+        .file-manager-item:hover {
+            background: #f3f4f6;
+        }
+        .file-manager-meta {
+            font-size: 11px;
+            color: #9ca3af;
+        }
+        .file-tree {
+            list-style: none;
+            padding-left: 12px;
+            margin: 0;
+        }
+        .file-tree-node {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 6px;
+            font-size: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #374151;
+        }
+        .file-tree-node:hover {
+            background: #f3f4f6;
+        }
+        .file-tree-node .node-toggle {
+            font-size: 10px;
+            color: #9ca3af;
+            width: 10px;
+            text-align: center;
+        }
+        .file-tree-children {
+            list-style: none;
+            margin: 4px 0 4px 14px;
+            padding-left: 0;
+            display: none;
+        }
+        .file-tree-children.open {
+            display: block;
+        }
+        .file-tree-spacer {
+            height: 32px;
+        }
+
+        .file-context-menu {
+            position: fixed;
+            z-index: 2000;
+            min-width: 180px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+            padding: 6px;
+            display: none;
+        }
+        .file-context-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            font-size: 12px;
+            color: #111827;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .file-context-menu-item:hover {
+            background: #f3f4f6;
+        }
+        .file-context-menu-sep {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 6px 0;
+        }
+
+        .kernel-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .kernel-metric {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .kernel-metric-title {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .kernel-metric-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .kernel-var-list {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0 0 0;
+        }
+        .kernel-var-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            padding: 6px 6px;
+            border-radius: 6px;
+        }
+        .kernel-var-bar {
+            flex: 1;
+            height: 6px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+        .kernel-var-bar span {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, #60a5fa, #34d399);
+            border-radius: 999px;
+        }
+        .var-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .var-table th,
+        .var-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+        }
+        .var-table th {
+            color: #6b7280;
+            font-weight: 600;
+        }
+        .var-preview {
+            color: #6b7280;
+            max-width: 180px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+        .var-row {
+            cursor: pointer;
+        }
+        .var-child td:first-child {
+            padding-left: 20px;
+        }
+        .var-detail-view {
+            display: none;
+            padding: 12px;
+            background: #fff;
+        }
+        .var-detail-meta {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        .var-table-view {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .var-table-view th,
+        .var-table-view td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 6px 8px;
+            text-align: left;
+        }
+
+        .page-header-right-items-wrapper {
+            gap: 6px !important;
+        }
+
+        .text-file-view {
+            display: none;
+            padding: 12px;
+            background: #fff;
+        }
+        .text-file-view textarea {
+            width: 100%;
+            min-height: 480px;
+            border: none;
+            outline: none;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre;
+            resize: vertical;
+        }
+        .md-file-view {
+            display: none;
+            padding: 12px;
+            gap: 12px;
+        }
+        .md-editor {
+            flex: 1;
+            min-width: 0;
+        }
+        .md-editor textarea {
+            width: 100%;
+            min-height: 480px;
+            border: none;
+            outline: none;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            resize: vertical;
+        }
+        .md-preview {
+            flex: 1;
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            overflow: auto;
+            line-height: 1.6;
+            color: #111827;
+        }
+        .md-preview h1 {
+            font-size: 20px;
+        }
+        .md-preview h2 {
+            font-size: 18px;
+        }
+        .md-preview h3 {
+            font-size: 16px;
+        }
+        .md-preview ul {
+            padding-left: 20px;
+        }
+        .md-preview blockquote {
+            border-left: 3px solid #e5e7eb;
+            padding-left: 10px;
+            color: #6b7280;
+        }
+        .md-preview h1, .md-preview h2, .md-preview h3 {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 6px;
+        }
+        .md-preview code {
+            background: #f3f4f6;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+        }
+        .md-preview pre {
+            background: #f6f8fa;
+            color: #111827;
+            padding: 10px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        .image-file-view {
+            display: none;
+            padding: 12px;
+            background: #fff;
+        }
+        .image-file-view img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .editor-tabs {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px 0 12px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f8fafc;
+            margin-top: 0;
+        }
+        .editor-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            cursor: pointer;
+        }
+        .editor-tab.active {
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+        .editor-tab .tab-close {
+            color: #9ca3af;
+            font-size: 12px;
+        }
+
+        #viz-toolbar {
+            display: flex;
+            align-items: center;
+        }
+
+        .page-toolbar {
+            display: none;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 8px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f8fafc;
+            position: sticky;
+            top: 120px;
+            z-index: 1020;
+        }
+        .header-pagebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 30px;
+            border-top: 1px solid #e5e7eb;
+            background: #fff;
+        }
+        .nxl-container {
+            top: 120px;
+        }
+        .header-pagebar .page-header-title h5 {
+            margin-bottom: 0;
+            margin-right: 8px;
+            padding-right: 10px;
+            color: #283c50;
+            font-weight: 600;
+            border-right: 1px solid #cdd4e8;
+        }
+        .header-pagebar .breadcrumb {
+            padding: 0;
+            display: inline-flex;
+            margin-bottom: 0;
+            background: none;
+            font-size: 13px;
+            color: #7587a7;
+            font-weight: 800;
+        }
+        .header-pagebar .breadcrumb a {
+            color: #283c50;
+        }
+
+        html.app-skin-dark .code-cell {
+            background: #0f172a;
+            border-color: #1f2937;
+        }
+        html.app-skin-dark .code-cell-header {
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .code-cell-input textarea {
+            caret-color: #e5e7eb;
+        }
+        html.app-skin-dark .code-cell-input .code-highlight {
+            color: #e5e7eb;
+            background: transparent !important;
+        }
+        html.app-skin-dark .code-cell-input pre[class*="language-"] {
+            background: #0f172a;
+        }
+        html.app-skin-dark code[class*="language-"],
+        html.app-skin-dark pre[class*="language-"] {
+            color: #e5e7eb;
+            text-shadow: none;
+        }
+        html.app-skin-dark .code-cell-input .code-highlight code {
+            background: transparent !important;
+        }
+        html.app-skin-dark .token {
+            text-shadow: none;
+            background: transparent !important;
+        }
+        html.app-skin-dark .token.comment,
+        html.app-skin-dark .token.prolog,
+        html.app-skin-dark .token.doctype,
+        html.app-skin-dark .token.cdata {
+            color: #9ca3af;
+        }
+        html.app-skin-dark .token.punctuation {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .token.property,
+        html.app-skin-dark .token.tag,
+        html.app-skin-dark .token.constant,
+        html.app-skin-dark .token.symbol,
+        html.app-skin-dark .token.deleted {
+            color: #fda4af;
+        }
+        html.app-skin-dark .token.boolean,
+        html.app-skin-dark .token.number {
+            color: #fcd34d;
+        }
+        html.app-skin-dark .token.selector,
+        html.app-skin-dark .token.attr-name,
+        html.app-skin-dark .token.string,
+        html.app-skin-dark .token.char,
+        html.app-skin-dark .token.builtin,
+        html.app-skin-dark .token.inserted {
+            color: #86efac;
+        }
+        html.app-skin-dark .token.operator,
+        html.app-skin-dark .token.entity,
+        html.app-skin-dark .token.url,
+        html.app-skin-dark .token.variable {
+            color: #93c5fd;
+        }
+        html.app-skin-dark .token.atrule,
+        html.app-skin-dark .token.attr-value,
+        html.app-skin-dark .token.function,
+        html.app-skin-dark .token.class-name {
+            color: #a78bfa;
+        }
+        html.app-skin-dark .token.keyword {
+            color: #38bdf8;
+        }
+        html.app-skin-dark .code-cell-output {
+            background: #111827;
+            color: #e5e7eb;
+            border-top-color: #1f2937;
+        }
+        html.app-skin-dark .code-cell-output.markdown {
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .code-cell-output.error {
+            background: #3f1d1d;
+            color: #fca5a5;
+        }
+        html.app-skin-dark .text-file-view {
+            background: #0f172a;
+        }
+        html.app-skin-dark .text-file-view textarea {
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .md-preview {
+            background: #0f172a;
+            border-color: #1f2937;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .md-preview a {
+            color: #93c5fd;
+        }
+        html.app-skin-dark .md-preview pre {
+            background: #111827;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .md-preview blockquote {
+            border-left-color: #1f2937;
+            color: #94a3b8;
+        }
+        html.app-skin-dark .markdown-render {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .markdown-render h1,
+        html.app-skin-dark .markdown-render h2,
+        html.app-skin-dark .markdown-render h3 {
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .markdown-render code {
+            background: #111827;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .markdown-render pre {
+            background: #111827;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .markdown-render blockquote {
+            border-left-color: #1f2937;
+            color: #94a3b8;
+        }
+        html.app-skin-dark .code-cell.cell-markdown .code-input,
+        html.app-skin-dark .code-cell.cell-raw .code-input {
+            color: #e5e7eb !important;
+            -webkit-text-fill-color: #e5e7eb;
+        }
+        html.app-skin-dark .md-preview h1,
+        html.app-skin-dark .md-preview h2,
+        html.app-skin-dark .md-preview h3 {
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .md-preview code {
+            background: #111827;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .md-editor textarea {
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .image-file-view {
+            background: #0f172a;
+        }
+        html.app-skin-dark .file-manager-title {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .file-manager-path,
+        html.app-skin-dark .file-manager-meta {
+            color: #94a3b8;
+        }
+        html.app-skin-dark .file-manager-item {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .file-manager-item:hover {
+            background: #111827;
+        }
+        html.app-skin-dark .file-manager-item .file-icon {
+            color: #94a3b8;
+        }
+        html.app-skin-dark .file-manager-item.is-dir .file-icon {
+            color: #60a5fa;
+        }
+        html.app-skin-dark .fm-section-title {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .file-tree-node {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .file-tree-node:hover {
+            background: #111827;
+        }
+        html.app-skin-dark .kernel-metric {
+            background: #111827;
+            border-color: #1f2937;
+        }
+        html.app-skin-dark .kernel-metric-title {
+            color: #9ca3af;
+        }
+        html.app-skin-dark .kernel-metric-value {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .kernel-var-bar {
+            background: #1f2937;
+        }
+        html.app-skin-dark .var-table th,
+        html.app-skin-dark .var-table td {
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .var-table th,
+        html.app-skin-dark .var-preview {
+            color: #94a3b8;
+        }
+        html.app-skin-dark .file-context-menu {
+            background: #0f172a;
+            border-color: #1f2937;
+        }
+        html.app-skin-dark .file-context-menu-item {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .file-context-menu-item:hover {
+            background: #111827;
+        }
+        html.app-skin-dark .var-detail-view {
+            background: #0f172a;
+        }
+        html.app-skin-dark .var-detail-meta {
+            color: #94a3b8;
+        }
+        html.app-skin-dark .var-table-view th,
+        html.app-skin-dark .var-table-view td {
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .page-toolbar {
+            background: #0f172a;
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .header-pagebar {
+            background: #0f172a;
+            border-top-color: #1f2937;
+        }
+        html.app-skin-dark .header-pagebar .page-header-title h5 {
+            color: #e5e7eb;
+            border-right-color: #1f2937;
+        }
+        html.app-skin-dark .header-pagebar .breadcrumb,
+        html.app-skin-dark .header-pagebar .breadcrumb a {
+            color: #9ca3af;
+        }
+        html.app-skin-dark .code-toolbar-group {
+            background: #111827;
+            border-color: #1f2937;
+        }
+        html.app-skin-dark .code-toolbar-group .btn {
+            border-right-color: #1f2937;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .code-toolbar-group .form-select {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .code-toolbar-label {
+            color: #9ca3af;
+        }
+        html.app-skin-dark .agent-panel {
+            background: #0f172a;
+            border-color: #1f2937;
+        }
+        html.app-skin-dark .agent-panel-header {
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .agent-panel-title {
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .agent-messages {
+            background: #0b1220;
+        }
+        html.app-skin-dark .agent-message.user {
+            background: #1e3a8a;
+            color: #e0e7ff;
+        }
+        html.app-skin-dark .agent-message.assistant {
+            background: #064e3b;
+            color: #d1fae5;
+        }
+        html.app-skin-dark .agent-message pre {
+            background: #0b1220;
+        }
+        html.app-skin-dark .agent-input {
+            border-top-color: #1f2937;
+            background: #0f172a;
+        }
+        html.app-skin-dark .agent-input textarea {
+            background: #111827;
+            border-color: #1f2937;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .editor-tabs {
+            background: #0f172a;
+            border-bottom-color: #1f2937;
+        }
+        html.app-skin-dark .editor-tab {
+            background: #111827;
+            border-color: #1f2937;
+            color: #e5e7eb;
+        }
+        html.app-skin-dark .editor-tab.active {
+            border-color: #60a5fa;
+            color: #60a5fa;
+        }
+        html.app-skin-dark .editor-tab .tab-close {
+            color: #9ca3af;
+        }
+        .feather-moon:before { content: "\f186"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-sun:before { content: "\f185"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-bell:before { content: "\f0f3"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-check:before { content: "\f00c"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-code:before { content: "\f121"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-bar-chart:before { content: "\f080"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-play:before { content: "\f04b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-trash-2:before { content: "\f2ed"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-plus:before { content: "\f067"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-file-text:before { content: "\f15c"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-check-circle:before { content: "\f058"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-x:before { content: "\f00d"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-user:before { content: "\f007"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-settings:before { content: "\f013"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-help-circle:before { content: "\f059"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-log-out:before { content: "\f2f5"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-refresh-cw:before { content: "\f2f1"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-folder:before { content: "\f07b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        .feather-save:before { content: "\f0c7"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+        
+        /* 确保图标样式正确 */
+        [class^="feather-"], [class*=" feather-"] {
+            speak: none;
+            font-style: normal;
+            font-weight: normal;
+            font-variant: normal;
+            text-transform: none;
+            line-height: 1;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation Menu -->
+    <nav class="nxl-navigation">
+        <div class="navbar-wrapper">
+            <div class="m-header">
+                <a href="index.html" class="b-brand d-flex align-items-center">
+                    <img src="static/picture/logo.png" alt="OmicVerse" class="brand-logo-left"/>
+                </a>
+            </div>
+            <div class="navbar-content">
+                <ul class="nxl-navbar" id="analysis-nav">
+                    <li class="nxl-item nxl-caption">
+                        <label data-i18n="nav.singleCell">Single-cell Analysis</label>
+                    </li>
+                    
+                    <!-- Preprocessing -->
+                    <li class="nxl-item nxl-hasmenu">
+                        <a href="javascript:void(0);" class="nxl-link">
+                            <span class="nxl-micon"><i class="feather-filter"></i></span>
+                            <span class="nxl-mtext" data-i18n="nav.preprocessing">Preprocessing</span>
+                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                        </a>
+                        <ul class="nxl-submenu">
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('preprocessing')" data-i18n="nav.normalization">Normalization</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('qc')" data-i18n="nav.qc">Quality Control</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('feature')" data-i18n="nav.featureSelection">Feature Selection</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Dimensionality Reduction -->
+                    <li class="nxl-item nxl-hasmenu">
+                        <a href="javascript:void(0);" class="nxl-link">
+                            <span class="nxl-micon"><i class="feather-layers"></i></span>
+                            <span class="nxl-mtext" data-i18n="nav.dimReduction">Dimensionality Reduction</span>
+                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                        </a>
+                        <ul class="nxl-submenu">
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('dimreduction')" data-i18n="nav.linearDR">Linear DR</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('dimreduction')" data-i18n="nav.nonlinearDR">Nonlinear DR</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('dimreduction')" data-i18n="nav.visualization">Visualization</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Clustering -->
+                    <li class="nxl-item nxl-hasmenu">
+                        <a href="javascript:void(0);" class="nxl-link">
+                            <span class="nxl-micon"><i class="feather-grid"></i></span>
+                            <span class="nxl-mtext" data-i18n="nav.clustering">Clustering</span>
+                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                        </a>
+                        <ul class="nxl-submenu">
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('clustering')" data-i18n="nav.communityDetection">Community Detection</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('clustering')" data-i18n="nav.cellTypeId">Cell Type ID</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('clustering')" data-i18n="nav.clusterValidation">Cluster Validation</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- OmicVerse -->
+                    <li class="nxl-item nxl-hasmenu">
+                        <a href="javascript:void(0);" class="nxl-link">
+                            <span class="nxl-micon"><i class="feather-dna"></i></span>
+                            <span class="nxl-mtext" data-i18n="nav.omicverse">OmicVerse</span>
+                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                        </a>
+                        <ul class="nxl-submenu">
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('omicverse')" data-i18n="nav.cellAnnotation">Cell Annotation</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('omicverse')" data-i18n="nav.trajectory">Trajectory Analysis</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('omicverse')" data-i18n="nav.diffAnalysis">Differential Analysis</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="javascript:selectAnalysisCategory('omicverse')" data-i18n="nav.enrichment">Functional Enrichment</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <ul class="nxl-navbar" id="agent-config-nav" style="display: none;">
+                    <li class="nxl-item nxl-caption">
+                        <label data-i18n="agent.configTitle">Agent Configuration</label>
+                    </li>
+                    <li class="nxl-item">
+                        <div class="px-3">
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-api-base" data-i18n="agent.apiBase">API Base URL</label>
+                                <input type="text" class="form-control form-control-sm" id="agent-api-base" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-api-key" data-i18n="agent.apiKey">API Key</label>
+                                <input type="password" class="form-control form-control-sm" id="agent-api-key" placeholder="sk-...">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-model" data-i18n="agent.model">Model</label>
+                                <input type="text" class="form-control form-control-sm" id="agent-model" placeholder="Model name" data-i18n-placeholder="agent.modelPlaceholder" value="gpt-5">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-temperature" data-i18n="agent.temperature">Temperature</label>
+                                <input type="number" class="form-control form-control-sm" id="agent-temperature" min="0" max="2" step="0.1" value="0.3">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-top-p" data-i18n="agent.topP">Top P</label>
+                                <input type="number" class="form-control form-control-sm" id="agent-top-p" min="0" max="1" step="0.05" value="1">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-max-tokens" data-i18n="agent.maxTokens">Max Tokens</label>
+                                <input type="number" class="form-control form-control-sm" id="agent-max-tokens" min="1" step="1" value="2048">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-timeout" data-i18n="agent.timeout">Timeout (s)</label>
+                                <input type="number" class="form-control form-control-sm" id="agent-timeout" min="1" step="1" value="60">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label mb-1" for="agent-system-prompt" data-i18n="agent.systemPrompt">System Prompt</label>
+                                <textarea class="form-control form-control-sm" id="agent-system-prompt" rows="3" placeholder="You are a single-cell analysis assistant..." data-i18n-placeholder="agent.systemPromptPlaceholder"></textarea>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-primary" type="button" onclick="singleCellApp.saveAgentConfig()" data-i18n="agent.save">Save</button>
+                                <button class="btn btn-sm btn-light" type="button" onclick="singleCellApp.resetAgentConfig()" data-i18n="agent.reset">Reset</button>
+                            </div>
+                            <small class="text-muted d-block mt-2" data-i18n="agent.localNotice">Saved in browser storage</small>
+                        </div>
+                    </li>
+                </ul>
+                <div class="file-manager" id="file-manager">
+                    <div class="fm-section">
+                        <div class="fm-section-header" onclick="singleCellApp.toggleSection('file-browser-section')">
+                            <div class="fm-section-title" data-i18n="file.browser">File Browser</div>
+                            <div class="fm-section-toggle" id="file-browser-section-toggle" data-i18n="common.collapse">Collapse</div>
+                        </div>
+                        <div id="file-browser-section">
+                            <div class="file-manager-header">
+                                <div class="file-manager-title" id="file-browser-root" data-i18n="file.root">Working Directory</div>
+                                <div class="file-manager-actions">
+                                    <button class="btn btn-sm btn-light" type="button" onclick="singleCellApp.fetchFileTree()" title="Refresh" data-i18n-title="common.refresh">
+                                        <i class="feather-refresh-cw"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-light" type="button" onclick="singleCellApp.triggerNotebookUpload()">
+                                        <i class="feather-file-text"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <ul class="file-tree" id="file-tree">
+                                <li class="file-tree-node" data-i18n="common.loading">Loading...</li>
+                            </ul>
+                            <div class="file-tree-spacer"></div>
+                        </div>
+                    </div>
+                    <div class="fm-section">
+                        <div class="fm-section-header" onclick="singleCellApp.toggleSection('kernel-monitor-section')">
+                            <div class="fm-section-title" data-i18n="kernel.monitor">Kernel Monitor</div>
+                            <div class="fm-section-toggle" id="kernel-monitor-section-toggle" data-i18n="common.collapse">Collapse</div>
+                        </div>
+                        <div id="kernel-monitor-section">
+                            <div class="kernel-metrics">
+                                <div class="kernel-metric">
+                                    <div class="kernel-metric-title" data-i18n="kernel.memory">Memory Usage</div>
+                                    <div class="kernel-metric-value" id="kernel-memory-value">--</div>
+                                </div>
+                                <div class="kernel-metric">
+                                    <div class="kernel-metric-title" data-i18n="kernel.topVars">Top Variables</div>
+                                    <ul class="kernel-var-list" id="kernel-var-list">
+                                        <li class="kernel-var-item" data-i18n="common.noData">No data</li>
+                                    </ul>
+                                </div>
+                                <button class="btn btn-sm btn-light mt-2" type="button" onclick="singleCellApp.fetchKernelStats()" data-i18n="common.refresh">Refresh</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fm-section">
+                        <div class="fm-section-header" onclick="singleCellApp.toggleSection('kernel-vars-section')">
+                            <div class="fm-section-title" data-i18n="kernel.vars">Variable Viewer</div>
+                            <div class="fm-section-toggle" id="kernel-vars-section-toggle" data-i18n="common.collapse">Collapse</div>
+                        </div>
+                        <div id="kernel-vars-section">
+                            <table class="var-table">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="kernel.varName">Variable</th>
+                                        <th data-i18n="kernel.varType">Type</th>
+                                        <th data-i18n="kernel.varPreview">Preview</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kernel-vars-table">
+                                    <tr>
+                                        <td colspan="3" class="text-muted" data-i18n="common.noData">No data</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button class="btn btn-sm btn-light mt-2" type="button" onclick="singleCellApp.fetchKernelVars()" data-i18n="common.refresh">Refresh</button>
+                        </div>
+                    </div>
+                    <input type="file" id="notebook-file-input" accept=".ipynb" style="display: none;">
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="file-context-menu" id="file-context-menu">
+        <div class="file-context-menu-item" data-action="new-file" onclick="singleCellApp.contextNewFile()" data-i18n="context.newFile">New File</div>
+        <div class="file-context-menu-item" data-action="new-folder" onclick="singleCellApp.contextNewFolder()" data-i18n="context.newFolder">New Folder</div>
+        <div class="file-context-menu-item" data-action="rename" onclick="singleCellApp.contextRename()" data-i18n="context.rename">Rename</div>
+        <div class="file-context-menu-item" data-action="copy" onclick="singleCellApp.contextCopy()" data-i18n="context.copy">Copy</div>
+        <div class="file-context-menu-item" data-action="paste" onclick="singleCellApp.contextPaste()" data-i18n="context.paste">Paste</div>
+        <div class="file-context-menu-item" data-action="move" onclick="singleCellApp.contextMove()" data-i18n="context.move">Move</div>
+        <div class="file-context-menu-sep"></div>
+        <div class="file-context-menu-item" data-action="refresh" onclick="singleCellApp.contextRefresh()" data-i18n="common.refresh">Refresh</div>
+        <div class="file-context-menu-item" data-action="delete" onclick="singleCellApp.contextDelete()" data-i18n="context.delete">Delete</div>
+    </div>
+
+    <!-- Header -->
+    <header class="nxl-header">
+        <div class="header-wrapper">
+            <!-- Header Left -->
+            <div class="header-left d-flex align-items-center gap-4">
+                <!-- Mobile Toggler -->
+                <a href="javascript:void(0);" class="nxl-head-mobile-toggler" id="mobile-collapse">
+                    <div class="hamburger hamburger--arrowturn">
+                        <div class="hamburger-box">
+                            <div class="hamburger-inner"></div>
+                        </div>
+                    </div>
+                </a>
+                <!-- Navigation Toggle -->
+                <div class="nxl-navigation-toggle">
+                    <a href="javascript:void(0);" id="menu-mini-button">
+                        <i class="feather-align-left"></i>
+                    </a>
+                    <a href="javascript:void(0);" id="menu-expend-button" style="display: none">
+                        <i class="feather-arrow-right"></i>
+                    </a>
+                </div>
+                <!-- Mega Menu Toggle -->
+                <div class="nxl-lavel-mega-menu-toggle d-flex d-lg-none">
+                    <a href="javascript:void(0);" id="nxl-lavel-mega-menu-open">
+                        <i class="feather-align-left"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Header Right -->
+            <div class="header-right ms-auto">
+                <div class="d-flex align-items-center">
+                    <!-- Brand Logo (top-right) -->
+                    
+                    <!-- Search -->
+                    <div class="dropdown nxl-h-item nxl-header-search">
+                        <a href="javascript:void(0);" class="nxl-head-link me-0" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            <i class="feather-search"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-search-dropdown">
+                            <div class="input-group search-form">
+                                <span class="input-group-text">
+                                    <i class="feather-search fs-6 text-muted"></i>
+                                </span>
+                                <input type="text" class="form-control search-input-field" placeholder="Search genes, cell types..." data-i18n-placeholder="search.placeholder">
+                                <span class="input-group-text">
+                                    <button type="button" class="btn-close"></button>
+                                </span>
+                            </div>
+                            <div class="dropdown-divider mt-0"></div>
+                            <div class="search-items-wrapper">
+                                <div class="searching-for px-4 py-2">
+                                    <p class="fs-11 fw-medium text-muted" data-i18n="search.hint">Searching...</p>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <a href="javascript:void(0);" class="flex-fill border rounded py-1 px-2 text-center fs-11 fw-semibold" data-i18n="search.genes">Genes</a>
+                                        <a href="javascript:void(0);" class="flex-fill border rounded py-1 px-2 text-center fs-11 fw-semibold" data-i18n="search.cellTypes">Cell Types</a>
+                                        <a href="javascript:void(0);" class="flex-fill border rounded py-1 px-2 text-center fs-11 fw-semibold" data-i18n="search.pathways">Pathways</a>
+                                        <a href="javascript:void(0);" class="flex-fill border rounded py-1 px-2 text-center fs-11 fw-semibold" data-i18n="search.analysis">Analysis</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- View Switcher -->
+                    <div class="nxl-h-item d-none d-sm-flex">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-primary" id="view-viz-btn" onclick="singleCellApp.switchView('visualization')">
+                                <i class="feather-bar-chart me-1"></i><span data-i18n="view.visualization">Visualization</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="view-code-btn" onclick="singleCellApp.switchView('code')">
+                                <i class="feather-code me-1"></i><span data-i18n="view.codeEditor">Code Editor</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="view-agent-btn" onclick="singleCellApp.switchView('agent')" style="display: none;">
+                                <i class="feather-message-circle me-1"></i>Agent
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Full Screen -->
+                    <div class="nxl-h-item d-none d-sm-flex">
+                        <div class="full-screen-switcher">
+                            <a href="javascript:void(0);" class="nxl-head-link me-0" onclick="$('body').fullScreenHelper('toggle');">
+                                <i class="feather-maximize maximize"></i>
+                                <i class="feather-minimize minimize"></i>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Theme Toggle -->
+                    <div class="nxl-h-item d-none d-sm-flex">
+                        <a href="javascript:void(0);" class="nxl-head-link me-0" id="theme-toggle">
+                            <i class="feather-moon" id="theme-toggle-icon"></i>
+                        </a>
+                    </div>
+
+                    <!-- Language Toggle -->
+                    <div class="nxl-h-item d-none d-sm-flex">
+                        <a href="javascript:void(0);" class="nxl-head-link me-0" id="lang-toggle" data-i18n="lang.toggle">中文</a>
+                    </div>
+                    
+                    <!-- Notifications -->
+                    <div class="dropdown nxl-h-item">
+                        <a class="nxl-head-link me-3" data-bs-toggle="dropdown" href="#" role="button" data-bs-auto-close="outside">
+                            <i class="feather-bell"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-notifications-menu">
+                            <div class="d-flex justify-content-between align-items-center notifications-head">
+                                <h6 class="fw-bold text-dark mb-0" data-i18n="notify.title">Analysis Notifications</h6>
+                            </div>
+                            <div class="notifications-empty text-muted text-center py-4" data-i18n="notify.empty">No notifications</div>
+                        </div>
+                    </div>
+                    
+                    <!-- User Profile -->
+                    <div class="dropdown nxl-h-item">
+                        <a href="javascript:void(0);" class="nxl-head-link me-0" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            <div class="avatar-image avatar-sm">
+                                <img src="static/picture/1.png" alt="" class="img-fluid">
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-user-menu">
+                            <div class="d-flex justify-content-between align-items-center user-head">
+                                <h6 class="fw-bold text-dark mb-0" data-i18n="user.menu">User Menu</h6>
+                            </div>
+                            <div class="user-body">
+                                <a href="javascript:void(0);" class="dropdown-item">
+                                    <i class="feather-user me-3"></i>
+                                    <span data-i18n="user.profile">Profile</span>
+                                </a>
+                                <a href="javascript:void(0);" class="dropdown-item">
+                                    <i class="feather-settings me-3"></i>
+                                    <span data-i18n="user.settings">Settings</span>
+                                </a>
+                                <a href="javascript:void(0);" class="dropdown-item">
+                                    <i class="feather-help-circle me-3"></i>
+                                    <span data-i18n="user.help">Help</span>
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <a href="javascript:void(0);" class="dropdown-item">
+                                    <i class="feather-log-out me-3"></i>
+                                    <span data-i18n="user.logout">Sign out</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="header-pagebar">
+            <div class="page-header-left d-flex align-items-center">
+                <div class="page-header-title">
+                    <h5 class="m-b-10" id="page-title" data-i18n="breadcrumb.title">Single-cell Analysis</h5>
+                </div>
+                <ul class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index.html" data-i18n="breadcrumb.home">Home</a></li>
+                    <li class="breadcrumb-item" id="breadcrumb-title" data-i18n="breadcrumb.title">Single-cell Analysis</li>
+                </ul>
+            </div>
+            <div class="page-header-right ms-auto">
+                <div class="page-header-right-items">
+                    <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                        <div id="viz-toolbar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="nxl-container">
+        <div class="nxl-content">
+            <div class="page-toolbar" id="code-editor-toolbar-row">
+                <div id="code-editor-toolbar">
+                    <span class="code-toolbar-label" data-i18n="toolbar.kernel">Kernel</span>
+                    <div class="code-toolbar-group">
+                        <select class="form-select form-select-sm" id="kernel-select">
+                            <option value="python3">Python 3 (ipykernel)</option>
+                        </select>
+                    </div>
+                    <div class="code-toolbar-separator"></div>
+                    <div class="code-toolbar-group">
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.runAllCells()" title="Run all" data-i18n-title="toolbar.runAll">
+                            <i class="feather-play"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.addCodeCell()" title="Add cell" data-i18n-title="toolbar.addCell">
+                            <i class="feather-plus"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.saveActiveFile()" title="Save" data-i18n-title="toolbar.save">
+                            <i class="feather-save"></i>
+                        </button>
+                    </div>
+                    <div class="code-toolbar-separator"></div>
+                    <div class="code-toolbar-group">
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.insertTemplate()" title="Insert template" data-i18n-title="toolbar.insertTemplate">
+                            <i class="feather-file-text"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.clearAllCells()" title="Clear all" data-i18n-title="toolbar.clearAll">
+                            <i class="feather-trash-2"></i>
+                        </button>
+                    </div>
+                    <div class="code-toolbar-separator"></div>
+                    <div class="code-toolbar-group">
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.adjustFontSize(-1)" title="Decrease font" data-i18n-title="toolbar.fontDown">
+                            A-
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.adjustFontSize(1)" title="Increase font" data-i18n-title="toolbar.fontUp">
+                            A+
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Visualization View -->
+                <div id="visualization-view" class="content-view">
+                <div class="row">
+                    <!-- Main Analysis Panel -->
+                    <div class="col-lg-8 col-xl-9">
+                        <!-- File Upload Area -->
+                        <div id="upload-section" class="mb-4">
+                            <div class="file-upload-area" id="dropZone" style="cursor: pointer;">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                <h5 data-i18n="upload.title">Upload H5AD File</h5>
+                                <p class="text-muted" data-i18n="upload.subtitle">Drag & drop or click to select a file</p>
+                                <input type="file" id="fileInput" accept=".h5ad" style="display: none;">
+                                <button type="button" class="btn btn-primary" style="pointer-events: none;">
+                                    <i class="fas fa-folder-open me-2"></i><span data-i18n="upload.button">Select File</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Data Status -->
+                        <div id="data-status" class="status-info d-none">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1" id="filename-display" data-i18n="status.filename">Filename</h6>
+                                    <small class="text-muted">
+                                        <span id="cell-count">0</span> <span data-i18n="status.cells">cells</span> •
+                                        <span id="gene-count">0</span> <span data-i18n="status.genes">genes</span>
+                                    </small>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-success me-2" onclick="saveData()">
+                                        <i class="fas fa-download me-1"></i><span data-i18n="status.save">Save</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-secondary" onclick="resetData()">
+                                        <i class="fas fa-refresh me-1"></i><span data-i18n="status.reset">Reset</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visualization Controls -->
+                        <div id="viz-controls" class="control-panel" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="embedding-select" class="form-label" data-i18n="controls.embedding">Embedding</label>
+                                    <select class="form-select" id="embedding-select" onchange="updatePlot()">
+                                        <option value="" data-i18n="controls.embeddingPlaceholder">Select embedding</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="color-select" class="form-label" data-i18n="controls.colorBy">Color by</label>
+                                    <select class="form-select" id="color-select" onchange="updatePlot()">
+                                        <option value="" data-i18n="controls.colorNone">None</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="gene-input" class="form-label" data-i18n="controls.gene">Gene Expression</label>
+                                    <div class="position-relative">
+                                        <input type="text" class="form-control" id="gene-input" placeholder="Enter gene name" data-i18n-placeholder="controls.genePlaceholder" autocomplete="off">
+                                        <div id="gene-autocomplete" class="list-group position-absolute w-100" style="display: none; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="palette-select" class="form-label">
+                                        <span id="palette-label" data-i18n="controls.paletteContinuous">Palette (continuous)</span>
+                                    </label>
+                                    <select class="form-select" id="palette-select" onchange="updatePlot()">
+                                        <option value="default" data-i18n="controls.paletteDefault">Default</option>
+                                        <option value="Viridis">Viridis</option>
+                                        <option value="Plasma">Plasma</option>
+                                        <option value="Inferno">Inferno</option>
+                                        <option value="Magma">Magma</option>
+                                        <option value="Cividis">Cividis</option>
+                                        <option value="Blues">Blues</option>
+                                        <option value="Reds">Reds</option>
+                                        <option value="YlOrRd">YlOrRd</option>
+                                        <option value="YlGnBu">YlGnBu</option>
+                                        <option value="RdBu" data-i18n="controls.paletteDiverging">RdBu (diverging)</option>
+                                        <option value="Spectral" data-i18n="controls.paletteSpectral">Spectral (diverging)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-1" id="category-palette-row" style="display: none;">
+                                <div class="col-md-12">
+                                    <label for="category-palette-select" class="form-label" data-i18n="controls.categoryPalette">Categorical palette</label>
+                                    <select class="form-select" id="category-palette-select" onchange="updatePlot()">
+                                        <option value="default" data-i18n="controls.paletteDefaultScanpy">Default (Scanpy)</option>
+                                        <option value="tab10" data-i18n="controls.tab10">Tab10 (10 colors)</option>
+                                        <option value="tab20" data-i18n="controls.tab20">Tab20 (20 colors)</option>
+                                        <option value="tab20b" data-i18n="controls.tab20b">Tab20b (20 colors)</option>
+                                        <option value="tab20c" data-i18n="controls.tab20c">Tab20c (20 colors)</option>
+                                        <option value="set1" data-i18n="controls.set1">Set1 (9, vivid)</option>
+                                        <option value="set2" data-i18n="controls.set2">Set2 (8, soft)</option>
+                                        <option value="set3" data-i18n="controls.set3">Set3 (12, gentle)</option>
+                                        <option value="paired" data-i18n="controls.paired">Paired (12)</option>
+                                        <option value="pastel1" data-i18n="controls.pastel1">Pastel1 (9)</option>
+                                        <option value="pastel2" data-i18n="controls.pastel2">Pastel2 (8)</option>
+                                        <option value="dark2" data-i18n="controls.dark2">Dark2 (8)</option>
+                                        <option value="accent" data-i18n="controls.accent">Accent (8)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-1" id="vminmax-row" style="display: none;">
+                                <div class="col-md-4">
+                                    <label for="vmin-input" class="form-label" data-i18n="controls.vmin">Min (vmin)</label>
+                                    <input type="number" class="form-control form-control-sm" id="vmin-input" placeholder="Auto" data-i18n-placeholder="controls.auto" step="0.01">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="vmax-input" class="form-label" data-i18n="controls.vmax">Max (vmax)</label>
+                                    <input type="number" class="form-control form-control-sm" id="vmax-input" placeholder="Auto" data-i18n-placeholder="controls.auto" step="0.01">
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="singleCellApp.applyVMinMax()">
+                                        <i class="fas fa-sync-alt me-1"></i><span data-i18n="controls.apply">Apply</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visualization Panel -->
+                        <div id="viz-panel" class="visualization-panel" style="display: none;">
+                            <div class="position-relative">
+                                <div id="loading-overlay" class="loading-overlay" style="display: none;">
+                                    <div class="text-center">
+                                        <div class="spinner-border spinner-border-custom text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted" id="loading-text" data-i18n="loading.processing">Processing data...</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="plotly-div"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analysis Toolbar -->
+                    <div class="col-lg-4 col-xl-3">
+                        <!-- Parameter Settings Section -->
+                        <div class="parameter-section" id="parameter-panel">
+                            <h6>
+                                <i class="fas fa-cog"></i><span data-i18n="panel.parameters">Parameters</span>
+                            </h6>
+                            <div id="parameter-content">
+                                <div class="text-muted text-center py-4">
+                                    <i class="fas fa-mouse-pointer fa-2x mb-2"></i>
+                                    <p data-i18n="panel.selectAnalysis">Select an analysis type from the left menu</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Analysis Status Section -->
+                        <div class="analysis-log-section">
+                            <h6>
+                                <i class="fas fa-info-circle"></i><span data-i18n="panel.analysisStatus">Analysis Status</span>
+                            </h6>
+                            <div id="analysis-log" class="bg-light p-3 rounded analysis-log">
+                                <div class="text-muted" data-i18n="panel.waitingUpload">Waiting for data upload...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                <!-- End Visualization View -->
+
+                <!-- Code Editor View -->
+                <div id="code-editor-view" class="content-view" style="display: none;">
+                    <div class="row h-100">
+                        <div class="col-12">
+                            <div class="editor-tabs" id="editor-tabs"></div>
+                            <!-- Cells Container -->
+                            <div id="code-cells-container" class="overflow-auto p-3" style="max-width: 1200px; margin: 0 auto;">
+                                <!-- Code cells will be added here -->
+                            </div>
+                            <div id="text-file-view" class="text-file-view">
+                                <textarea id="text-file-editor" spellcheck="false"></textarea>
+                            </div>
+                            <div id="md-file-view" class="md-file-view">
+                                <div class="md-editor">
+                                    <textarea id="md-file-editor" spellcheck="false"></textarea>
+                                </div>
+                                <div class="md-preview" id="md-file-preview"></div>
+                            </div>
+                            <div id="var-detail-view" class="var-detail-view"></div>
+                            <div id="image-file-view" class="image-file-view">
+                                <img id="image-file-content" alt="image preview">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- End Code Editor View -->
+
+                <!-- Agent View -->
+                <div id="agent-view" class="content-view" style="display: none;">
+                    <div class="agent-view">
+                        <div class="agent-panel">
+                            <div class="agent-panel-header">
+                                <div class="agent-panel-title" data-i18n="agent.title">Single-cell Agent</div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="singleCellApp.showAgentConfig()" data-i18n="agent.configButton">Configure</button>
+                            </div>
+                            <div class="agent-messages" id="agent-messages">
+                                <div class="agent-message assistant" data-i18n="agent.greeting">Hi, I can help analyze single-cell data. Tell me what you want to do.</div>
+                            </div>
+                            <div class="agent-input">
+                                <textarea id="agent-input" placeholder="Ask a question, e.g. suggest cell type annotation" data-i18n-placeholder="agent.inputPlaceholder"></textarea>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="singleCellApp.sendAgentMessage()" data-i18n="agent.send">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- End Agent View -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Fixed Status Bar -->
+    <div class="fixed-bottom border-top shadow-sm" id="status-bar" style="display: none;">
+        <div class="container-fluid">
+            <div class="row align-items-center py-2">
+                <div class="col-md-8">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="status-spinner" style="display: none;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span id="status-text" data-i18n="status.ready">Ready</span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <small class="text-muted" id="status-time"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parameter Dialog Modal -->
+    <div class="modal fade" id="parameterModal" tabindex="-1" aria-labelledby="parameterModalTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="parameterModalTitle" data-i18n="panel.parameters">Parameters</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" data-i18n-title="common.close"></button>
+                </div>
+                <div class="modal-body" id="parameterModalBody">
+                    <!-- Dynamic parameter inputs will be inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="runToolBtn" data-i18n="common.run">Run</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="static/js/vendors.min.js"></script>
+    <script src="static/js/common-init.min.js"></script>
+    <!-- Single Cell Analysis JavaScript -->
+    <!-- High-performance visualization modules -->
+    <script src="static/js/dataManager.js"></script>
+    <script src="static/js/streamingDataLoader.js"></script>
+    <script src="static/js/performanceMonitor.js"></script>
+    <script src="static/js/util/typedCrossfilter/index.js" type="module"></script>
+    <script src="static/js/components/scatterplot/scatterplot.js" type="module"></script>
+
+    <!-- Main application -->
+    <script src="static/js/single-cell.js"></script>
+</body>
+</html>
