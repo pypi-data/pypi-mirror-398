@@ -1,0 +1,217 @@
+Metadata-Version: 2.4
+Name: macos-trackpad-pressure
+Version: 0.1.2
+Summary: Monitor and capture Force Touch trackpad pressure on macOS
+Home-page: https://github.com/9nesh/trackforce
+Author: Inesh Tickoo
+Author-email: Inesh Tickoo <itickoo@owu.edu>
+License: MIT
+Project-URL: Homepage, https://github.com/9nesh/trackforce
+Project-URL: Repository, https://github.com/9nesh/trackforce
+Project-URL: Issues, https://github.com/9nesh/trackforce/issues
+Keywords: macos,trackpad,pressure,force-touch,pyobjc,sensor
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Human Machine Interfaces
+Classifier: Topic :: System :: Hardware :: Hardware Drivers
+Classifier: Topic :: Multimedia :: Graphics
+Classifier: Environment :: MacOS X :: Cocoa
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyobjc-framework-Cocoa>=9.0
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# macOS Trackpad Pressure Monitor
+
+A Python library for monitoring Force Touch trackpad pressure on macOS.
+
+## Overview
+
+This appears to be the first Python package for accessing trackpad pressure on macOS. Before this, you'd need to use Swift/Objective-C or write PyObjC bindings yourself.
+
+For researchers and developers already working in Python, this means pressure data can now integrate directly with existing tools - pandas DataFrames, matplotlib plots, ML models, PsychoPy experiments, audio libraries, whatever you're already using.
+
+## Why This Exists
+
+I needed trackpad pressure data for an HCI experiment studying cognitive load during gaming. The experiment setup required collecting pressure alongside eye tracking and EEG data - all using Python APIs.
+
+Couldn't find a Python package for macOS trackpad pressure. Found Swift examples, but I didn't know Swift and had a tight deadline. Used PyObjC to quickly get something working for the experiment.
+
+After finishing, a few other researchers asked for the code for their own projects. Figured I'd clean it up and put it on PyPI in case others need it too.
+
+## Installation
+
+```bash
+pip install macos-trackpad-pressure
+```
+
+## Requirements
+
+- macOS 10.11+ with Force Touch trackpad
+- Python 3.7+
+
+## Quick Start
+
+### GUI Monitor
+
+```python
+from trackpad_pressure import start_gui_monitor
+
+start_gui_monitor()
+```
+
+A window will open - press on your trackpad with varying pressure to see real-time values (0.0 to 1.0).
+
+### With Callback Function
+
+```python
+from trackpad_pressure import PressureMonitor
+
+def on_pressure(pressure, stage):
+    print(f"Pressure: {pressure:.3f}, Stage: {stage}")
+
+monitor = PressureMonitor(callback=on_pressure)
+monitor.start()
+```
+
+### Command Line
+
+```bash
+trackpad-pressure
+```
+
+## Use Cases
+
+This library integrates with Python's ecosystem for:
+
+- **HCI Research**: Collect pressure data alongside other behavioral metrics
+- **Data Science**: Export to pandas DataFrames, visualize with matplotlib/seaborn
+- **Machine Learning**: Training data for gesture recognition models
+- **Creative Coding**: Pressure-sensitive art with Processing/p5
+- **Music Production**: MIDI control via pressure (using `mido`, `python-osc`)
+- **Game Development**: Pressure controls in Pygame or Arcade
+- **Accessibility Tools**: Custom input methods for assistive technology
+- **Education**: Teaching input device concepts in Python courses
+
+## API Reference
+
+### PressureMonitor
+
+```python
+PressureMonitor(callback=None)
+```
+
+**Parameters:**
+- `callback` (callable, optional): Function called when pressure changes. Receives `(pressure: float, stage: int)`.
+
+**Methods:**
+- `start(gui=True)`: Start monitoring. Opens GUI window by default.
+- `current_pressure`: Property returning current pressure value (0.0-1.0)
+- `current_stage`: Property returning Force Touch stage (0, 1, or 2)
+
+### start_gui_monitor
+
+```python
+start_gui_monitor(monitor=None)
+```
+
+Launch the GUI pressure monitor window.
+
+**Parameters:**
+- `monitor` (PressureMonitor, optional): Pass a PressureMonitor instance to enable callbacks alongside GUI display.
+
+## Examples
+
+### Data Collection for Analysis
+
+```python
+import time
+import pandas as pd
+from trackpad_pressure import PressureMonitor
+
+data = []
+
+def collect(pressure, stage):
+    data.append({
+        'timestamp': time.time(),
+        'pressure': pressure,
+        'stage': stage
+    })
+
+monitor = PressureMonitor(callback=collect)
+monitor.start()
+
+# Later: convert to DataFrame
+df = pd.DataFrame(data)
+df.to_csv('pressure_data.csv')
+```
+
+### Real-time Visualization
+
+```python
+import matplotlib.pyplot as plt
+from trackpad_pressure import PressureMonitor
+
+pressures = []
+
+def update_plot(pressure, stage):
+    pressures.append(pressure)
+    if len(pressures) % 10 == 0:  # Update every 10 samples
+        plt.plot(pressures)
+        plt.pause(0.01)
+
+monitor = PressureMonitor(callback=update_plot)
+monitor.start()
+```
+
+### Pressure-based Thresholds
+
+```python
+from trackpad_pressure import PressureMonitor
+
+def on_pressure(pressure, stage):
+    if pressure < 0.3:
+        print("Light touch")
+    elif pressure < 0.7:
+        print("Medium pressure")
+    else:
+        print("Heavy pressure")
+
+monitor = PressureMonitor(callback=on_pressure)
+monitor.start()
+```
+
+## Troubleshooting
+
+**Getting 1.0 for every press?**
+- Requires a Force Touch trackpad (MacBook 2015+)
+- Try pressing and holding with varying pressure, not just clicking
+- Check System Preferences → Trackpad to ensure Force Touch is enabled
+
+**No pressure values appearing?**
+- Make sure the window is in focus
+- Check terminal for error messages
+- Verify you're pressing on the trackpad, not an external mouse
+
+## Technical Details
+
+This package uses PyObjC to interface with macOS's Cocoa framework, specifically `NSEvent.pressure()` for accessing Force Touch sensor data. The API is intentionally simple: pass a callback function, get pressure values. No need to understand NSEvent or Cocoa frameworks unless you want to.
+
+## Contributing
+
+Issues and pull requests welcome on [GitHub](https://github.com/9nesh/trackforce).
+
+## License
+
+MIT
