@@ -1,0 +1,1 @@
+set(SWIG_VERSION 4.4.1)
