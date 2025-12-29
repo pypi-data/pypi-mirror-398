@@ -1,0 +1,140 @@
+[package]
+name = "never_jscore"
+version = "2.5.2"
+edition = "2021"
+authors = ["never_jscore contributors"]
+description = "High-performance Python JavaScript execution engine based on Deno Core (V8) with full Promise/async support"
+license = "MIT"
+repository = "https://github.com/neverl805/never-jscore"
+keywords = ["javascript", "v8", "deno", "execjs", "python"]
+categories = ["development-tools"]
+
+[lib]
+name = "never_jscore"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["deno_web_api", "node_compat","canvas"]
+# 使用 Deno 官方 Web API
+deno_web_api = [
+    "deno_webidl",
+    "dep:deno_web",
+    "dep:deno_crypto",
+    "dep:deno_fetch",
+    "dep:deno_net",
+    "dep:deno_tls",
+    "dep:deno_webstorage",
+    "dep:deno_permissions",
+    "dep:deno_features",
+    "dep:deno_error",
+    "dep:sys_traits",
+    "dep:rustls",
+]
+# Node.js 兼容层 (完整npm生态支持)
+node_compat = [
+    "dep:deno_node",
+    "dep:deno_fs",
+    "dep:deno_io",
+    "dep:deno_os",
+    "dep:deno_process",
+    "dep:node_resolver",
+    "dep:deno_package_json",
+    "dep:deno_maybe_sync",
+    "dep:deno_crypto_provider",
+    "dep:deno_path_util",
+    "dep:deno_semver",
+    "dep:url",
+    "dep:thiserror",
+    "dep:boxed_error",
+    "dep:deno_ast",
+]
+# Canvas 2D 绘图支持（使用纯 Rust 实现）
+canvas = [
+    "dep:tiny-skia",
+    "dep:csscolorparser",
+    "dep:fontdb",
+    "dep:png",
+    "dep:image",
+    "dep:resvg",
+]
+
+[dependencies]
+deno_core = "0.376.0"
+
+
+deno_webidl = { path = "/home/deno/ext/webidl", optional = true }
+deno_web = { path = "/home/deno/ext/web", optional = true }
+deno_crypto = { path = "/home/deno/ext/crypto", optional = true }
+deno_fetch = { path = "/home/deno/ext/fetch", optional = true }
+deno_net = { path = "/home/deno/ext/net", optional = true }
+deno_tls = { path = "/home/deno/ext/tls", optional = true }
+deno_webstorage = { path = "/home/deno/ext/webstorage", optional = true }
+deno_permissions = { path = "/home/deno/runtime/permissions", optional = true }
+deno_features = { path = "/home/deno/runtime/features", optional = true }
+deno_error = { version = "0.7.1", optional = true }
+sys_traits = { version = "0.1.17", features = ["libc", "real", "winapi"], optional = true }
+
+# Node.js 兼容层依赖（按 deno 为准）
+deno_node = { path = "/home/deno/ext/node", optional = true }
+deno_fs = { path = "/home/deno/ext/fs", optional = true }
+deno_io = { path = "/home/deno/ext/io", optional = true }
+deno_os = { path = "/home/deno/ext/os", optional = true }
+deno_process = { path = "/home/deno/ext/process", optional = true }
+node_resolver = { path = "/home/deno/libs/node_resolver", optional = true }
+deno_package_json = { path = "/home/deno/libs/package_json", optional = true }
+deno_maybe_sync = { path = "/home/deno/libs/maybe_sync", optional = true }
+deno_crypto_provider = { path = "/home/deno/libs/crypto", optional = true }
+
+# Python bindings
+pyo3 = { version = "0.27.1", features = ["extension-module", "abi3-py38"] }
+
+# Core utilities
+anyhow = "1.0.100"
+tokio = { version = "1.48", features = ["rt", "time"] }
+serde_json = "1.0"
+
+# Thread-safe utilities
+once_cell = "1.20"
+
+# Random number generation
+rand = "0.8"
+
+# Rustls for HTTPS support (deno_tls dependency)
+rustls = { version = "0.23", features = ["ring"], optional = true }
+
+# Node.js 兼容层额外依赖
+deno_path_util = { version = "0.6.4", optional = true }
+deno_semver = { version = "0.9.1", optional = true }
+url = { version = "2.5", optional = true }
+thiserror = { version = "2.0", optional = true }
+boxed_error = { version = "0.2", optional = true }
+deno_ast = { version = "0.50.3", features = ["transpiling"], optional = true }
+
+# Windows系统依赖 (node_compat需要)
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59.0", features = [
+    "Win32_Networking",
+    "Win32_Networking_WinSock",
+    "Win32_NetworkManagement",
+    "Win32_NetworkManagement_Dns",
+    "Win32_System_SystemInformation",
+] }
+
+[patch.crates-io]
+v8 = { path = "/home/rusty_v8" }  # 替换为实际路径，例如 /home/rusty_v8
+
+
+[profile.release]
+opt-level = "z"          # 速度最优
+lto = "fat"            # 编译速度 / 体积 / 性能最平衡
+codegen-units = 1      # 更好优化（稍慢编译）
+panic = "abort"        # 明显减小体积
+strip = "symbols"      # Rust 1.70+，直接 strip
+incremental = false
+
+[profile.dev]
+opt-level = 1          # ✅ 比 0 快很多
+debug = 1              # ✅ 最少调试信息
+incremental = true     # ✅ 增量编译
+
+
