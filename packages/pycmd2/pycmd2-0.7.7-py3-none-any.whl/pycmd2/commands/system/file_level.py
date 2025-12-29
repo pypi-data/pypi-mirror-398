@@ -1,0 +1,164 @@
+"""功能: 重命名文件级别后缀.
+
+用法: filelvl [OPTIONS] TARGETS...
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import uuid
+from dataclasses import dataclass
+from functools import partial
+from pathlib import Path
+from typing import ClassVar
+from typing import List
+
+import typer
+
+from pycmd2.client import get_client
+from pycmd2.config import TomlConfigMixin
+from pycmd2.runner import ParallelRunner
+
+
+class FileLevelConfig(TomlConfigMixin):
+    """文件级别配置."""
+
+    LEVELS: ClassVar[dict[str, str]] = {
+        "0": "",
+        "1": "PUB,NOR",
+        "2": "INT",
+        "3": "CON",
+        "4": "CLA",
+    }
+    BRACKETS: ClassVar[list[str]] = [" ([_（【-", " )]_）】"]  # noqa: RUF001
+    MARK_BRACKETS: ClassVar[list[str]] = ["(", ")"]
+
+
+cli = get_client()
+conf = FileLevelConfig()
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FileProcessor:
+    """文件处理器."""
+
+    src: Path
+    filestem: str
+
+    def rename(self, level: int = 0) -> None:
+        """重命名文件."""
+        # Remove all file level marks.
+        for level_names in conf.LEVELS.values():
+            self._remove_marks(marks=level_names.split(","))
+        logger.info(f"After remove level marks: {self.filestem}")
+
+        # Remove all digital marks.
+        self._remove_marks(marks=list("".join([str(x) for x in range(1, 10)])))
+        logger.info(f"After remove digital marks: {self.filestem}")
+
+        # Add level mark.
+        self._add_level_mark(level=level)
+        logger.info(f"After add level mark: {self.filestem}")
+
+        # Rename file
+        target_path = self.src.with_name(self.filestem + self.src.suffix)
+        logger.info(f"Rename: {self.src}->{target_path}")
+        self.src.rename(target_path)
+
+    def _add_level_mark(self, level: int) -> None:
+        """向文件名添加级别标记, 必须是1-4."""
+        levelstr = conf.LEVELS.setdefault(str(level), "").split(",")[0]
+        if not levelstr:
+            logger.warning(f"Invalid level: {level}, skip.")
+            return
+
+        suffix = levelstr.join(conf.MARK_BRACKETS)
+        self.filestem = f"{self.filestem}{suffix}"
+        if self.filestem == self.src.stem:
+            logger.error(f"[red]{self.filestem}[/] equals to original, skip.")
+            return
+
+        dst_path = self.src.with_name(self.filestem + self.src.suffix)
+        if dst_path.exists():
+            logger.warning(
+                f"[red]{dst_path.name}[/] already exists, add unique id.",
+            )
+            self.filestem += str(uuid.uuid4()).join(conf.MARK_BRACKETS)
+            self._add_level_mark(level)
+
+    def _remove_marks(self, marks: list[str]) -> None:
+        """从文件名中移除标记."""
+        for mark in marks:
+            self.filestem = self._remove_mark(self.filestem, mark)
+
+    @staticmethod
+    def _remove_mark(stem: str, mark: str) -> str:
+        """从文件名中移除标记.
+
+        Returns:
+            str: 不带标记的文件名.
+        """
+        pos = stem.find(mark)
+        if pos == -1:
+            logger.debug(f"[u]{mark}[/] not found in: {stem}.")
+            return stem
+
+        b, e = pos - 1, pos + len(mark)
+        if b >= 0 and e <= len(stem) - 1:
+            if stem[b] not in conf.BRACKETS[0] or stem[e] not in conf.BRACKETS[1]:
+                return stem[:e] + FileProcessor._remove_mark(stem[e:], mark)
+            stem = stem.replace(stem[b : e + 1], "")
+            return FileProcessor._remove_mark(stem, mark)
+        return stem
+
+
+@cli.app.command()
+def main(
+    targets: List[Path] = typer.Argument(help="输入文件列表"),  # noqa: B008
+    level: int = typer.Option(
+        0,
+        help="文件级别, 设置1-4表示不同级别, 0表示清除级别",
+    ),
+) -> None:
+    """重命名文件级别.
+
+    Raises:
+        typer.BadParameter: 如果级别不在0-4范围内.
+    """
+    # 参数验证
+    if level < 0 or level > 4:  # noqa: PLR2004
+        logger.error(f"无效的级别 {level}, 必须在 0-4 范围内")
+        msg = "Level must be between 0 and 4"
+        raise typer.BadParameter(msg)
+
+    if not targets:
+        logger.error("未指定目标文件")
+        msg = "At least one target file is required"
+        raise typer.BadParameter(msg)
+
+    # 验证所有目标文件都存在且可写
+    valid_targets = []
+    for target in targets:
+        if not target.exists():
+            logger.warning(f"文件不存在: {target}")
+            continue
+        if not target.is_file():
+            logger.warning(f"不是文件: {target}")
+            continue
+        if not os.access(target, os.W_OK):
+            logger.warning(f"文件不可写: {target}")
+            continue
+        valid_targets.append(target)
+
+    if not valid_targets:
+        logger.error("没有有效的目标文件")
+        msg = "No valid target files found"
+        raise typer.BadParameter(msg)
+
+    rename_targets = [FileProcessor(t, t.stem) for t in valid_targets]
+    ParallelRunner().run(
+        partial(FileProcessor.rename, level=level),
+        rename_targets,
+    )

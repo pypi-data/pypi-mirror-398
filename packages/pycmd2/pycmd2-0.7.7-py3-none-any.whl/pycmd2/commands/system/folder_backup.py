@@ -1,0 +1,94 @@
+"""功能: 压缩为 zip 文件存储在指定文件夹.
+
+命令: folderback [DIR] --dest [DEST] --max [N]
+"""
+
+import concurrent.futures
+import logging
+import os
+import pathlib
+import shutil
+import time
+from pathlib import Path
+
+from typer import Argument
+from typer import Option
+from typing_extensions import Annotated
+
+from pycmd2.client import get_client
+from pycmd2.utils import timer
+
+cli = get_client()
+logger = logging.getLogger(__name__)
+
+
+@timer
+def zip_folder(
+    src: pathlib.Path,
+    dst: pathlib.Path,
+    max_zip: int,
+) -> None:
+    """备份源文件夹 src 到目标文件夹 dst, 并删除超过 max_zip 个的备份."""
+    logger.info(f"备份文件夹: {src} 到 {dst} 目录")
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    zip_files = sorted(dst.glob("*.zip"), key=lambda fn: str(fn.name))
+    if len(zip_files) >= max_zip:
+        remove_files = zip_files[: len(zip_files) - max_zip + 1]
+        logger.info(
+            f"超过最大备份数量 {max_zip}, 删除旧备份: {[f.name for f in remove_files]}",
+        )
+        cli.run(os.remove, remove_files)
+
+    backup_path = dst / f"{timestamp}_{src.name}"
+    logger.info(f"创建备份: [purple]{backup_path.name}")
+
+    try:
+        # 添加错误处理和资源管理
+        archive_path = shutil.make_archive(str(backup_path), "zip")
+        logger.info(f"备份成功创建: {archive_path}")
+    except (shutil.Error, OSError, PermissionError) as e:
+        logger.exception(f"创建备份失败: {e.__class__.__name__}")
+        # 清理可能创建的不完整文件
+        incomplete_file = dst / f"{backup_path.name}.zip"
+        if incomplete_file.exists():
+            try:
+                incomplete_file.unlink()
+            except OSError:
+                logger.warning(f"无法删除不完整的备份文件: {incomplete_file}")
+        raise
+
+
+@cli.app.command()
+def main(
+    directory: Annotated[Path, Argument(help="备份目录, 默认当前")] = cli.cwd,
+    dest: Annotated[Path, Option(help="目标文件夹")] = (
+        cli.cwd.parent / f"_backup_{cli.cwd.name}"
+    ),
+    max_count: Annotated[int, Option(help="最大备份数量")] = 5,
+    *,
+    clean: Annotated[bool, Option("--clean", help="清理已有备份")] = False,
+    ls: Annotated[bool, Option("--list", help="列出备份文件")] = False,
+) -> None:
+    if not directory.exists():
+        logger.error(f"目录不存在: {directory}")
+        return
+
+    backup_files = list(dest.glob("*.zip"))
+    if ls:
+        if not backup_files:
+            logger.info(f"没有找到备份文件: {dest}")
+        else:
+            logger.info(f"备份文件列表: {[f.name for f in backup_files]}")
+        return
+
+    if clean:
+        logger.info(f"清理已有备份: [purple]{backup_files}")
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.map(os.remove, backup_files)
+        return
+
+    if not dest.exists():
+        logger.info(f"创建备份目标文件夹: {dest}")
+        dest.mkdir(parents=True, exist_ok=True)
+
+    zip_folder(directory, dest, max_count)
