@@ -1,0 +1,1 @@
+from .workflow_type import workflow_type_register
