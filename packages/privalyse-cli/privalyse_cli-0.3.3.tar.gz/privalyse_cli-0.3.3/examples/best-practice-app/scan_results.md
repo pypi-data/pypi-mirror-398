@@ -1,0 +1,197 @@
+# 🔒 Privalyse Security Scan Report
+
+**Generated:** 2025-12-16T16:07:30.053408  
+**Folder:** `./examples/best-practice-app`  
+**Scanner Version:** v0.1
+
+## 📊 Executive Summary
+
+🚨 **ACTION REQUIRED**
+
+| Metric | Value |
+|--------|-------|
+| **Total Findings** | 10 |
+| **Critical** | 🔴 3 |
+| **High** | 🟠 5 |
+| **Medium** | 🟡 0 |
+| **Low** | 🔵 0 |
+| **Info** | ⚪ 2 |
+
+## 🚨 CRITICAL ISSUES - FIX IMMEDIATELY
+
+Found **3** critical privacy/security issues that need immediate attention:
+
+### 1. PASSWORD_HASH_WEAK
+
+**📍 Location:** `./examples/best-practice-app/app.py:105`
+
+**⚠️ Issue:** Auth
+
+**🔍 PII Detected:** password
+
+**💻 Code:**
+```python
+return hashlib.sha256(data).hexdigest()
+```
+
+**💡 Why This Matters:**
+Hardcoded secrets are a critical security vulnerability:
+- **Immediate Access** - Anyone with code access has credentials
+- **Version Control Exposure** - Secrets persist in Git history
+- **Lateral Movement** - Compromised keys enable broader attacks
+- **Compliance Violation** - Fails security audits
+
+**✅ How to Fix:**
+- **Hash passwords before storage**
+  - Use bcrypt, argon2, or pbkdf2
+  - Never store plaintext passwords
+  - Use salted hashes
+
+Example:
+```python
+# ❌ Before
+user.password = password
+
+# ✅ After
+import bcrypt
+user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+```
+
+---
+
+### 2. PASSWORD_HASH_WEAK
+
+**📍 Location:** `./examples/best-practice-app/app.py:472`
+
+**⚠️ Issue:** Auth
+
+**🔍 PII Detected:** password
+
+**💻 Code:**
+```python
+hashlib.sha256(str(user_id).encode()).hexdigest(),
+```
+
+**💡 Why This Matters:**
+Hardcoded secrets are a critical security vulnerability:
+- **Immediate Access** - Anyone with code access has credentials
+- **Version Control Exposure** - Secrets persist in Git history
+- **Lateral Movement** - Compromised keys enable broader attacks
+- **Compliance Violation** - Fails security audits
+
+**✅ How to Fix:**
+- **Hash passwords before storage**
+  - Use bcrypt, argon2, or pbkdf2
+  - Never store plaintext passwords
+  - Use salted hashes
+
+Example:
+```python
+# ❌ Before
+user.password = password
+
+# ✅ After
+import bcrypt
+user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+```
+
+---
+
+### 3. PASSWORD_HASH_WEAK
+
+**📍 Location:** `./examples/best-practice-app/app.py:412`
+
+**⚠️ Issue:** Auth
+
+**🔍 PII Detected:** password
+
+**💻 Code:**
+```python
+hashlib.sha256(request.remote_addr.encode()).hexdigest()
+```
+
+**💡 Why This Matters:**
+Hardcoded secrets are a critical security vulnerability:
+- **Immediate Access** - Anyone with code access has credentials
+- **Version Control Exposure** - Secrets persist in Git history
+- **Lateral Movement** - Compromised keys enable broader attacks
+- **Compliance Violation** - Fails security audits
+
+**✅ How to Fix:**
+- **Hash passwords before storage**
+  - Use bcrypt, argon2, or pbkdf2
+  - Never store plaintext passwords
+  - Use salted hashes
+
+Example:
+```python
+# ❌ Before
+user.password = password
+
+# ✅ After
+import bcrypt
+user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+```
+
+---
+
+
+## 📋 All Findings by Severity
+
+### 🟠 High Severity (5 findings)
+
+| Rule | Location | PII Types |
+|------|----------|-----------|
+| LOG_PII | `./examples/best-practice-app/app.py:227` | name |
+| SSRF | `./examples/best-practice-app/app.py:294` | - |
+| CRYPTO_WEAK_HASH | `./examples/best-practice-app/app.py:105` | - |
+| CRYPTO_WEAK_HASH | `./examples/best-practice-app/app.py:412` | - |
+| CRYPTO_WEAK_HASH | `./examples/best-practice-app/app.py:472` | - |
+### ⚪ Info Severity (2 findings)
+
+- **LOG_PII** at `./examples/best-practice-app/app.py:264` (PII: name)
+- **LOG_PII** at `./examples/best-practice-app/app.py:460` (PII: user_id, id)
+
+## 🔗 Data Flow Analysis
+
+Critical data paths detected in your application:
+
+
+## ⚖️ GDPR Compliance
+
+| Article | Violations | Description |
+|---------|------------|-------------|
+| **Art. 6** | 2 | Lawfulness of processing |
+| **Art. 9** | 0 | Special categories of data |
+| **Art. 32** | 7 | Security of processing |
+
+
+**⚠️ Compliance Risk:** Your application has GDPR compliance issues that should be addressed.
+
+## 📈 Scan Statistics
+
+- **Files Scanned:** 0
+- **Findings:** 10
+- **Unique PII Types:** 4
+- **Scan Duration:** 0.00s
+- **Analysis Rate:** 0 lines/sec
+
+---
+
+## 💡 Next Steps
+
+1. **Fix Critical Issues** - Address all critical findings immediately
+2. **Review High/Medium** - Plan fixes for high and medium severity items
+3. **Update Documentation** - Document security decisions
+4. **Re-scan** - Run Privalyse again after fixes to verify
+
+## 🔗 Resources
+
+- [Privalyse Documentation](https://docs.privalyse.com)
+- [GDPR Compliance Guide](https://gdpr.eu/)
+- [OWASP Security Guidelines](https://owasp.org/)
+
+---
+
+**Generated by [Privalyse](https://privalyse.com)** - Privacy scanner for modern code  
+*Report any issues or false positives: [GitHub Issues](https://github.com/privalyse/privalyse/issues)*
