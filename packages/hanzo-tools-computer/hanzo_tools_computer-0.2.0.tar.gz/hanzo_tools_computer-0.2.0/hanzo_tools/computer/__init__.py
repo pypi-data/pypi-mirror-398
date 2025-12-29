@@ -1,0 +1,58 @@
+"""Computer control tools for Hanzo AI.
+
+Tools:
+- computer: Control local computer via pyautogui (mouse, keyboard, screenshots)
+
+Install:
+    pip install hanzo-tools-computer
+
+Usage:
+    from hanzo_tools.computer import register_tools, TOOLS
+
+    # Register with MCP server
+    register_tools(mcp_server, permission_manager)
+
+    # Or access individual tools
+    from hanzo_tools.computer import ComputerTool
+"""
+
+from hanzo_tools.core import BaseTool, ToolRegistry, PermissionManager
+
+from .computer_tool import ComputerTool
+
+# Export list for tool discovery
+TOOLS = [ComputerTool]
+
+__all__ = [
+    "ComputerTool",
+    "register_tools",
+    "TOOLS",
+]
+
+
+def register_tools(
+    mcp_server,
+    permission_manager: PermissionManager,
+    enabled_tools: dict[str, bool] | None = None,
+) -> list[BaseTool]:
+    """Register computer control tools with the MCP server.
+
+    Args:
+        mcp_server: The FastMCP server instance
+        permission_manager: Permission manager for access control
+        enabled_tools: Dict of tool_name -> enabled state
+
+    Returns:
+        List of registered tools
+    """
+    enabled = enabled_tools or {}
+    registered = []
+
+    for tool_class in TOOLS:
+        tool_name = tool_class.name if hasattr(tool_class, "name") else tool_class.__name__.lower()
+        if enabled.get(tool_name, True):  # Enabled by default
+            tool = tool_class(permission_manager)
+            ToolRegistry.register_tool(mcp_server, tool)
+            registered.append(tool)
+
+    return registered
