@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, develop]
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: '3.12'
+      skip-tests:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ inputs.python-version || '3.12' }}
+      - run: |
+          if [ -d "packages" ]; then
+            uv run ruff format --check src/celeste tests/ packages/
+          else
+            uv run ruff format --check src/celeste tests/
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ inputs.python-version || '3.12' }}
+      - run: |
+          if [ -d "packages" ]; then
+            uv run ruff check --output-format=github src/celeste tests/ packages/
+          else
+            uv run ruff check --output-format=github src/celeste tests/
+          fi
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ inputs.python-version || '3.12' }}
+      - run: |
+          if [ -d "packages" ]; then
+            uv run mypy -p celeste && uv run mypy tests/ && uv run mypy packages/capabilities/image-generation packages/capabilities/text-generation packages/capabilities/video-generation packages/capabilities/speech-generation
+          else
+            uv run mypy -p celeste && uv run mypy tests/
+          fi
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ inputs.python-version || '3.12' }}
+      - run: |
+          if [ -d "packages" ]; then
+            uv run bandit -c pyproject.toml -r src/ packages/ -f screen
+          else
+            uv run bandit -c pyproject.toml -r src/ -f screen
+          fi
+
+  test:
+    if: ${{ !inputs.skip-tests }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+        os: [ubuntu-latest]
+        include:
+          - python-version: "3.12"
+            os: windows-latest
+          - python-version: "3.12"
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv run pytest tests/unit_tests -v --cov=celeste --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=80
+      - uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
