@@ -1,0 +1,171 @@
+Metadata-Version: 2.4
+Name: sftppathlib
+Version: 0.5.5
+Summary: A Pathlib API for SFTP drive
+Author: fourpoints
+License-Expression: LGPL-2.1
+Project-URL: Homepage, https://github.com/fourpoints/sftppathlib
+Project-URL: Issues, https://github.com/fourpoints/sftppathlib/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: paramiko>=4.0.0
+Requires-Dist: pathlib_abc==0.5
+Dynamic: license-file
+
+# sftppathlib
+
+**sftppathlib** uses [**pathlib_abc**](https://pypi.org/project/pathlib-abc/) and [**paramiko**](https://pypi.org/project/paramiko/) to create a pathlib API for SFTP clients.
+
+The documentation is the same as the standard [**pathlib**](https://docs.python.org/3/library/pathlib.html) library, with some differences.
+
+## Changelog
+
+* `0.5.5` / 2025-12-27: Fixed `.parents` not working. Removed `PurePath` inheritance.
+* `0.5.4` / 2025-12-20: Fixed `rename`.
+
+## Differences
+
+The methods `expanduser()`, `readlink()`, `hardlink_to`, `replace()`, `owner()`, `group()`, `from_uri()`, `as_uri()` are not supported. Subsequently, any method in **pathlib_abc** which relies on these will also fail. For some of them, it's because they don't have any meaning on SFTP clients, others because I don't trust myself to implement them correctly.
+
+The methods `stat(..., follow_symlinks)`, `symlink_to(..., target_is_directory)`, `chmod(..., follow_symlinks)` have their named parameters ignored, since Paramiko's `SFTPClient` does not support them.
+
+Some of Paramiko's `SFTPClient` methods would return status codes like `SFTP_OK`; these are ignored.
+
+
+## Usage
+
+The **sftppathlib** relies on an instance of an `SFTPClient` to be used. This can be either be created in the background using the default setup, or manually and passing it to the `__init__` constructor.
+
+
+### With setup
+
+The default connection will use Paramiko's `SSHClient` to connect. If you are only connecting to one SFTP server, it's recommended to create a config file in the application directory:
+
+* Windows: `~/AppData/Roaming/sftppathlib/config.ini`
+* Linux: `~/.local/share/sftppathlib/config.ini`
+* Apple: `~/Library/Application Support/sftppathlib/config.ini`
+
+The file should be the parameters passed to [paramiko.SSHClient.connect](https://docs.paramiko.org/en/latest/api/client.html#paramiko.client.SSHClient.connect).
+
+```ini
+[example.com]
+root: /
+hostname: sftp.<domain>
+port: 22
+username: <username>
+password: <password>
+```
+
+It will also use the key defined in `~/.ssh/known_hosts`. This will typically include an entry starting with `[sftp.<domain>]:22`.
+
+After this, `sftppathlib.SFTPPath` can be used like `pathlib.Path`:
+
+```py
+from sftppathlib import SFTPPath
+
+root = SFTPPath("sftp://example.com")
+path = root / "hello.txt"
+
+path.write_text("hello world", encoding="utf-8")
+print(path.read_text(encoding="utf-8"))
+
+for child in root.iterdir():
+    print(child)
+```
+
+**Note**: All urls will be passed through `urllib.parse.urlparse`, and the `netloc` (authority) attribute will be replaced with a prefix that is prepended to the `path` attribute. By default all configs will be cached, but this can be disabled by setting `sftppathlib.CACHING = False`.
+
+**Note**: The protocol (sftp) will be ignored. It suffices to write `"https://example.com"` or `"//example.com"`, but `urllib.parse.urlparse` expects at least `//`.
+
+
+### Without setup
+
+**New 0.5.2**: It is also possible to pass the credentials explicitly.
+
+
+```py
+from sftppathlib import SFTPPath
+
+CREDENTIALS = {
+    "root": "/",
+    "hostname": "sftp.<domain>",
+    "port": 22,
+    "username": "<username>",
+    "password": "<password>",
+}
+
+root = SFTPPath.from_config("sftp://example.com", config=CREDENTIALS)
+path = root / "hello.txt"
+
+path.write_text("hello world", encoding="utf-8")
+print(path.read_text(encoding="utf-8"))
+
+for child in root.iterdir():
+    print(child)
+```
+
+
+**Note**: The `CREDENTIALS` variable should be imported from another file or a module; never include secrets in code.
+
+**Note**: Both the protocol (sftp) and authority (example.com) will be ignored. It suffices to write `"//*"`. The authority is only used to look up the config/client.
+
+
+<details><summary>pre 0.5</summary>
+
+```py
+import paramiko
+from sftppathlib import SFTPPath
+
+CREDENTIALS = {
+    "hostname": "sftp.<domain>",
+    "port": 22,
+    "username": "<username>",
+    "password": "<password>",
+}
+
+ssh_client = paramiko.SSHClient()
+ssh_client.load_system_host_keys()
+ssh_client.connect(**CREDENTIALS)
+
+sftp_client = paramiko.sftp_client.SFTPClient.from_transport(
+    ssh_client.get_transport())
+sftp_client.root = "/"
+
+
+root = SFTPPath("sftp://example.com/", accessor=sftp_client)
+
+...
+```
+</details>
+
+If many instances are needed, it can be beneficial to subclass `SFTPClient` and create a `Path` method:
+
+```py
+...
+
+class SFTPPathClient(paramiko.sftp_client.SFTPClient):
+    def Path(self, path, *paths):
+        return SFTPPath(path, *paths, accessor=self)
+
+
+sftp_path_client = SFTPPathClient.from_transport(
+    ssh_client.get_transport())
+
+
+root = sftp_path_client.SFTPPath("sftp://root/")
+
+...
+```
+
+
+### Closing connections
+
+It is assumed that you want to keep the connections open during the duration of the program. If not, please use `SFTPClient.close()` and `SSHClient.close()`.
+
+
+## Acknowledgments
+
+Thanks to the [paramiko/contributors](https://github.com/paramiko/paramiko/graphs/contributors) and the [pathlib-abc/contributors](https://github.com/barneygale/pathlib-abc). This extends to anyone involved with the standard **pathlib** library, but I cannot find the list.
