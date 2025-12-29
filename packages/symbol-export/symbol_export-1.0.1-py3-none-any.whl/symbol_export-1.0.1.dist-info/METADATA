@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: symbol-export
+Version: 1.0.1
+Summary: Python package module encapsulation toolkit - Enforce public/private symbols at import time
+Author-email: AlanBogarin <bogarin01alan@email.com>
+License: MIT
+Project-URL: Homepage, https://github.com/AlanBogarin/symbol-export
+Project-URL: Repository, https://github.com/AlanBogarin/symbol-export
+Project-URL: Issues, https://github.com/AlanBogarin/symbol-export/issues
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# Symbol Export
+
+**symbol-export** is an advanced Python module encapsulation toolkit that enforces **true public/private symbol boundaries at import time**.
+
+Unlike Python’s conventional visibility mechanisms (`_`, `__all__`), this project actively **intercepts the import system** to ensure that third-party code can only access what a package explicitly declares as public.
+
+---
+
+## 🚀 Installation
+
+Available on PyPI
+```bash
+pip install symbol-export
+```
+
+## 🎯 Project Goal
+
+Python does not provide real encapsulation at the module level.
+`symbol-export` introduces a strict and deterministic mechanism to:
+
+- Define a clear public API
+
+- Prevent accidental or unintended access to internal symbols
+
+- Respect official `__all__` semantics
+
+- Enforce visibility rules at import time
+
+
+## ✨ Features
+
+- 🔒 Real module encapsulation
+
+- 📦 Strict control of exported symbols
+
+- 🧠 Fully respects `__all__`
+
+- 🔁 Automatic handling of package submodules
+
+- 🧩 No changes required in consumer code
+
+- 🪝 Global `__import__` hook
+
+- ⚙️ Works with transitive imports
+
+- 🧪 Designed for libraries, not scripts
+
+
+## ✅ Usage
+
+> [!Warning]
+> This package must only be imported from a package’s `__init__.py`.
+
+```python
+# mypackage/__init__.py
+import __symbol_export__
+
+from mypackage import helpers
+
+_T = "public constant"
+
+def public_function():
+    ...
+
+def _public_function():
+    ...
+```
+```python
+# mypackage/helpers.py
+def _private_helper():
+    ...
+
+class PublicClass:
+    pass
+
+def public_helper():
+    ...
+```
+
+### 👤 From third-party code
+
+```python
+import mypackage
+
+# ✅ allowed
+mypackage._T
+mypackage.public_function
+mypackage._public_function
+mypackage.helpers
+mypackage.helpers.PublicClass
+mypackage.helpers.public_helper
+
+# ❌ not visible
+mypackage.helpers._private_helper
+```
+
+# 🧠 How It Works Internally
+
+> [!Important]
+> Public symbols are determined following the [Library interface rules](https://typing.python.org/en/latest/spec/distributing.html#library-interface-public-and-private-symbols).
+- Overrides `builtins.__import__`
+
+- Detects which package imports symbol-export
+
+- Registers that package as an exported package
+
+- Submodules of the package are also encapsulated automatically
+
+- Replaces entries in `sys.modules` with capsule modules
+
+- Capsule modules expose only public symbols
+
+## ⚠️ Known Limitations
+
+- Does not encapsulate the `__init__` module
+
+- Not compatible with hot-reload systems
+
+- Not designed for embedded Python runtimes
+
+
+## 🔐 Security Considerations
+
+- This is NOT a sandbox
+
+- This is NOT a security boundary
+
+- Does not prevent intentional reflection
+
+- Does not block access to sys.modules or inspect
+
+- Does not replace permission systems
+
+### ✔️ Designed for:
+
+- Clean public APIs
+
+- Library contracts
+
+- Preventing accidental misuse
+
+### ❌ Not designed for:
+
+- Protection against malicious code
+
+- Runtime isolation
+
+- DRM or code obfuscation
