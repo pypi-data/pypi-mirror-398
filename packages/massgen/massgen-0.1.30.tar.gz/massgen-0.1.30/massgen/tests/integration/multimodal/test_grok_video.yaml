@@ -1,0 +1,32 @@
+# MassGen Integration Test: Grok Video Multimodal
+# Tests read_media tool with Grok for video processing
+# Uses frame extraction + Grok vision API (OpenAI-compatible)
+#
+# Expected: Model should correctly describe Oppenheimer trailer content
+
+agents:
+  - id: "grok_video"
+    backend:
+      type: "grok"
+      model: "grok-4-1-fast-reasoning"
+      cwd: "workspace_grok_video"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+    system_message: |
+      You are an AI assistant with video processing capabilities.
+      Use the read_media tool to analyze videos by examining key frames.
+      When asked about a video, use read_media to process it, then describe what you observe.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    - path: "massgen/configs/resources/v0.1.3-example/oppenheimer_trailer_1920.mp4"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

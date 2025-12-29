@@ -1,0 +1,32 @@
+# MassGen Integration Test: OpenAI Audio Multimodal
+# Tests read_media tool with OpenAI for audio processing
+# Falls back to understand_audio → OpenAI Whisper transcription
+#
+# Expected: Model should correctly transcribe Sherlock Holmes audio clip
+
+agents:
+  - id: "openai_audio"
+    backend:
+      type: "openai"
+      model: "gpt-5.1"
+      cwd: "workspace_openai_audio"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+    system_message: |
+      You are an AI assistant with audio processing capabilities.
+      Use the read_media tool to transcribe and analyze audio files.
+      When asked about an audio file, use read_media to process it, then report the transcription.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    - path: "massgen/configs/resources/v0.1.3-example/Sherlock_Holmes.mp3"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

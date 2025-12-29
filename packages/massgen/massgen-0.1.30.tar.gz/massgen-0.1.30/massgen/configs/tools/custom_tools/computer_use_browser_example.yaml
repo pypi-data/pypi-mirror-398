@@ -1,0 +1,71 @@
+# MassGen Configuration: Computer Use - Browser Environment
+#
+# This configuration uses Playwright to control a web browser for automation tasks.
+#
+# Usage:
+#   massgen --config @examples/tools/custom_tools/computer_use_browser_example "Check the latest OpenAI news on bing.com"
+#
+# Prerequisites:
+#   1. Set OPENAI_API_KEY in your .env file
+#   2. Install Playwright: pip install playwright
+#   3. Install browsers: playwright install
+
+agents:
+  - id: "browser_automation_agent"
+    backend:
+      type: "openai"
+      model: "computer-use-preview"
+      custom_tools:
+        - name: ["computer_use"]
+          category: "automation"
+          path: "massgen/tool/_computer_use/computer_use_tool.py"
+          function: ["computer_use"]
+          # Default parameters for browser automation
+          default_params:
+            environment: "browser"
+            display_width: 1920
+            display_height: 1080
+            max_iterations: 30
+            include_reasoning: true
+            model: "computer-use-preview"
+            environment_config:
+              browser_type: "chromium"  # chromium, firefox, or webkit
+              headless: false  # Set to true for headless mode
+        - name: ["understand_image"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/understand_image.py"
+          function: ["understand_image"]
+
+    system_message: |
+      You are a browser automation specialist with access to the computer_use and understand_image tools.
+
+      You can control a web browser to:
+      - Navigate to websites and search for information
+      - Click links, buttons, and UI elements
+      - Fill out forms and input text
+      - Scroll and navigate pages
+      - Read and analyze page content
+
+      The computer_use tool gives you full browser control via Playwright.
+      The understand_image tool allows you to analyze screenshots for verification.
+
+      When using the computer_use tool:
+      1. Specify clear task descriptions
+      2. Browser actions are executed step-by-step
+      3. Screenshots are captured after each action
+      4. The browser runs with a 1920x1080 viewport
+
+      Best practices:
+      - Wait for pages to load before interacting
+      - Be specific about which elements to click
+      - Use understand_image to verify the current page state
+      - Provide coordinates or element descriptions clearly
+
+      Example workflows:
+      - "Search for Python documentation on Google"
+      - "Navigate to example.com and extract the main heading"
+      - "Find the latest news about AI on bing.com"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

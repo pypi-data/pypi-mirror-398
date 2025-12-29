@@ -1,0 +1,41 @@
+# Two agents with broadcast monitoring
+# The monitor uses a cheap model to analyze agent reasoning and
+# remind them to use ask_others() when they should collaborate
+#
+# Run with:
+#   uv run massgen --config massgen/configs/basic/multi/two_agents_with_monitor.yaml "Build a website about Nikola Tesla"
+
+agents:
+  - id: "agent_a"
+    backend:
+      type: "openai"
+      model: "gpt-5-mini"
+      cwd: "workspace1"
+      
+  - id: "agent_b"
+    backend:
+      type: "openai"
+      model: "gpt-5-mini"
+      cwd: "workspace2"
+
+orchestrator:
+  
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+
+  coordination:
+    enable_agent_task_planning: true
+    task_planning_filesystem_mode: true
+
+    # Enable agent-to-agent broadcasting
+    broadcast: "agents"
+    broadcast_sensitivity: "medium"
+    broadcast_timeout: 120
+
+    # Enable the monitor to inject reminders
+    enable_monitor: false  # Disabled to focus on basic prompting
+    monitor_model: "gpt-4.1-nano"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

@@ -1,0 +1,57 @@
+# massgen --config @examples/tools/code-execution/multi_agent_playwright_automation "Browse three issues in https://github.com/Leezekun/MassGen and suggest documentation improvements. Include screenshots and suggestions in a website."
+agents:
+  - id: "agent_a"
+    backend:
+      type: "openai"
+      model: "gpt-5-mini"
+      text:
+        verbosity: "medium"
+      reasoning:
+        effort: "medium"
+        summary: "auto"
+      cwd: "workspace1"
+      # Playwright MCP server with advanced configuration
+      mcp_servers:
+        playwright:
+          type: "stdio"
+          command: "npx"
+          args: [
+            "@playwright/mcp@latest",
+            "--browser=chrome",  # Use Chrome browser
+            "--caps=vision,pdf", # Enable vision and PDF capabilities
+            "--user-data-dir=${cwd}/playwright-profile", # Persistent browser profile within workspace
+            "--output-dir=${cwd}", # Save screenshots/PDFs directly to workspace
+            # "--save-trace"       # Save Playwright traces for debugging
+          ]
+
+  - id: "agent_b"
+    backend:
+      type: "openai"
+      model: "gpt-5-mini"
+      cwd: "workspace2"
+      text:
+        verbosity: "medium"
+      reasoning:
+        effort: "medium"
+        summary: "auto"
+      mcp_servers:
+        playwright:
+          type: "stdio"
+          command: "npx"
+          args: [
+            "@playwright/mcp@latest",
+            "--browser=chrome",  # Use Chrome browser
+            "--caps=vision,pdf", # Enable vision and PDF capabilities
+            "--output-dir=${cwd}", # Save screenshots/PDFs directly to workspace
+            "--user-data-dir=${cwd}/playwright-profile", # Persistent browser profile within workspace
+            # "--user-data-dir=/tmp/playwright-profile", # Persistent browser profile
+            # "--save-trace"       # Save Playwright traces for debugging
+          ]
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true
+
+orchestrator:
+    snapshot_storage: "snapshots"  # Directory to store workspace snapshots
+    agent_temporary_workspace: "temp_workspaces"  # Directory for temporary agent workspaces
