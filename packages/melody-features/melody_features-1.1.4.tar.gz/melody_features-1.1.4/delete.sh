@@ -1,0 +1,1 @@
+rm -rf table.qmd table.html table_files
