@@ -1,0 +1,96 @@
+name: Deploy MCP Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  MCP_IMAGE: quickcall-mcp-oss
+
+jobs:
+  build-and-deploy-mcp:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+          username: ${{ secrets.AZURE_ACR_USERNAME }}
+          password: ${{ secrets.AZURE_ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push MCP image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.MCP_IMAGE }}:latest
+            ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.MCP_IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.MCP_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.MCP_IMAGE }}:buildcache,mode=max
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure Container Registry
+        run: |
+          az containerapp registry set \
+            --name quickcall-mcp-oss \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --server ${{ secrets.AZURE_CONTAINER_REGISTRY }} \
+            --username ${{ secrets.AZURE_ACR_USERNAME }} \
+            --password ${{ secrets.AZURE_ACR_PASSWORD }}
+
+      - name: Deploy MCP to Azure Container Apps
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          az containerapp update \
+            --name quickcall-mcp-oss \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --image ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.MCP_IMAGE }}:${{ github.sha }} \
+            --min-replicas 1 \
+            --max-replicas 5 \
+            --set-env-vars \
+              MCP_TRANSPORT=streamable-http \
+              MCP_HOST=0.0.0.0 \
+              MCP_PORT=8001 \
+              OPENAI_API_KEY="$OPENAI_API_KEY"
+
+      - name: Configure External Ingress
+        run: |
+          az containerapp ingress enable \
+            --name quickcall-mcp-oss \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --type external \
+            --target-port 8001 \
+            --transport http
+
+      - name: Get App URL
+        run: |
+          APP_URL=$(az containerapp show \
+            --name quickcall-mcp-oss \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+
+          echo "🚀 MCP Server deployed at: https://$APP_URL"
+          echo "📊 Health check: https://$APP_URL/health"
+          echo "🔧 MCP endpoint: https://$APP_URL/mcp"
+
+      - name: Azure Logout
+        run: az logout
