@@ -1,0 +1,307 @@
+# Webhooks Question-Pack
+# Questions about webhook delivery, security, and management
+
+domain: webhooks
+description: "Webhook event delivery, signature verification, and retry logic"
+critical: false
+
+questions:
+  event_delivery:
+    - question: "What events trigger webhook deliveries?"
+      critical: true
+      options:
+        - "Resource lifecycle (created, updated, deleted)"
+        - "Payment events (charge succeeded, failed, etc.)"
+        - "User events (signup, login, password reset)"
+        - "Custom events (configurable per webhook)"
+        - "All events (no filtering)"
+      follow_ups:
+        - "Can subscribers filter which events they receive?"
+        - "How many different event types exist?"
+      examples:
+        - "user.created, user.updated, user.deleted"
+        - "payment.succeeded, payment.failed, payment.refunded"
+
+    - question: "How are webhook URLs registered?"
+      critical: true
+      options:
+        - "Self-service via UI/dashboard"
+        - "Via API endpoint"
+        - "Admin-configured only"
+        - "Hardcoded in application"
+      follow_ups:
+        - "Is URL validation performed (HTTPS required, etc.)?"
+        - "Can one subscriber have multiple webhook URLs?"
+        - "Are there webhook URL allowlists/blocklists?"
+      examples:
+        - "POST /api/webhooks with url and events array"
+        - "Dashboard: Settings → Webhooks → Add URL"
+
+  security:
+    - question: "How are webhooks secured/authenticated?"
+      critical: true
+      options:
+        - "HMAC signature in header (e.g., X-Signature)"
+        - "JWT token in Authorization header"
+        - "API key in header"
+        - "Mutual TLS (mTLS)"
+        - "No authentication (public webhooks)"
+      follow_ups:
+        - "What signing algorithm is used (SHA256, etc.)?"
+        - "How is the shared secret distributed?"
+        - "Is signature verification documented for subscribers?"
+      examples:
+        - "X-Webhook-Signature: sha256=<HMAC-SHA256(secret, body)>"
+        - "Authorization: Bearer <JWT with webhook_id claim>"
+
+    - question: "Are webhook secrets rotatable?"
+      critical: true
+      options:
+        - "Yes, self-service secret rotation"
+        - "Yes, via API"
+        - "Manual rotation by admin"
+        - "Secrets cannot be rotated"
+      follow_ups:
+        - "Is there a grace period during rotation (both secrets valid)?"
+        - "Are subscribers notified of rotation?"
+      examples:
+        - "Generate new secret, old + new valid for 24 hours"
+
+  delivery_guarantees:
+    - question: "What delivery guarantee is provided?"
+      critical: true
+      options:
+        - "At-least-once (may deliver duplicates)"
+        - "At-most-once (no retries, may lose events)"
+        - "Exactly-once (idempotency enforced)"
+        - "Best-effort (no guarantees)"
+      follow_ups:
+        - "How do subscribers handle duplicate events?"
+        - "Are event IDs provided for deduplication?"
+      examples:
+        - "Event has unique event_id, subscribers should track to dedupe"
+        - "At-least-once with automatic retries"
+
+    - question: "Are events delivered in order?"
+      critical: false
+      options:
+        - "Yes, strict ordering guaranteed"
+        - "Yes, per-resource ordering (same user events ordered)"
+        - "No, events may arrive out of order"
+      follow_ups:
+        - "If unordered, are timestamps/sequence numbers provided?"
+      examples:
+        - "Events have created_at timestamp for subscriber sorting"
+
+  retry_logic:
+    - question: "How are failed webhook deliveries retried?"
+      critical: true
+      options:
+        - "Exponential backoff (1min, 5min, 15min, etc.)"
+        - "Fixed interval (retry every N minutes)"
+        - "Immediate retries only (no backoff)"
+        - "No retries (fail permanently)"
+      follow_ups:
+        - "What is the maximum retry count?"
+        - "How long before giving up (total retry window)?"
+      examples:
+        - "5 retries: 1min, 5min, 15min, 1hr, 3hr"
+        - "Retry for 24 hours, then discard"
+
+    - question: "What HTTP responses trigger retries?"
+      critical: true
+      options:
+        - "5xx errors (server errors)"
+        - "Connection timeout/refused"
+        - "Any non-2xx response"
+        - "Only specific codes (502, 503, 504)"
+      follow_ups:
+        - "Are 4xx errors retried or considered permanent failures?"
+      examples:
+        - "Retry: 500, 502, 503, 504, timeout"
+        - "Permanent failure: 400, 401, 403, 404"
+
+  failure_handling:
+    - question: "What happens when all retries are exhausted?"
+      critical: true
+      options:
+        - "Event moved to dead letter queue"
+        - "Alert sent to admin"
+        - "Subscriber webhook disabled after N failures"
+        - "Event discarded (logged only)"
+      follow_ups:
+        - "Can failed events be replayed manually?"
+        - "Are subscribers notified of permanent failures?"
+      examples:
+        - "After 5 failures, webhook disabled + email sent"
+        - "Failed events stored for 30 days, replayable via API"
+
+    - question: "How are dead letter events accessed?"
+      critical: false
+      options:
+        - "Admin dashboard with failed events list"
+        - "API endpoint to query failed events"
+        - "Logs only"
+        - "No access (events discarded)"
+      examples:
+        - "GET /api/webhooks/{id}/failed_events"
+
+  payload_format:
+    - question: "What is the webhook payload format?"
+      critical: true
+      options:
+        - "JSON with consistent schema"
+        - "JSON with varying schema per event type"
+        - "XML"
+        - "Form-encoded data"
+      follow_ups:
+        - "Is there a payload schema/documentation?"
+        - "Are there payload size limits?"
+      examples:
+        - "JSON: {event: 'user.created', data: {...}, timestamp: '...'}"
+
+    - question: "What metadata is included in webhook payloads?"
+      critical: true
+      options:
+        - "Event ID (for deduplication)"
+        - "Event type/name"
+        - "Timestamp (when event occurred)"
+        - "API version"
+        - "Resource IDs"
+        - "Full resource payload vs resource ID only"
+      examples:
+        - "{id: 'evt_123', type: 'user.created', data: {user_id: 456}, created_at: '...'}"
+
+  timeout_and_performance:
+    - question: "What is the HTTP request timeout?"
+      critical: true
+      options:
+        - "5 seconds"
+        - "10 seconds"
+        - "30 seconds"
+        - "Configurable per webhook"
+      follow_ups:
+        - "What happens on timeout (retry or fail)?"
+      examples:
+        - "10-second timeout, then retry with exponential backoff"
+
+    - question: "Are there rate limits on webhook deliveries?"
+      critical: false
+      options:
+        - "Yes, max N requests per second per subscriber"
+        - "Yes, global rate limit across all webhooks"
+        - "No rate limits (best-effort delivery)"
+      follow_ups:
+        - "What happens when rate limit is hit (queue or drop)?"
+      examples:
+        - "Max 100 req/sec per subscriber, excess events queued"
+
+  management:
+    - question: "Can subscribers test webhooks?"
+      critical: false
+      options:
+        - "Yes, test event delivery endpoint"
+        - "Yes, replay specific past events"
+        - "No testing capability"
+      examples:
+        - "POST /api/webhooks/{id}/test sends sample event"
+        - "Replay event_id to test endpoint behavior"
+
+    - question: "Are webhook delivery logs available?"
+      critical: true
+      options:
+        - "Yes, full delivery history with status"
+        - "Yes, last N deliveries only"
+        - "No logs (status only)"
+      follow_ups:
+        - "What information is logged (timestamp, status, response code)?"
+        - "How long are logs retained?"
+      examples:
+        - "Last 100 deliveries: timestamp, status, HTTP code, latency"
+        - "30-day log retention in database"
+
+  versioning:
+    - question: "Are webhooks versioned?"
+      critical: false
+      options:
+        - "Yes, subscribers specify API version"
+        - "Yes, version in webhook header"
+        - "No versioning (single schema)"
+      follow_ups:
+        - "How are breaking changes handled?"
+        - "Is there a deprecation policy?"
+      examples:
+        - "X-Webhook-Version: 2023-10-01"
+        - "Subscribers register with api_version: '2.0'"
+
+    - question: "How are schema changes communicated?"
+      critical: false
+      options:
+        - "Changelog with advance notice"
+        - "Email notification to all subscribers"
+        - "No formal communication"
+      examples:
+        - "30-day notice for breaking changes via email + changelog"
+
+  debugging:
+    - question: "Are there tools for debugging webhooks?"
+      critical: false
+      options:
+        - "Webhook request inspector (request/response viewer)"
+        - "Test mode with sample events"
+        - "Webhook logs with full request details"
+        - "No debugging tools"
+      examples:
+        - "Dashboard shows last 10 requests with headers, body, response"
+
+    - question: "Can webhook deliveries be paused?"
+      critical: false
+      options:
+        - "Yes, per-webhook pause/resume"
+        - "Yes, global pause (maintenance mode)"
+        - "No, must delete webhook to stop deliveries"
+      examples:
+        - "PUT /api/webhooks/{id}/pause to temporarily stop"
+
+  filtering:
+    - question: "Can subscribers filter events by criteria?"
+      critical: false
+      options:
+        - "Yes, by resource ID (only user_id=123 events)"
+        - "Yes, by event attributes (amount > 100)"
+        - "No, receive all events of selected types"
+      examples:
+        - "Webhook config: events=['payment.*'], filter='amount > 1000'"
+
+    - question: "Are there batching options?"
+      critical: false
+      options:
+        - "Yes, batch multiple events in single request"
+        - "No, one event per request always"
+      follow_ups:
+        - "What is the batch size limit?"
+        - "How long to wait before sending partial batch?"
+      examples:
+        - "Batch up to 100 events or wait 5 seconds, whichever first"
+
+  compliance:
+    - question: "Are webhook deliveries audited?"
+      critical: false
+      options:
+        - "Yes, full audit log (who, when, what)"
+        - "Partial logging (success/failure only)"
+        - "No audit trail"
+      examples:
+        - "Audit log: webhook_id, event_id, timestamp, status, response_code"
+
+    - question: "Can webhook data contain PII?"
+      critical: true
+      options:
+        - "Yes, full user data in payload"
+        - "No, only resource IDs (fetch via API)"
+        - "Configurable per webhook (full vs minimal)"
+      follow_ups:
+        - "Are there GDPR/compliance considerations?"
+      examples:
+        - "Minimal mode: {event: 'user.created', user_id: 123}"
+        - "Full mode: {event: 'user.created', user: {name, email, ...}}"

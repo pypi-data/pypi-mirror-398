@@ -1,0 +1,150 @@
+# LDF Core Guardrails
+# These 8 guardrails apply to most software projects
+# All are enabled by default - disable in .ldf/guardrails.yaml if not applicable
+
+version: "1.0"
+
+guardrails:
+  - id: 1
+    name: "Testing Coverage"
+    description: "Minimum test coverage thresholds for code quality"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Unit tests for business logic"
+      - "Integration tests for API endpoints"
+      - "Coverage meets threshold (≥80%, ≥90% for critical paths)"
+      - "Edge cases and error scenarios tested"
+    config:
+      default_threshold: 80
+      critical_paths_threshold: 90
+      critical_path_patterns:
+        - "auth*"
+        - "payment*"
+        - "security*"
+
+  - id: 2
+    name: "Security Basics"
+    description: "OWASP Top 10 prevention and secure coding practices"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Input validation at all entry points"
+      - "Parameterized queries (no SQL injection)"
+      - "Output encoding (no XSS)"
+      - "Authentication required where needed"
+      - "Authorization checks enforced"
+      - "No secrets in code or logs"
+      - "HTTPS enforced"
+    config:
+      owasp_checks:
+        - injection
+        - broken_auth
+        - sensitive_data
+        - xxe
+        - broken_access_control
+        - security_misconfiguration
+        - xss
+        - insecure_deserialization
+        - vulnerable_components
+        - insufficient_logging
+
+  - id: 3
+    name: "Error Handling"
+    description: "Consistent error responses without exposing internals"
+    severity: high
+    enabled: true
+    checklist:
+      - "Consistent error response format"
+      - "User-friendly error messages"
+      - "No stack traces in responses"
+      - "Proper exception hierarchy"
+      - "All exceptions caught and handled"
+    config:
+      error_format: "rfc7807"
+      include_request_id: true
+      log_errors: true
+
+  - id: 4
+    name: "Logging & Observability"
+    description: "Structured logging with correlation IDs for debugging"
+    severity: high
+    enabled: true
+    checklist:
+      - "Structured logging format (JSON)"
+      - "Correlation IDs propagated across services"
+      - "Appropriate log levels (DEBUG, INFO, WARN, ERROR)"
+      - "Request/response logging for APIs"
+      - "No sensitive data in logs (passwords, tokens, PII)"
+    config:
+      log_format: "json"
+      correlation_id_header: "X-Correlation-ID"
+      sensitive_fields:
+        - password
+        - token
+        - api_key
+        - secret
+        - credit_card
+
+  - id: 5
+    name: "API Design"
+    description: "Consistent API patterns for developer experience"
+    severity: high
+    enabled: true
+    checklist:
+      - "API versioning in path (/v1/)"
+      - "Consistent resource naming"
+      - "Cursor or offset pagination for lists"
+      - "Standard error response format"
+      - "OpenAPI/Swagger documentation"
+    config:
+      versioning: "path"  # path, header, query
+      pagination: "cursor"  # cursor, offset
+      error_format: "rfc7807"
+      rate_limiting: true
+
+  - id: 6
+    name: "Data Validation"
+    description: "Input validation at system boundaries"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Request schema validation"
+      - "Business rule validation"
+      - "Type checking and coercion"
+      - "Length and format constraints"
+      - "Output sanitization for XSS"
+    config:
+      validation_library: "pydantic"  # pydantic, zod, joi, etc.
+      strict_mode: true
+
+  - id: 7
+    name: "Database Migrations"
+    description: "Safe, reversible database schema changes"
+    severity: high
+    enabled: true
+    checklist:
+      - "Migration tool used (Alembic, Prisma, etc.)"
+      - "Migrations are reversible (down function)"
+      - "Rollback tested"
+      - "Data backfills separate from schema changes"
+      - "No long-running locks in production"
+    config:
+      migration_tool: "alembic"  # alembic, prisma, flyway, etc.
+      require_rollback: true
+      separate_backfills: true
+
+  - id: 8
+    name: "Documentation"
+    description: "Code and API documentation for maintainability"
+    severity: medium
+    enabled: true
+    checklist:
+      - "API documentation (OpenAPI/Swagger)"
+      - "Inline comments for complex logic"
+      - "README updated for new features"
+      - "Architecture decisions documented"
+    config:
+      api_docs: "openapi"
+      require_docstrings: false
+      readme_required: true

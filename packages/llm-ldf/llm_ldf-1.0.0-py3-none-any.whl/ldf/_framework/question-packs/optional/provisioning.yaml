@@ -1,0 +1,315 @@
+# Provisioning Question-Pack
+# Questions about async job processing, background tasks, and resource provisioning
+
+domain: provisioning
+description: "Async job queues, background processing, and resource provisioning"
+critical: false
+
+questions:
+  queue_system:
+    - question: "Which queue/task system is used?"
+      critical: true
+      options:
+        - "Celery (with Redis/RabbitMQ)"
+        - "Redis Queue (RQ)"
+        - "AWS SQS + Lambda"
+        - "Google Cloud Tasks"
+        - "Azure Queue Storage"
+        - "Custom implementation"
+        - "No queue system (synchronous only)"
+      follow_ups:
+        - "What is the message broker (Redis, RabbitMQ, etc.)?"
+        - "How many worker processes are running?"
+        - "Are there multiple queues (high/low priority)?"
+      examples:
+        - "Celery with Redis broker, 4 workers"
+        - "AWS SQS with Lambda consumer"
+
+    - question: "How are jobs enqueued?"
+      critical: true
+      options:
+        - "Programmatically via SDK (e.g., task.delay())"
+        - "Via API endpoint"
+        - "Scheduled (cron-like)"
+        - "Event-driven (webhook, database trigger)"
+      follow_ups:
+        - "Is there rate limiting on job creation?"
+        - "Are jobs deduplicated?"
+      examples:
+        - "send_email.delay(user_id, template_id)"
+        - "POST /api/jobs with job_type and params"
+
+  job_types:
+    - question: "What types of jobs are processed?"
+      critical: true
+      options:
+        - "Email/notification sending"
+        - "Report generation (PDF, CSV)"
+        - "Data import/export"
+        - "Image/video processing"
+        - "Payment processing"
+        - "Tenant provisioning"
+        - "Database migrations"
+        - "External API calls"
+      follow_ups:
+        - "What are the typical job durations?"
+        - "Which jobs are most resource-intensive?"
+
+    - question: "Are there long-running jobs (>5 minutes)?"
+      critical: true
+      options:
+        - "Yes, typical duration: 10-30 minutes"
+        - "Yes, typical duration: 1-2 hours"
+        - "Yes, can run for hours (batch processing)"
+        - "No, all jobs complete in <5 minutes"
+      follow_ups:
+        - "How are long-running jobs monitored?"
+        - "Is there a maximum job duration?"
+        - "Can jobs be cancelled mid-execution?"
+      examples:
+        - "Large CSV export: 15 minutes"
+        - "Video transcoding: 1 hour"
+
+  retry_strategy:
+    - question: "How are failed jobs retried?"
+      critical: true
+      options:
+        - "Exponential backoff (1min, 2min, 4min, etc.)"
+        - "Fixed interval (retry every 5 minutes)"
+        - "Immediate retry (up to N times)"
+        - "Manual retry only"
+        - "No retry (fail permanently)"
+      follow_ups:
+        - "What is the maximum retry count?"
+        - "Are there different retry strategies per job type?"
+        - "When is a job moved to dead letter queue?"
+      examples:
+        - "3 retries with exponential backoff: 1min, 5min, 15min"
+        - "5 immediate retries, then DLQ"
+
+    - question: "How are transient vs permanent failures distinguished?"
+      critical: true
+      options:
+        - "Exception type (network error = retry, validation = fail)"
+        - "HTTP status codes (5xx = retry, 4xx = fail)"
+        - "Manual classification in job code"
+        - "All failures are retried"
+      examples:
+        - "ConnectionError → retry, ValidationError → fail"
+        - "502/503/504 → retry, 400/401/403 → fail"
+
+  timeout_handling:
+    - question: "Are there job execution timeouts?"
+      critical: true
+      options:
+        - "Yes, hard timeout (job killed after N minutes)"
+        - "Yes, soft timeout (graceful shutdown)"
+        - "No timeout (jobs can run indefinitely)"
+        - "Varies by job type"
+      follow_ups:
+        - "What happens when a timeout is reached?"
+        - "Is partial progress saved on timeout?"
+      examples:
+        - "30-minute hard timeout, SIGKILL sent"
+        - "1-hour soft timeout, job saves progress and exits"
+
+    - question: "How are stuck/zombie jobs detected?"
+      critical: false
+      options:
+        - "Heartbeat mechanism (job pings every N seconds)"
+        - "Monitoring checks for jobs in 'processing' state too long"
+        - "No detection (rely on timeouts)"
+      examples:
+        - "Job sends heartbeat every 60s, marked stuck if >5min gap"
+
+  priority_and_scheduling:
+    - question: "Do jobs have priority levels?"
+      critical: false
+      options:
+        - "Yes, multiple queues (high/normal/low priority)"
+        - "Yes, priority field in job metadata"
+        - "No, FIFO processing only"
+      follow_ups:
+        - "How are priorities assigned?"
+        - "Can high-priority jobs preempt low-priority ones?"
+      examples:
+        - "Payment processing → high queue"
+        - "Report generation → low queue"
+
+    - question: "Are there scheduled/recurring jobs?"
+      critical: false
+      options:
+        - "Yes, cron-like scheduling"
+        - "Yes, periodic tasks (every N minutes)"
+        - "No scheduled jobs"
+      follow_ups:
+        - "What scheduling system is used (Celery beat, cron, etc.)?"
+        - "How many scheduled jobs exist?"
+      examples:
+        - "Daily report at 2am: cron='0 2 * * *'"
+        - "Clean up old records every 6 hours"
+
+  external_services:
+    - question: "Which external services are called from jobs?"
+      critical: true
+      options:
+        - "Email provider (SendGrid, AWS SES, etc.)"
+        - "SMS gateway (Twilio, SNS)"
+        - "Payment processor (Stripe, PayPal)"
+        - "File storage (S3, GCS)"
+        - "Third-party APIs"
+        - "No external services"
+      follow_ups:
+        - "How are API credentials managed?"
+        - "Are there rate limits from external services?"
+        - "What happens if an external service is down?"
+
+    - question: "How are external service failures handled?"
+      critical: true
+      options:
+        - "Retry with exponential backoff"
+        - "Fallback to alternative service"
+        - "Alert admin, manual intervention"
+        - "Fail the job permanently"
+      examples:
+        - "SendGrid down → retry 3 times, then alert"
+        - "Primary payment gateway down → fallback to secondary"
+
+  monitoring_and_alerting:
+    - question: "How are jobs monitored?"
+      critical: true
+      options:
+        - "Dashboard showing queue length, processing rate"
+        - "Metrics (Prometheus, CloudWatch, Datadog)"
+        - "Logs only"
+        - "No monitoring"
+      follow_ups:
+        - "What metrics are tracked (latency, failure rate, etc.)?"
+        - "Are there alerts for job failures or queue backlog?"
+      examples:
+        - "Grafana dashboard with queue depth and job latency"
+        - "Alert if queue length >1000 or failure rate >5%"
+
+    - question: "Are job failures alerted?"
+      critical: true
+      options:
+        - "Yes, immediate alert for critical jobs"
+        - "Yes, alert if failure rate exceeds threshold"
+        - "Yes, daily summary of failed jobs"
+        - "No alerts (check logs manually)"
+      follow_ups:
+        - "What alerting system is used (PagerDuty, Slack, etc.)?"
+        - "Who is notified?"
+      examples:
+        - "Slack alert if payment job fails"
+        - "PagerDuty if >10 jobs fail in 5 minutes"
+
+  dead_letter_queue:
+    - question: "Is there a dead letter queue (DLQ)?"
+      critical: true
+      options:
+        - "Yes, jobs moved after max retries"
+        - "Yes, separate DLQ per job type"
+        - "No, failed jobs discarded"
+      follow_ups:
+        - "How are DLQ jobs reviewed?"
+        - "Can jobs be replayed from DLQ?"
+      examples:
+        - "Celery DLQ: failed jobs stored in Redis for 30 days"
+        - "AWS SQS DLQ with manual replay via console"
+
+    - question: "How are failed jobs investigated?"
+      critical: false
+      options:
+        - "Admin dashboard showing error details"
+        - "Log aggregation (Splunk, ELK stack)"
+        - "Direct database/queue inspection"
+      examples:
+        - "Kibana search for job_id with error logs"
+
+  idempotency:
+    - question: "Are jobs idempotent?"
+      critical: true
+      options:
+        - "Yes, all jobs designed for safe retries"
+        - "Partially (some jobs, not all)"
+        - "No, retry can cause duplicates"
+      follow_ups:
+        - "How is idempotency ensured (unique keys, DB constraints)?"
+        - "Are there idempotency keys/tokens?"
+      examples:
+        - "Email send job checks if email_id already sent"
+        - "Payment job uses idempotency_key from Stripe"
+
+    - question: "How is duplicate job execution prevented?"
+      critical: true
+      options:
+        - "Unique job IDs (deduplicate on enqueue)"
+        - "Database unique constraints"
+        - "Distributed lock (Redis, Memcached)"
+        - "No deduplication"
+      examples:
+        - "Redis SETNX with job_id as key"
+        - "PostgreSQL UNIQUE constraint on (job_type, entity_id)"
+
+  job_cancellation:
+    - question: "Can jobs be cancelled?"
+      critical: false
+      options:
+        - "Yes, before execution starts"
+        - "Yes, even during execution (graceful stop)"
+        - "No, once enqueued must complete"
+      follow_ups:
+        - "How is cancellation signaled to the worker?"
+        - "Is partial progress preserved on cancellation?"
+      examples:
+        - "Set job.cancelled=True, worker checks periodically"
+        - "Send SIGTERM to worker process"
+
+    - question: "Are there job timeouts for user-facing operations?"
+      critical: false
+      options:
+        - "Yes, user gets immediate response, job runs async"
+        - "No, user waits for job completion"
+      examples:
+        - "User uploads CSV → immediate 202 Accepted, job processes in background"
+        - "User clicks 'Generate Report' → waits for PDF (synchronous)"
+
+  data_persistence:
+    - question: "Where is job state stored?"
+      critical: true
+      options:
+        - "Database (PostgreSQL, MySQL)"
+        - "Queue metadata (Redis, RabbitMQ)"
+        - "Both (queue + DB for history)"
+        - "In-memory only (lost on restart)"
+      follow_ups:
+        - "How long is job history retained?"
+        - "Are job results stored or just status?"
+      examples:
+        - "Redis for active jobs, PostgreSQL for completed (30-day retention)"
+
+    - question: "Are job results stored?"
+      critical: false
+      options:
+        - "Yes, stored in database"
+        - "Yes, stored in S3/blob storage"
+        - "No, only status (success/failure)"
+      examples:
+        - "Generated PDF URL stored in jobs table"
+        - "Job output JSON in S3, reference in database"
+
+  scaling:
+    - question: "How does the queue system scale?"
+      critical: false
+      options:
+        - "Horizontal scaling (add more workers)"
+        - "Vertical scaling (bigger worker instances)"
+        - "Auto-scaling based on queue depth"
+        - "Fixed capacity"
+      follow_ups:
+        - "What triggers scaling (queue length, CPU, etc.)?"
+        - "Are there maximum worker limits?"
+      examples:
+        - "Kubernetes HPA: scale workers if queue >100"
+        - "AWS Lambda auto-scales with SQS"
