@@ -1,0 +1,2 @@
+class QujingInvokeError(Exception):
+    pass
