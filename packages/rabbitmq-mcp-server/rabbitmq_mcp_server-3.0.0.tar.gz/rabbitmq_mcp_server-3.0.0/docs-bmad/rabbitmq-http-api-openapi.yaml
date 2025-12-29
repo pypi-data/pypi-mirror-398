@@ -1,0 +1,4824 @@
+openapi: 3.0.3
+info:
+  title: RabbitMQ HTTP API
+  description: API HTTP do RabbitMQ para gerenciamento de clusters, filas, exchanges, bindings e muito mais
+  version: 4.1.0
+  contact:
+    name: RabbitMQ Team
+    url: https://www.rabbitmq.com/
+servers:
+- url: http://localhost:15672/api
+  description: Servidor RabbitMQ local
+- url: https://rabbitmq.example.com/api
+  description: Servidor RabbitMQ de produção
+security:
+- basicAuth: []
+paths:
+  /api/aliveness-test:
+    get:
+      summary: Teste de aliveness (DEPRECATED)
+      description: Endpoint deprecated desde 2021, é um no-op a partir do RabbitMQ 4.1.0
+      deprecated: true
+      tags:
+      - Deprecated
+      responses:
+        '200':
+          description: Sempre retorna sucesso (no-op)
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/overview:
+    get:
+      summary: Visão geral do sistema
+      description: 'Informações diversas que descrevem todo o sistema, incluindo:
+
+        - Nome do cluster
+
+        - Versão do Erlang
+
+        - Tipos de exchanges disponíveis
+
+        - Contextos de aplicações web
+
+        - Estatísticas gerais do sistema
+
+        '
+      tags:
+      - Overview
+      responses:
+        '200':
+          description: Informações do sistema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Overview'
+  /api/cluster-name:
+    get:
+      summary: Nome do cluster
+      description: Retorna o nome que identifica este cluster RabbitMQ
+      tags:
+      - Cluster
+      responses:
+        '200':
+          description: Nome do cluster
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterName'
+    put:
+      summary: Atualizar nome do cluster
+      description: Atualiza o nome que identifica este cluster RabbitMQ
+      tags:
+      - Cluster
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Nome do cluster atualizado
+        '400':
+          description: Requisição inválida
+  /api/nodes:
+    get:
+      summary: Listar nós do cluster
+      description: Lista todos os nós no cluster junto com suas métricas
+      tags:
+      - Nodes
+      responses:
+        '200':
+          description: Lista de nós do cluster
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Node'
+  /api/nodes/{name}:
+    get:
+      summary: Métricas de um nó específico
+      description: Retorna métricas de um nó individual do cluster
+      tags:
+      - Nodes
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do nó
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Métricas do nó
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          description: Nó não encontrado
+  /api/nodes/{name}/memory:
+    get:
+      summary: Uso de memória de um nó
+      description: Retorna um breakdown do uso de memória de um nó específico do cluster
+      tags:
+      - Nodes
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do nó
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Breakdown do uso de memória
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryBreakdown'
+        '404':
+          description: Nó não encontrado
+  /api/definitions:
+    get:
+      summary: Exportar definições do cluster
+      description: Exporta definições cluster-wide - exchanges, filas, bindings, usuários, virtual hosts, permissões, etc.
+      tags:
+      - Definitions
+      responses:
+        '200':
+          description: Definições do cluster
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Definition'
+    post:
+      summary: Importar definições do cluster
+      description: Importa definições cluster-wide. As definições são mescladas com as existentes.
+      tags:
+      - Definitions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Definições importadas com sucesso
+        '400':
+          description: Definições inválidas
+  /api/definitions/{vhost}:
+    get:
+      summary: Exportar definições de um virtual host
+      description: Exporta definições específicas de um virtual host
+      tags:
+      - Definitions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Definições do virtual host
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Definition'
+        '404':
+          description: Virtual host não encontrado
+    post:
+      summary: Importar definições de um virtual host
+      description: Importa definições específicas de um virtual host
+      tags:
+      - Definitions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Definições importadas com sucesso
+        '400':
+          description: Definições inválidas
+        '404':
+          description: Virtual host não encontrado
+  /api/feature-flags:
+    get:
+      summary: Listar feature flags
+      description: Lista todas as feature flags disponíveis
+      tags:
+      - Feature Flags
+      responses:
+        '200':
+          description: Lista de feature flags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Feature-flags'
+  /api/deprecated-features:
+    get:
+      summary: Listar features deprecated
+      description: Lista todas as features deprecated
+      tags:
+      - Feature Flags
+      responses:
+        '200':
+          description: Lista de features deprecated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deprecated-features'
+  /api/deprecated-features/used:
+    get:
+      summary: Listar features deprecated em uso
+      description: Lista features deprecated que estão sendo utilizadas
+      tags:
+      - Feature Flags
+      responses:
+        '200':
+          description: Lista de features deprecated em uso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deprecated-featuresUsedItem'
+  /api/connections:
+    get:
+      summary: Listar conexões
+      description: "Lista todas as conexões ativas. \n\n**Importante**: Use parâmetros de paginação para listar conexões,\
+        \ \ncaso contrário este endpoint pode produzir respostas JSON muito grandes \ne desperdiçar muitos recursos de largura\
+        \ de banda e CPU. \nTamanho padrão da página é 100, tamanho máximo suportado é 500.\n"
+      tags:
+      - Connections
+      parameters:
+      - name: page
+        in: query
+        description: Número da página
+        schema:
+          type: integer
+          default: 1
+      - name: page_size
+        in: query
+        description: Tamanho da página (máximo 500)
+        schema:
+          type: integer
+          default: 100
+          maximum: 500
+      responses:
+        '200':
+          description: Lista de conexões
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Connection'
+  /api/vhosts/{vhost}/connections:
+    get:
+      summary: Listar conexões de um virtual host
+      description: Lista conexões ativas de um virtual host específico
+      tags:
+      - Connections
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de conexões do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Connection'
+        '404':
+          description: Virtual host não encontrado
+  /api/connections/{name}:
+    get:
+      summary: Obter conexão específica
+      description: Retorna informações de uma conexão específica
+      tags:
+      - Connections
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações da conexão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connection'
+        '404':
+          description: Conexão não encontrada
+    delete:
+      summary: Fechar conexão
+      description: Fecha uma conexão específica
+      tags:
+      - Connections
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Conexão fechada com sucesso
+        '404':
+          description: Conexão não encontrada
+  /api/connections/username/{username}:
+    get:
+      summary: Listar conexões por usuário
+      description: Lista conexões ativas de um usuário específico
+      tags:
+      - Connections
+      parameters:
+      - name: username
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de conexões do usuário
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectionsUsername'
+        '404':
+          description: Usuário não encontrado
+    delete:
+      summary: Fechar conexões por usuário
+      description: Fecha todas as conexões de um usuário específico
+      tags:
+      - Connections
+      parameters:
+      - name: username
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Conexões fechadas com sucesso
+        '404':
+          description: Usuário não encontrado
+  /api/connections/{name}/channels:
+    get:
+      summary: Listar canais de uma conexão
+      description: Lista canais de uma conexão específica
+      tags:
+      - Connections
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de canais da conexão
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Conexão não encontrada
+  /api/channels:
+    get:
+      summary: Listar canais
+      description: Lista todos os canais ativos
+      tags:
+      - Channels
+      responses:
+        '200':
+          description: Lista de canais
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Channels'
+  /api/vhosts/{vhost}/channels:
+    get:
+      summary: Listar canais de um virtual host
+      description: Lista canais ativos de um virtual host específico
+      tags:
+      - Channels
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de canais do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vhostschannels'
+        '404':
+          description: Virtual host não encontrado
+  /api/channels/{id}:
+    get:
+      summary: Obter canal específico
+      description: Retorna informações de um canal específico
+      tags:
+      - Channels
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: ID do canal
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do canal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channels'
+        '404':
+          description: Canal não encontrado
+  /api/consumers:
+    get:
+      summary: Listar consumidores
+      description: Lista todos os consumidores ativos
+      tags:
+      - Consumers
+      responses:
+        '200':
+          description: Lista de consumidores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consumers'
+  /api/consumers/{vhost}:
+    get:
+      summary: Listar consumidores de um virtual host
+      description: Lista consumidores ativos de um virtual host específico
+      tags:
+      - Consumers
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de consumidores do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consumers'
+        '404':
+          description: Virtual host não encontrado
+  /api/exchanges:
+    get:
+      summary: Listar exchanges
+      description: Lista todos os exchanges
+      tags:
+      - Exchanges
+      responses:
+        '200':
+          description: Lista de exchanges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exchange'
+  /api/exchanges/{name}:
+    get:
+      summary: Obter exchange específico
+      description: Retorna informações de um exchange específico
+      tags:
+      - Exchanges
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do exchange
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+        '404':
+          description: Exchange não encontrado
+  /api/exchanges/{vhost}/{name}:
+    get:
+      summary: Obter exchange de um virtual host
+      description: Retorna informações de um exchange específico de um virtual host
+      tags:
+      - Exchanges
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do exchange
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchanges'
+        '404':
+          description: Exchange ou virtual host não encontrado
+    put:
+      summary: Criar ou atualizar exchange
+      description: Cria ou atualiza um exchange em um virtual host
+      tags:
+      - Exchanges
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: Tipo do exchange (direct, topic, fanout, headers)
+                durable:
+                  type: boolean
+                  description: Se o exchange é durável
+                auto_delete:
+                  type: boolean
+                  description: Se o exchange é auto-deletado
+                internal:
+                  type: boolean
+                  description: Se o exchange é interno
+                arguments:
+                  type: object
+                  description: Argumentos adicionais
+      responses:
+        '201':
+          description: Exchange criado com sucesso
+        '204':
+          description: Exchange atualizado com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Virtual host não encontrado
+    delete:
+      summary: Deletar exchange
+      description: Remove um exchange de um virtual host
+      tags:
+      - Exchanges
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Exchange deletado com sucesso
+        '404':
+          description: Exchange ou virtual host não encontrado
+  /api/exchanges/{vhost}/{name}/bindings/source:
+    get:
+      summary: Listar bindings de origem
+      description: Lista bindings onde este exchange é a origem
+      tags:
+      - Exchanges
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de bindings de origem
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exchangesbindingssource'
+        '404':
+          description: Exchange ou virtual host não encontrado
+  /api/exchanges/{vhost}/{name}/bindings/destination:
+    get:
+      summary: Listar bindings de destino
+      description: Lista bindings onde este exchange é o destino
+      tags:
+      - Exchanges
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de bindings de destino
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exchangesbindingsdestination'
+        '404':
+          description: Exchange ou virtual host não encontrado
+  /api/exchanges/{vhost}/{name}/publish:
+    put:
+      summary: Publicar mensagem
+      description: "Publica uma mensagem em um exchange.\n\n**Aviso**: A API HTTP é uma opção altamente ineficiente para publicação.\n\
+        Prefira AMQP 1.0, AMQP 0-9-1, o RabbitMQ Streaming Protocol ou qualquer \noutro protocolo de mensageria suportado\
+        \ pelo RabbitMQ.\n\nSe a mensagem for publicada com sucesso, a resposta será:\n```json\n{\"routed\": true}\n```\n\
+        `routed` será `true` se a mensagem foi enviada para pelo menos uma fila.\n"
+      tags:
+      - Exchanges
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - routing_key
+              - payload
+              - payload_encoding
+              - properties
+              properties:
+                routing_key:
+                  type: string
+                  description: Chave de roteamento
+                payload:
+                  type: string
+                  description: Conteúdo da mensagem
+                payload_encoding:
+                  type: string
+                  enum:
+                  - string
+                  - base64
+                  description: "Codificação do payload. \n- \"string\": o payload será tratado como UTF-8\n- \"base64\": o\
+                    \ payload será tratado como base64 codificado\n"
+                properties:
+                  type: object
+                  description: Propriedades da mensagem
+      responses:
+        '200':
+          description: Mensagem publicada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  routed:
+                    type: boolean
+                    description: Se a mensagem foi roteada para pelo menos uma fila
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Exchange ou virtual host não encontrado
+  /api/queues:
+    get:
+      summary: Listar filas
+      description: Lista todas as filas
+      tags:
+      - Queues
+      responses:
+        '200':
+          description: Lista de filas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Queue'
+  /api/queues/detailed:
+    get:
+      summary: Listar filas detalhadas
+      description: Lista todas as filas com informações detalhadas
+      tags:
+      - Queues
+      responses:
+        '200':
+          description: Lista detalhada de filas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Queue'
+  /api/queues/{vhost}:
+    get:
+      summary: Listar filas de um virtual host
+      description: Lista filas de um virtual host específico
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de filas do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Queue'
+        '404':
+          description: Virtual host não encontrado
+  /api/queues/{vhost}/{name}:
+    get:
+      summary: Obter fila específica
+      description: Retorna informações de uma fila específica
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações da fila
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Queue'
+        '404':
+          description: Fila ou virtual host não encontrado
+    put:
+      summary: Criar ou atualizar fila
+      description: Cria ou atualiza uma fila em um virtual host
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                durable:
+                  type: boolean
+                  description: Se a fila é durável
+                auto_delete:
+                  type: boolean
+                  description: Se a fila é auto-deletada
+                arguments:
+                  type: object
+                  description: Argumentos adicionais
+      responses:
+        '201':
+          description: Fila criada com sucesso
+        '204':
+          description: Fila atualizada com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Virtual host não encontrado
+    delete:
+      summary: Deletar fila
+      description: Remove uma fila de um virtual host
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Fila deletada com sucesso
+        '404':
+          description: Fila ou virtual host não encontrado
+  /api/queues/{vhost}/{name}/bindings:
+    get:
+      summary: Listar bindings de uma fila
+      description: Lista bindings de uma fila específica
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de bindings da fila
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Queuesbindings'
+        '404':
+          description: Fila ou virtual host não encontrado
+  /api/queues/{vhost}/{name}/contents:
+    delete:
+      summary: Limpar conteúdo da fila
+      description: Remove todas as mensagens de uma fila
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Conteúdo da fila limpo com sucesso
+        '404':
+          description: Fila ou virtual host não encontrado
+  /api/queues/{vhost}/{name}/get:
+    post:
+      summary: Obter mensagens da fila
+      description: "Obtém mensagens de uma fila (consome e remove). \n\n**Aviso**: Este endpoint é destinado apenas para desenvolvimento\
+        \ e \nsolução de problemas, não para produção. Em produção, use uma \nbiblioteca cliente de protocolo de mensageria\
+        \ ou streaming.\n\nExemplo de payload:\n```json\n{\n  \"count\": 5,\n  \"ackmode\": \"ack_requeue_true\",\n  \"encoding\"\
+        : \"auto\",\n  \"truncate\": 50000\n}\n```\n"
+      tags:
+      - Queues
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  description: Número máximo de mensagens que podem ser retornadas
+                ackmode:
+                  type: string
+                  enum:
+                  - ack_requeue_true
+                  - ack_requeue_false
+                  - reject_requeue_true
+                  - reject_requeue_false
+                  description: 'Modo de confirmação:
+
+                    - `ack_requeue_true`: reenfileira as mensagens obtidas
+
+                    - `ack_requeue_false`: confirma positivamente e marca para exclusão
+
+                    - `reject_requeue_true`: reenfileira as mensagens obtidas
+
+                    - `reject_requeue_false`: confirma negativamente e marca para exclusão
+
+                    '
+                encoding:
+                  type: string
+                  enum:
+                  - auto
+                  - base64
+                  description: 'Codificação das mensagens:
+
+                    - `auto`: payload será retornado como UTF-8 se válido
+
+                    - `base64`: payload codificado em Base64
+
+                    '
+                truncate:
+                  type: integer
+                  description: Se definido, mensagens maiores que este valor (em bytes) serão truncadas
+      responses:
+        '200':
+          description: Mensagens obtidas com sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Fila ou virtual host não encontrado
+  /api/bindings:
+    get:
+      summary: Listar bindings
+      description: Lista todos os bindings
+      tags:
+      - Bindings
+      responses:
+        '200':
+          description: Lista de bindings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bindings'
+  /api/bindings/{vhost}:
+    get:
+      summary: Listar bindings de um virtual host
+      description: Lista bindings de um virtual host específico
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de bindings do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bindings'
+        '404':
+          description: Virtual host não encontrado
+  /api/bindings/{vhost}/e/{exchange}/q/{queue}:
+    get:
+      summary: Listar bindings exchange-queue
+      description: Lista bindings entre um exchange e uma fila
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: exchange
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      - name: queue
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de bindings exchange-queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bindingseq'
+        '404':
+          description: Exchange, fila ou virtual host não encontrado
+    post:
+      summary: Criar binding exchange-queue
+      description: Cria um binding entre um exchange e uma fila
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: exchange
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      - name: queue
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                routing_key:
+                  type: string
+                  description: Chave de roteamento
+                arguments:
+                  type: object
+                  description: Argumentos do binding
+      responses:
+        '201':
+          description: Binding criado com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Exchange, fila ou virtual host não encontrado
+  /api/bindings/{vhost}/e/{exchange}/q/{queue}/{props}:
+    get:
+      summary: Obter binding específico exchange-queue
+      description: Retorna informações de um binding específico entre exchange e fila
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: exchange
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      - name: queue
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      - name: props
+        in: path
+        required: true
+        description: Propriedades do binding
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do binding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bindingseq'
+        '404':
+          description: Binding, exchange, fila ou virtual host não encontrado
+    delete:
+      summary: Deletar binding exchange-queue
+      description: Remove um binding entre um exchange e uma fila
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: exchange
+        in: path
+        required: true
+        description: Nome do exchange
+        schema:
+          type: string
+      - name: queue
+        in: path
+        required: true
+        description: Nome da fila
+        schema:
+          type: string
+      - name: props
+        in: path
+        required: true
+        description: Propriedades do binding
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Binding deletado com sucesso
+        '404':
+          description: Binding, exchange, fila ou virtual host não encontrado
+  /api/bindings/{vhost}/e/{source}/e/{destination}:
+    get:
+      summary: Listar bindings exchange-exchange
+      description: Lista bindings entre dois exchanges
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: source
+        in: path
+        required: true
+        description: Nome do exchange de origem
+        schema:
+          type: string
+      - name: destination
+        in: path
+        required: true
+        description: Nome do exchange de destino
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de bindings exchange-exchange
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bindingsee'
+        '404':
+          description: Exchange ou virtual host não encontrado
+    post:
+      summary: Criar binding exchange-exchange
+      description: Cria um binding entre dois exchanges
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: source
+        in: path
+        required: true
+        description: Nome do exchange de origem
+        schema:
+          type: string
+      - name: destination
+        in: path
+        required: true
+        description: Nome do exchange de destino
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                routing_key:
+                  type: string
+                  description: Chave de roteamento
+                arguments:
+                  type: object
+                  description: Argumentos do binding
+      responses:
+        '201':
+          description: Binding criado com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Exchange ou virtual host não encontrado
+  /api/bindings/{vhost}/e/{source}/e/{destination}/{props}:
+    get:
+      summary: Obter binding específico exchange-exchange
+      description: Retorna informações de um binding específico entre dois exchanges
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: source
+        in: path
+        required: true
+        description: Nome do exchange de origem
+        schema:
+          type: string
+      - name: destination
+        in: path
+        required: true
+        description: Nome do exchange de destino
+        schema:
+          type: string
+      - name: props
+        in: path
+        required: true
+        description: Propriedades do binding
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do binding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bindingsee'
+        '404':
+          description: Binding, exchange ou virtual host não encontrado
+    delete:
+      summary: Deletar binding exchange-exchange
+      description: Remove um binding entre dois exchanges
+      tags:
+      - Bindings
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: source
+        in: path
+        required: true
+        description: Nome do exchange de origem
+        schema:
+          type: string
+      - name: destination
+        in: path
+        required: true
+        description: Nome do exchange de destino
+        schema:
+          type: string
+      - name: props
+        in: path
+        required: true
+        description: Propriedades do binding
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Binding deletado com sucesso
+        '404':
+          description: Binding, exchange ou virtual host não encontrado
+  /api/vhosts:
+    get:
+      summary: Obter virtual host específico
+      description: Retorna informações de um virtual host específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do virtual host
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Virtual host não encontrado
+    put:
+      summary: Criar virtual host
+      description: Cria um novo virtual host
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Descrição do virtual host
+                tags:
+                  type: string
+                  description: Tags do virtual host
+      responses:
+        '201':
+          description: Virtual host criado com sucesso
+        '400':
+          description: Dados inválidos
+    delete:
+      summary: Deletar virtual host
+      description: Remove um virtual host
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Virtual host deletado com sucesso
+        '404':
+          description: Virtual host não encontrado
+  /api/vhosts/{name}/permissions:
+    get:
+      summary: Listar permissões de um virtual host
+      description: Lista permissões de um virtual host específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de permissões do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VirtualHostPermissions'
+        '404':
+          description: Virtual host não encontrado
+  /api/vhosts/{name}/topic-permissions:
+    get:
+      summary: Listar permissões de tópico de um virtual host
+      description: Lista permissões de tópico de um virtual host específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de permissões de tópico do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VirtualHostTopic-permissions'
+        '404':
+          description: Virtual host não encontrado
+  /api/vhosts/{name}/deletion/protection:
+    post:
+      summary: Habilitar proteção contra deleção
+      description: Habilita proteção contra deleção de um virtual host
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Proteção habilitada com sucesso
+        '404':
+          description: Virtual host não encontrado
+    delete:
+      summary: Desabilitar proteção contra deleção
+      description: Desabilita proteção contra deleção de um virtual host
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Proteção desabilitada com sucesso
+        '404':
+          description: Virtual host não encontrado
+  /api/vhosts/{name}/start/{node}:
+    post:
+      summary: Iniciar virtual host em um nó
+      description: Inicia um virtual host em um nó específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: node
+        in: path
+        required: true
+        description: Nome do nó
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Virtual host iniciado com sucesso
+        '404':
+          description: Virtual host ou nó não encontrado
+  /api/users:
+    get:
+      summary: Listar usuários
+      description: Lista todos os usuários
+      tags:
+      - Users
+      responses:
+        '200':
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+  /api/users/{name}:
+    get:
+      summary: Obter usuário específico
+      description: Retorna informações de um usuário específico
+      tags:
+      - Users
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do usuário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Usuário não encontrado
+    put:
+      summary: Criar ou atualizar usuário
+      description: Cria ou atualiza um usuário
+      tags:
+      - Users
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  description: Senha do usuário
+                password_hash:
+                  type: string
+                  description: Hash da senha do usuário
+                tags:
+                  type: string
+                  description: Tags do usuário
+      responses:
+        '201':
+          description: Usuário criado com sucesso
+        '204':
+          description: Usuário atualizado com sucesso
+        '400':
+          description: Dados inválidos
+    delete:
+      summary: Deletar usuário
+      description: Remove um usuário
+      tags:
+      - Users
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Usuário deletado com sucesso
+        '404':
+          description: Usuário não encontrado
+  /api/users/without-permissions:
+    get:
+      summary: Listar usuários sem permissões
+      description: Lista usuários que não possuem permissões
+      tags:
+      - Users
+      responses:
+        '200':
+          description: Lista de usuários sem permissões
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+  /api/users/bulk-delete:
+    post:
+      summary: Deletar usuários em lote
+      description: Remove múltiplos usuários de uma vez
+      tags:
+      - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                users:
+                  type: array
+                  items:
+                    type: string
+                  description: Lista de nomes de usuários para deletar
+      responses:
+        '204':
+          description: Usuários deletados com sucesso
+        '400':
+          description: Dados inválidos
+  /api/users/{user}/permissions:
+    get:
+      summary: Listar permissões de um usuário
+      description: Lista permissões de um usuário específico
+      tags:
+      - Users
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de permissões do usuário
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsersPermissions'
+        '404':
+          description: Usuário não encontrado
+  /api/users/{user}/topic-permissions:
+    get:
+      summary: Listar permissões de tópico de um usuário
+      description: Lista permissões de tópico de um usuário específico
+      tags:
+      - Users
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de permissões de tópico do usuário
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsersTopic-permissions'
+        '404':
+          description: Usuário não encontrado
+  /api/user-limits:
+    get:
+      summary: Listar limites de usuários
+      description: Lista todos os limites de usuários
+      tags:
+      - Users
+      responses:
+        '200':
+          description: Lista de limites de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User-limits'
+  /api/user-limits/{user}:
+    get:
+      summary: Listar limites de um usuário
+      description: Lista limites de um usuário específico
+      tags:
+      - Users
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de limites do usuário
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User-limits'
+        '404':
+          description: Usuário não encontrado
+  /api/user-limits/{user}/{name}:
+    put:
+      summary: Definir limite de usuário
+      description: Define um limite para um usuário específico
+      tags:
+      - Users
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do limite
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: integer
+                  description: Valor do limite
+      responses:
+        '201':
+          description: Limite definido com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Usuário não encontrado
+    delete:
+      summary: Remover limite de usuário
+      description: Remove um limite de um usuário específico
+      tags:
+      - Users
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do limite
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Limite removido com sucesso
+        '404':
+          description: Usuário ou limite não encontrado
+  /api/permissions:
+    get:
+      summary: Obter permissões de um usuário em um virtual host
+      description: Retorna permissões de um usuário específico em um virtual host
+      tags:
+      - Permissions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Permissões do usuário no virtual host
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Usuário ou virtual host não encontrado
+    put:
+      summary: Definir permissões de um usuário em um virtual host
+      description: Define permissões de um usuário específico em um virtual host
+      tags:
+      - Permissions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                configure:
+                  type: string
+                  description: Permissões de configuração
+                write:
+                  type: string
+                  description: Permissões de escrita
+                read:
+                  type: string
+                  description: Permissões de leitura
+      responses:
+        '201':
+          description: Permissões definidas com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Usuário ou virtual host não encontrado
+    delete:
+      summary: Remover permissões de um usuário em um virtual host
+      description: Remove permissões de um usuário específico em um virtual host
+      tags:
+      - Permissions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Permissões removidas com sucesso
+        '404':
+          description: Usuário ou virtual host não encontrado
+  /api/topic-permissions:
+    get:
+      summary: Obter permissões de tópico de um usuário em um virtual host
+      description: Retorna permissões de tópico de um usuário específico em um virtual host
+      tags:
+      - Permissions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Permissões de tópico do usuário no virtual host
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Usuário ou virtual host não encontrado
+    put:
+      summary: Definir permissões de tópico de um usuário em um virtual host
+      description: Define permissões de tópico de um usuário específico em um virtual host
+      tags:
+      - Permissions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exchange:
+                  type: string
+                  description: Nome do exchange
+                write:
+                  type: string
+                  description: Permissões de escrita
+                read:
+                  type: string
+                  description: Permissões de leitura
+      responses:
+        '201':
+          description: Permissões de tópico definidas com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Usuário ou virtual host não encontrado
+    delete:
+      summary: Remover permissões de tópico de um usuário em um virtual host
+      description: Remove permissões de tópico de um usuário específico em um virtual host
+      tags:
+      - Permissions
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: user
+        in: path
+        required: true
+        description: Nome do usuário
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Permissões de tópico removidas com sucesso
+        '404':
+          description: Usuário ou virtual host não encontrado
+  /api/parameters:
+    get:
+      summary: Listar parâmetros
+      description: Lista todos os parâmetros
+      tags:
+      - Parameters
+      responses:
+        '200':
+          description: Lista de parâmetros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parameters'
+  /api/parameters/{component}:
+    get:
+      summary: Listar parâmetros de um componente
+      description: Lista parâmetros de um componente específico
+      tags:
+      - Parameters
+      parameters:
+      - name: component
+        in: path
+        required: true
+        description: Nome do componente
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de parâmetros do componente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parameters'
+        '404':
+          description: Componente não encontrado
+  /api/parameters/{component}/{vhost}:
+    get:
+      summary: Listar parâmetros de um componente em um virtual host
+      description: Lista parâmetros de um componente específico em um virtual host
+      tags:
+      - Parameters
+      parameters:
+      - name: component
+        in: path
+        required: true
+        description: Nome do componente
+        schema:
+          type: string
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de parâmetros do componente no virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parameters'
+        '404':
+          description: Componente ou virtual host não encontrado
+  /api/parameters/{component}/{vhost}/{name}:
+    get:
+      summary: Obter parâmetro específico
+      description: Retorna informações de um parâmetro específico
+      tags:
+      - Parameters
+      parameters:
+      - name: component
+        in: path
+        required: true
+        description: Nome do componente
+        schema:
+          type: string
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do parâmetro
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do parâmetro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parameters'
+        '404':
+          description: Parâmetro, componente ou virtual host não encontrado
+    put:
+      summary: Criar ou atualizar parâmetro
+      description: Cria ou atualiza um parâmetro
+      tags:
+      - Parameters
+      parameters:
+      - name: component
+        in: path
+        required: true
+        description: Nome do componente
+        schema:
+          type: string
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do parâmetro
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: object
+                  description: Valor do parâmetro
+      responses:
+        '201':
+          description: Parâmetro criado com sucesso
+        '204':
+          description: Parâmetro atualizado com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Componente ou virtual host não encontrado
+    delete:
+      summary: Deletar parâmetro
+      description: Remove um parâmetro
+      tags:
+      - Parameters
+      parameters:
+      - name: component
+        in: path
+        required: true
+        description: Nome do componente
+        schema:
+          type: string
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do parâmetro
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Parâmetro deletado com sucesso
+        '404':
+          description: Parâmetro, componente ou virtual host não encontrado
+  /api/global-parameters:
+    get:
+      summary: Listar parâmetros globais
+      description: Lista todos os parâmetros globais
+      tags:
+      - Parameters
+      responses:
+        '200':
+          description: Lista de parâmetros globais
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Global-parameters'
+  /api/global-parameters/{name}:
+    get:
+      summary: Obter parâmetro global específico
+      description: Retorna informações de um parâmetro global específico
+      tags:
+      - Parameters
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do parâmetro global
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações do parâmetro global
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalParameters'
+        '404':
+          description: Parâmetro global não encontrado
+    put:
+      summary: Criar ou atualizar parâmetro global
+      description: Cria ou atualiza um parâmetro global
+      tags:
+      - Parameters
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do parâmetro global
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: object
+                  description: Valor do parâmetro global
+      responses:
+        '201':
+          description: Parâmetro global criado com sucesso
+        '204':
+          description: Parâmetro global atualizado com sucesso
+        '400':
+          description: Dados inválidos
+    delete:
+      summary: Deletar parâmetro global
+      description: Remove um parâmetro global
+      tags:
+      - Parameters
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: Nome do parâmetro global
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Parâmetro global deletado com sucesso
+        '404':
+          description: Parâmetro global não encontrado
+  /api/policies:
+    get:
+      summary: Listar políticas
+      description: Lista todas as políticas
+      tags:
+      - Policies
+      responses:
+        '200':
+          description: Lista de políticas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Policies'
+  /api/policies/{vhost}:
+    get:
+      summary: Listar políticas de um virtual host
+      description: Lista políticas de um virtual host específico
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de políticas do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Policies'
+        '404':
+          description: Virtual host não encontrado
+  /api/policies/{vhost}/{name}:
+    get:
+      summary: Obter política específica
+      description: Retorna informações de uma política específica
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da política
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações da política
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policies'
+        '404':
+          description: Política ou virtual host não encontrado
+    put:
+      summary: Criar ou atualizar política
+      description: Cria ou atualiza uma política
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da política
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                  description: Padrão da política
+                definition:
+                  type: object
+                  description: Definição da política
+                priority:
+                  type: integer
+                  description: Prioridade da política
+                apply-to:
+                  type: string
+                  description: Aplicar a (queues, exchanges, etc.)
+      responses:
+        '201':
+          description: Política criada com sucesso
+        '204':
+          description: Política atualizada com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Virtual host não encontrado
+    delete:
+      summary: Deletar política
+      description: Remove uma política
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da política
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Política deletada com sucesso
+        '404':
+          description: Política ou virtual host não encontrado
+  /api/operator-policies:
+    get:
+      summary: Listar políticas de operador
+      description: Lista todas as políticas de operador
+      tags:
+      - Policies
+      responses:
+        '200':
+          description: Lista de políticas de operador
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Operator-policies'
+  /api/operator-policies/{vhost}:
+    get:
+      summary: Listar políticas de operador de um virtual host
+      description: Lista políticas de operador de um virtual host específico
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de políticas de operador do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OperatorPolicies'
+        '404':
+          description: Virtual host não encontrado
+  /api/operator-policies/{vhost}/{name}:
+    get:
+      summary: Obter política de operador específica
+      description: Retorna informações de uma política de operador específica
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da política de operador
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações da política de operador
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorPolicies'
+        '404':
+          description: Política de operador ou virtual host não encontrado
+    put:
+      summary: Criar ou atualizar política de operador
+      description: Cria ou atualiza uma política de operador
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da política de operador
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                  description: Padrão da política de operador
+                definition:
+                  type: object
+                  description: Definição da política de operador
+                priority:
+                  type: integer
+                  description: Prioridade da política de operador
+                apply-to:
+                  type: string
+                  description: Aplicar a (queues, exchanges, etc.)
+      responses:
+        '201':
+          description: Política de operador criada com sucesso
+        '204':
+          description: Política de operador atualizada com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Virtual host não encontrado
+    delete:
+      summary: Deletar política de operador
+      description: Remove uma política de operador
+      tags:
+      - Policies
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da política de operador
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Política de operador deletada com sucesso
+        '404':
+          description: Política de operador ou virtual host não encontrado
+  /api/vhost-limits:
+    get:
+      summary: Listar limites de virtual hosts
+      description: Lista todos os limites de virtual hosts
+      tags:
+      - Virtual Hosts
+      responses:
+        '200':
+          description: Lista de limites de virtual hosts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vhost-limits'
+  /api/vhost-limits/{vhost}:
+    get:
+      summary: Listar limites de um virtual host
+      description: Lista limites de um virtual host específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de limites do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vhost-limits'
+        '404':
+          description: Virtual host não encontrado
+  /api/vhost-limits/{vhost}/{name}:
+    put:
+      summary: Definir limite de virtual host
+      description: Define um limite para um virtual host específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do limite
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: integer
+                  description: Valor do limite
+      responses:
+        '201':
+          description: Limite definido com sucesso
+        '400':
+          description: Dados inválidos
+        '404':
+          description: Virtual host não encontrado
+    delete:
+      summary: Remover limite de virtual host
+      description: Remove um limite de um virtual host específico
+      tags:
+      - Virtual Hosts
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome do limite
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Limite removido com sucesso
+        '404':
+          description: Virtual host ou limite não encontrado
+  /api/federation-links:
+    get:
+      summary: Listar links de federação
+      description: Lista todos os links de federação
+      tags:
+      - Federation
+      responses:
+        '200':
+          description: Lista de links de federação
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/federation-links/{vhost}:
+    get:
+      summary: Listar links de federação de um virtual host
+      description: Lista links de federação de um virtual host específico
+      tags:
+      - Federation
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de links de federação do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Virtual host não encontrado
+  /api/auth/attempts/{node}:
+    get:
+      summary: Listar tentativas de autenticação de um nó
+      description: Lista tentativas de autenticação de um nó específico
+      tags:
+      - Auth
+      parameters:
+      - name: node
+        in: path
+        required: true
+        description: Nome do nó
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de tentativas de autenticação do nó
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Authattempts'
+        '404':
+          description: Nó não encontrado
+  /api/auth/attempts/{node}/source:
+    get:
+      summary: Listar fontes de tentativas de autenticação de um nó
+      description: Lista fontes de tentativas de autenticação de um nó específico
+      tags:
+      - Auth
+      parameters:
+      - name: node
+        in: path
+        required: true
+        description: Nome do nó
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de fontes de tentativas de autenticação do nó
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Authattemptssource'
+        '404':
+          description: Nó não encontrado
+  /api/auth/hash_password/{password}:
+    get:
+      summary: Listar conexões de stream
+      description: Lista todas as conexões de stream
+      tags:
+      - Streams
+      responses:
+        '200':
+          description: Lista de conexões de stream
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/stream/connections/{vhost}:
+    get:
+      summary: Listar conexões de stream de um virtual host
+      description: Lista conexões de stream de um virtual host específico
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de conexões de stream do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Virtual host não encontrado
+  /api/stream/connections/{vhost}/{name}:
+    get:
+      summary: Obter conexão de stream específica
+      description: Retorna informações de uma conexão de stream específica
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão de stream
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Informações da conexão de stream
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Conexão de stream ou virtual host não encontrado
+    delete:
+      summary: Fechar conexão de stream
+      description: Fecha uma conexão de stream específica
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão de stream
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Conexão de stream fechada com sucesso
+        '404':
+          description: Conexão de stream ou virtual host não encontrado
+  /api/stream/connections/{vhost}/{name}/publishers:
+    get:
+      summary: Listar publishers de uma conexão de stream
+      description: Lista publishers de uma conexão de stream específica
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão de stream
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de publishers da conexão de stream
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Conexão de stream ou virtual host não encontrado
+  /api/stream/connections/{vhost}/{name}/consumers:
+    get:
+      summary: Listar consumers de uma conexão de stream
+      description: Lista consumers de uma conexão de stream específica
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: Nome da conexão de stream
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de consumers da conexão de stream
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Conexão de stream ou virtual host não encontrado
+  /api/stream/publishers:
+    get:
+      summary: Listar publishers de stream
+      description: Lista todos os publishers de stream
+      tags:
+      - Streams
+      responses:
+        '200':
+          description: Lista de publishers de stream
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/stream/publishers/{vhost}:
+    get:
+      summary: Listar publishers de stream de um virtual host
+      description: Lista publishers de stream de um virtual host específico
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de publishers de stream do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Virtual host não encontrado
+  /api/stream/publishers/{vhost}/{stream}:
+    get:
+      summary: Listar publishers de um stream específico
+      description: Lista publishers de um stream específico em um virtual host
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      - name: stream
+        in: path
+        required: true
+        description: Nome do stream
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de publishers do stream
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Stream ou virtual host não encontrado
+  /api/stream/consumers:
+    get:
+      summary: Listar consumers de stream
+      description: Lista todos os consumers de stream
+      tags:
+      - Streams
+      responses:
+        '200':
+          description: Lista de consumers de stream
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/stream/consumers/{vhost}:
+    get:
+      summary: Listar consumers de stream de um virtual host
+      description: Lista consumers de stream de um virtual host específico
+      tags:
+      - Streams
+      parameters:
+      - name: vhost
+        in: path
+        required: true
+        description: Nome do virtual host
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de consumers de stream do virtual host
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Virtual host não encontrado
+  /api/health/checks/alarms:
+    get:
+      summary: Verificar alarmes
+      description: Verifica se há alarmes ativos no cluster
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Status dos alarmes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthChecksAlarms'
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/health/checks/local-alarms:
+    get:
+      summary: Verificar alarmes locais
+      description: Verifica se há alarmes locais ativos
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Status dos alarmes locais
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthChecksLocal-alarms'
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/health/checks/certificate-expiration/{within}/{unit}:
+    get:
+      summary: Verificar listener de porta
+      description: Verifica se há um listener ativo na porta especificada
+      tags:
+      - Health
+      parameters:
+      - name: port
+        in: path
+        required: true
+        description: Número da porta
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Status do listener da porta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/health/checks/protocol-listener/{protocols}:
+    get:
+      summary: Verificar virtual hosts
+      description: Verifica se todos os virtual hosts estão funcionando
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Status dos virtual hosts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthChecksVirtual-hosts'
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/health/checks/node-is-quorum-critical:
+    get:
+      summary: Verificar limite de conexões do nó
+      description: Verifica se o nó está abaixo do limite de conexões
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Status do limite de conexões do nó
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/health/checks/ready-to-serve-clients:
+    get:
+      summary: Verificar se está pronto para servir clientes
+      description: Verifica se o nó está pronto para servir clientes
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Status de prontidão para servir clientes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/rebalance/queues:
+    get:
+      summary: Rebalancear filas
+      description: Inicia o rebalanceamento de filas no cluster
+      tags:
+      - System
+      responses:
+        '200':
+          description: Rebalanceamento iniciado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                    - failed
+                  reason:
+                    type: string
+  /api/whoami:
+    get:
+      summary: Informações do usuário atual
+      description: Retorna informações do usuário autenticado
+      tags:
+      - System
+      responses:
+        '200':
+          description: Informações do usuário atual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhoAmI'
+  /api/auth:
+    get:
+      summary: Listar extensões
+      description: Lista todas as extensões disponíveis
+      tags:
+      - System
+      responses:
+        '200':
+          description: Lista de extensões
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Extensions'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Autenticação básica usando usuário e senha do RabbitMQ
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Overview:
+      type: object
+      properties:
+        churn_rates:
+          type: object
+          properties:
+            channel_closed:
+              type: integer
+            channel_closed_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            channel_created:
+              type: integer
+            channel_created_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            connection_closed:
+              type: integer
+            connection_closed_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            connection_created:
+              type: integer
+            connection_created_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            queue_created:
+              type: integer
+            queue_created_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            queue_declared:
+              type: integer
+            queue_declared_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            queue_deleted:
+              type: integer
+            queue_deleted_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+        cluster_name:
+          type: string
+        contexts:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              node:
+                type: string
+              path:
+                type: string
+              port:
+                type: string
+              ssl_opts:
+                type: array
+                items:
+                  type: object
+        erlang_full_version:
+          type: string
+        erlang_version:
+          type: string
+        exchange_types:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              enabled:
+                type: boolean
+              name:
+                type: string
+              internal_purpose:
+                type: string
+        listeners:
+          type: array
+          items:
+            type: object
+            properties:
+              ip_address:
+                type: string
+              node:
+                type: string
+              port:
+                type: integer
+              protocol:
+                type: string
+              socket_opts:
+                type: object
+                properties:
+                  backlog:
+                    type: integer
+                  exit_on_close:
+                    type: boolean
+                  linger:
+                    type: array
+                    items:
+                      type: integer
+                  nodelay:
+                    type: boolean
+                  connection_type:
+                    type: string
+                  port:
+                    type: integer
+        management_version:
+          type: string
+        message_stats:
+          type: object
+          properties:
+            ack:
+              type: integer
+            ack_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            confirm:
+              type: integer
+            confirm_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            deliver:
+              type: integer
+            deliver_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            deliver_get:
+              type: integer
+            deliver_get_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            deliver_no_ack:
+              type: integer
+            deliver_no_ack_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            disk_reads:
+              type: integer
+            disk_reads_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            disk_writes:
+              type: integer
+            disk_writes_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            get:
+              type: integer
+            get_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            get_no_ack:
+              type: integer
+            get_no_ack_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            publish:
+              type: integer
+            publish_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            redeliver:
+              type: integer
+            redeliver_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            return_unroutable:
+              type: integer
+            return_unroutable_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+        node:
+          type: string
+        object_totals:
+          type: object
+          properties:
+            channels:
+              type: integer
+            connections:
+              type: integer
+            consumers:
+              type: integer
+            exchanges:
+              type: integer
+            queues:
+              type: integer
+        queue_totals:
+          type: object
+          properties:
+            messages:
+              type: integer
+            messages_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            messages_ready:
+              type: integer
+            messages_ready_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            messages_unacknowledged:
+              type: integer
+            messages_unacknowledged_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+        rabbitmq_version:
+          type: string
+        rates_mode:
+          type: string
+        sample_retention_policies:
+          type: object
+          properties:
+            basic:
+              type: array
+              items:
+                type: integer
+            detailed:
+              type: array
+              items:
+                type: integer
+            global:
+              type: array
+              items:
+                type: integer
+        statistics_db_event_queue:
+          type: integer
+      required:
+      - management_version
+      - rates_mode
+      - sample_retention_policies
+      - exchange_types
+      - product_version
+      - product_name
+      - rabbitmq_version
+      - cluster_name
+      - cluster_tags
+      - node_tags
+      - erlang_version
+      - erlang_full_version
+      - release_series_support_status
+      - disable_stats
+      - is_op_policy_updating_enabled
+      - enable_queue_totals
+      - message_stats
+      - churn_rates
+      - queue_totals
+      - object_totals
+      - statistics_db_event_queue
+      - node
+      - listeners
+      - contexts
+      description: Informações gerais do sistema RabbitMQ
+    ClusterName:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+      - name
+      description: Nome do cluster
+    Definition:
+      type: object
+      properties:
+        bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Binding'
+        exchanges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Exchange'
+        parameters:
+          type: array
+          items:
+            type: object
+        policies:
+          type: array
+          items:
+            type: object
+        queues:
+          type: array
+          items:
+            $ref: '#/components/schemas/Queue'
+        rabbit_version:
+          type: string
+    Exchange:
+      type: object
+      properties:
+        arguments:
+          type: object
+          properties:
+            x-arg:
+              type: string
+        auto_delete:
+          type: boolean
+        durable:
+          type: boolean
+        incoming:
+          type: array
+          items:
+            type: object
+        internal:
+          type: boolean
+        message_stats:
+          type: object
+          properties:
+            publish_in:
+              type: integer
+            publish_in_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            publish_out:
+              type: integer
+            publish_out_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+        name:
+          type: string
+        outgoing:
+          type: array
+          items:
+            type: object
+        type:
+          type: string
+        user_who_performed_action:
+          type: string
+        vhost:
+          type: string
+      required:
+      - arguments
+      - auto_delete
+      - durable
+      - internal
+      - message_stats
+      - name
+      - type
+      - user_who_performed_action
+      - vhost
+      description: Informações de uma exchange
+    Queue:
+      type: object
+      properties:
+        arguments:
+          type: object
+          properties:
+            x-arg:
+              type: string
+        auto_delete:
+          type: boolean
+        backing_queue_status:
+          type: object
+          properties:
+            avg_ack_egress_rate:
+              type: integer
+            avg_ack_ingress_rate:
+              type: number
+            avg_egress_rate:
+              type: number
+            avg_ingress_rate:
+              type: number
+            delta:
+              type: array
+              items:
+                type: string
+            len:
+              type: integer
+            mode:
+              type: string
+            next_seq_id:
+              type: integer
+            q1:
+              type: integer
+            q2:
+              type: integer
+            q3:
+              type: integer
+            q4:
+              type: integer
+            target_ram_count:
+              type: string
+        consumer_details:
+          type: array
+          items:
+            type: object
+        consumer_utilisation:
+          type: 'null'
+        consumers:
+          type: integer
+        deliveries:
+          type: array
+          items:
+            type: object
+        durable:
+          type: boolean
+        effective_policy_definition:
+          type: array
+          items:
+            type: object
+        exclusive:
+          type: boolean
+        exclusive_consumer_tag:
+          type: 'null'
+        garbage_collection:
+          type: object
+          properties:
+            fullsweep_after:
+              type: integer
+            max_heap_size:
+              type: integer
+            min_bin_vheap_size:
+              type: integer
+            min_heap_size:
+              type: integer
+            minor_gcs:
+              type: integer
+        head_message_timestamp:
+          type: 'null'
+        idle_since:
+          type: string
+        incoming:
+          type: array
+          items:
+            type: object
+        memory:
+          type: integer
+        message_bytes:
+          type: integer
+        message_bytes_paged_out:
+          type: integer
+        message_bytes_persistent:
+          type: integer
+        message_bytes_ram:
+          type: integer
+        message_bytes_ready:
+          type: integer
+        message_bytes_unacknowledged:
+          type: integer
+        message_stats:
+          type: object
+          properties:
+            ack:
+              type: integer
+            ack_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            deliver:
+              type: integer
+            deliver_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            deliver_get:
+              type: integer
+            deliver_get_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            deliver_no_ack:
+              type: integer
+            deliver_no_ack_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            get:
+              type: integer
+            get_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            get_no_ack:
+              type: integer
+            get_no_ack_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            publish:
+              type: integer
+            publish_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+            redeliver:
+              type: integer
+            redeliver_details:
+              type: object
+              properties:
+                rate:
+                  type: integer
+        messages:
+          type: integer
+        messages_details:
+          type: object
+          properties:
+            rate:
+              type: integer
+        messages_paged_out:
+          type: integer
+        messages_persistent:
+          type: integer
+        messages_ram:
+          type: integer
+        messages_ready:
+          type: integer
+        messages_ready_details:
+          type: object
+          properties:
+            rate:
+              type: integer
+        messages_ready_ram:
+          type: integer
+        messages_unacknowledged:
+          type: integer
+        messages_unacknowledged_details:
+          type: object
+          properties:
+            rate:
+              type: integer
+        messages_unacknowledged_ram:
+          type: integer
+        name:
+          type: string
+        node:
+          type: string
+        operator_policy:
+          type: 'null'
+        policy:
+          type: 'null'
+        recoverable_slaves:
+          type: 'null'
+        reductions:
+          type: integer
+        reductions_details:
+          type: object
+          properties:
+            rate:
+              type: integer
+        state:
+          type: string
+        vhost:
+          type: string
+    User:
+      type: object
+      properties:
+        hashing_algorithm:
+          type: string
+        name:
+          type: string
+        password_hash:
+          type: string
+        tags:
+          type: string
+      required:
+      - hashing_algorithm
+      - limits
+      - name
+      - password_hash
+      - tags
+      description: Informações de um usuário
+    WhoAmI:
+      type: object
+      properties:
+        name:
+          type: string
+        tags:
+          type: string
+    Binding:
+      type: object
+      properties:
+        arguments:
+          type: object
+          properties:
+            x-arg:
+              type: string
+        destination:
+          type: string
+        destination_type:
+          type: string
+        properties_key:
+          type: string
+        routing_key:
+          type: string
+        source:
+          type: string
+        vhost:
+          type: string
+    Node:
+      type: object
+      properties:
+        name:
+          type: string
+        mem_used:
+          type: integer
+        fd_used:
+          type: integer
+        sockets_used:
+          type: integer
+      required:
+      - partitions
+      - os_pid
+      - fd_total
+      - sockets_total
+      - mem_limit
+      - mem_alarm
+      - disk_free_limit
+      - disk_free_alarm
+      - proc_total
+      - rates_mode
+      - uptime
+      - run_queue
+      - processors
+      - exchange_types
+      - auth_mechanisms
+      - applications
+      - contexts
+      - log_files
+      - db_dir
+      - config_files
+      - net_ticktime
+      - enabled_plugins
+      - mem_calculation_strategy
+      - ra_open_file_metrics
+      - name
+      - type
+      - running
+      - being_drained
+      - mem_used
+      - mem_used_details
+      - fd_used
+      - fd_used_details
+      - sockets_used
+      - sockets_used_details
+      - proc_used
+      - proc_used_details
+      - disk_free
+      - disk_free_details
+      - gc_num
+      - gc_num_details
+      - gc_bytes_reclaimed
+      - gc_bytes_reclaimed_details
+      - context_switches
+      - context_switches_details
+      - io_read_count
+      - io_read_count_details
+      - io_read_bytes
+      - io_read_bytes_details
+      - io_read_avg_time
+      - io_read_avg_time_details
+      - io_write_count
+      - io_write_count_details
+      - io_write_bytes
+      - io_write_bytes_details
+      - io_write_avg_time
+      - io_write_avg_time_details
+      - io_sync_count
+      - io_sync_count_details
+      - io_sync_avg_time
+      - io_sync_avg_time_details
+      - io_seek_count
+      - io_seek_count_details
+      - io_seek_avg_time
+      - io_seek_avg_time_details
+      - io_reopen_count
+      - io_reopen_count_details
+      - mnesia_ram_tx_count
+      - mnesia_ram_tx_count_details
+      - mnesia_disk_tx_count
+      - mnesia_disk_tx_count_details
+      - msg_store_read_count
+      - msg_store_read_count_details
+      - msg_store_write_count
+      - msg_store_write_count_details
+      - queue_index_write_count
+      - queue_index_write_count_details
+      - queue_index_read_count
+      - queue_index_read_count_details
+      - connection_created
+      - connection_created_details
+      - connection_closed
+      - connection_closed_details
+      - channel_created
+      - channel_created_details
+      - channel_closed
+      - channel_closed_details
+      - queue_declared
+      - queue_declared_details
+      - queue_created
+      - queue_created_details
+      - queue_deleted
+      - queue_deleted_details
+      - cluster_links
+      - metrics_gc_queue_length
+      description: Informações de um nó do cluster
+    MemoryBreakdown:
+      type: object
+      additionalProperties:
+        type: integer
+    Connection:
+      type: object
+      description: Informações de uma conexão AMQP
+      properties:
+        name:
+          type: string
+        peer_host:
+          type: string
+        peer_port:
+          type: integer
+        user:
+          type: string
+    PortListener:
+      type: object
+      properties:
+        status:
+          type: string
+        port:
+          type: integer
+      required:
+      - port
+      - status
+  VirtualHost:
+    description: Informações de um virtual host
+    type: object
+    properties:
+      cluster_state:
+        type: object
+      default_queue_type:
+        type: string
+      description:
+        type: string
+      message_stats:
+        type: object
+      messages:
+        type: integer
+      messages_details:
+        type: object
+      messages_ready:
+        type: integer
+      messages_ready_details:
+        type: object
+      messages_unacknowledged:
+        type: integer
+      messages_unacknowledged_details:
+        type: object
+      metadata:
+        type: object
+      name:
+        type: string
+      recv_oct:
+        type: integer
+      recv_oct_details:
+        type: object
+      send_oct:
+        type: integer
+      send_oct_details:
+        type: object
+      tags:
+        type: array
+      tracing:
+        type: boolean
+  Permission:
+    description: Permissões de um usuário em um virtual host
+    type: object
+    properties:
+      user:
+        type: string
+      vhost:
+        type: string
+      configure:
+        type: string
+      write:
+        type: string
+      read:
+        type: string
+    Feature-flags:
+      type: object
+      properties:
+        name:
+          type: string
+        desc:
+          type: string
+        doc_url:
+          type: string
+        state:
+          type: string
+        stability:
+          type: string
+        provided_by:
+          type: string
+    Deprecated-features:
+      type: object
+      properties:
+        name:
+          type: string
+        desc:
+          type: string
+        deprecation_phase:
+          type: string
+        doc_url:
+          type: string
+        provided_by:
+          type: string
+    Deprecated-featuresUsedItem:
+      type: object
+      properties:
+        name:
+          type: string
+        desc:
+          type: string
+        deprecation_phase:
+          type: string
+        doc_url:
+          type: string
+        provided_by:
+          type: string
+    Channels:
+      type: object
+      properties:
+        acks_uncommitted:
+          type: integer
+        confirm:
+          type: integer
+        connection_details:
+          type: object
+          properties:
+            name:
+              type: string
+            peer_host:
+              type: string
+            peer_port:
+              type: integer
+        consumer_count:
+          type: integer
+        garbage_collection:
+          type: object
+          properties:
+            fullsweep_after:
+              type: integer
+            max_heap_size:
+              type: integer
+            min_bin_vheap_size:
+              type: integer
+            min_heap_size:
+              type: integer
+            minor_gcs:
+              type: integer
+        message_stats:
+          type: object
+          properties:
+            ack:
+              type: integer
+            ack_details:
+              type: object
+            deliver:
+              type: integer
+            deliver_details:
+              type: object
+            deliver_get:
+              type: integer
+            deliver_get_details:
+              type: object
+            deliver_no_ack:
+              type: integer
+            deliver_no_ack_details:
+              type: object
+            get:
+              type: integer
+            get_details:
+              type: object
+            get_empty:
+              type: integer
+            get_empty_details:
+              type: object
+            get_no_ack:
+              type: integer
+            get_no_ack_details:
+              type: object
+            redeliver:
+              type: integer
+            redeliver_details:
+              type: object
+        messages_unacknowledged:
+          type: integer
+        messages_uncommitted:
+          type: integer
+        messages_unconfirmed:
+          type: integer
+        name:
+          type: string
+        node:
+          type: string
+        number:
+          type: integer
+        pending_raft_commands:
+          type: integer
+        prefetch_count:
+          type: integer
+        reductions:
+          type: integer
+        reductions_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        state:
+          type: string
+        transactional:
+          type: integer
+        user:
+          type: string
+        user_who_performed_action:
+          type: string
+        vhost:
+          type: string
+    Consumers:
+      type: object
+      properties:
+        arguments:
+          type: object
+        ack_required:
+          type: integer
+        active:
+          type: integer
+        activity_status:
+          type: string
+        channel_details:
+          type: object
+          properties:
+            connection_name:
+              type: string
+            name:
+              type: string
+            node:
+              type: string
+            number:
+              type: integer
+            peer_host:
+              type: string
+            peer_port:
+              type: integer
+            user:
+              type: string
+        consumer_tag:
+          type: string
+        consumer_timeout:
+          type: integer
+        exclusive:
+          type: integer
+        prefetch_count:
+          type: integer
+        queue:
+          type: object
+          properties:
+            name:
+              type: string
+            vhost:
+              type: string
+    Bindings:
+      type: object
+      properties:
+        source:
+          type: string
+        vhost:
+          type: string
+        destination:
+          type: string
+        destination_type:
+          type: string
+        routing_key:
+          type: string
+        arguments:
+          type: object
+        properties_key:
+          type: string
+    Global-parameters:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+    Policies:
+      type: object
+      properties:
+        vhost:
+          type: string
+        name:
+          type: string
+        pattern:
+          type: string
+        apply-to:
+          type: string
+        definition:
+          type: object
+          properties:
+            dead-letter-exchange:
+              type: string
+            dead-letter-routing-key:
+              type: string
+            delivery-limit:
+              type: integer
+        priority:
+          type: integer
+    Extensions:
+      type: object
+      properties:
+        javascript:
+          type: string
+    HealthChecksAlarms:
+      type: object
+      properties:
+        status:
+          type: string
+    HealthChecksLocal-alarms:
+      type: object
+      properties:
+        status:
+          type: string
+    HealthChecksVirtual-hosts:
+      type: object
+      properties:
+        status:
+          type: string
+    VirtualHost:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+        default_queue_type:
+          type: string
+        metadata:
+          type: object
+          properties:
+            description:
+              type: string
+            tags:
+              type: array
+        tracing:
+          type: integer
+        cluster_state:
+          type: object
+          properties:
+            rabbit-cetenco@sdaysp07h406:
+              type: string
+        send_oct:
+          type: integer
+        send_oct_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        recv_oct:
+          type: integer
+        recv_oct_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        messages_ready:
+          type: integer
+        messages_ready_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        messages_unacknowledged:
+          type: integer
+        messages_unacknowledged_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        messages:
+          type: integer
+        messages_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        message_stats:
+          type: object
+          properties:
+            publish:
+              type: integer
+            publish_details:
+              type: object
+            confirm:
+              type: integer
+            confirm_details:
+              type: object
+            return_unroutable:
+              type: integer
+            return_unroutable_details:
+              type: object
+            drop_unroutable:
+              type: integer
+            drop_unroutable_details:
+              type: object
+            get:
+              type: integer
+            get_details:
+              type: object
+            get_no_ack:
+              type: integer
+            get_no_ack_details:
+              type: object
+            deliver:
+              type: integer
+            deliver_details:
+              type: object
+            deliver_no_ack:
+              type: integer
+    Permissions:
+      type: object
+      properties:
+        user:
+          type: string
+        vhost:
+          type: string
+        configure:
+          type: string
+        write:
+          type: string
+        read:
+          type: string
+    Topic-permissions:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Node-is-quorum-critical:
+      type: object
+      properties:
+        status:
+          type: string
+        reason:
+          type: string
+    Auth:
+      type: object
+      properties:
+        oauth_enabled:
+          type: integer
+    VirtualHostPermissions:
+      type: object
+      properties:
+        vhost:
+          type: string
+        user:
+          type: string
+        configure:
+          type: string
+        write:
+          type: string
+        read:
+          type: string
+    VirtualHostTopic-permissions:
+      type: object
+      properties:
+        vhost:
+          type: string
+        user:
+          type: string
+        exchange:
+          type: string
+        write:
+          type: string
+        read:
+          type: string
+    UsersPermissions:
+      type: object
+      properties:
+        user:
+          type: string
+        vhost:
+          type: string
+        configure:
+          type: string
+        write:
+          type: string
+        read:
+          type: string
+    Vhosts:
+      type: object
+      properties:
+        cluster_state:
+          type: object
+          properties:
+            rabbit-cetenco@sdaysp07h406:
+              type: string
+        default_queue_type:
+          type: string
+        description:
+          type: string
+        message_stats:
+          type: object
+          properties:
+            ack:
+              type: integer
+            ack_details:
+              type: object
+            confirm:
+              type: integer
+            confirm_details:
+              type: object
+            deliver:
+              type: integer
+            deliver_details:
+              type: object
+            deliver_get:
+              type: integer
+            deliver_get_details:
+              type: object
+            deliver_no_ack:
+              type: integer
+            deliver_no_ack_details:
+              type: object
+            drop_unroutable:
+              type: integer
+            drop_unroutable_details:
+              type: object
+            get:
+              type: integer
+            get_details:
+              type: object
+            get_empty:
+              type: integer
+        messages:
+          type: integer
+        messages_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        messages_ready:
+          type: integer
+        messages_ready_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        messages_unacknowledged:
+          type: integer
+        messages_unacknowledged_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        metadata:
+          type: object
+          properties:
+            description:
+              type: string
+            tags:
+              type: array
+        name:
+          type: string
+        recv_oct:
+          type: integer
+        recv_oct_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        send_oct:
+          type: integer
+        send_oct_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        tags:
+          type: array
+        tracing:
+          type: integer
+    TopicPermissions:
+      type: object
+      properties:
+        user:
+          type: string
+        vhost:
+          type: string
+        exchange:
+          type: string
+        write:
+          type: string
+        read:
+          type: string
+    NodeIsQuorumCritical:
+      type: object
+      properties:
+        status:
+          type: string
+        reason:
+          type: string
+    Vhostschannels:
+      type: object
+      properties:
+        acks_uncommitted:
+          type: integer
+        confirm:
+          type: integer
+        connection_details:
+          type: object
+          properties:
+            name:
+              type: string
+            peer_host:
+              type: string
+            peer_port:
+              type: integer
+        consumer_count:
+          type: integer
+        garbage_collection:
+          type: object
+          properties:
+            fullsweep_after:
+              type: integer
+            max_heap_size:
+              type: integer
+            min_bin_vheap_size:
+              type: integer
+            min_heap_size:
+              type: integer
+            minor_gcs:
+              type: integer
+        message_stats:
+          type: object
+          properties:
+            ack:
+              type: integer
+            ack_details:
+              type: object
+            deliver:
+              type: integer
+            deliver_details:
+              type: object
+            deliver_get:
+              type: integer
+            deliver_get_details:
+              type: object
+            deliver_no_ack:
+              type: integer
+            deliver_no_ack_details:
+              type: object
+            get:
+              type: integer
+            get_details:
+              type: object
+            get_empty:
+              type: integer
+            get_empty_details:
+              type: object
+            get_no_ack:
+              type: integer
+            get_no_ack_details:
+              type: object
+            redeliver:
+              type: integer
+        messages_unacknowledged:
+          type: integer
+        messages_uncommitted:
+          type: integer
+        messages_unconfirmed:
+          type: integer
+        name:
+          type: string
+        node:
+          type: string
+        number:
+          type: integer
+        pending_raft_commands:
+          type: integer
+        prefetch_count:
+          type: integer
+        reductions:
+          type: integer
+        reductions_details:
+          type: object
+          properties:
+            rate:
+              type: number
+        state:
+          type: string
+        transactional:
+          type: integer
+        user:
+          type: string
+        user_who_performed_action:
+          type: string
+        vhost:
+          type: string
+    Exchanges:
+      type: object
+      properties:
+        arguments:
+          type: object
+        auto_delete:
+          type: integer
+        durable:
+          type: integer
+        incoming:
+          type: array
+        internal:
+          type: integer
+        name:
+          type: string
+        outgoing:
+          type: array
+        type:
+          type: string
+        user_who_performed_action:
+          type: string
+        vhost:
+          type: string
+    Queuesbindings:
+      type: object
+      properties:
+        source:
+          type: string
+        vhost:
+          type: string
+        destination:
+          type: string
+        destination_type:
+          type: string
+        routing_key:
+          type: string
+        arguments:
+          type: object
+        properties_key:
+          type: string
+    Bindingseq:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Bindingsee:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Parameters:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    GlobalParameters:
+      type: object
+      properties:
+        value:
+          type: string
+        name:
+          type: string
+    OperatorPolicies:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Authattempts:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Authattemptssource:
+      type: object
+      properties:
+        error:
+          type: string
+        reason:
+          type: string
+    Authhash_password:
+      type: object
+      properties:
+        ok:
+          type: string
+    CertificateExpiration:
+      type: object
+      properties:
+        status:
+          type: string
+    PortListener:
+      type: object
+      properties:
+        status:
+          type: string
+        port:
+          type: integer
+    ProtocolListener:
+      type: object
+      properties:
+        status:
+          type: string
+        protocol:
+          type: string
+tags:
+- name: Deprecated
+  description: Endpoints deprecated
+- name: Overview
+  description: Visão geral do sistema
+- name: Cluster
+  description: Operações do cluster
+- name: Nodes
+  description: Operações com nós
+- name: Definitions
+  description: Importação/exportação de definições
+- name: Feature Flags
+  description: Feature flags e features deprecated
+- name: Connections
+  description: Gerenciamento de conexões
+- name: Channels
+  description: Gerenciamento de canais
+- name: Consumers
+  description: Gerenciamento de consumidores
+- name: Exchanges
+  description: Gerenciamento de exchanges
+- name: Queues
+  description: Gerenciamento de filas
+- name: Bindings
+  description: Gerenciamento de bindings
+- name: Virtual Hosts
+  description: Gerenciamento de virtual hosts
+- name: Users
+  description: Gerenciamento de usuários
+- name: Permissions
+  description: Gerenciamento de permissões
+- name: Parameters
+  description: Gerenciamento de parâmetros
+- name: Policies
+  description: Gerenciamento de políticas
+- name: Federation
+  description: Operações de federação
+- name: Auth
+  description: Operações de autenticação
+- name: Streams
+  description: Operações de streams
+- name: Health
+  description: Verificações de saúde
+- name: System
+  description: Operações do sistema

@@ -1,0 +1,203 @@
+Estrutura de Dependências - RabbitMQ MCP Server
+=================================================
+
+001-base-architecture (Base MCP + 3 tools)
+│
+├── 002-basic-rabbitmq-connection (AMQP connection)
+│   │
+│   ├── 003-essential-topology-operations (Queues/Exchanges/Bindings)
+│   │   │
+│   │   ├── 004-message-publish-consume (Pub/Sub/Ack)
+│   │   │   │
+│   │   │   ├── 005-basic-console-client (CLI)
+│   │   │   │   │
+│   │   │   │   ├── 006-basic-testing-framework (MVP Tests - 80% coverage)
+│   │   │   │   │   │
+│   │   │   │   │   ├── 008-mvp-documentation (MVP Docs)
+│   │   │   │   │   │   │
+│   │   │   │   │   │   └── 019-comprehensive-documentation (Full Docs)
+│   │   │   │   │   │       │
+│   │   │   │   │   │       └── 020-cicd-quality-pipeline (CI/CD + Quality Gates)
+│   │   │   │   │   │
+│   │   │   │   │   └── 015-comprehensive-testing-framework (95% coverage)
+│   │   │   │   │       │
+│   │   │   │   │       └── 020-cicd-quality-pipeline
+│   │   │   │   │
+│   │   │   │   └── 014-multilingual-console-client (20 languages)
+│   │   │   │       │
+│   │   │   │       ├── 015-comprehensive-testing-framework
+│   │   │   │       │
+│   │   │   │       └── 019-comprehensive-documentation
+│   │   │   │
+│   │   │   ├── 010-advanced-retry-dlq-system (DLX + TTL)
+│   │   │   │   │
+│   │   │   │   ├── 015-comprehensive-testing-framework
+│   │   │   │   │
+│   │   │   │   └── 018-advanced-messaging-features (Avro/Protobuf/Transforms)
+│   │   │   │       │
+│   │   │   │       ├── 015-comprehensive-testing-framework
+│   │   │   │       │
+│   │   │   │       └── 019-comprehensive-documentation
+│   │   │   │
+│   │   │   └── 012-advanced-monitoring-metrics (Prometheus/Grafana)
+│   │   │       │
+│   │   │       ├── 017-performance-scalability (Pooling/Caching/Circuit Breaker)
+│   │   │       │   │
+│   │   │       │   ├── 015-comprehensive-testing-framework
+│   │   │       │   │
+│   │   │       │   └── 020-cicd-quality-pipeline
+│   │   │       │
+│   │   │       └── 020-cicd-quality-pipeline
+│   │   │
+│   │   └── 011-config-import-export (definitions.json)
+│   │       │
+│   │       ├── 015-comprehensive-testing-framework
+│   │       │
+│   │       └── 019-comprehensive-documentation
+│   │
+│   └── 013-advanced-security (X.509/LDAP/RBAC)
+│       │
+│       ├── 015-comprehensive-testing-framework
+│       │
+│       ├── 017-performance-scalability
+│       │
+│       ├── 019-comprehensive-documentation
+│       │
+│       └── 020-cicd-quality-pipeline
+│
+├── 007-basic-structured-logging (structlog + JSON)
+│   │
+│   ├── 002-basic-rabbitmq-connection
+│   ├── 003-essential-topology-operations
+│   ├── 004-message-publish-consume
+│   ├── 005-basic-console-client
+│   ├── 006-basic-testing-framework
+│   │
+│   ├── 012-advanced-monitoring-metrics
+│   │
+│   ├── 013-advanced-security
+│   │
+│   └── 016-enterprise-logging (ELK/Splunk/CloudWatch)
+│       │
+│       ├── 019-comprehensive-documentation
+│       │
+│       └── 020-cicd-quality-pipeline
+│
+└── 009-advanced-vector-database (ChromaDB + Embeddings)
+
+
+═══════════════════════════════════════════════════════════════
+
+ORDEM DE IMPLEMENTAÇÃO (Sequencial):
+
+FASE 1 - MVP (001-008)
+─────────────────────
+Sprint 1: Fundação
+  001 ─┬─> 002 (Connection)
+       └─> 007 (Logging, paralelo)
+
+Sprint 2: Core
+  002 + 007 ─> 003 (Topology)
+           003 ─> 004 (Messaging)
+
+Sprint 3: Interface & Quality
+  004 ─> 005 (CLI)
+  005 ─> 006 (Testing)
+  006 ─> 008 (Docs)
+
+✓ CHECKPOINT MVP: 001-008 completos
+
+
+FASE 2 - FULL PRODUCT (009-020)
+────────────────────────────────
+Sprint 4: Descoberta & Features
+  001 ─> 009 (Vector DB, independente)
+  MVP ─┬─> 010 (Retry/DLQ)
+       ├─> 011 (Import/Export)
+       └─> 013 (Security)
+
+Sprint 5: Observabilidade
+  MVP + 007 ─┬─> 012 (Monitoring)
+             └─> 016 (Enterprise Logging)
+
+Sprint 6: Interface & Performance
+  005 ─> 014 (Multilingual)
+  012 ─> 017 (Performance)
+  010 ─> 018 (Advanced Messaging)
+
+Sprint 7: Qualidade Final
+  001-018 ─> 015 (Comprehensive Testing)
+  001-018 ─> 019 (Comprehensive Docs)
+  001-019 ─> 020 (CI/CD Pipeline)
+
+✓ CHECKPOINT FINAL: 001-020 completos
+
+
+═══════════════════════════════════════════════════════════════
+
+RESUMO DE DEPENDÊNCIAS:
+
+┌─────────┬──────────────────────────┬────────────────────────┐
+│ Spec    │ Depende de               │ Specs que dependem     │
+├─────────┼──────────────────────────┼────────────────────────┤
+│ 001     │ (nenhuma)                │ TODAS                  │
+│ 002     │ 001                      │ 003,004,005,010,011,   │
+│         │                          │ 012,013,017,018        │
+│ 003     │ 001,002,007              │ 004,005,010,011,012    │
+│ 004     │ 001,002,003              │ 005,010,012,018        │
+│ 005     │ 001,002,003,004          │ 006,008,014            │
+│ 006     │ 001-005,007              │ 008,015,020            │
+│ 007     │ 001                      │ 002-006,012,013,016    │
+│ 008     │ 001-007                  │ 019                    │
+│ 009     │ 001                      │ (nenhuma direta)       │
+│ 010     │ 001,002,003,004          │ 015,018                │
+│ 011     │ 001,002,003              │ 015,019                │
+│ 012     │ 001,002,003,004,007      │ 017,020                │
+│ 013     │ 001,002,007              │ 015,017,019,020        │
+│ 014     │ 001-005                  │ 015,019                │
+│ 015     │ 001-014,016-018          │ 020                    │
+│ 016     │ 007                      │ 015,019,020            │
+│ 017     │ 001,002,012              │ 015,020                │
+│ 018     │ 001,002,004,010          │ 015,019                │
+│ 019     │ 001-018                  │ 020                    │
+│ 020     │ 001-019                  │ (nenhuma - final)      │
+└─────────┴──────────────────────────┴────────────────────────┘
+
+
+SPECS COM MÚLTIPLAS DEPENDÊNCIAS (Regra aplicada):
+───────────────────────────────────────────────────
+003: Depende de 001,002,007 → Posicionada após 007 (maior)
+004: Depende de 001,002,003 → Posicionada após 003 (maior)
+005: Depende de 001-004     → Posicionada após 004 (maior)
+006: Depende de 001-005,007 → Posicionada após 007 (maior que 005)
+010: Depende de 001-004     → Posicionada após 004 (maior)
+012: Depende de 001-004,007 → Posicionada após 007 (maior que 004)
+013: Depende de 001,002,007 → Posicionada após 007 (maior)
+014: Depende de 001-005     → Posicionada após 005 (maior)
+015: Depende de 001-018     → Posicionada após 018 (maior)
+017: Depende de 001,002,012 → Posicionada após 012 (maior)
+018: Depende de 001,002,004,010 → Posicionada após 010 (maior)
+019: Depende de 001-018     → Posicionada após 018 (maior)
+020: Depende de 001-019     → Posicionada após 019 (maior - ÚLTIMA)
+
+
+PONTOS CRÍTICOS:
+────────────────
+⚠️  001 - Fundação absoluta, tudo depende disso
+⚠️  002 - Conexão essencial para 9 specs
+⚠️  MVP (001-008) - Deve estar 100% completo antes de Fase 2
+⚠️  015 - Testa TUDO (001-018), só pode ser feita quase no final
+⚠️  019 - Documenta TUDO (001-018), só pode ser feita quase no final
+⚠️  020 - CI/CD final, depende de ABSOLUTAMENTE TUDO (001-019)
+
+
+PARALELIZAÇÃO POSSÍVEL:
+────────────────────────
+Sprint 1: 002 + 007 (ambos dependem só de 001)
+Sprint 4: 010 + 011 (ambos já têm MVP)
+Sprint 5: 012 + 016 (ambos podem ser paralelos)
+Sprint 6: 017 + 018 (independentes entre si)
+
+
+ESTIMATIVA: 7 sprints (14 semanas / ~3.5 meses)
+

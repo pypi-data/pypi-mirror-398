@@ -1,0 +1,26 @@
+version: 1
+formatters:
+  json:
+    (): structlog.stdlib.ProcessorFormatter
+    processor: structlog.processors.JSONRenderer
+    foreign_pre_chain:
+      - structlog.processors.TimeStamper(fmt: "iso", utc: true)
+      - structlog.processors.add_log_level
+      - structlog.processors.UUIDAdder(key: "correlation_id")
+      - structlog.processors.JSONRenderer
+handlers:
+  file:
+    class: logging.handlers.TimedRotatingFileHandler
+    level: INFO
+    filename: ./logs/rabbitmq-mcp.log
+    when: midnight
+    utc: true
+    formatter: json
+  stdout:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: json
+loggers:
+  root:
+    level: INFO
+    handlers: [file, stdout]
