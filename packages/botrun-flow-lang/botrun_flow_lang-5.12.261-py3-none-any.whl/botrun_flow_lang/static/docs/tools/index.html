@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReAct Agent Tools Documentation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css" rel="stylesheet">
+    <style>
+        .tool-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        .tool-name {
+            color: #0d6efd;
+            margin-bottom: 1rem;
+            padding-top: 60px;  /* 為固定導航欄留出空間 */
+            margin-top: -60px;  /* 抵消 padding-top */
+        }
+        .param-table {
+            margin-top: 1rem;
+        }
+        .doc-content {
+            white-space: pre-wrap;
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #dee2e6;
+        }
+        #main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        .nav-link {
+            color: #0d6efd;
+            padding: 5px 0;
+        }
+        .nav-link:hover {
+            background-color: #e9ecef;
+        }
+        .nav-link.active {
+            font-weight: bold;
+            background-color: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h5 class="mb-3">Tools</h5>
+        <nav class="nav flex-column">
+            
+            <a class="nav-link" href="#chat_with_imgs">chat_with_imgs</a>
+            
+            <a class="nav-link" href="#chat_with_pdf">chat_with_pdf</a>
+            
+            <a class="nav-link" href="#create_html_page">create_html_page</a>
+            
+            <a class="nav-link" href="#create_mermaid_diagram">create_mermaid_diagram</a>
+            
+            <a class="nav-link" href="#create_plotly_chart">create_plotly_chart</a>
+            
+            <a class="nav-link" href="#current_date_time">current_date_time</a>
+            
+            <a class="nav-link" href="#generate_image">generate_image</a>
+            
+            <a class="nav-link" href="#generate_tmp_public_url">generate_tmp_public_url</a>
+            
+            <a class="nav-link" href="#scrape">scrape</a>
+            
+            <a class="nav-link" href="#web_search">web_search</a>
+            
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <h1 class="mb-4">ReAct Agent Tools Documentation</h1>
+        
+        <div class="row">
+            <div class="col-12">
+                
+                <div class="tool-section" id="chat_with_imgs">
+                    <h2 class="tool-name">@tool chat_with_imgs</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Use this to analyze and understand multiple images using Claude's vision capabilities.
+
+If you have local image files, you can use generate_tmp_public_url tool multiple times to get public URLs first:
+1. Call generate_tmp_public_url for each local image file
+2. Collect all returned URLs into a list
+3. Use the list of URLs as the img_urls parameter for this function
+
+Data Visualization Integration:
+When the user's input indicates a need for comparison or data visualization (e.g., "compare the values in these charts",
+"extract and plot the data from these images"), this function can return data in a format suitable for Plotly visualization.
+The returned data will be a dictionary with a special key "__plotly_data__" containing:
+{
+    "__plotly_data__": {
+        "data": [...],  # Plotly data array
+        "layout": {...}  # Plotly layout object
+    }
+}
+You can then pass this data to create_plotly_chart to generate an interactive chart.
+
+Supported image formats:
+- JPEG, PNG, GIF, WebP
+- Maximum file size: 5MB per image
+- Recommended size: No more than 1568 pixels in either dimension
+- Very small images (under 200 pixels) may degrade performance
+- Can analyze up to 20 images per request
+
+Capabilities:
+- Analyzing charts, graphs, and diagrams
+- Reading and understanding text in images
+- Describing visual content and scenes
+- Comparing multiple images in a single request
+- Answering questions about image details
+- Identifying relationships between images
+- Extracting data from charts for visualization
+
+Limitations:
+- Cannot identify or name specific people
+- May have reduced accuracy with low-quality or very small images
+- Limited spatial reasoning abilities
+- Cannot verify if images are AI-generated
+- Not designed for medical diagnosis or healthcare applications
+
+Args:
+    img_urls: List of URLs to the image files (can be generated using generate_tmp_public_url for local files)
+    user_input: Question or instruction about the image content(s)
+
+Returns:
+    str: Claude's analysis of the image(s) based on the query, or Plotly-compatible data structure if visualization is needed</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>img_urls</td>
+                                <td><code>list[str]</code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>user_input</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code>Any</code>
+                </div>
+                
+                <div class="tool-section" id="chat_with_pdf">
+                    <h2 class="tool-name">@tool chat_with_pdf</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Use this to chat with a PDF file.
+User can ask about any text, pictures, charts, and tables in PDFs that is provided. Some sample use cases:
+- Analyzing financial reports and understanding charts/tables
+- Extracting key information from legal documents
+- Translation assistance for documents
+- Converting document information into structured formats
+
+Data Visualization Integration:
+When the user's input indicates a need for comparison or data visualization (e.g., "compare the quarterly profits",
+"show the trend of sales"), this function can return data in a format suitable for Plotly visualization.
+The returned data will be a dictionary with a special key "__plotly_data__" containing:
+{
+    "__plotly_data__": {
+        "data": [...],  # Plotly data array
+        "layout": {...}  # Plotly layout object
+    }
+}
+You can then pass this data to create_plotly_chart to generate an interactive chart.
+
+If you have a local PDF file, you can use generate_tmp_public_url tool to get a public URL first:
+1. Call generate_tmp_public_url with your local PDF file path
+2. Use the returned URL as the pdf_url parameter for this function
+
+Args:
+    pdf_url: the URL to the PDF file (can be generated using generate_tmp_public_url for local files)
+    user_input: the user's input
+
+Returns:
+    str: Analysis result or Plotly-compatible data structure if visualization is needed</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>pdf_url</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>user_input</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code>Any</code>
+                </div>
+                
+                <div class="tool-section" id="create_html_page">
+                    <h2 class="tool-name">@tool create_html_page</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Create a custom HTML page and return its URL.
+This URL should be provided to the user, as they will need to access it to view the HTML content in their web browser.
+
+這個工具支援完整的HTML文檔，包括JavaScript和CSS，可以用來創建複雜的互動式頁面。
+
+使用 create_html_page 的情境：
+- 需要展示自定義的HTML內容
+- 需要嵌入複雜的互動式內容
+- 需要製作自訂格式的報告或文件
+- 需要使用第三方JavaScript庫
+- 需要展示表格、圖像和多媒體內容
+- 需要創建結構化且易於閱讀的内容呈現
+- 需要使用CSS樣式創建美觀的界面
+- 需要嵌入特殊的圖表或視覺元素
+
+Input Options:
+You can pass either:
+1. A complete HTML document with doctype, html, head, and body tags
+2. An HTML fragment that will be automatically wrapped in a basic HTML structure
+
+Supported HTML Features:
+- Complete HTML documents with your own structure
+- Custom JavaScript for interactive elements
+- Custom CSS for styling and layout
+- External libraries and frameworks (via CDN)
+- Tables, lists, and other structural elements
+- Embedded images and multimedia (via URLs)
+- Form elements (though they won't submit data)
+- Responsive design elements
+- Unicode and international text support
+
+Security Considerations:
+- HTML content is sandboxed in the browser
+- Cannot access user's device or data
+- External resources must be from trusted sources
+- No server-side processing capability
+- No personal data should be included in the HTML
+
+Example of complete HTML document:
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>互動式報告</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .chart { height: 300px; margin: 20px 0; border: 1px solid #ddd; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>業績分析報告</h1>
+        <p>本報告提供了公司過去三個月的銷售數據分析。</p>
+        <div class="chart">
+            <canvas id="salesChart"></canvas>
+        </div>
+        <script>
+            // JavaScript可以直接在HTML中使用
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['一月', '二月', '三月'],
+                    datasets: [{
+                        label: '銷售額（千元）',
+                        data: [1200, 1900, 1500],
+                        backgroundColor: ['#ff6384', '#36a2eb', '#ffce56']
+                    }]
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>
+```
+
+Example of HTML fragment (will be auto-wrapped):
+```html
+<div style="padding: 20px; background-color: #f0f8ff;">
+  <h1 style="color: #333; font-family: Arial, sans-serif;">客戶報告</h1>
+  <p>這份報告包含了重要的資訊。</p>
+  <table border="1" style="border-collapse: collapse; width: 100%;">
+    <tr>
+      <th>項目</th>
+      <th>數量</th>
+      <th>單價</th>
+    </tr>
+    <tr>
+      <td>產品A</td>
+      <td>10</td>
+      <td>$100</td>
+    </tr>
+    <tr>
+      <td>產品B</td>
+      <td>5</td>
+      <td>$200</td>
+    </tr>
+  </table>
+</div>
+```
+
+Args:
+    html_content: Complete HTML document or fragment. Can include JavaScript, CSS, and other elements.
+    title: Optional title for the HTML page. If provided, must be in Traditional Chinese.
+           For example: "客戶報告" instead of "Client Report"
+           Note: This is only used if the HTML content doesn't already have a title.
+
+Returns:
+    str: URL for the HTML page. This URL should be provided to the user,
+         as they will need to access it to view the content in their web browser.</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>html_content</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>title</td>
+                                <td><code><class 'str'></code></td>
+                                <td><code>None</code></td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code><class 'str'></code>
+                </div>
+                
+                <div class="tool-section" id="create_mermaid_diagram">
+                    <h2 class="tool-name">@tool create_mermaid_diagram</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Create an interactive Mermaid diagram visualization and return its URL.
+This URL should be provided to the user,
+as they will need to access it to view the interactive diagram in their web browser.
+
+使用 create_mermaid_diagram 的情境：
+- 提到「流程圖」、「架構圖」、「關係圖」等字眼
+- 需要展示系統架構（flowchart）
+- 需要說明操作流程（flowchart）
+- 需要展示時序互動（sequence diagram）
+- 需要展示狀態轉換（state diagram）
+- 需要展示類別關係（class diagram）
+- 需要展示實體關係（ER diagram）
+- 需要展示專案時程（gantt chart）
+- 需要展示使用者旅程（journey）
+- 需要展示需求關係（requirement diagram）
+- 需要展示資源分配（pie chart）
+
+Supported Diagram Types:
+1. Flowcharts (graph TD/LR):
+   - System architectures
+   - Process flows
+   - Decision trees
+   - Data flows
+
+2. Sequence Diagrams (sequenceDiagram):
+   - API interactions
+   - System communications
+   - User interactions
+   - Message flows
+
+3. Class Diagrams (classDiagram):
+   - Software architecture
+   - Object relationships
+   - System components
+   - Code structure
+
+4. State Diagrams (stateDiagram-v2):
+   - System states
+   - Workflow states
+   - Process states
+   - State transitions
+
+5. Entity Relationship Diagrams (erDiagram):
+   - Database schemas
+   - Data relationships
+   - System entities
+   - Data models
+
+6. User Journey Diagrams (journey):
+   - User experiences
+   - Customer flows
+   - Process steps
+   - Task sequences
+
+7. Gantt Charts (gantt):
+   - Project timelines
+   - Task schedules
+   - Resource allocation
+   - Milestone tracking
+
+8. Pie Charts (pie):
+   - Data distribution
+   - Resource allocation
+   - Market share
+   - Component breakdown
+
+9. Requirement Diagrams (requirementDiagram):
+   - System requirements
+   - Dependencies
+   - Specifications
+   - Constraints
+
+Example Mermaid syntax for a simple flowchart:
+```
+graph TD
+    A[開始] --> B{是否有資料?}
+    B -->|是| C[處理資料]
+    B -->|否| D[取得資料]
+    C --> E[結束]
+    D --> B
+```
+
+Args:
+    mermaid_data: String containing the Mermaid diagram definition
+    title: Optional title for the diagram. If provided, must be in Traditional Chinese.
+           For example: "系統流程圖" instead of "System Flowchart"
+
+Returns:
+    str: URL for the interactive HTML visualization. This URL should be provided to the user,
+         as they will need to access it to view the interactive diagram in their web browser.</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>mermaid_data</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>title</td>
+                                <td><code><class 'str'></code></td>
+                                <td><code>None</code></td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code><class 'str'></code>
+                </div>
+                
+                <div class="tool-section" id="create_plotly_chart">
+                    <h2 class="tool-name">@tool create_plotly_chart</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Create an interactive Plotly visualization and return its URL.
+This URL should be provided to the user,
+as they will need to access it to view the interactive chart in their web browser.
+
+使用 create_plotly_chart 的情境：
+- 提到「圖表」、「統計圖」、「視覺化」等字眼
+- 需要呈現數據趨勢（折線圖）
+- 需要比較數值（長條圖、圓餅圖）
+- 需要展示分布情況（散點圖、熱力圖）
+- 需要顯示時間序列資料（時間軸圖）
+- 需要展示地理資訊（地圖）
+- 需要多維度資料分析（3D圖、氣泡圖）
+- 需要展示統計分布（箱型圖）
+- 需要展示累積趨勢（面積圖）
+- 需要互動式資料探索
+
+Integration with Other Tools:
+This function can be used in conjunction with chat_with_imgs and chat_with_pdf when they return data
+suitable for visualization. When those tools detect a need for visualization, they will return a JSON string
+with a "__plotly_data__" key, which can be directly passed to this function.
+
+Example workflow:
+1. User asks to analyze and visualize data from images/PDFs
+2. chat_with_imgs or chat_with_pdf returns JSON string with "__plotly_data__" key
+3. Pass that string to this function to get an interactive visualization URL
+
+Supported Chart Types:
+- Line charts: For showing trends and time series data
+- Bar charts: For comparing values across categories
+- Pie charts: For showing proportions of a whole
+- Scatter plots: For showing relationships between variables
+- Heat maps: For showing patterns in matrix data
+- Box plots: For showing statistical distributions
+- Geographic maps: For showing spatial data
+- 3D plots: For showing three-dimensional data
+- Bubble charts: For showing three variables in 2D
+- Area charts: For showing cumulative totals over time
+
+The figure_data should be a JSON string containing plotly figure specifications with 'data' and 'layout'.
+Example:
+{
+    'data': [{
+        'type': 'scatter',
+        'x': [1, 2, 3, 4],
+        'y': [10, 15, 13, 17]
+    }],
+    'layout': {
+        'title': 'My Plot'
+    }
+}
+
+Args:
+    figure_data: JSON string containing plotly figure specifications or output from chat_with_imgs/chat_with_pdf.
+                Will be parsed using json.loads().
+    title: Optional title for the plot. If provided, must be in Traditional Chinese.
+           For example: "台灣人口統計圖表" instead of "Taiwan Population Chart"
+
+Returns:
+    str: URL for the interactive HTML visualization. This URL should be provided to the user,
+         as they will need to access it to view the interactive chart in their web browser.</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>figure_data</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>title</td>
+                                <td><code><class 'str'></code></td>
+                                <td><code>None</code></td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code><class 'str'></code>
+                </div>
+                
+                <div class="tool-section" id="current_date_time">
+                    <h2 class="tool-name">@tool current_date_time</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Use this to get the current date and time in local timezone.
+
+Important: You MUST call this current_date_time function when:
+1. User's query contains time-related words such as:
+   - 今天、現在、目前
+   - 本週、這週、下週
+   - 本月、這個月、上個月
+   - 今年、去年、明年
+   - 最近、近期
+   - 未來、將來
+   - 過去、以前
+2. User asks about current events or latest information
+3. User wants to know time-sensitive information
+4. Queries involving relative time expressions
+
+Examples of when to use current_date_time:
+- "今天的天氣如何？"
+- "本月的股市表現"
+- "最近有什麼新聞？"
+- "去年到現在的經濟成長"
+- "未來一週的活動預告"
+- "這個月的銷售數據"
+
+Returns:
+    str: Current date and time in format "YYYY-MM-DD HH:MM Asia/Taipei"</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code>Any</code>
+                </div>
+                
+                <div class="tool-section" id="generate_image">
+                    <h2 class="tool-name">@tool generate_image</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Use this to generate high-quality images using DALL-E 3.
+
+Capabilities:
+- Creates photorealistic images and art
+- Handles complex scenes and compositions
+- Maintains consistent styles
+- Follows detailed prompts with high accuracy
+- Supports various artistic styles and mediums
+
+Best practices for prompts:
+- Be specific about style, mood, lighting, and composition
+- Include details about perspective and setting
+- Specify artistic medium if desired (e.g., "oil painting", "digital art")
+- Mention color schemes or specific colors
+- Describe the atmosphere or emotion you want to convey
+
+Limitations:
+- Cannot generate images of public figures or celebrities
+- Avoids harmful, violent, or adult content
+- May have inconsistencies with hands, faces, or text
+- Cannot generate exact copies of existing artworks or brands
+- Limited to single image generation per request
+
+Args:
+    user_input: Detailed description of the image you want to generate.
+               Be specific about style, content, and composition.
+
+Returns:
+    str: URL to the generated image, or error message if generation fails</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>user_input</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code>Any</code>
+                </div>
+                
+                <div class="tool-section" id="generate_tmp_public_url">
+                    <h2 class="tool-name">@tool generate_tmp_public_url</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">使用者會給你一個本地端的檔案路徑，請你使用這個 generate_tmp_public_url tool 生成一個臨時的公開 URL，這個 URL 可以讓使用者下載這個檔案。
+如果使用者給了多個本地端的檔案路徑，請你多次呼叫這個 tool，並將每次呼叫的回傳值收集起來。
+
+Args:
+    file_path: The path to the local file you want to make publicly accessible
+
+Returns:
+    str: A public URL that can be used to access the file for 7 days
+
+Raises:
+    FileNotFoundError: If the specified file does not exist</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>file_path</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code><class 'str'></code>
+                </div>
+                
+                <div class="tool-section" id="scrape">
+                    <h2 class="tool-name">@tool scrape</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Use this to scrape the web.
+as it provides better results for video content.
+
+Args:
+    url: the url to scrape</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>url</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code>Any</code>
+                </div>
+                
+                <div class="tool-section" id="web_search">
+                    <h2 class="tool-name">@tool web_search</h2>
+                    
+                    <h4>Documentation:</h4>
+                    <div class="doc-content">Use this to search the web when you need up-to-date information or when your knowledge is insufficient.
+This tool uses Perplexity to perform web searches and provides detailed answers with citations.
+
+除非使用者堅持要做多輪搜尋，不然這個工具能夠一次進行多個條件的搜尋，比如：
+一次進行多條件範例1：
+- 可以：
+    - web_search("搜尋今天的體育、財經、政治新聞", current_date_time)
+- 不需要：
+    - web_search("搜尋今天的體育新聞", current_date_time)
+    - web_search("搜尋今天的財經新聞", current_date_time)
+    - web_search("搜尋今天的政台新聞", current_date_time)
+
+Time/Date Information Requirements:
+1. MUST preserve any specific dates or time periods mentioned in the user's query
+2. Include both the current time and any specific time references from the query
+
+Examples:
+- Basic query:
+  User asks: "台灣的人口數量"
+  web_search("台灣的人口數量", "2024-03-20 14:30 Asia/Taipei")
+  Actual search: "台灣的人口數量"
+  Returns: {
+      "content": "根據最新統計，台灣人口約為2300萬...",
+      "citations": [
+          {"title": "內政部統計處", "url": "https://www.moi.gov.tw/..."},
+          {"title": "國家發展委員會", "url": "https://www.ndc.gov.tw/..."}
+      ]
+  }
+
+- Query with specific date:
+  User asks: "幫我查詢 2025/1/1 的新聞"
+  web_search("幫我查詢 2025/1/1 的新聞", "2024-03-20 14:30 Asia/Taipei")
+  Returns: {
+      "content": "關於2025年1月1日的新聞預測...",
+      "citations": [
+          {"title": "經濟日報", "url": "https://money.udn.com/..."},
+          {"title": "中央社", "url": "https://www.cna.com.tw/..."}
+      ]
+  }
+
+Args:
+    user_input: The search query or question you want to find information about.
+               MUST include any specific time periods or dates from the original query.
+               Examples of time formats to preserve:
+               - Specific dates: "2025/1/1", "2023-12-31"
+               - Years: "2023年"
+               - Quarters/Months: "第一季", "Q1", "一月"
+               - Time periods: "過去三年", "未來五年"
+    current_date_time: The current time string MUST be got by current_date_time() tool. You can NOT use the current time from your own knowledge.
+                 Format: "YYYY-MM-DD HH:MM Asia/Taipei"
+
+Returns:
+    dict: A dictionary containing:
+          - content (str): The detailed answer based on web search results
+          - citations (list): A list of URLs, citation對使用者很重要，務必提供給使用者</div>
+                    
+                    <h4 class="mt-3">Parameters:</h4>
+                    <table class="table param-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                            <tr>
+                                <td>user_input</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>current_date_time</td>
+                                <td><code><class 'str'></code></td>
+                                <td>-</td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                    
+                    <h4 class="mt-3">Returns:</h4>
+                    <code><class 'dict'></code>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script>
+        // 高亮當前選中的導航項
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            // 監聽滾動事件
+            window.addEventListener('scroll', function() {
+                let currentSection = '';
+                const sections = document.querySelectorAll('.tool-section');
+                
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (pageYOffset >= sectionTop - 100) {
+                        currentSection = section.getAttribute('id');
+                    }
+                });
+                
+                // 更新導航項的激活狀態
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').substring(1) === currentSection) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+            
+            // 平滑滾動
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href').substring(1);
+                    const targetElement = document.getElementById(targetId);
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 20,
+                        behavior: 'smooth'
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html> 
