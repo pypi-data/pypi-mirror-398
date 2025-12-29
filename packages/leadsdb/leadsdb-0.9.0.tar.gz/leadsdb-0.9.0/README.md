@@ -1,0 +1,381 @@
+# leadsdb
+
+[![PyPI version](https://badge.fury.io/py/leadsdb.svg)](https://badge.fury.io/py/leadsdb)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Python SDK for the [LeadsDB API](https://getleadsdb.com).
+
+Features:
+- Sync and async clients
+- Pydantic models with validation
+- Fluent filter API
+- Automatic pagination
+- Retry with exponential backoff
+- Full type hints
+
+## Installation
+
+```bash
+pip install leadsdb
+```
+
+Requires Python 3.10+.
+
+## Quick Start
+
+```python
+from leadsdb import LeadsDB, Lead
+
+client = LeadsDB("your-api-key")
+
+# Create a lead
+lead = client.create(Lead(
+    name="Acme Corporation",
+    source="website",
+    city="San Francisco",
+    email="contact@acme.com",
+    rating=4.5,
+    tags=["enterprise", "saas"],
+))
+
+print(f"Created: {lead.name} ({lead.id})")
+```
+
+## Async Client
+
+```python
+import asyncio
+from leadsdb import AsyncLeadsDB, Lead
+
+async def main():
+    async with AsyncLeadsDB("your-api-key") as client:
+        lead = await client.create(Lead(
+            name="Acme Corporation",
+            source="website",
+        ))
+        print(f"Created: {lead.name}")
+
+asyncio.run(main())
+```
+
+## Client Options
+
+```python
+client = LeadsDB(
+    api_key,
+    base_url="https://custom.api.com",
+    timeout=30.0,
+    max_retries=5,
+)
+```
+
+## CRUD Operations
+
+### Create
+
+```python
+from leadsdb import Lead, text_attr, number_attr, bool_attr, list_attr
+
+lead = client.create(Lead(
+    name="Acme Corporation",
+    source="website",
+    description="Leading provider of innovative solutions",
+    address="123 Main Street",
+    city="San Francisco",
+    state="CA",
+    country="USA",
+    postal_code="94105",
+    latitude=37.7749,
+    longitude=-122.4194,
+    phone="+1-555-123-4567",
+    email="contact@acme.com",
+    website="https://acme.com",
+    rating=4.5,
+    review_count=128,
+    category="Technology",
+    tags=["enterprise", "saas", "b2b"],
+    source_id="acme-001",
+    logo_url="https://acme.com/logo.png",
+    attributes=[
+        text_attr("industry", "Software"),
+        number_attr("employees", 500),
+        bool_attr("verified", True),
+        list_attr("products", ["CRM", "ERP", "Analytics"]),
+    ],
+))
+```
+
+### Get
+
+```python
+lead = client.get("lead-id")
+```
+
+### Update
+
+```python
+from leadsdb import UpdateLeadInput
+
+lead = client.update("lead-id", UpdateLeadInput(
+    rating=4.8,
+    city="New York",
+    tags=["enterprise", "saas", "b2b", "updated"],
+))
+```
+
+### Delete
+
+```python
+client.delete("lead-id")
+```
+
+## Listing Leads
+
+### Basic List
+
+```python
+from leadsdb import city, rating, SortField, SortOrder
+
+result = client.list(
+    city().eq("Berlin"),
+    rating().gte(4.0),
+    sort_by=SortField.NAME,
+    sort_order=SortOrder.ASC,
+    limit=20,
+)
+
+for lead in result.leads:
+    print(f"{lead.name} ({lead.city})")
+
+# Pagination
+if result.has_more:
+    next_result = client.list(
+        city().eq("Berlin"),
+        cursor=result.next_cursor,
+    )
+```
+
+### Iterator (Automatic Pagination)
+
+```python
+for lead in client.iterate(city().eq("Berlin"), sort_by=SortField.NAME):
+    print(lead.name)
+```
+
+### Async Iterator
+
+```python
+async for lead in client.iterate(city().eq("Berlin")):
+    print(lead.name)
+```
+
+## Filters
+
+All filters default to AND logic. Use `or_()` for OR logic.
+
+### Text Fields
+
+Available for: `name()`, `city()`, `country()`, `state()`, `category()`, `source()`, `email()`, `phone()`, `website()`
+
+| Method | Description |
+|--------|-------------|
+| `eq(value)` | Equals |
+| `neq(value)` | Not equals |
+| `contains(value)` | Contains substring |
+| `not_contains(value)` | Does not contain substring |
+| `is_empty()` | Field is empty |
+| `is_not_empty()` | Field is not empty |
+
+```python
+from leadsdb import city, name, email
+
+city().eq("Berlin")
+name().contains("Tech")
+email().is_not_empty()
+```
+
+### Number Fields
+
+Available for: `rating()`, `review_count()`
+
+| Method | Description |
+|--------|-------------|
+| `eq(value)` | Equals |
+| `neq(value)` | Not equals |
+| `gt(value)` | Greater than |
+| `gte(value)` | Greater than or equal |
+| `lt(value)` | Less than |
+| `lte(value)` | Less than or equal |
+
+```python
+from leadsdb import rating, review_count
+
+rating().gte(4.0)
+review_count().gt(100)
+```
+
+### Array Fields
+
+Available for: `tags()`
+
+| Method | Description |
+|--------|-------------|
+| `contains(value)` | Array contains value |
+| `not_contains(value)` | Array does not contain value |
+| `is_empty()` | Array is empty |
+| `is_not_empty()` | Array is not empty |
+
+```python
+from leadsdb import tags
+
+tags().contains("enterprise")
+tags().is_not_empty()
+```
+
+### Location
+
+| Method | Description |
+|--------|-------------|
+| `within_radius(lat, lon, km)` | Within radius in kilometers |
+| `is_set()` | Coordinates are set |
+| `is_not_set()` | Coordinates are not set |
+
+```python
+from leadsdb import location
+
+# Find leads within 50km of Berlin
+location().within_radius(52.52, 13.405, 50)
+```
+
+### Custom Attributes
+
+Use `attr(name)` for custom attribute filters:
+
+```python
+from leadsdb import attr
+
+attr("industry").eq("Software")
+attr("employees").gte(100)
+```
+
+### OR Logic
+
+```python
+from leadsdb import or_, rating
+
+# City is Berlin OR Paris
+result = client.list(
+    rating().gte(4.0),           # AND
+    or_().city().eq("Berlin"),   # OR
+    or_().city().eq("Paris"),    # OR
+)
+```
+
+## Sorting
+
+```python
+from leadsdb import SortField, SortOrder, attr_sort_field
+
+# Sort by field
+result = client.list(sort_by=SortField.NAME, sort_order=SortOrder.ASC)
+result = client.list(sort_by=SortField.RATING, sort_order=SortOrder.DESC)
+
+# Sort by custom attribute
+result = client.list(sort_by=attr_sort_field("employees"), sort_order=SortOrder.DESC)
+```
+
+Available sort fields:
+- `SortField.NAME`, `SortField.CITY`, `SortField.COUNTRY`, `SortField.STATE`
+- `SortField.CATEGORY`, `SortField.SOURCE`, `SortField.EMAIL`, `SortField.PHONE`, `SortField.WEBSITE`
+- `SortField.RATING`, `SortField.REVIEW_COUNT`
+- `SortField.CREATED_AT`, `SortField.UPDATED_AT`
+
+## Bulk Operations
+
+### Bulk Create (up to 100 leads)
+
+```python
+result = client.bulk_create([
+    Lead(name="Lead 1", source="import", city="Athens"),
+    Lead(name="Lead 2", source="import", city="London"),
+    Lead(name="Lead 3", source="import", city="Paris"),
+])
+
+print(f"Created: {result.success}, Failed: {result.failed}")
+for created in result.created:
+    print(f"ID: {created.id} (index {created.index})")
+```
+
+## Notes
+
+```python
+# Create a note
+note = client.create_note("lead-id", "Initial contact made")
+
+# List notes
+notes = client.list_notes("lead-id")
+
+# Update a note
+note = client.update_note("note-id", "Updated content")
+
+# Delete a note
+client.delete_note("note-id")
+```
+
+## Export
+
+```python
+from leadsdb import ExportFormat
+
+# Export as CSV
+data = client.export(ExportFormat.CSV)
+with open("leads.csv", "wb") as f:
+    f.write(data)
+
+# Export as JSON
+data = client.export(ExportFormat.JSON)
+```
+
+## Error Handling
+
+```python
+from leadsdb import NotFoundError, APIError
+
+try:
+    lead = client.get("non-existent-id")
+except NotFoundError:
+    print("Lead not found")
+except APIError as e:
+    print(f"Status: {e.status_code}, Message: {e.message}")
+```
+
+Exception types:
+- `NotFoundError` - Resource not found (404)
+- `UnauthorizedError` - Invalid API key (401)
+- `ForbiddenError` - Access denied (403)
+- `RateLimitedError` - Too many requests (429)
+- `BadRequestError` - Invalid request (400)
+- `ValidationError` - Client-side validation error
+
+## Using ListOptions
+
+For more complex queries, you can use `ListOptions`:
+
+```python
+from leadsdb import ListOptions, city, rating, SortField, SortOrder
+
+opts = (
+    ListOptions()
+    .with_limit(50)
+    .with_sort(SortField.RATING, SortOrder.DESC)
+    .with_filter(city().eq("Berlin"))
+    .with_filter(rating().gte(4.0))
+)
+
+result = client.list(options=opts)
+```
+
+## License
+
+MIT
