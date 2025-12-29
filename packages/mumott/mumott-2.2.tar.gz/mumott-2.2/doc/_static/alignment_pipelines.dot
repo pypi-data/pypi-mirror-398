@@ -1,0 +1,115 @@
+# dot -Tsvg alignment_pipelines.dot -o alignment_pipelines.svg
+
+digraph g {
+
+  graph [ fontname = "helvetica",
+          fontsize = 12.0,
+          rankdir = "TB",
+          bgcolor = "transparent",
+          ranksep=0.2, nodesep=0.1];
+
+  edge [ fontname = "helvetica",
+         fontsize = 12.0,
+         penwidth = 1.5 ]
+
+  node [ fontname = "helvetica",
+         fontsize = 12.0,
+         fontcolor = black,
+         shape = ellipse,
+         fillcolor = "#a0c9e5",
+         color = "#000000",
+         style = filled];
+
+  Rawdata [ fillcolor="#ffca9c",
+            label="Raw data",
+            shape=box];
+
+  Data [ fillcolor="#ffca9c",
+         label="Data",
+         shape=box];
+
+  Preprocessing [ label="Pre-processing",
+                 shape=box,
+                 style="rounded,filled"
+                 target="_top" ];
+
+  LineVertAl [ label="Line vertical alignment",
+                 shape=box,
+                 style="rounded,filled,dashed"
+                  target="_top" ];
+
+  LineVertAl2 [ label="Line vertical alignment",
+                 shape=box,
+                 style="rounded,filled,dashed"
+                  target="_top" ];
+
+  GuessedShifts [ label="Estimated shifts",
+                 shape=box,
+                 fillcolor="#a2daa2",
+                 target="_top" ];
+
+  UpdatedShifts [ label="Updated shifts",
+                 shape=box,
+                 fillcolor="#a2daa2",
+                 target="_top" ];
+
+
+  Reconstruction [label="Tomographic reconstruction",
+                  shape=ellipse,
+                  target="_top"];
+
+  WeightCenter [ label="Weight centering",
+                 shape=box,
+                 style="rounded,filled,dashed"
+                  target="_top" ];
+ 
+ SynthData [ label="Synthetic aligned data",
+             shape=box,
+             fillcolor="#a2daa2",
+             target="_top" ];
+
+ Xcorr [ label="Cross-correlation\nphase matching",
+         shape=ellipse,
+         target="_top"];
+
+ LimitUpdate [ label="Limitation on shift update",
+                 shape=box,
+                 style="rounded,filled"
+                  target="_top" ];
+
+CheckCondition [ label="Termination condition met?",
+                 shape=box,
+                 style="rounded,filled"
+                 target="_top" ]; 
+
+
+ Terminate [ label="Terminate",
+                 shape=box,
+                 style="rounded,filled"
+                 target="_top" ];
+
+  Rawdata -> Preprocessing
+  Preprocessing -> Data
+  Preprocessing -> LineVertAl
+  {rank = "same"; Preprocessing; LineVertAl}
+
+  LineVertAl -> GuessedShifts
+  {rank = "same"; GuessedShifts; Data}
+
+  GuessedShifts -> Reconstruction
+  Data -> Reconstruction
+  Reconstruction -> WeightCenter:n [spline="False"]
+
+  WeightCenter -> SynthData
+  SynthData -> Xcorr
+  Xcorr -> LimitUpdate
+  LimitUpdate -> LineVertAl2
+  LineVertAl2 -> UpdatedShifts
+  CheckCondition -> UpdatedShifts [dir="back"]
+  CheckCondition -> Reconstruction [label="False"]
+  CheckCondition -> Terminate [label="True"]
+
+  {rank="max"; Xcorr; LimitUpdate;LineVertAl2}
+  {rank="same";WeightCenter;CheckCondition}
+  {rank="same";Terminate;Reconstruction}
+}

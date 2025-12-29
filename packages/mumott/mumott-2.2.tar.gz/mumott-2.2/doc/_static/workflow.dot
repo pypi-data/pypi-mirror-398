@@ -1,0 +1,86 @@
+# dot -Tsvg workflow.dot -o workflow.svg
+
+digraph g {
+
+  graph [ fontname = "helvetica",
+          fontsize = 12.0,
+          rankdir = "TB",
+          bgcolor = "transparent",
+          ranksep = 0.1];
+
+  edge [ fontname = "helvetica",
+         fontsize = 12.0,
+         penwidth = 1.5 ]
+
+  node [ fontname = "helvetica",
+         fontsize = 12.0,
+         fontcolor = black,
+         shape = ellipse,
+         fillcolor = "#a0c9e5",
+         style = "filled,solid"];
+
+  Data [ fillcolor="#ffca9c",
+              label="Measured data and metadata\nincluding geometry information",
+                  shape=box];
+  Resolution [ fillcolor="#ffca9c",
+               label="Bandwidth or resolution",
+               shape=box,
+               target="_top"];
+
+  DataContainer [ label="DataContainer",
+                 href="../moduleref/data_handling.html#mumott.data_handling.DataContainer",
+                 target="_top" ];
+
+  Geometry [ label="Geometry",
+             href="../moduleref/data_handling.html#mumott.data_handling.Geometry",
+             target="_top" ];
+
+  Projector [ label="Projector",
+               href="../moduleref/projectors.html",
+              target="_top" ];
+
+  ResidualCalculator [ label="ResidualCalculator",
+              href="../moduleref/residual_calculators.html",
+              target="_top"];
+
+  Regularizer [ label="Regularizer",
+              href="../moduleref/regularizers.html",
+              target="_top"];
+
+  BasisSet [ label="BasisSet",
+             href="../moduleref/basis_sets.html",
+             target="_top" ];
+
+  LossFunction [ label="LossFunction",
+                 href="../moduleref/loss_functions.html",
+                 target="_top" ];
+  Optimizer [ label="Optimizer",
+                 href="../moduleref/optimizers.html",
+                 target="_top" ]
+  Output [ shape=rectangle,
+            fillcolor="#a2daa2",
+            label="Tensor field properties\n(anisotropy, orientation ...)",
+            fontcolor=black,
+            href="../tutorial/reconstruct_and_visualizer.html",
+            target="_top"];
+
+  Data -> DataContainer
+
+  DataContainer -> ResidualCalculator
+  Geometry -> DataContainer [dir = "back"]
+  Geometry -> Projector
+  Resolution -> BasisSet
+  {rank = same; Resolution; DataContainer}
+   {rank = same; Geometry; DataContainer;}
+   {rank = same;  Projector; BasisSet}
+  Projector -> ResidualCalculator
+  BasisSet -> ResidualCalculator
+
+  Regularizer -> LossFunction [label="Attached"]
+  {rank = same; Regularizer; LossFunction}
+  ResidualCalculator -> LossFunction
+
+  LossFunction -> Optimizer
+
+  Optimizer -> Output [label="Processed via\n BasisSet"]
+}
