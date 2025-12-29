@@ -1,0 +1,59 @@
+# Pre-commit hooks for filtarr
+# Install: uv run pre-commit install
+# Run manually: uv run pre-commit run --all-files
+
+repos:
+  # Ruff - fast Python linter and formatter
+  # Note: Keep this version in sync with pyproject.toml/uv.lock
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # MyPy - static type checker
+  # Note: Keep this version in sync with pyproject.toml/uv.lock
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        args: [--config-file=pyproject.toml]
+        additional_dependencies:
+          - types-cachetools>=5.5.0
+          - types-croniter>=2.0.0
+          - pydantic>=2.0.0
+          - httpx>=0.27.0
+          - tenacity>=8.2.0
+          - typer>=0.12.0
+          - rich>=13.0.0
+          - fastapi>=0.115.0
+          - uvicorn>=0.32.0
+        pass_filenames: false
+        entry: mypy src
+
+  # General pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Docker runtime tests
+  # Tests that the container builds and starts correctly
+  # Skips gracefully if Docker is not available
+  - repo: local
+    hooks:
+      - id: docker-test
+        name: Docker Runtime Tests
+        entry: scripts/test-docker.sh --pre-commit
+        language: script
+        pass_filenames: false
+        files: ^(Dockerfile|docker-compose\.yml|src/.*|pyproject\.toml|uv\.lock)$
+        verbose: true
