@@ -1,0 +1,104 @@
+Metadata-Version: 2.4
+Name: rest-process
+Version: 1.0.1
+Summary: server for hosting processes and composites from process-bigraph
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.116.1
+Requires-Dist: fastapi-utils>=0.8.0
+Requires-Dist: typing-inspect>=0.9.0
+Requires-Dist: uvicorn>=0.35.0
+Requires-Dist: process-bigraph
+
+# rest-process
+
+a server for hosting and running process-bigraph composites
+
+## usage
+
+You can turn any process-bigraph library into a process server by requiring this library and running the following command:
+
+```
+uv run python -m rest_process.start --host HOST --port PORT
+```
+
+It will discover all of the processes and steps in your project, and also any function named `register_types` will be called on the `core` registry the server will use.
+
+## API
+
+There are a number of commands you can run through the REST api of the server. The following examples are curl requests to the server started with the `rest_process.start` command. 
+
+### /list-types
+
+If you want to see all of the types in the type registry you can call `list-types`:
+
+```
+> curl http://0.0.0.0:22222/list-types
+
+["any","quote","tuple","union","boolean","number","integer","float","string","enum","list","map","tree","array","maybe","function","method","meta","mark","path","wires","schema","edge","length","time","current","luminosity","mass","substance","temperature","","length/time","length^2*mass/time","current*time","length^2*mass/temperature*time^2","length/time^2","mass/length*time^2","current*time^2/length^2*mass","length^2*mass/current^2*time^3","mass/length^3","/substance","length^2*mass/substance*temperature*time^2","current*time/substance","current^2*time^3/length^2*mass","length^2*mass/current*time^2","mass/temperature^4*time^3","length^4*mass/time^3","length*temperature","/temperature*time","length^3/mass*time^2","/length","length*mass/current^2*time^2","current^2*time^4/length^3*mass","length^3*mass/current^2*time^4","length^2","/time","length^3","length^3/time","length*mass/time^2","length^2*mass/time^2","length^2*mass/time^3","mass/length*time","length^2/time","length*time/mass","substance/length^3","substance/time","length^2/time^2","current*time/mass","mass/time^2","luminosity/length^2","mass/time^3","length^2*mass/current*time^3","length*mass/current*time^3","length^4*mass/current*time^3","current^2*time^4/length^2*mass","length^2*mass/current^2*time^2","mass/current*time^2","current*length*time","current*length^2*time","current*length^2","printing_unit","printing_unit/length","/printing_unit","mass/length","length/mass","length^1_5*mass^0_5/time","length^0_5*mass^0_5/time","length^1_5*mass^0_5/time^2","mass^0_5/length^0_5*time","time/length","length^0_5*mass^0_5","mass^0_5/length^1_5","time^2/length","protocol","emitter_mode","interval","step","process","result","results"]
+```
+
+### /list-processes
+
+If you want to know all of the processes in the server's process registry you can call the `list-processes` endpoint:
+
+```
+> curl http://0.0.0.0:22222/list-processes
+
+["console-emitter","ram-emitter","json-emitter","composite","biocompose.experiments.copasi_tellurium_comparison.Composite","biocompose.processes.CompareResults","biocompose.processes.CopasiSteadyStateStep","biocompose.processes.CopasiUTCProcess","biocompose.processes.CopasiUTCStep","biocompose.processes.TelluriumSteadyStateStep","biocompose.processes.TelluriumUTCStep","biocompose.processes.comparison_processes.CompareResults","biocompose.processes.copasi_process.Composite","biocompose.processes.copasi_process.CopasiSteadyStateStep","biocompose.processes.copasi_process.CopasiUTCProcess","biocompose.processes.copasi_process.CopasiUTCStep","biocompose.processes.tellurium_process.TelluriumSteadyStateStep","biocompose.processes.tellurium_process.TelluriumUTCStep","rest_process.processes.grow.GrowProcess","rest_process.tests.GrowProcess","Composite","CompareResults","CopasiSteadyStateStep","CopasiUTCProcess","CopasiUTCStep","TelluriumSteadyStateStep","TelluriumUTCStep","Process","Step"]
+```
+
+### /process/{PROCESS}/config-schema
+
+Given one of the processes from the registry, you can query its `config-schema`:
+
+```
+> curl http://0.0.0.0:22222/process/composite/config-schema
+
+{"composition":"schema","state":"tree[any]","interface":{"inputs":"schema","outputs":"schema"},"bridge":{"inputs":"wires","outputs":"wires"},"global_time_precision":"maybe[float]"}
+```
+
+### /process/{PROCESS}/initialize
+
+Given a config json in the form of the process's config-schema, `initialize` a new instance of that process:
+
+```
+> curl -X POST -H "Content-Type: application/json" -d @../biocompose/documents/copasi_tellurium_comparison.json http://0.0.0.0:22222/process/composite/initialize
+
+"037d1df3-03db-4ace-981e-11fb0742d3a0"
+```
+
+### /process/{PROCESS}/inputs/{ID} and /process/{PROCESS}/outputs/{ID}
+
+Once you have an id for an initialized process, you can ask for its `inputs` and `outputs`:
+
+```
+> curl http://0.0.0.0:22222/process/composite/inputs/037d1df3-03db-4ace-981e-11fb0742d3a0
+
+{}
+
+> curl http://0.0.0.0:22222/process/composite/outputs/037d1df3-03db-4ace-981e-11fb0742d3a0
+
+{"result":{"_type":"map","_default":{},"_generate":"generate_map","_apply":"apply_map","_serialize":"serialize_map","_deserialize":"deserialize_map","_resolve":"resolve_map","_dataclass":"dataclass_map","_check":"check_map","_slice":"slice_map","_fold":"fold_map","_divide":"divide_map","_sort":"sort_map","_type_parameters":["value"],"_description":"flat mapping from keys of strings to values of any type","_value":{"_type":"map","_default":{},"_generate":"generate_map","_apply":"apply_map","_serialize":"serialize_map","_deserialize":"deserialize_map","_resolve":"resolve_map","_dataclass":"dataclass_map","_check":"check_map","_slice":"slice_map","_fold":"fold_map","_divide":"divide_map","_sort":"sort_map","_type_parameters":["value"],"_description":"flat mapping from keys of strings to values of any type","_value":{"_type":"map","_default":{},"_generate":"generate_map","_apply":"apply_map","_serialize":"serialize_map","_deserialize":"deserialize_map","_resolve":"resolve_map","_dataclass":"dataclass_map","_check":"check_map","_slice":"slice_map","_fold":"fold_map","_divide":"divide_map","_sort":"sort_map","_type_parameters":["value"],"_description":"flat mapping from keys of strings to values of any type","_value":{"_type":"float","_check":"check_float","_apply":"accumulate","_serialize":"to_string","_description":"64-bit floating point precision number","_default":0.0,"_deserialize":"deserialize_float","_divide":"divide_float","_dataclass":"dataclass_float","_inherit":["number"]}}}}}
+```
+
+### /process/{PROCESS}/update/{ID}
+
+Now that the process is initialized you can send it updates. The example we are using is just a workflow, so has no time element:
+
+```
+> curl -X POST -H "Content-Type: application/json" -d '{"state": {}, "interval": 0.0}' http://0.0.0.0:22222/process/composite/update/037d1df3-03db-4ace-981e-11fb0742d3a0
+
+[{"result":{}},{"result":{}},{"result":{"species_mse":{"tellurium":{"tellurium":0.0,"copasi":4.5200220985492734e-07},"copasi":{"tellurium":4.5200220985492734e-07,"copasi":0.0}}}}]
+```
+
+### /process/{PROCESS}/end/{ID}
+
+Finally to terminate a process and release the memory you can call `end`:
+
+```
+> curl -X POST http://0.0.0.0:22222/process/composite/end/037d1df3-03db-4ace-981e-11fb0742d3a0
+
+null
+```
+
