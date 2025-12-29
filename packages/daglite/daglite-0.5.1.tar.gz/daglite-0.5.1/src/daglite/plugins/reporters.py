@@ -1,0 +1,129 @@
+"""Event reporter implementations for different backend types."""
+
+import logging
+import threading
+from multiprocessing import Queue as MultiprocessingQueue
+from typing import Any, Callable, Protocol
+
+logger = logging.getLogger(__name__)
+
+
+class EventReporter(Protocol):
+    """Protocol for worker → coordinator communication."""
+
+    @property
+    def is_remote(self) -> bool:
+        """
+        Indicates whether this reporter sends events across process/machine boundaries.
+
+        Returns:
+            True for cross-process/distributed reporters, False for same-process reporters.
+        """
+        ...
+
+    def report(self, event_type: str, data: dict[str, Any]) -> None:
+        """
+        Send event from worker to coordinator.
+
+        Args:
+            event_type: Type of event (e.g., "cache_hit", "progress")
+            data: Event payload data
+        """
+        ...
+
+
+class DirectReporter:
+    """
+    Direct function call reporter for sequential and threaded execution.
+
+    No serialization needed since everything runs in the same process.
+    Events are dispatched immediately via callback. Thread-safe for use
+    in ThreadPoolExecutor.
+    """
+
+    def __init__(self, callback: Callable[[dict[str, Any]], None]):
+        """
+        Initialize reporter with callback.
+
+        Args:
+            callback: Function to call with events (typically EventProcessor.dispatch)
+        """
+        self._callback = callback
+        self._lock = threading.Lock()
+
+    @property
+    def is_remote(self) -> bool:
+        """DirectReporter is same-process, not remote."""
+        return False
+
+    def report(self, event_type: str, data: dict[str, Any]) -> None:
+        """Send event via direct callback (thread-safe)."""
+        event = {"type": event_type, **data}
+        try:
+            with self._lock:
+                self._callback(event)
+        except Exception as e:
+            logger.exception(f"Error reporting event {event_type}: {e}")
+
+
+class ProcessReporter:
+    """
+    Queue-based reporter for ProcessPoolBackend.
+
+    Uses multiprocessing.Queue for IPC. Background thread on coordinator consumes queue and
+    dispatches events.
+    """
+
+    def __init__(self, queue: MultiprocessingQueue):
+        """
+        Initialize reporter with queue.
+
+        Args:
+            queue: Multiprocessing queue for sending events
+        """
+        self._queue = queue
+
+    @property
+    def queue(self) -> MultiprocessingQueue:
+        """Get the underlying multiprocessing queue."""
+        return self._queue
+
+    @property
+    def is_remote(self) -> bool:
+        """ProcessReporter is cross-process, therefore remote."""
+        return True
+
+    def report(self, event_type: str, data: dict[str, Any]) -> None:
+        """Send event via queue."""
+        event = {"type": event_type, **data}
+        try:
+            self._queue.put(event)
+        except Exception as e:
+            logger.exception(f"Error reporting event {event_type}: {e}")
+
+    def close(self) -> None:
+        """Close the underlying queue."""
+        self._queue.close()
+
+
+class RemoteReporter:  # pragma: no cover
+    """
+    Network-based reporter for distributed backends.
+
+    Sends events via HTTP/gRPC to coordinator.
+    """
+
+    def __init__(self, endpoint: str):
+        """
+        Initialize reporter with coordinator endpoint.
+
+        Args:
+            endpoint: URL or address of coordinator
+        """
+        self._endpoint = endpoint
+        # TODO: Initialize HTTP session or gRPC stub
+
+    def report(self, event_type: str, data: dict[str, Any]) -> None:
+        """Send event via network."""
+        # TODO: Implement network transport
+        raise NotImplementedError("RemoteReporter not yet implemented")
