@@ -1,0 +1,111 @@
+# tasks for oaspy, using Just
+
+# 2025-08-18
+
+# notice:
+# Normally, if a command returns a non-zero exit status, execution will stop.
+# To continue execution after a command, even if it fails, prefix the command with `-`:
+#
+# more info:
+# https://github.com/casey/just?tab=readme-ov-file#ignoring-errors
+#
+
+set dotenv-load := false
+uv_python_version := "3.11"
+
+[doc('show justfile config file')]
+help:
+    @echo "Tasks for oaspy"
+    @echo "run 'just -l' to show all recipes"
+    @echo
+
+[doc('create the projects environment')]
+init:
+	# uv init --python {{ uv_python_version }}
+	uv venv --python {{ uv_python_version }}
+
+[doc('install depedencies by groups (only dev)')]
+dev-mode:
+	uv sync --all-extras --inexact
+
+[doc('Update the projects environment')]
+sync:
+	uv sync --refresh --inexact
+
+[doc('format code using Ruff')]
+fmt:
+	uv run ruff format src/
+
+[doc('sort imports using Ruff')]
+sort:
+	uv run ruff check --select I --fix .
+
+[doc('run sort and fmt tasks')]
+fix: sort fmt
+
+[doc('generate requirements.txt')]
+export:
+	# more info: https://docs.astral.sh/uv/reference/cli/#uv-export
+	uv export --all-extras --all-groups --no-hashes --no-cache --no-annotate --no-emit-project --locked --quiet --format requirements-txt --output-file requirements-dev.txt
+
+[doc('lint code using Ruff')]
+lint:
+	uv run ruff check src/
+
+[doc('lint and fix code using Ruff')]
+lint-fix:
+	uv run ruff check --fix src/
+
+[doc('build package (only dev)')]
+build:
+	# uv build
+	uv run flit build --no-use-vcs
+	# uv build --sdist --wheel
+
+[doc('build release package')]
+release:
+	uv run flit build
+
+[doc('list all depedencies (only dev)')]
+deps:
+	uv pip list
+	# uv pip freeze
+
+[doc('Clear local caches (only dev)')]
+clean:
+	rm -rf `find app/ -name __pycache__`
+	rm -f `find app/ -type f -name '*.py[cod]'`
+	rm -f `find app/ -type f -name '*~'`
+	rm -f `find app/ -type f -name '.*~'`
+	rm -rf app/__pycache__
+	rm -rf __pycache__
+	rm -rf .cache
+	rm -rf .pytest_cache
+	rm -rf .ruff_cache
+	rm -rf htmlcov
+	rm -rf *.egg-info
+	rm -f .coverage
+	rm -f .coverage.*
+	rm -rf build
+	rm -rf dist
+	rm -rf site
+	# rm -rf docs/reference
+	# rm -rf docs/_build
+	# rm -rf docs/.changelog.md docs/.version.md docs/.tmp_schema_mappings.html
+	# rm -rf fastapi/test.db
+	rm -rf coverage.xml
+	rm -rf coverage.lcov
+
+[doc('Git check repo')]
+gitc:
+	git fsck
+	git gc
+
+[doc('run app')]
+run *args:
+	# clear
+	uv run oaspy {{args}}
+
+[doc('check outdated dependencies')]
+check-up:
+	uv pip list --outdated --format=columns
