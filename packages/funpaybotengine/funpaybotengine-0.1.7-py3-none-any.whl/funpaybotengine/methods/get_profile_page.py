@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+
+__all__ = ('GetProfilePage',)
+
+
+from pydantic import BaseModel
+from funpayparsers.types import Language
+from funpayparsers.parsers.page_parsers import ProfilePageParser
+
+from funpaybotengine.types.pages import ProfilePage
+from funpaybotengine.methods.base import FunPayMethod
+from funpaybotengine.client.session import HTTPMethod
+
+
+class GetProfilePage(FunPayMethod[ProfilePage], BaseModel):
+    """
+    Get a profile page method (``https://funpay.com/users/<user_id>/``).
+
+    Returns ``funpaybotengine.types.pages.ProfilePage`` obj.
+    """
+
+    user_id: int
+    """User ID."""
+
+    __model_to_build__ = ProfilePage
+
+    def __init__(self, user_id: int, locale: Language | None = None):
+        super().__init__(
+            url=f'users/{user_id}/',
+            method=HTTPMethod.GET,
+            allow_anonymous=True,
+            allow_uninitialized=True,
+            parser_cls=ProfilePageParser,
+            locale=locale,
+            user_id=user_id,
+        )
