@@ -1,0 +1,105 @@
+name: Release Build
+
+on:
+    push:
+        tags:
+            - "v*.*.*"
+    workflow_dispatch:
+
+jobs:
+    build-release:
+        name: Build release artifacts
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+              with:
+                  # Needed so setuptools_scm can see tags and history
+                  fetch-depth: 0
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+                  cache: "pip"
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  python -m pip install -e .[dev]
+
+            - name: Run tests
+              run: |
+                  pytest
+
+            - name: Build sdist and wheel
+              run: |
+                  python -m build
+
+            - name: Upload distribution artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist-${{ github.ref_name }}
+                  path: dist/*
+
+    publish-pypi:
+        name: Publish to PyPI
+        needs: build-release
+        runs-on: ubuntu-latest
+        if: startsWith(github.ref, 'refs/tags/')
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+
+            - name: Download built artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: dist-${{ github.ref_name }}
+                  path: dist
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+                  cache: "pip"
+
+            - name: Install publishing dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  python -m pip install twine
+
+            - name: Publish to PyPI
+              env:
+                  TWINE_USERNAME: __token__
+                  TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+              run: |
+                  python -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+
+    github-release:
+        name: Create GitHub Release
+        needs: build-release
+        runs-on: ubuntu-latest
+        if: startsWith(github.ref, 'refs/tags/')
+        permissions:
+            contents: write
+
+        steps:
+            - name: Download built artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: dist-${{ github.ref_name }}
+                  path: dist
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: ${{ github.ref_name }}
+                  name: Release ${{ github.ref_name }}
+                  draft: false
+                  prerelease: false
+                  files: |
+                      dist/*
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

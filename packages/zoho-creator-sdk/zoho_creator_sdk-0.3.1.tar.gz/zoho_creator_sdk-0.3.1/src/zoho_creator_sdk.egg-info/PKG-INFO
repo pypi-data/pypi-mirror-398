@@ -1,0 +1,380 @@
+Metadata-Version: 2.4
+Name: zoho-creator-sdk
+Version: 0.3.1
+Summary: A modern Python SDK for the Zoho Creator API
+Author-email: Carlos Paiva <2202731+carlospaiva@users.noreply.github.com>
+License: MIT License
+        
+        Copyright (c) 2025 Carlos Paiva
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Documentation, https://github.com/carlospaiva/zoho-creator-sdk#readme
+Project-URL: Homepage, https://github.com/carlospaiva/zoho-creator-sdk
+Project-URL: Issues, https://github.com/carlospaiva/zoho-creator-sdk/issues
+Project-URL: Repository, https://github.com/carlospaiva/zoho-creator-sdk
+Keywords: zoho,zoho creator,zoho-creator-sdk,sdk,api,zoho creator api,python,httpx,pydantic
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8.1
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: dotenv>=0.9.9
+Requires-Dist: httpx<1.0.0,>=0.23.0
+Requires-Dist: pydantic<3.0.0,>=2.0.0
+Requires-Dist: pydantic[email]<3.0.0,>=2.0.0
+Requires-Dist: python-dateutil<3.0.0,>=2.8.0
+Provides-Extra: dev
+Requires-Dist: pytest<8.0.0,>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio<1.0.0,>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov<5.0.0,>=4.0.0; extra == "dev"
+Requires-Dist: black<24.0.0,>=23.0.0; extra == "dev"
+Requires-Dist: isort<6.0.0,>=5.12.0; extra == "dev"
+Requires-Dist: mypy<2.0.0,>=1.0.0; extra == "dev"
+Requires-Dist: flake8<7.0.0,>=6.0.0; extra == "dev"
+Requires-Dist: pylint<4.0.0,>=3.2.0; extra == "dev"
+Requires-Dist: build<2.0.0,>=1.0.0; extra == "dev"
+Dynamic: license-file
+
+# Zoho Creator Python SDK
+
+[![PyPI version](https://badge.fury.io/py/zoho-creator-sdk.svg)](https://badge.fury.io/py/zoho-creator-sdk)
+[![Build Status](https://github.com/carlospaiva/zoho-creator-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/carlospaiva/zoho-creator-sdk/actions)
+[![Coverage Status](https://coveralls.io/repos/github/carlospaiva/zoho-creator-sdk/badge.svg?branch=main)](https://coveralls.io/github/carlospaiva/zoho-creator-sdk?branch=main)
+[![Python versions](https://img.shields.io/pypi/pyversions/zoho-creator-sdk.svg)](https://pypi.org/project/zoho-creator-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A modern Python SDK for interacting with the Zoho Creator API (V2). This library provides a simple, intuitive, and fluent interface for managing your Zoho Creator applications, forms, records, and more. It is designed with a "zero-config" approach, making it easy to get started quickly and securely.
+
+**Requires Python 3.8.1+.**
+
+## Key Features
+
+- **Fluent Interface**: Chain method calls for clean, readable, and intuitive API interactions.
+- **Zero-Config Initialization**: Automatically loads configuration from environment variables—no need to hardcode credentials.
+- **OAuth 2.0 Handling**: Robust OAuth2 authentication with automatic token refresh.
+- **Pydantic Models**: Strongly typed data models for all Zoho Creator entities, ensuring data validation and type safety.
+- **Automatic Pagination**: Generator-based pagination for effortlessly fetching all records without manual page handling.
+- **Multiple Criteria Filtering**: Advanced filtering with [`CriteriaBuilder`](src/zoho_creator_sdk/models/criteria.py) supporting 15+ operators and V2 syntax (`==`, `&&`, `||`).
+- **Robust HTTP Client**: Built on `httpx` with automatic retries, exponential backoff, and rate limiting.
+- **Comprehensive Error Handling**: A full suite of custom exception classes for predictable error handling.
+- **Full Type Hinting**: Modern, fully type-hinted codebase for excellent editor support and static analysis.
+
+## Installation
+
+Install the SDK using `pip`:
+
+```bash
+pip install zoho-creator-sdk
+```
+
+## Quick Start
+
+The SDK is designed for a simple, fluent workflow. With zero-config initialization, you can get started in just a few lines of code.
+
+First, set your environment variables. The client will automatically pick them up.
+
+```bash
+# OAuth2 Credentials
+export ZOHO_CLIENT_ID="your_client_id"
+export ZOHO_CLIENT_SECRET="your_client_secret"
+export ZOHO_REFRESH_TOKEN="your_refresh_token"
+
+# Datacenter (e.g., US, EU, IN, AU, CN, JP)
+export ZOHO_CREATOR_DATACENTER="US"
+```
+
+Now, you can use the client in your Python code:
+
+```python
+from zoho_creator_sdk import ZohoCreatorClient
+
+# 1. Initialize the client with zero-config
+# Credentials are automatically loaded from environment variables.
+client = ZohoCreatorClient()
+
+# 2. Discover your applications to find the correct owner and app link names
+# The owner_name is typically your Zoho username.
+applications = client.get_applications("your-owner-name")
+print(f"Found {len(applications)} applications:")
+for app in applications:
+    print(f"  - {app.application_name} (Link Name: {app.link_name})")
+
+# 3. Use the fluent interface to access a specific application and its components
+# Replace with your actual app link name, owner name, and report link name.
+app_context = client.application(app_link_name="my-app", owner_name="your-owner-name")
+report_context = app_context.report("all-records")
+
+# 4. Fetch records with automatic pagination
+# The get_records() method returns a generator that handles pagination for you.
+print("Fetching all records...")
+for record in report_context.get_records():
+    print(f"  - Record ID: {record.id}")
+    print(f"  - Data: {record.get_form_data()}")
+
+# 5. Add a new record
+form_context = app_context.form("my-form")
+new_record_data = {"field1": "value1", "field2": "value2"}
+response = form_context.add_record(data=new_record_data)
+print(f"\nSuccessfully added new record with ID: {response['data']['id']}")
+
+# 6. Update an existing record
+update_data = {"field1": "new_value"}
+# The record ID can be obtained from a previous get_records() call.
+updated_response = report_context.update_record("RECORD_ID_HERE", data=update_data)
+print(f"Successfully updated record: {updated_response['data']['id']}")
+```
+
+## Advanced Get Records options (field_config, fields, record_cursor)
+
+The v2.1 "Get Records" API supports selecting which fields are returned and,
+for some integration reports, paging large datasets using a `record_cursor`
+header. The SDK exposes these features via typed helpers on `ReportContext`.
+
+```python
+from zoho_creator_sdk import ZohoCreatorClient
+from zoho_creator_sdk.models import FieldConfig
+
+client = ZohoCreatorClient()
+report = client.report(
+    app_link_name="my-app",
+    owner_name="your-owner-name",
+    report_link_name="All_Orders",
+)
+
+# Fetch only specific fields from the detail view layout
+for record in report.get_records(
+    field_config=FieldConfig.DETAIL_VIEW,
+    fields=["Email", "Phone"],
+    criteria='(Status == "Open")',
+):
+    print(record.get_form_data())
+
+# For integration form reports that return a record_cursor header, use the
+# dedicated iterator to automatically follow the cursor across pages:
+for record in report.iter_records_with_cursor(
+    field_config=FieldConfig.ALL,
+    fields=["Order_ID", "Total"],
+):
+    process(record)
+```
+
+## Multiple Criteria Filtering
+
+The SDK provides powerful filtering capabilities through the [`CriteriaBuilder`](src/zoho_creator_sdk/models/criteria.py) class. It automatically handles formatting for Zoho Creator V2 API, including parentheses grouping, `==` operators, and proper quoting.
+
+### Using CriteriaBuilder
+
+The [`CriteriaBuilder`](src/zoho_creator_sdk/models/criteria.py) class offers a fluent interface for building complex filtering criteria:
+
+```python
+from zoho_creator_sdk import ZohoCreatorClient
+from zoho_creator_sdk.models.criteria import CriteriaBuilder
+
+client = ZohoCreatorClient()
+form = client.form(
+    app_link_name="my-app",
+    owner_name="your-owner-name",
+    form_link_name="Employees",
+)
+
+# Build a complex criteria using the fluent interface
+# Result: (Name == "John") && (Age > 25) && (Status == "Active")
+builder = CriteriaBuilder()
+criteria = (
+    builder.field("Name").equals("John")
+    .and_field("Age").greater_than(25)
+    .and_field("Status").equals("Active")
+    .build()
+)
+
+# Fetch records matching the criteria
+for record in form.get_records(criteria=criteria):
+    print(record.get_form_data())
+```
+
+### Supported Operators
+
+The [`CriteriaBuilder`](src/zoho_creator_sdk/models/criteria.py) supports the following operators:
+
+| Operator | Method | Description | Example |
+|----------|--------|-------------|---------|
+| Equals | `equals(value)` | Exact match | `field("Name").equals("John")` |
+| Not Equals | `not_equals(value)` | Excludes value | `field("Status").not_equals("Deleted")` |
+| Contains | `contains(value)` | Contains substring | `field("Email").contains("@company.com")` |
+| Not Contains | `not_contains(value)` | Excludes substring | `field("Description").not_contains("spam")` |
+| Starts With | `starts_with(value)` | Starts with prefix | `field("Email").starts_with("john@")` |
+| Ends With | `ends_with(value)` | Ends with suffix | `field("Email").ends_with("@company.com")` |
+| Greater Than | `greater_than(value)` | Greater than value | `field("Age").greater_than(18)` |
+| Greater Than or Equal | `greater_than_or_equal(value)` | Greater than or equal | `field("Score").greater_than_or_equal(80)` |
+| Less Than | `less_than(value)` | Less than value | `field("Age").less_than(65)` |
+| Less Than or Equal | `less_than_or_equal(value)` | Less than or equal | `field("Score").less_than_or_equal(100)` |
+| Between | `between(start, end)` | Within range | `field("Date").between("2024-01-01", "2024-12-31")` |
+| In List | `in_list(values)` | Matches any in list | `field("Status").in_list(["Active", "Pending"])` |
+| Not In List | `not_in_list(values)` | Excludes all in list | `field("Status").not_in_list(["Deleted", "Archived"])` |
+| Is Empty | `is_empty()` | Field is empty | `field("Notes").is_empty()` |
+| Is Not Empty | `is_not_empty()` | Field is not empty | `field("Notes").is_not_empty()` |
+
+### Combining Conditions with AND/OR
+
+Use `and_field()` and `or_field()` to combine multiple conditions:
+
+```python
+from zoho_creator_sdk.models.criteria import CriteriaBuilder
+
+# AND conditions - all must be true
+# (Status == "Active") && (Age > 18)
+builder = CriteriaBuilder()
+criteria = (
+    builder.field("Status").equals("Active")
+    .and_field("Age").greater_than(18)
+    .build()
+)
+
+# OR conditions - at least one must be true
+# (Status == "Active") || (Status == "Pending")
+builder = CriteriaBuilder()
+criteria = (
+    builder.field("Status").equals("Active")
+    .or_field("Status").equals("Pending")
+    .build()
+)
+```
+
+### Dictionary Format Criteria
+
+You can also pass criteria directly as a dictionary for simple cases:
+
+```python
+# Simple equality criteria
+criteria = {"Name": "John", "Status": "Active"}
+
+# Using operators in dictionary format
+criteria = {
+    "Name": "John",
+    "Age": {"greater_than": 25},
+    "Status": {"in": ["Active", "Pending"]},
+    "Email": {"contains": "@company.com"}
+}
+
+# Fetch records with dictionary criteria
+for record in form.get_records(criteria=criteria):
+    print(record.get_form_data())
+```
+
+### String Format Criteria (Legacy/Manual)
+
+For complex criteria where you prefer writing the query string manually, ensure you use the V2 syntax with `==`, `&&`, `||`, and parentheses:
+
+```python
+# String format for complex OR logic
+criteria = '(Name == "John") || (Status == "Active")'
+
+for record in form.get_records(criteria=criteria):
+    print(record.get_form_data())
+```
+
+## Examples
+
+The `examples/` directory contains more complete scripts demonstrating:
+
+- Basic usage (`examples/basic_usage.py`)
+- Configuration and zero-config loading (`examples/configuration.py`)
+- Datacenter configuration (`examples/datacenter_usage.py`)
+- Error handling patterns (`examples/error_handling.py`)
+- OAuth2 authentication details (`examples/oauth2_auth.py`)
+- Record CRUD operations (`examples/record_management.py`)
+- Multiple criteria filtering (`examples/fetch_records_by_bug_id.py`)
+
+## Configuration
+
+The SDK is designed for "zero-config" initialization by loading all required settings from environment variables.
+
+### Required Environment Variables
+
+| Variable                  | Description                                                    |
+| ------------------------- | -------------------------------------------------------------- |
+| `ZOHO_CLIENT_ID`          | Your OAuth2 Client ID.                                         |
+| `ZOHO_CLIENT_SECRET`      | Your OAuth2 Client Secret.                                     |
+| `ZOHO_REFRESH_TOKEN`      | Your OAuth2 Refresh Token.                                     |
+| `ZOHO_CREATOR_DATACENTER` | The Zoho datacenter for your account (e.g., `US`, `EU`, `IN`). |
+
+### Optional Environment Variables
+
+These variables enable environment-specific behavior and demo users, as
+described in the Zoho Creator v2.1 API docs:
+
+| Variable                      | Description                                                       |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `ZOHO_CREATOR_ENVIRONMENT`    | Optional environment header value, e.g. `development` or `stage`. |
+| `ZOHO_CREATOR_DEMO_USER_NAME` | Optional demo user name used together with `environment`.         |
+
+The SDK exclusively uses **OAuth 2.0 authentication** for enhanced security. API key authentication is not supported.
+
+## Development
+
+This project uses `uv` for dependency management and task running.
+
+### Development Setup
+
+1.  **Clone the repository**:
+
+    ```bash
+    git clone https://github.com/carlospaiva/zoho-creator-sdk.git
+    cd zoho-creator-sdk
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    uv sync
+    ```
+
+### Running Tests
+
+The project has a comprehensive test suite with 95%+ coverage across all modules.
+
+- **Run all tests with coverage**:
+
+  ```bash
+  uv run pytest --cov=zoho_creator_sdk --cov-report=term-missing --cov-report=html
+  ```
+
+- **Run specific test categories**:
+
+  ```bash
+  # Unit tests only
+  uv run pytest tests/unit/
+  ```
+
+## Contributing
+
+Contributions are welcome! Please follow the guidelines in our [Contributing Guide](CONTRIBUTING.md).
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
