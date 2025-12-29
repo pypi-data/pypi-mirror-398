@@ -1,0 +1,31 @@
+# test.yml
+
+name: test
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - run: |
+          uv sync
+          uv run pre-commit run --all-files
+          uv run pytest --cov=bacnet_mcp --cov-report=xml
+      - uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
