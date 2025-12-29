@@ -1,0 +1,564 @@
+# Sentience Python SDK
+
+The SDK is open under ELv2; the core semantic geometry and reliability logic runs in Sentience-hosted services.
+
+## Installation
+
+```bash
+pip install -e .
+
+# Install Playwright browsers (required)
+playwright install chromium
+
+# For LLM Agent features (optional)
+pip install openai  # For OpenAI models
+pip install anthropic  # For Claude models
+pip install transformers torch  # For local LLMs
+```
+
+## Quick Start: Choose Your Abstraction Level
+
+Sentience SDK offers **three abstraction levels** - use what fits your needs:
+
+### 🎯 **Level 3: Natural Language (Easiest)** - For non-technical users
+
+```python
+from sentience import SentienceBrowser, ConversationalAgent
+from sentience.llm_provider import OpenAIProvider
+
+browser = SentienceBrowser()
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+agent = ConversationalAgent(browser, llm)
+
+with browser:
+    response = agent.execute("Search for magic mouse on google.com")
+    print(response)
+    # → "I searched for 'magic mouse' and found several results.
+    #    The top result is from amazon.com selling Magic Mouse 2 for $79."
+```
+
+**Best for:** End users, chatbots, no-code platforms
+**Code required:** 3-5 lines
+**Technical knowledge:** None
+
+### ⚙️ **Level 2: Technical Commands (Recommended)** - For AI developers
+
+```python
+from sentience import SentienceBrowser, SentienceAgent
+from sentience.llm_provider import OpenAIProvider
+
+browser = SentienceBrowser()
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+agent = SentienceAgent(browser, llm)
+
+with browser:
+    browser.page.goto("https://google.com")
+    agent.act("Click the search box")
+    agent.act("Type 'magic mouse' into the search field")
+    agent.act("Press Enter key")
+```
+
+**Best for:** Building AI agents, automation scripts
+**Code required:** 10-15 lines
+**Technical knowledge:** Medium (Python basics)
+
+### 🔧 **Level 1: Direct SDK (Most Control)** - For production automation
+
+```python
+from sentience import SentienceBrowser, snapshot, find, click
+
+with SentienceBrowser(headless=False) as browser:
+    browser.page.goto("https://example.com")
+
+    # Take snapshot - captures all interactive elements
+    snap = snapshot(browser)
+    print(f"Found {len(snap.elements)} elements")
+
+    # Find and click a link using semantic selectors
+    link = find(snap, "role=link text~'More information'")
+    if link:
+        result = click(browser, link.id)
+        print(f"Click success: {result.success}")
+```
+
+**Best for:** Maximum control, performance-critical apps
+**Code required:** 20-50 lines
+**Technical knowledge:** High (SDK API, selectors)
+
+## Real-World Example: Amazon Shopping Bot
+
+This example demonstrates navigating Amazon, finding products, and adding items to cart:
+
+```python
+from sentience import SentienceBrowser, snapshot, find, click
+import time
+
+with SentienceBrowser(headless=False) as browser:
+    # Navigate to Amazon Best Sellers
+    browser.goto("https://www.amazon.com/gp/bestsellers/", wait_until="domcontentloaded")
+    time.sleep(2)  # Wait for dynamic content
+
+    # Take snapshot and find products
+    snap = snapshot(browser)
+    print(f"Found {len(snap.elements)} elements")
+
+    # Find first product in viewport using spatial filtering
+    products = [
+        el for el in snap.elements
+        if el.role == "link"
+        and el.visual_cues.is_clickable
+        and el.in_viewport
+        and not el.is_occluded
+        and el.bbox.y < 600  # First row
+    ]
+
+    if products:
+        # Sort by position (left to right, top to bottom)
+        products.sort(key=lambda e: (e.bbox.y, e.bbox.x))
+        first_product = products[0]
+
+        print(f"Clicking: {first_product.text}")
+        result = click(browser, first_product.id)
+
+        # Wait for product page
+        browser.page.wait_for_load_state("networkidle")
+        time.sleep(2)
+
+        # Find and click "Add to Cart" button
+        product_snap = snapshot(browser)
+        add_to_cart = find(product_snap, "role=button text~'add to cart'")
+
+        if add_to_cart:
+            cart_result = click(browser, add_to_cart.id)
+            print(f"Added to cart: {cart_result.success}")
+```
+
+**See the complete tutorial**: [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)
+
+## Core Features
+
+### Browser Control
+- **`SentienceBrowser`** - Playwright browser with Sentience extension pre-loaded
+- **`browser.goto(url)`** - Navigate with automatic extension readiness checks
+- Automatic bot evasion and stealth mode
+- Configurable headless/headed mode
+
+### Snapshot - Intelligent Page Analysis
+- **`snapshot(browser, screenshot=True)`** - Capture page state with AI-ranked elements
+- Returns semantic elements with roles, text, importance scores, and bounding boxes
+- Optional screenshot capture (PNG/JPEG)
+- Pydantic models for type safety
+- **`snapshot.save(filepath)`** - Export to JSON
+
+**Example:**
+```python
+snap = snapshot(browser, screenshot=True)
+
+# Access structured data
+print(f"URL: {snap.url}")
+print(f"Viewport: {snap.viewport.width}x{snap.viewport.height}")
+print(f"Elements: {len(snap.elements)}")
+
+# Iterate over elements
+for element in snap.elements:
+    print(f"{element.role}: {element.text} (importance: {element.importance})")
+```
+
+### Query Engine - Semantic Element Selection
+- **`query(snapshot, selector)`** - Find all matching elements
+- **`find(snapshot, selector)`** - Find single best match (by importance)
+- Powerful query DSL with multiple operators
+
+**Query Examples:**
+```python
+# Find by role and text
+button = find(snap, "role=button text='Sign in'")
+
+# Substring match (case-insensitive)
+link = find(snap, "role=link text~'more info'")
+
+# Spatial filtering
+top_left = find(snap, "bbox.x<=100 bbox.y<=200")
+
+# Multiple conditions (AND logic)
+primary_btn = find(snap, "role=button clickable=true visible=true importance>800")
+
+# Prefix/suffix matching
+starts_with = find(snap, "text^='Add'")
+ends_with = find(snap, "text$='Cart'")
+
+# Numeric comparisons
+important = query(snap, "importance>=700")
+first_row = query(snap, "bbox.y<600")
+```
+
+**📖 [Complete Query DSL Guide](docs/QUERY_DSL.md)** - All operators, fields, and advanced patterns
+
+### Actions - Interact with Elements
+- **`click(browser, element_id)`** - Click element by ID
+- **`click_rect(browser, rect)`** - Click at center of rectangle (coordinate-based)
+- **`type_text(browser, element_id, text)`** - Type into input fields
+- **`press(browser, key)`** - Press keyboard keys (Enter, Escape, Tab, etc.)
+
+All actions return `ActionResult` with success status, timing, and outcome:
+
+```python
+result = click(browser, element.id)
+
+print(f"Success: {result.success}")
+print(f"Outcome: {result.outcome}")  # "navigated", "dom_updated", "error"
+print(f"Duration: {result.duration_ms}ms")
+print(f"URL changed: {result.url_changed}")
+```
+
+**Coordinate-based clicking:**
+```python
+from sentience import click_rect
+
+# Click at center of rectangle (x, y, width, height)
+click_rect(browser, {"x": 100, "y": 200, "w": 50, "h": 30})
+
+# With visual highlight (default: red border for 2 seconds)
+click_rect(browser, {"x": 100, "y": 200, "w": 50, "h": 30}, highlight=True, highlight_duration=2.0)
+
+# Using element's bounding box
+snap = snapshot(browser)
+element = find(snap, "role=button")
+if element:
+    click_rect(browser, {
+        "x": element.bbox.x,
+        "y": element.bbox.y,
+        "w": element.bbox.width,
+        "h": element.bbox.height
+    })
+```
+
+### Wait & Assertions
+- **`wait_for(browser, selector, timeout=5.0, interval=None, use_api=None)`** - Wait for element to appear
+- **`expect(browser, selector)`** - Assertion helper with fluent API
+
+**Examples:**
+```python
+# Wait for element (auto-detects optimal interval based on API usage)
+result = wait_for(browser, "role=button text='Submit'", timeout=10.0)
+if result.found:
+    print(f"Found after {result.duration_ms}ms")
+
+# Use local extension with fast polling (0.25s interval)
+result = wait_for(browser, "role=button", timeout=5.0, use_api=False)
+
+# Use remote API with network-friendly polling (1.5s interval)
+result = wait_for(browser, "role=button", timeout=5.0, use_api=True)
+
+# Custom interval override
+result = wait_for(browser, "role=button", timeout=5.0, interval=0.5, use_api=False)
+
+# Semantic wait conditions
+wait_for(browser, "clickable=true", timeout=5.0)  # Wait for clickable element
+wait_for(browser, "importance>100", timeout=5.0)  # Wait for important element
+wait_for(browser, "role=link visible=true", timeout=5.0)  # Wait for visible link
+
+# Assertions
+expect(browser, "role=button text='Submit'").to_exist(timeout=5.0)
+expect(browser, "role=heading").to_be_visible()
+expect(browser, "role=button").to_have_text("Submit")
+expect(browser, "role=link").to_have_count(10)
+```
+
+### Content Reading
+- **`read(browser, format="text|markdown|raw")`** - Extract page content
+  - `format="text"` - Plain text extraction
+  - `format="markdown"` - High-quality markdown conversion (uses markdownify)
+  - `format="raw"` - Cleaned HTML (default)
+
+**Example:**
+```python
+from sentience import read
+
+# Get markdown content
+result = read(browser, format="markdown")
+print(result["content"])  # Markdown text
+
+# Get plain text
+result = read(browser, format="text")
+print(result["content"])  # Plain text
+```
+
+### Screenshots
+- **`screenshot(browser, format="png|jpeg", quality=80)`** - Standalone screenshot capture
+  - Returns base64-encoded data URL
+  - PNG or JPEG format
+  - Quality control for JPEG (1-100)
+
+**Example:**
+```python
+from sentience import screenshot
+import base64
+
+# Capture PNG screenshot
+data_url = screenshot(browser, format="png")
+
+# Save to file
+image_data = base64.b64decode(data_url.split(",")[1])
+with open("screenshot.png", "wb") as f:
+    f.write(image_data)
+
+# JPEG with quality control (smaller file size)
+data_url = screenshot(browser, format="jpeg", quality=85)
+```
+
+## Element Properties
+
+Elements returned by `snapshot()` have the following properties:
+
+```python
+element.id              # Unique identifier for interactions
+element.role            # ARIA role (button, link, textbox, heading, etc.)
+element.text            # Visible text content
+element.importance      # AI importance score (0-1000)
+element.bbox            # Bounding box (x, y, width, height)
+element.visual_cues     # Visual analysis (is_primary, is_clickable, background_color)
+element.in_viewport     # Is element visible in current viewport?
+element.is_occluded     # Is element covered by other elements?
+element.z_index         # CSS stacking order
+```
+
+## Query DSL Reference
+
+### Basic Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `=` | Exact match | `role=button` |
+| `!=` | Exclusion | `role!=link` |
+| `~` | Substring (case-insensitive) | `text~'sign in'` |
+| `^=` | Prefix match | `text^='Add'` |
+| `$=` | Suffix match | `text$='Cart'` |
+| `>`, `>=` | Greater than | `importance>500` |
+| `<`, `<=` | Less than | `bbox.y<600` |
+
+### Supported Fields
+
+- **Role**: `role=button|link|textbox|heading|...`
+- **Text**: `text`, `text~`, `text^=`, `text$=`
+- **Visibility**: `clickable=true|false`, `visible=true|false`
+- **Importance**: `importance`, `importance>=N`, `importance<N`
+- **Position**: `bbox.x`, `bbox.y`, `bbox.width`, `bbox.height`
+- **Layering**: `z_index`
+
+## Examples
+
+See the `examples/` directory for complete working examples:
+
+- **`hello.py`** - Extension bridge verification
+- **`basic_agent.py`** - Basic snapshot and element inspection
+- **`query_demo.py`** - Query engine demonstrations
+- **`wait_and_click.py`** - Waiting for elements and performing actions
+- **`read_markdown.py`** - Content extraction and markdown conversion
+
+## Testing
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test file
+pytest tests/test_snapshot.py
+
+# Run with verbose output
+pytest -v tests/
+```
+
+## Configuration
+
+### Viewport Size
+
+Default viewport is **1280x800** pixels. You can customize it using Playwright's API:
+
+```python
+with SentienceBrowser(headless=False) as browser:
+    # Set custom viewport before navigating
+    browser.page.set_viewport_size({"width": 1920, "height": 1080})
+
+    browser.goto("https://example.com")
+```
+
+### Headless Mode
+
+```python
+# Headed mode (default in dev, shows browser window)
+browser = SentienceBrowser(headless=False)
+
+# Headless mode (default in CI environments)
+browser = SentienceBrowser(headless=True)
+
+# Auto-detect based on environment
+browser = SentienceBrowser()  # headless=True if CI=true, else False
+```
+
+## Best Practices
+
+### 1. Wait for Dynamic Content
+```python
+browser.goto("https://example.com", wait_until="domcontentloaded")
+time.sleep(1)  # Extra buffer for AJAX/animations
+```
+
+### 2. Use Multiple Strategies for Finding Elements
+```python
+# Try exact match first
+btn = find(snap, "role=button text='Add to Cart'")
+
+# Fallback to fuzzy match
+if not btn:
+    btn = find(snap, "role=button text~='cart'")
+```
+
+### 3. Check Element Visibility Before Clicking
+```python
+if element.in_viewport and not element.is_occluded:
+    click(browser, element.id)
+```
+
+### 4. Handle Navigation
+```python
+result = click(browser, link_id)
+if result.url_changed:
+    browser.page.wait_for_load_state("networkidle")
+```
+
+### 5. Use Screenshots Sparingly
+```python
+# Fast - no screenshot (only element data)
+snap = snapshot(browser)
+
+# Slower - with screenshot (for debugging/verification)
+snap = snapshot(browser, screenshot=True)
+```
+
+## Troubleshooting
+
+### "Extension failed to load"
+**Solution:** Build the extension first:
+```bash
+cd sentience-chrome
+./build.sh
+```
+
+### "Element not found"
+**Solutions:**
+- Ensure page is loaded: `browser.page.wait_for_load_state("networkidle")`
+- Use `wait_for()`: `wait_for(browser, "role=button", timeout=10)`
+- Debug elements: `print([el.text for el in snap.elements])`
+
+### Button not clickable
+**Solutions:**
+- Check visibility: `element.in_viewport and not element.is_occluded`
+- Scroll to element: `browser.page.evaluate(f"window.sentience_registry[{element.id}].scrollIntoView()")`
+
+## Advanced Features (v0.12.0+)
+
+### Agent Tracing & Debugging
+
+The SDK now includes built-in tracing infrastructure for debugging and analyzing agent behavior:
+
+```python
+from sentience import SentienceBrowser, SentienceAgent
+from sentience.llm_provider import OpenAIProvider
+from sentience.tracing import Tracer, JsonlTraceSink
+from sentience.agent_config import AgentConfig
+
+# Create tracer to record agent execution
+tracer = Tracer(
+    run_id="my-agent-run-123",
+    sink=JsonlTraceSink("trace.jsonl")
+)
+
+# Configure agent behavior
+config = AgentConfig(
+    snapshot_limit=50,
+    temperature=0.0,
+    max_retries=1,
+    capture_screenshots=True
+)
+
+browser = SentienceBrowser()
+llm = OpenAIProvider(api_key="your-key", model="gpt-4o")
+
+# Pass tracer and config to agent
+agent = SentienceAgent(browser, llm, tracer=tracer, config=config)
+
+with browser:
+    browser.page.goto("https://example.com")
+
+    # All actions are automatically traced
+    agent.act("Click the sign in button")
+    agent.act("Type 'user@example.com' into email field")
+
+# Trace events saved to trace.jsonl
+# Events: step_start, snapshot, llm_query, action, step_end, error
+```
+
+**Trace Events Captured:**
+- `step_start` - Agent begins executing a goal
+- `snapshot` - Page state captured
+- `llm_query` - LLM decision made (includes tokens, model, response)
+- `action` - Action executed (click, type, press)
+- `step_end` - Step completed successfully
+- `error` - Error occurred during execution
+
+**Use Cases:**
+- Debug why agent failed or got stuck
+- Analyze token usage and costs
+- Replay agent sessions
+- Train custom models from successful runs
+- Monitor production agents
+
+### Snapshot Utilities
+
+New utility functions for working with snapshots:
+
+```python
+from sentience import snapshot
+from sentience.utils import compute_snapshot_digests, canonical_snapshot_strict
+from sentience.formatting import format_snapshot_for_llm
+
+snap = snapshot(browser)
+
+# Compute snapshot fingerprints (detect page changes)
+digests = compute_snapshot_digests(snap.elements)
+print(f"Strict digest: {digests['strict']}")  # Changes when text changes
+print(f"Loose digest: {digests['loose']}")   # Only changes when layout changes
+
+# Format snapshot for LLM prompts
+llm_context = format_snapshot_for_llm(snap, limit=50)
+print(llm_context)
+# Output: [1] <button> "Sign In" {PRIMARY,CLICKABLE} @ (100,50) (Imp:10)
+```
+
+## Documentation
+
+- **📖 [Amazon Shopping Guide](../docs/AMAZON_SHOPPING_GUIDE.md)** - Complete tutorial with real-world example
+- **📖 [Query DSL Guide](docs/QUERY_DSL.md)** - Advanced query patterns and operators
+- **📄 [API Contract](../spec/SNAPSHOT_V1.md)** - Snapshot API specification
+- **📄 [Type Definitions](../spec/sdk-types.md)** - TypeScript/Python type definitions
+
+## License
+
+📜 **License**
+
+This SDK is licensed under the **Elastic License 2.0 (ELv2)**.
+
+The Elastic License 2.0 allows you to use, modify, and distribute this SDK for internal, research, and non-competitive purposes. It **does not permit offering this SDK or a derivative as a hosted or managed service**, nor using it to build a competing product or service.
+
+### Important Notes
+
+- This SDK is a **client-side library** that communicates with proprietary Sentience services and browser components.
+
+- The Sentience backend services (including semantic geometry grounding, ranking, visual cues, and trace processing) are **not open source** and are governed by Sentience’s Terms of Service.
+
+- Use of this SDK does **not** grant rights to operate, replicate, or reimplement Sentience’s hosted services.
+
+For commercial usage, hosted offerings, or enterprise deployments, please contact Sentience to obtain a commercial license.
+
+See the full license text in [`LICENSE`](./LICENSE.md).
