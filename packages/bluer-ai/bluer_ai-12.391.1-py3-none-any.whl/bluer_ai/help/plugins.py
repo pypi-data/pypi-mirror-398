@@ -1,0 +1,99 @@
+from typing import List
+
+from bluer_options.terminal import show_usage
+
+
+def help_get_module_name(
+    tokens: List[str],
+    mono: bool,
+) -> str:
+    return show_usage(
+        [
+            "@plugins",
+            "get_module_name",
+            "<repo-name>",
+        ],
+        "get module name for <repo-name>.",
+        mono=mono,
+    )
+
+
+def help_install(
+    tokens: List[str],
+    mono: bool,
+) -> str:
+    return show_usage(
+        [
+            "@plugins",
+            "install",
+            "[all | <plugin-name>]",
+        ],
+        "install plugin(s).",
+        mono=mono,
+    )
+
+
+def help_list_of_external(
+    tokens: List[str],
+    mono: bool,
+) -> str:
+    args = [
+        "[--delim space | <delim>]",
+        "[--log 1]",
+        "[--repo_names 1]",
+    ]
+
+    return show_usage(
+        [
+            "@plugins",
+            "list_of_external",
+        ]
+        + args,
+        "show list of external plugins.",
+        mono=mono,
+    )
+
+
+def help_list_of_installed(
+    tokens: List[str],
+    mono: bool,
+) -> str:
+    args = [
+        "[--delim space | <delim>]",
+        "[--log 1]",
+        "[--repo_names 1]",
+    ]
+
+    return show_usage(
+        [
+            "@plugins",
+            "list_of_installed",
+        ]
+        + args,
+        "show list of installed plugins.",
+        mono=mono,
+    )
+
+
+def help_transform(
+    tokens: List[str],
+    mono: bool,
+) -> str:
+    return show_usage(
+        [
+            "@plugins",
+            "transform",
+            "<repo-name>",
+        ],
+        "transform a bluer-plugin git clone to <repo-name>.",
+        mono=mono,
+    )
+
+
+help_functions = {
+    "get_module_name": help_get_module_name,
+    "install": help_install,
+    "list_of_external": help_list_of_external,
+    "list_of_installed": help_list_of_installed,
+    "transform": help_transform,
+}
