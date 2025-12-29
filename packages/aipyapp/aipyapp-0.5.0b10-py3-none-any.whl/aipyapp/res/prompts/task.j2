@@ -1,0 +1,42 @@
+{# 任务提示模版 #}
+<user_prompt version="1">
+<message from="user">
+{{ instruction }}
+</message>
+
+{% if contexts is defined and contexts %}
+<context>
+{% for key, value in contexts.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+</context>
+{% endif %}
+
+<constraints>
+- File creation path: current_directory
+{% if gui %}
+- DO NOT use plt.show to display picture because I'm using the Agg backend. Save pictures with plt.savefig() and display them with utils.display().
+{% endif %}
+{% if constraints is defined and constraints %}
+{% if constraints.lang is defined and constraints.lang %}
+{% if constraints.lang == 'zh' %}
+- 除非用户明确指定，思考过程和最终回复都必须使用中文，不管用户输入内容是什么语言。
+{% else %}
+- Your response should match the language of the user's input.
+{% endif %}
+{% endif %} 
+{% endif %}
+</constraints>
+
+{% if parent is defined and parent %}
+<task_info>
+Current task ID: {{ task_id }}.
+
+This is a subtask created by the following parent task:
+- Task ID: {{ parent.task_id }}
+- Instruction: {{ parent.instruction }}
+
+You **SHOULD** generate a final response with enough information for the parent task to understand the progress of this subtask.
+</task_info>
+{% endif %}
+</user_prompt>
