@@ -1,0 +1,372 @@
+Metadata-Version: 2.4
+Name: utdg-env
+Version: 0.3.5
+Summary: Gymnasium environment for Untitled Tower Defense Game
+Author-email: chrisjcc <your.email@example.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/chrisjcc/UTDG
+Project-URL: Bug Tracker, https://github.com/chrisjcc/UTDG/issues
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: gymnasium>=1.0.0
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: websockets>=10.0
+Requires-Dist: hydra-core>=1.3.0
+Requires-Dist: omegaconf>=2.3.0
+Provides-Extra: train
+Requires-Dist: stable-baselines3>=2.0.0; extra == "train"
+Requires-Dist: sb3-contrib>=2.0.0; extra == "train"
+Requires-Dist: tensorboard>=2.10.0; extra == "train"
+Requires-Dist: playwright>=1.40.0; extra == "train"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=0.991; extra == "dev"
+
+---
+title: Untitled Tower Defense Game
+emoji: 📈
+colorFrom: green
+colorTo: indigo
+sdk: docker
+secrets:
+  - GITHUB_TOKEN
+app_file: app.py
+app_port: 7860
+pinned: false
+license: eupl-1.2
+short_description: UTDG is a tower defense game
+custom_headers:
+  cross-origin-embedder-policy: require-corp
+  cross-origin-opener-policy: same-origin
+  cross-origin-resource-policy: cross-origin
+---
+
+# Untitled Tower Defense Game (UTDG)
+
+A modular 2D tower defense game built with **Godot Engine 4.5**. It’s designed to be easy to experiment with, extend, and plug into machine-learning workflows. Your goal is simple: defend your base against waves of enemies by placing towers in smart locations.
+
+## 🎯 About
+
+UTDG doubles as a reinforcement learning environment. This Space provides the playable web version of the game, so you can try it directly in the browser or connect it to an RL training loop.
+
+## Overview
+
+In UTDG, enemies attempt to steal cargo and escape the map. You place towers to intercept them, manage resources, and react to changing enemy patterns. The game includes flexible tower mechanics and a layout that encourages strategic planning and experimentation.
+
+The codebase follows clean, modular coding practices that separate game logic, UI, and environment setup, making it ideal for:
+- Learning game development concepts in Godot
+- Experimenting with tower defense mechanics
+- Extending with custom towers, enemies, and abilities
+
+## Key Features
+
+### Core Gameplay Systems
+- **Modular Tower Management**: Build towers on valid grid positions
+- **Player Resource System**: Gold-based economy for tower placement and upgrades
+- **Dynamic Difficulty Manager**: Configurable enemy spawn rates and health scaling over time using curve-based progression
+- **Base Defense**: Health system with visual feedback and defeat conditions
+- **Victory Conditions**: Win by surviving all enemy waves
+
+### Technical Highlights
+- **2D GridMap-based** building system for tower placement
+- **Ray-casting camera** controller with WASD movement and Q/E rotation
+- **Organized scene structure** with reusable components
+- **Signal-based communication** between game systems
+
+## Project Structure
+
+```
+UTDG/
+├── base_level.tscn              # Main game scene (entry point)
+├── project.godot               # Godot project configuration
+├── export_presets.cfg          # Export configuration for builds
+│
+├── .github/                    # GitHub configuration
+│   └── workflows/              # CI/CD workflows
+│       ├── claude.yml          # Claude AI integration
+│       └── build-macos.yml     # macOS build automation
+│
+├── Assets/                     # Game assets (fonts, textures)
+│   └── Asap/                   # Font files
+│
+├── Base/                       # Player base and economy
+│   ├── bank.gd                 # Gold/resource management
+│   └── base.gd                 # Base health and damage handling
+│
+├── builds/                     # Build output directory (gitignored)
+│   └── UTDG.app                # macOS application bundle
+│
+├── DifficultyManager/          # Game progression system
+│   ├── difficulty_manager.gd  # Spawn rate and enemy health curves
+│   └── difficulty_manager.tscn
+│
+├── Enemy/                      # Enemy behavior and spawning
+│   ├── enemy.gd                # Enemy AI with navigation
+│   ├── enemy_manager.gd        # Wave spawning controller
+│   └── enemy.tscn
+│
+├── EnemyEntrypoint/            # Enemy spawn point
+│   ├── enemy_entrypoint.gd
+│   └── enemy_entrypoint.tscn
+│
+├── SpawningStrategy/           # Modular spawning system
+│   ├── spawning_strategy_base.gd        # Base strategy interface
+│   ├── spawning_strategy_manager.gd     # Strategy coordinator
+│   ├── curve_based_strategy.gd          # Original curve-based spawning
+│   ├── wave_based_strategy.gd           # Wave-based spawning
+│   ├── timed_strategy.gd                # Fixed/variable interval spawning
+│   ├── spawning_strategy_manager.tscn   # Manager scene
+│   └── README.md                         # Spawning strategy documentation
+│
+├── Towers/                     # Tower system
+│   ├── tower_manager.gd         # Tower placement and building
+│   ├── tower.gd                # Base tower logic and targeting
+│   ├── turret.gd               # Turret variant
+│   ├── projectile.gd           # Projectile behavior
+│   ├── tower.tscn
+│   ├── turret.tscn
+│   ├── cannon_tower.tscn
+│   └── projectile.tscn
+│
+├── RayPickerCamera/            # Camera and input handling
+│   ├── ray_picker_camera.gd   # Raycasting for tower placement
+│   └── ray_picker_camera.tscn
+│
+├── UserInterface/              # UI elements
+│   ├── victory_layer.gd        # Victory/defeat screens
+│   └── victory_layer.tscn
+│
+├── MeshLibraries/              # 3D mesh libraries for GridMap
+│   └── SpaceLibrary.tscn
+│
+└── addons/                     # Third-party plugins
+    └── radial_menu/            # Radial menu addon
+```
+
+## Gameplay Loop
+
+1. **Start**: Player begins with limited gold (default: 150)
+2. **Planning Phase**: Survey the map and plan tower positions
+3. **Building**: Click on valid grid tiles to place towers (costs 100 gold per tower)
+4. **Defense**: Towers automatically target and fire at enemies within range
+5. **Wave Progression**: Enemies spawn in increasingly difficult waves
+   - Spawn rate accelerates over time
+   - Enemy health scales up based on difficulty curves
+6. **Economy**: Earn gold by defeating enemies (15 gold per enemy)
+7. **Base Defense**: Protect your base from enemies attempting to deliver cargo
+   - Base has limited health (default: 10 HP)
+   - Each enemy that reaches the base deals 1 damage
+8. **Victory/Defeat**:
+   - **Victory**: Survive until the difficulty timer expires and defeat all remaining enemies
+   - **Defeat**: Base health reaches zero
+
+A tower defense game built with Godot, playable directly in your browser!
+
+## 🎮 How to Play
+
+- **WASD** or **Arrow Keys**: Move camera
+- **Q/E**: Rotate camera
+- **Left Mouse Button**: Place tower (when hovering over valid grid tile with sufficient gold)
+
+## Getting Started
+
+### Prerequisites
+
+- **Godot Engine 4.5** or later (uses Forward Plus rendering)
+- Download from [godotengine.org](https://godotengine.org/download)
+
+### Installation and Running
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/chrisjcc/UTDG.git
+   cd UTDG
+   ```
+
+2. **Open in Godot**:
+   - Launch Godot Engine
+   - Click "Import"
+   - Navigate to the cloned directory and select `project.godot`
+   - Click "Import & Edit"
+
+3. **Play the game**:
+   - Press **F5** or click the "Play" button in the top-right corner
+   - The game will launch with `base_level.tscn` as the main scene
+
+4. **Test in the editor**:
+   - Open `base_level.tscn` from the FileSystem dock
+   - Press **F6** or click "Play Scene" to test the current scene
+
+### Building an Executable (Optional)
+
+1. Go to **Project → Export**
+2. Add your target platform (Windows, Linux, macOS, etc.)
+3. Configure export settings
+4. Click "Export Project" and choose a destination
+
+## Build Workflow Overview
+
+The project includes an automated GitHub Actions workflow for building macOS releases:
+
+### Automated macOS Builds
+
+The `.github/workflows/build-macos.yml` workflow automatically builds the game for macOS (Apple Silicon arm64) when you create a new version tag.
+
+**How it works:**
+1. **Trigger**: Push a git tag matching `v*.*.*` (e.g., `v1.0.0`, `v1.2.3`)
+2. **Process**:
+   - Downloads the official Godot 4.5.1 binary for macOS
+   - Exports the game using the "macOS" preset from `export_presets.cfg`
+   - Creates a complete `.app` bundle at `builds/UTDG.app`
+   - Compresses the bundle into `UTDG-macos.zip`
+3. **Output**: The zipped artifact is uploaded to GitHub Actions artifacts for download
+
+**Creating a release:**
+```bash
+# Tag your commit with a version number
+git tag v1.0.0
+git push origin v1.0.0
+
+# The workflow will automatically run and build the macOS artifact
+```
+
+**Downloading the build:**
+1. Go to the repository's **Actions** tab
+2. Click on the latest workflow run for your tag
+3. Download the `UTDG-macos` artifact from the artifacts section
+4. Extract `UTDG-macos.zip` and run `UTDG.app` on macOS
+
+### Export Configuration
+
+The `export_presets.cfg` file defines the export settings:
+- **Platform**: macOS (arm64 - Apple Silicon)
+- **Bundle Identifier**: `com.chrisjcc.utdg`
+- **Minimum macOS Version**: 10.13 (High Sierra)
+- **Output Path**: `builds/UTDG.app`
+
+The workflow uses the `--headless --export-release "macOS"` command to build without requiring the Godot editor UI, making it suitable for CI/CD automation.
+
+## Game Architecture
+
+### Core Systems
+
+#### Bank System (`Base/bank.gd`)
+Manages the player's gold resources. Gold is earned by defeating enemies and spent on building towers.
+
+#### Base (`Base/base.gd`)
+Handles the player's base health with visual feedback. The game reloads when health reaches zero.
+
+#### Difficulty Manager (`DifficultyManager/difficulty_manager.gd`)
+Controls game progression using exportable curves:
+- `spawn_time_curve`: Controls how quickly enemies spawn
+- `enemy_health_curve`: Scales enemy health over time
+- `game_length`: Duration of the game in seconds (default: 30s)
+
+#### Enemy System
+- **Enemy AI** (`Enemy/enemy.gd`): NavigationAgent3D-based pathfinding with cargo delivery mechanics
+- **Enemy Manager** (`Enemy/enemy_manager.gd`): Handles wave spawning and victory detection
+
+#### Spawning Strategy System (`SpawningStrategy/`)
+Provides a modular, configurable approach to enemy spawning:
+- **SpawningStrategyManager** (`spawning_strategy_manager.gd`): Coordinates spawning by delegating to selected strategy
+- **Strategy Types:**
+  - **Curve-Based** (`curve_based_strategy.gd`): Original UTDG behavior using time curves
+  - **Wave-Based** (`wave_based_strategy.gd`): Discrete waves with breaks between them
+  - **Timed** (`timed_strategy.gd`): Fixed or variable interval spawning
+- Fully backward compatible with existing gameplay
+- Supports RL environment integration
+- See `SpawningStrategy/README.md` for detailed documentation
+
+#### Tower System
+- **TowerManager** (`Towers/tower_manager.gd`): Instantiates towers and updates navigation mesh
+- **Tower** (`Towers/tower.gd`): Base tower class with automatic targeting and projectile firing
+- Towers find the nearest enemy within range and rotate to face them
+
+#### Camera Controller (`RayPickerCamera/ray_picker_camera.gd`)
+Handles player input for camera movement and tower placement using raycasting to detect valid grid positions.
+
+## Extending the Game
+
+### Adding a New Tower Type
+
+1. Create a new scene inheriting from `Tower` (`Towers/tower.gd`)
+2. Customize the exported variables:
+   - `projectile`: Assign a projectile scene
+   - `tower_range`: Set the detection radius
+3. Modify the appearance and add custom behavior as needed
+
+### Configuring Enemy Spawning Strategy
+
+The game now supports multiple spawning strategies that can be configured without code changes:
+
+1. **Add SpawningStrategyManager to your scene** (optional - game works without it):
+   - Instantiate `SpawningStrategy/spawning_strategy_manager.tscn` in your level
+   - Set `active_strategy_type` to your desired strategy (CURVE_BASED, WAVE_BASED, or TIMED)
+   - Assign `difficulty_manager` and `enemy_manager` references
+   - Set the `spawning_strategy_manager` reference in your EnemyManager node
+
+2. **Strategy types:**
+   - **CURVE_BASED** (default): Uses curves for smooth difficulty progression (original behavior)
+   - **WAVE_BASED**: Spawns enemies in discrete waves with breaks
+   - **TIMED**: Fixed or variable interval spawning for survival-style gameplay
+
+3. **Configuration example** (Wave-Based):
+   - Initial wave size: 1-3 enemies
+   - Wave size growth: 1.2 (20% increase per wave)
+   - Wave break duration: 5 seconds
+   - See `SpawningStrategy/README.md` for detailed configuration options
+
+### Adjusting Difficulty
+
+Open `base_level.tscn` and select the `DifficultyManager` node:
+- Adjust `game_length` to change game duration
+- Edit `spawn_time_curve` to control enemy spawn rates
+- Modify `enemy_health_curve` to balance enemy strength progression
+
+Or use the SpawningStrategyManager for more control over spawning patterns.
+
+### Creating New Enemy Types
+
+1. Extend `Enemy` class (`Enemy/enemy.gd`)
+2. Adjust exported properties:
+   - `speed`: Movement speed
+   - `max_hitpoints`: Starting health
+   - `gold_value`: Reward for defeating the enemy
+3. Customize appearance and add special abilities
+
+## 🔗 Links
+
+- **GitHub Repository**: [chrisjcc/utdg](https://github.com/chrisjcc/utdg)
+- **Python Environment**: Available as `utdg-gym` package for RL training
+
+  ## 🛠️ Technical Details
+
+- **Engine**: Godot 4.x
+- **Version**: v0.0.3
+- **SDK**: Docker (HTML5 game export)
+
+*For AI agent integration and training, check out the GitHub repository!*
+
+## Contributing
+
+Contributions are welcome! This project follows clean coding practices:
+- Use meaningful variable names
+- Export configuration values for easy tuning
+- Keep systems modular and loosely coupled
+- Document complex behaviors with comments
+
+## License
+
+This project is provided as-is for educational and experimental purposes. Please check the repository for specific license information.
+
+## Acknowledgments
+
+- Built with [Godot Engine](https://godotengine.org/)
+- Uses the Radial Menu addon (included in `addons/radial_menu/`)
+
+---
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
