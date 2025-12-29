@@ -1,0 +1,33 @@
+# ESXi MCP Server - Development with hot-reload
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+
+WORKDIR /app
+
+# Install watchfiles for hot-reload
+ENV UV_COMPILE_BYTECODE=0
+ENV UV_LINK_MODE=copy
+
+# Install dependencies
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+# Copy source
+COPY src ./src
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+# Install watchfiles for development
+RUN uv pip install watchfiles
+
+# Create directories
+RUN mkdir -p /app/logs /app/config
+
+# Environment
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+
+# Run with watchfiles for hot-reload
+CMD ["watchfiles", "--filter", "python", "esxi-mcp-server --transport sse", "src"]
