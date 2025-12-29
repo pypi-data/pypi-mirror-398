@@ -1,0 +1,1444 @@
+import os
+from typing import Callable, Dict, Any, List, Iterable, Optional
+
+from prompt_toolkit.completion import Completer, Completion, CompleteEvent
+from prompt_toolkit.document import Document
+
+from autocoder.common import AutoCoderArgs
+
+# Only need MemoryConfig now
+from autocoder.common.command_completer import MemoryConfig
+from autocoder.common.llms import LLMManager
+from autocoder.common.command_file_manager import CommandManager
+
+# Define command structure in a more structured way if needed,
+# but primarily rely on handlers for logic.
+COMMAND_HIERARCHY = {
+    "/add_files": {
+        "/group": {"/add": {}, "/drop": {}, "/reset": {}, "/set": {}},
+        "/refresh": {},
+    },
+    "/remove_files": {"/all": {}},
+    # Added list/get for clarity
+    "/conf": {
+        "/drop": {},
+        "/export": {},
+        "/import": {},
+        "/get": {},
+        "/global": {},
+        "/set": {},
+    },
+    "/coding": {"/apply": {}, "/next": {}},
+    "/chat": {
+        "/new": {},
+        "/save": {},
+        "/copy": {},
+        "/mcp": {},
+        "/rag": {},
+        "/review": {},
+        "/learn": {},
+        "/no_context": {},
+    },
+    "/mcp": {
+        "/add": {},
+        "/remove": {},
+        "/list": {},
+        "/list_running": {},
+        "/refresh": {},
+        "/info": {},
+    },
+    "/lib": {
+        "/add": {},
+        "/remove": {},
+        "/list": {},
+        "/set-proxy": {},
+        "/refresh": {},
+        "/get": {},
+    },
+    "/models": {
+        "/chat": {},
+        "/add_provider": {},
+        "/remove": {},
+        "/list": {},
+        "/check": {},
+        "/speed": {},
+        "/speed-test": {},
+        "/input_price": {},
+        "/output_price": {},
+    },
+    "/auto": {
+        "/new": {},
+        "/resume": {},
+        "/list": {},
+        "/rename": {},
+        "/command": {},
+        "/async": {
+            "/model": {},
+            "/workflow": {},
+            "/list": {},
+            "/task": {},
+            "/kill": {},
+            "/drop": {},
+            "/effect": {},
+            "/loop": {},
+            "/time": {},
+            "/name": {},
+            "/prefix": {},
+            "/libs": {},
+            "/help": {},
+        },
+        "/queue": {
+            "/add": {},
+            "/list": {},
+            "/remove": {},
+            "/start": {},
+            "/stop": {},
+            "/stats": {},
+            "/clear": {},
+            "/status": {},
+        },
+    },
+    "/shell": {"/chat": {}},
+    "/active_context": {"/list": {}, "/run": {}},
+    "/index": {"/query": {}, "/build": {}, "/export": {}, "/import": {}},
+    "/exclude_files": {"/list": {}, "/drop": {}},
+    "/exclude_dirs": {},  # No specific subcommands shown in V1, treat as simple list
+    "/commit": {},  # No specific subcommands shown in V1
+    "/revert": {},
+    "/ask": {},
+    "/design": {"/svg": {}, "/sd": {}, "/logo": {}},
+    "/summon": {},
+    "/mode": {},  # Simple value completion
+    "/voice_input": {},
+    "/exit": {},
+    "/help": {},
+    "/list_files": {},
+    "/clear": {},
+    "/cls": {},
+    "/debug": {},
+    "/rules": {
+        "/list": {},
+        "/get": {},
+        "/remove": {},
+        "/analyze": {},
+        "/commit": {},
+        "/help": {},
+        "/init": {},
+    },
+    "/workflow": {},
+    "/remote": {
+        "/resources": {},
+        "/sync": {},
+    },
+    "/rags": {
+        "/list": {"/local": {}},
+        "/local": {"/path": {}, "/name": {}, "/description": {}, "/remove": {}},
+    },
+}
+
+
+class CommandCompleterV2(Completer):
+    """
+    A more extensible command completer using a handler-based approach.
+    """
+
+    def __init__(
+        self,
+        commands: List[str],
+        memory_model: MemoryConfig,
+        project_root: Optional[str] = None,
+    ):
+        self.base_commands = commands  # Top-level commands starting with /
+        self.memory_model = memory_model
+
+        # Initialize project_scanner
+        from autocoder.common.project_scanner import ProjectScanner
+
+        self.project_root = project_root or os.getcwd()
+        self.scanner = ProjectScanner(
+            project_root=self.project_root,
+            default_exclude_dirs=[
+                ".git",
+                "node_modules",
+                "dist",
+                "build",
+                "__pycache__",
+                ".auto-coder",
+            ],
+        )
+
+        # Set extra exclude dirs if available
+        if hasattr(memory_model, "get_memory_func"):
+            memory = memory_model.get_memory_func()
+            extra_exclude_dirs = memory.get("exclude_dirs", [])
+            self.scanner.update_extra_exclude_dirs(extra_exclude_dirs)
+
+        # Data stores, initialized and refreshable
+        self.all_file_names: List[str] = []
+        self.all_files: List[str] = []
+        # Store relative paths with ./ prefix
+        self.all_file_rel_paths: List[str] = []
+        self.all_dir_names: List[str] = []
+        # Store directory relative paths with ./ prefix
+        self.all_dir_rel_paths: List[str] = []
+        self.all_files_with_dot: List[str] = []
+        # Use Any for SymbolItem structure from runner
+        self.symbol_list: List[Any] = []
+        self.current_file_names: List[str] = []
+        # Current files with ./ prefix
+        self.current_file_rel_paths: List[str] = []
+        self.config_keys = list(AutoCoderArgs.model_fields.keys())
+        self.group_names: List[str] = []
+        self.lib_names: List[str] = []
+        self.model_names: List[str] = []  # Assuming models can be fetched
+
+        self.refresh_files()  # Initial data load
+        self._update_dynamic_data()  # Load groups, libs etc.
+
+        # Initialize CommandManager and command files cache
+        commands_dir = os.path.join(self.project_root, ".autocodercommands")
+        self.command_manager = CommandManager(commands_dir)
+        self.command_files_cache: List[str] = []
+        self.command_files_cache_timestamp = 0
+        self._update_command_files_cache()
+
+        # Map command prefixes or patterns to handler methods
+        self.command_handlers: Dict[str, Callable] = {
+            "/": self._handle_base_command,
+            "/add_files": self._handle_add_files,
+            "/remove_files": self._handle_remove_files,
+            "/exclude_dirs": self._handle_exclude_dirs,
+            "/exclude_files": self._handle_exclude_files,
+            "/conf": self._handle_conf,
+            "/lib": self._handle_lib,
+            "/mcp": self._handle_mcp,
+            "/models": self._handle_models,
+            "/active_context": self._handle_active_context,
+            "/mode": self._handle_mode,
+            "/chat": self._handle_text_with_symbols,
+            "/coding": self._handle_text_with_symbols,
+            "/auto": self._handle_auto,
+            "/ask": self._handle_text_with_symbols,  # Treat like chat for @/@@
+            "/summon": self._handle_text_with_symbols,
+            "/design": self._handle_design,
+            "/rules": self._handle_rules,
+            "/workflow": self._handle_workflow,
+            "/remote": self._handle_remote,
+            "/rags": self._handle_rags,
+            # Add handlers for other commands if they need specific logic beyond @/@@
+            # Default handler for plain text or commands not explicitly handled
+            "default": self._handle_text_with_symbols,
+        }
+
+    def _update_dynamic_data(self):
+        """Load or update data that changes during runtime (groups, libs, current files)."""
+        self.current_file_names = (
+            self.memory_model.get_memory_func()
+            .get("current_files", {})
+            .get("files", [])
+        )
+
+        # Generate relative paths with ./ prefix for current files
+        self.current_file_rel_paths = []
+        for f in self.current_file_names:
+            rel_path = os.path.relpath(f, self.project_root)
+            if not rel_path.startswith("."):
+                rel_path = f"./{rel_path}"
+            self.current_file_rel_paths.append(rel_path)
+
+        self.group_names = list(
+            self.memory_model.get_memory_func()
+            .get("current_files", {})
+            .get("groups", {})
+            .keys()
+        )
+        self.lib_names = list(
+            self.memory_model.get_memory_func().get("libs", {}).keys()
+        )
+        # In a real scenario, might fetch model names from models_module
+        try:
+            llm_manager = LLMManager()
+            self.model_names = list(llm_manager.get_all_models().keys())
+        except ImportError:
+            self.model_names = []  # Fallback if models module not available
+
+        # Update scanner's extra exclude dirs if changed
+        memory = self.memory_model.get_memory_func()
+        extra_exclude_dirs = memory.get("exclude_dirs", [])
+        self.scanner.update_extra_exclude_dirs(extra_exclude_dirs)
+
+    def refresh_files(self):
+        """Refresh file and symbol lists from the project scanner."""
+        self.all_file_names = self.scanner.get_all_file_names()
+        self.all_files = self.scanner.get_all_file_paths()
+        self.all_dir_names = self.scanner.get_all_dir_paths()
+        self.symbol_list = self.scanner.get_symbol_list()
+
+        # Generate all_files_with_dot (relative paths starting with ./)
+        self.all_files_with_dot = []
+        for f in self.all_files:
+            rel_path = os.path.relpath(f, self.project_root)
+            if not rel_path.startswith("."):
+                rel_path = f"./{rel_path}"
+            self.all_files_with_dot.append(rel_path)
+
+        # Generate relative paths with ./ prefix
+        self.all_file_rel_paths = []
+        for f in self.all_files:
+            rel_path = os.path.relpath(f, self.project_root)
+            if not rel_path.startswith("."):
+                rel_path = f"./{rel_path}"
+            self.all_file_rel_paths.append(rel_path)
+
+        self.all_dir_rel_paths = []
+        for d in self.all_dir_names:
+            rel_path = os.path.relpath(d, self.project_root)
+            if not rel_path.startswith("."):
+                rel_path = f"./{rel_path}"
+            self.all_dir_rel_paths.append(rel_path)
+
+        self._update_dynamic_data()  # Also refresh dynamic data
+        self._update_command_files_cache()  # Also refresh command files cache
+
+    def _update_command_files_cache(self):
+        """更新命令文件缓存"""
+        try:
+            # 检查目录是否存在
+            if not os.path.exists(self.command_manager.commands_dir):
+                self.command_files_cache = []
+                return
+
+            # 获取目录修改时间
+            dir_mtime = os.path.getmtime(self.command_manager.commands_dir)
+
+            # 如果缓存过期或为空，重新加载
+            if (
+                dir_mtime > self.command_files_cache_timestamp
+                or not self.command_files_cache
+            ):
+                result = self.command_manager.list_command_files(recursive=True)
+                if result.success:
+                    self.command_files_cache = result.command_files
+                    self.command_files_cache_timestamp = dir_mtime
+                else:
+                    self.command_files_cache = []
+        except Exception:
+            # 如果出错，清空缓存
+            self.command_files_cache = []
+
+    # --- Main Completion Logic ---
+
+    def get_completions(
+        self, document: Document, complete_event: CompleteEvent
+    ) -> Iterable[Completion]:
+        text = document.text_before_cursor
+        word_before_cursor = document.get_word_before_cursor(WORD=True)
+
+        # Update dynamic data on each completion request
+        self._update_dynamic_data()
+
+        if not text.strip():  # Empty input
+            yield from self._handle_base_command(
+                document, complete_event, word_before_cursor, text
+            )
+            return
+
+        parts = text.split(maxsplit=1)
+        first_word = parts[0]
+
+        # 1. Handle Base Command Completion (e.g., typing "/")
+        if first_word.startswith("/") and len(parts) == 1 and not text.endswith(" "):
+            yield from self._handle_base_command(
+                document, complete_event, word_before_cursor, text
+            )
+
+        # 2. Dispatch to Specific Command Handlers
+        elif first_word in self.command_handlers:
+            handler = self.command_handlers[first_word]
+            yield from handler(document, complete_event, word_before_cursor, text)
+
+        # 3. Handle Special Prefixes within general text or unhandled commands
+        elif word_before_cursor.startswith("@") and not word_before_cursor.startswith(
+            "@@"
+        ):
+            yield from self._handle_at_completion(
+                document, complete_event, word_before_cursor, text
+            )
+        elif word_before_cursor.startswith("@@"):
+            yield from self._handle_double_at_completion(
+                document, complete_event, word_before_cursor, text
+            )
+        elif word_before_cursor.startswith("<"):  # Potential tag completion
+            yield from self._handle_img_tag(
+                document, complete_event, word_before_cursor, text
+            )
+
+        # 4. Default Handler (for plain text or commands without specific handlers)
+        else:
+            handler = self.command_handlers.get("default")
+            if handler:
+                yield from handler(document, complete_event, word_before_cursor, text)
+
+    # --- Handler Methods ---
+
+    def _handle_base_command(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completion for top-level commands starting with '/'."""
+        command_prefix = text.lstrip()  # The word being typed
+        for cmd in self.base_commands:
+            if cmd.startswith(command_prefix):
+                yield Completion(cmd, start_position=-len(command_prefix))
+
+    def _handle_add_files(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /add_files command."""
+        args_text = text[len("/add_files") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Sub-command completion
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/add_files"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+
+        # File/Group completion based on context
+        if args_text.startswith("/group"):
+            group_args_text = args_text[len("/group") :].lstrip()
+            group_parts = group_args_text.split()
+            group_last_part = (
+                group_parts[-1] if group_parts and not text.endswith(" ") else ""
+            )
+
+            # Complete subcommands of /group
+            if not group_args_text or (
+                len(group_parts) == 1 and not text.endswith(" ")
+            ):
+                for group_sub_cmd in COMMAND_HIERARCHY["/add_files"]["/group"]:
+                    if group_sub_cmd.startswith(group_last_part):
+                        yield Completion(
+                            group_sub_cmd, start_position=-len(group_last_part)
+                        )
+
+            # Complete group names for /drop or direct use
+            elif (
+                group_parts
+                and group_parts[0] in ["/drop", "/set"]
+                or len(group_parts) >= 1
+                and not group_parts[0].startswith("/")
+            ):
+                current_word_for_group = group_last_part
+                # Handle comma-separated group names
+                if "," in current_word_for_group:
+                    current_word_for_group = current_word_for_group.split(",")[-1]
+
+                yield from self._complete_items(
+                    current_word_for_group, self.group_names
+                )
+
+        elif args_text.startswith("/refresh"):
+            pass  # No further completion needed
+
+        # Default: File path completion
+        else:
+            yield from self._complete_file_paths(word, text)
+
+    def _handle_remove_files(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /remove_files command."""
+        # 'word' is document.get_word_before_cursor(WORD=True)
+
+        # Complete /all subcommand
+        if "/all".startswith(word):
+            yield Completion("/all", start_position=-len(word))
+
+        # Complete from current file paths with ./ prefix
+        yield from self._complete_items_with_in(word, self.current_file_rel_paths)
+
+        # Also complete from just the base filenames (but with full paths)
+        for rel_path in self.current_file_rel_paths:
+            basename = os.path.basename(rel_path)
+            if word in basename and word not in rel_path:
+                # Show full path when matching by basename
+                yield Completion(rel_path, start_position=-len(word))
+
+    def _handle_exclude_dirs(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /exclude_dirs command."""
+        args_text = text[len("/exclude_dirs") :].lstrip()
+        current_word = args_text.split(",")[-1].strip()
+        yield from self._complete_items(current_word, self.all_dir_names)
+
+    def _handle_exclude_files(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /exclude_files command."""
+        args_text = text[len("/exclude_files") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/exclude_files"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+
+        elif parts and parts[0] == "/drop":
+            current_word = last_part
+            yield from self._complete_items(
+                current_word,
+                self.memory_model.get_memory_func().get("exclude_files", []),
+            )
+        else:
+            # Suggest prefix for regex
+            if not last_part:
+                yield Completion("regex://", start_position=0)
+            elif "regex://".startswith(last_part):
+                yield Completion("regex://", start_position=-len(last_part))
+
+    def _handle_conf(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /conf command."""
+        args_text = text[len("/conf") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+        # Complete subcommands like /drop, /export, /import, /list, /get
+        if not args_text or (
+            len(parts) == 1 and not text.endswith(" ") and ":" not in text
+        ):
+            for sub_cmd in COMMAND_HIERARCHY["/conf"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            # Also complete config keys directly
+            yield from self._complete_config_keys(last_part, add_colon=False)
+
+        # Complete config keys after /drop or /get
+        elif parts and parts[0] in ["/drop", "/get"]:
+            yield from self._complete_config_keys(last_part, add_colon=False)
+
+        # Complete file paths after /export or /import
+        elif parts and parts[0] in ["/export", "/import"]:
+            # Use word here as it's likely the path
+            yield from self._complete_file_paths(word, text)
+
+        # Complete config keys for setting (key:value)
+        elif ":" not in last_part:
+            yield from self._complete_config_keys(last_part, add_colon=True)
+
+        # Complete values after colon
+        elif ":" in args_text:
+            key_part = args_text.split(":", 1)[0].strip()
+            value_part = args_text.split(":", 1)[1].strip() if ":" in args_text else ""
+            yield from self._complete_config_values(key_part, value_part)
+            # Example: Complete enum values or suggest file paths for path-like keys
+            pass  # Placeholder for future value completions
+
+    def _complete_config_values(self, key: str, value: str) -> Iterable[Completion]:
+        """Helper to complete configuration values based on the key."""
+        start_pos = -len(value)
+
+        # Model name completion for keys containing "model"
+        if key.endswith("_model") or key == "model":
+            # Refresh model names if they can change dynamically
+            # self.refresh_model_names()
+            for model_name in self.model_names:
+                if model_name.startswith(value) or value == ":":
+                    yield Completion(model_name, start_position=start_pos)
+            # If a model name matched, we might prioritize these completions.
+            # Consider returning here if model names are the only relevant values.
+
+        # Boolean value completion
+        field_info = AutoCoderArgs.model_fields.get(key)
+        if field_info and field_info.annotation == bool:
+            if "true".startswith(value):
+                yield Completion("true", start_position=start_pos)
+            if "false".startswith(value):
+                yield Completion("false", start_position=start_pos)
+            # If boolean matched, we might prioritize these completions.
+            # Consider returning here if boolean is the only relevant value type.
+
+        # Add more value completions based on key type or name here
+        # e.g., enums, file paths, specific string formats
+
+    def _handle_lib(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /lib command."""
+        args_text = text[len("/lib") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/lib"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+
+        # Complete lib names for add/remove/get
+        elif parts and parts[0] in ["/add", "/remove", "/get"]:
+            yield from self._complete_items(last_part, self.lib_names)
+
+        # Complete proxy URL for set-proxy (less specific, maybe suggest http/https?)
+        elif parts and parts[0] == "/set-proxy":
+            if "http://".startswith(last_part):
+                yield Completion("http://", start_position=-len(last_part))
+            if "https://".startswith(last_part):
+                yield Completion("https://", start_position=-len(last_part))
+
+    def _handle_mcp(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /mcp command."""
+        args_text = text[len("/mcp") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/mcp"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+        # Potentially complete server names after /remove, /refresh, /add if available
+
+    def _handle_models(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /models command."""
+        args_text = text[len("/models") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/models"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+
+            # 如果没有子命令匹配，提示可以直接输入 provider/model_name
+            if not last_part.startswith("/"):
+                yield from self._complete_items(last_part, self.model_names)
+
+        # Complete model names for /remove/speed/input_price/output_price/chat
+        elif parts and parts[0] in [
+            "/remove",
+            "/speed",
+            "/input_price",
+            "/output_price",
+            "/chat",
+        ]:
+            yield from self._complete_items(last_part, self.model_names)
+
+        # Complete parameters for /add_provider (e.g., name=, base_url=)
+        elif parts and parts[0] == "/add_provider":
+            # Suggest common keys if the last part is empty or partially typed
+            common_keys = [
+                "name=",
+                "model_type=",
+                "model_name=",
+                "provider=",
+                "base_url=",
+                "api_key_path=",
+                "description=",
+                "is_reasoning=",
+                "input_price=",
+                "output_price=",
+                "context_window=",
+                "max_output_tokens=",
+            ]
+            yield from self._complete_items(last_part, common_keys)
+
+        elif parts and parts[0] == "/speed-test":
+            if "/long_context".startswith(last_part):
+                yield Completion("/long_context", start_position=-len(last_part))
+
+        # 如果第一个参数不是子命令，则是 provider/model_name 格式，补全模型名称
+        elif parts and not parts[0].startswith("/"):
+            # 用户正在输入 provider/model_name，补全第二个参数时不做提示
+            if len(parts) == 1 and not text.endswith(" "):
+                yield from self._complete_items(last_part, self.model_names)
+
+    def _handle_active_context(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /active_context command."""
+        args_text = text[len("/active_context") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/active_context"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+
+        # Complete action file names for /run
+        elif parts and parts[0] == "/run":
+            # Assuming action files are in 'actions' dir and end with .yml
+            action_dir = "actions"
+            if os.path.isdir(action_dir):
+                try:
+                    action_files = [
+                        f for f in os.listdir(action_dir) if f.endswith(".yml")
+                    ]
+                    yield from self._complete_items(last_part, action_files)
+                except OSError:
+                    pass  # Ignore if cannot list dir
+
+    def _handle_mode(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /mode command."""
+        args_text = text[len("/mode") :].lstrip()
+        modes = ["normal", "auto_detect", "voice_input", "shell"]
+        yield from self._complete_items(args_text, modes)
+
+    def _handle_design(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /design command."""
+        args_text = text[len("/design") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/design"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+
+    def _handle_auto(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /auto command."""
+        args_text = text[len("/auto") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands (only when typing a command starting with /)
+        if not args_text or (
+            len(parts) == 1 and not text.endswith(" ") and last_part.startswith("/")
+        ):
+            for sub_cmd in COMMAND_HIERARCHY["/auto"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            if last_part.startswith("/"):
+                return  # Only return if we're completing a subcommand
+
+        # Handle /command subcommand
+        if args_text.startswith("/command"):
+            command_args_text = args_text[len("/command") :].lstrip()
+            # Update command files cache
+            self._update_command_files_cache()
+
+            # Complete command file paths
+            yield from self._complete_command_files(command_args_text)
+            return
+
+        # Handle /async subcommand
+        if args_text.startswith("/async"):
+            yield from self._handle_auto_async(document, complete_event, word, text)
+            return
+
+        # Handle @ and @@ symbols in other contexts
+        if word.startswith("@") and not word.startswith("@@"):
+            yield from self._handle_at_completion(document, complete_event, word, text)
+        elif word.startswith("@@"):
+            yield from self._handle_double_at_completion(
+                document, complete_event, word, text
+            )
+        elif word.startswith("<"):
+            yield from self._handle_img_tag(document, complete_event, word, text)
+
+    def _handle_auto_async(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /auto /async subcommand."""
+        # Extract text after "/auto /async"
+        args_text = text[len("/auto") :].lstrip()
+        async_args_text = args_text[len("/async") :].lstrip()
+        parts = async_args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete /async subcommands
+        if not async_args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/auto"]["/async"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            return
+
+        # Handle /workflow subcommand - complete workflow names
+        if "/workflow" in parts:
+            workflow_idx = parts.index("/workflow")
+            # If /workflow is the last part or user is typing the workflow name
+            if workflow_idx == len(parts) - 1 or (
+                workflow_idx == len(parts) - 2 and not text.endswith(" ")
+            ):
+                workflow_name_prefix = (
+                    parts[workflow_idx + 1] if workflow_idx < len(parts) - 1 else ""
+                )
+                yield from self._complete_workflow_names(workflow_name_prefix)
+                return
+
+        # Handle /model subcommand - complete model names
+        if "/model" in parts:
+            model_idx = parts.index("/model")
+            # If /model is the last part or user is typing the model name
+            if model_idx == len(parts) - 1 or (
+                model_idx == len(parts) - 2 and not text.endswith(" ")
+            ):
+                model_name_prefix = (
+                    parts[model_idx + 1] if model_idx < len(parts) - 1 else ""
+                )
+                yield from self._complete_items(model_name_prefix, self.model_names)
+                return
+
+        # Handle /name subcommand - no specific completion, just show hint
+        # Handle /time subcommand - suggest time formats
+        if "/time" in parts:
+            time_idx = parts.index("/time")
+            if time_idx == len(parts) - 1 or (
+                time_idx == len(parts) - 2 and not text.endswith(" ")
+            ):
+                time_prefix = parts[time_idx + 1] if time_idx < len(parts) - 1 else ""
+                time_examples = ["5m", "10m", "30m", "1h", "2h", "1d"]
+                for example in time_examples:
+                    if example.startswith(time_prefix):
+                        yield Completion(
+                            example,
+                            start_position=-len(time_prefix),
+                            display=f"{example} (time)",
+                        )
+                return
+
+        # Handle /libs subcommand - complete lib names
+        if "/libs" in parts:
+            libs_idx = parts.index("/libs")
+            if libs_idx == len(parts) - 1 or (
+                libs_idx == len(parts) - 2 and not text.endswith(" ")
+            ):
+                libs_prefix = parts[libs_idx + 1] if libs_idx < len(parts) - 1 else ""
+                yield from self._complete_items(libs_prefix, self.lib_names)
+                return
+
+        # If user is typing a new subcommand (starts with /)
+        if last_part.startswith("/"):
+            for sub_cmd in COMMAND_HIERARCHY["/auto"]["/async"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            return
+
+        # Handle @ and @@ symbols
+        if word.startswith("@") and not word.startswith("@@"):
+            yield from self._handle_at_completion(document, complete_event, word, text)
+        elif word.startswith("@@"):
+            yield from self._handle_double_at_completion(
+                document, complete_event, word, text
+            )
+
+    def _complete_workflow_names(self, prefix: str) -> Iterable[Completion]:
+        """Complete workflow names from .autocoderworkflow directory."""
+        if prefix is None:
+            prefix = ""
+        start_pos = -len(prefix)
+
+        workflow_dir = os.path.join(self.project_root, ".autocoderworkflow")
+        if os.path.isdir(workflow_dir):
+            try:
+                for f in os.listdir(workflow_dir):
+                    if f.endswith(".yaml") or f.endswith(".yml"):
+                        workflow_name = os.path.splitext(f)[0]
+                        if workflow_name.startswith(prefix) or prefix in workflow_name:
+                            yield Completion(
+                                workflow_name,
+                                start_position=start_pos,
+                                display=f"{workflow_name} (workflow)",
+                            )
+            except OSError:
+                pass  # Ignore errors listing directory
+
+    def _handle_text_with_symbols(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles general text input, including @, @@, <img> tags and command-specific subcommands."""
+        # Check for command-specific subcommands first
+        parts = text.split(maxsplit=1)
+        command = parts[0]
+        if command in COMMAND_HIERARCHY:
+            args_text = parts[1] if len(parts) > 1 else ""
+            sub_parts = args_text.split()
+            last_part = sub_parts[-1] if sub_parts and not text.endswith(" ") else ""
+
+            # Complete subcommands if applicable
+            if not args_text or (len(sub_parts) == 1 and not text.endswith(" ")):
+                if isinstance(COMMAND_HIERARCHY[command], dict):
+                    for sub_cmd in COMMAND_HIERARCHY[command]:
+                        if sub_cmd.startswith(last_part):
+                            yield Completion(sub_cmd, start_position=-len(last_part))
+
+        # Now handle @, @@, <img> regardless of command (or if no command)
+        if word.startswith("@") and not word.startswith("@@"):
+            yield from self._handle_at_completion(document, complete_event, word, text)
+        elif word.startswith("@@"):
+            yield from self._handle_double_at_completion(
+                document, complete_event, word, text
+            )
+        elif word.startswith("<"):  # Potential tag completion
+            yield from self._handle_img_tag(document, complete_event, word, text)
+
+    def _handle_workflow(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /workflow command."""
+        args_text = text[len("/workflow") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # If no arguments or first argument, complete workflow names
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            # List workflow files from .autocoderworkflow directory
+            workflow_dir = os.path.join(self.project_root, ".autocoderworkflow")
+            if os.path.isdir(workflow_dir):
+                try:
+                    for f in os.listdir(workflow_dir):
+                        if f.endswith(".yaml") or f.endswith(".yml"):
+                            workflow_name = os.path.splitext(f)[0]
+                            if workflow_name.startswith(last_part):
+                                yield Completion(
+                                    workflow_name,
+                                    start_position=-len(last_part),
+                                    display=f"{workflow_name} (workflow)",
+                                )
+                except OSError:
+                    pass  # Ignore errors listing directory
+
+        # If workflow name is specified, complete query= parameter
+        elif len(parts) >= 1 and not text.endswith(" "):
+            # Complete query= when typing "qu"
+            if "query=".startswith(last_part):
+                yield Completion("query=", start_position=-len(last_part))
+
+        # Support symbol completions within /workflow arguments
+        # Allow @ (file path) and @@ (symbols) just like in chat/coding
+        if word.startswith("@") and not word.startswith("@@"):
+            yield from self._handle_at_completion(document, complete_event, word, text)
+        elif word.startswith("@@"):
+            yield from self._handle_double_at_completion(
+                document, complete_event, word, text
+            )
+
+    def _handle_remote(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /remote command."""
+        args_text = text[len("/remote") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete subcommands
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/remote"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            return
+
+        # Handle /resources subcommand - complete resource types
+        if parts and parts[0] == "/resources":
+            if len(parts) == 1 or (len(parts) == 2 and not text.endswith(" ")):
+                resource_type_prefix = parts[1] if len(parts) > 1 else ""
+                resource_types = ["agents", "workflows", "tools", "commands"]
+                for rt in resource_types:
+                    if rt.startswith(resource_type_prefix):
+                        yield Completion(
+                            rt,
+                            start_position=-len(resource_type_prefix),
+                            display=f"{rt} (resource type)",
+                        )
+            return
+
+        # Handle /sync subcommand - complete options and resource types
+        if parts and parts[0] == "/sync":
+            sync_args = parts[1:]
+            sync_last_part = (
+                sync_args[-1] if sync_args and not text.endswith(" ") else ""
+            )
+
+            # Complete --force or -f options
+            if sync_last_part.startswith("-"):
+                options = ["--force", "-f"]
+                for opt in options:
+                    if opt.startswith(sync_last_part):
+                        yield Completion(
+                            opt,
+                            start_position=-len(sync_last_part),
+                            display=f"{opt} (force overwrite)",
+                        )
+                return
+
+            # Complete resource types (excluding already specified options)
+            resource_types = ["agents", "workflows", "tools", "commands"]
+            for rt in resource_types:
+                if rt.startswith(sync_last_part) and rt not in sync_args:
+                    yield Completion(
+                        rt,
+                        start_position=-len(sync_last_part),
+                        display=f"{rt} (resource type)",
+                    )
+
+            # Also suggest --force if not already specified
+            if "--force" not in sync_args and "-f" not in sync_args:
+                if not sync_last_part or "--force".startswith(sync_last_part):
+                    yield Completion(
+                        "--force",
+                        start_position=-len(sync_last_part) if sync_last_part else 0,
+                        display="--force (force overwrite)",
+                    )
+
+    def _handle_rags(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completions for /rags command."""
+        args_text = text[len("/rags") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # Complete top-level subcommands: /list, /local
+        if not args_text or (len(parts) == 1 and not text.endswith(" ")):
+            for sub_cmd in COMMAND_HIERARCHY["/rags"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            return
+
+        # Handle /list subcommand
+        if parts and parts[0] == "/list":
+            list_args = parts[1:]
+            list_last_part = (
+                list_args[-1] if list_args and not text.endswith(" ") else ""
+            )
+
+            # Complete /local after /list
+            if not list_args or (len(list_args) == 1 and not text.endswith(" ")):
+                if "/local".startswith(list_last_part):
+                    yield Completion("/local", start_position=-len(list_last_part))
+            return
+
+        # Handle /local subcommand
+        if parts and parts[0] == "/local":
+            local_args = parts[1:]
+            local_last_part = (
+                local_args[-1] if local_args and not text.endswith(" ") else ""
+            )
+
+            # Complete /local subcommands: /path, /name, /description, /remove
+            if not local_args or (
+                len(local_args) == 1
+                and not text.endswith(" ")
+                and local_last_part.startswith("/")
+            ):
+                local_sub_cmds = ["/path", "/name", "/description", "/remove"]
+                for sub_cmd in local_sub_cmds:
+                    if sub_cmd.startswith(local_last_part):
+                        yield Completion(sub_cmd, start_position=-len(local_last_part))
+                return
+
+            # After /remove, complete with existing local RAG names
+            if "/remove" in local_args:
+                remove_idx = local_args.index("/remove")
+                if remove_idx == len(local_args) - 1 or (
+                    remove_idx == len(local_args) - 2 and not text.endswith(" ")
+                ):
+                    name_prefix = (
+                        local_args[remove_idx + 1]
+                        if remove_idx < len(local_args) - 1
+                        else ""
+                    )
+                    yield from self._complete_local_rag_names(name_prefix)
+                    return
+
+            # After /path, complete with directory paths
+            if "/path" in local_args:
+                path_idx = local_args.index("/path")
+                if path_idx == len(local_args) - 1 or (
+                    path_idx == len(local_args) - 2 and not text.endswith(" ")
+                ):
+                    path_prefix = (
+                        local_args[path_idx + 1]
+                        if path_idx < len(local_args) - 1
+                        else ""
+                    )
+                    # Complete directory paths
+                    yield from self._complete_directory_paths(path_prefix)
+                    return
+
+            # Suggest next subcommand if user is typing a new one
+            if local_last_part.startswith("/"):
+                local_sub_cmds = ["/path", "/name", "/description", "/remove"]
+                for sub_cmd in local_sub_cmds:
+                    if (
+                        sub_cmd.startswith(local_last_part)
+                        and sub_cmd not in local_args
+                    ):
+                        yield Completion(sub_cmd, start_position=-len(local_last_part))
+
+    def _complete_local_rag_names(self, prefix: str) -> Iterable[Completion]:
+        """Complete local RAG configuration names."""
+        if prefix is None:
+            prefix = ""
+        start_pos = -len(prefix)
+
+        try:
+            from autocoder.common.rag_manager import RAGManager
+            from autocoder.common import AutoCoderArgs
+
+            args = AutoCoderArgs(source_dir=self.project_root)
+            rag_manager = RAGManager(args)
+            local_configs = rag_manager.get_local_configs()
+
+            for config in local_configs:
+                if config.name.startswith(prefix) or prefix in config.name:
+                    yield Completion(
+                        config.name,
+                        start_position=start_pos,
+                        display=f"{config.name} (local RAG)",
+                    )
+        except Exception:
+            pass  # Ignore errors if RAGManager cannot be initialized
+
+    def _complete_directory_paths(self, prefix: str) -> Iterable[Completion]:
+        """Complete directory paths for /rags /local /path."""
+        if prefix is None:
+            prefix = ""
+        start_pos = -len(prefix)
+
+        # Complete from all_dir_rel_paths
+        for rel_path in self.all_dir_rel_paths:
+            if prefix in rel_path or rel_path.startswith(prefix):
+                yield Completion(
+                    rel_path,
+                    start_position=start_pos,
+                    display=f"{rel_path} (dir)",
+                )
+
+        # Also suggest absolute paths if user is typing one
+        if prefix.startswith("/") or prefix.startswith("~"):
+            try:
+                expanded_prefix = os.path.expanduser(prefix)
+                search_dir = (
+                    os.path.dirname(expanded_prefix)
+                    if os.path.dirname(expanded_prefix)
+                    else "/"
+                )
+                basename_prefix = os.path.basename(expanded_prefix)
+
+                if os.path.isdir(search_dir):
+                    for item in os.listdir(search_dir):
+                        if item.startswith(basename_prefix):
+                            full_path = os.path.join(search_dir, item)
+                            if os.path.isdir(full_path):
+                                yield Completion(
+                                    full_path,
+                                    start_position=start_pos,
+                                    display=f"{full_path} (dir)",
+                                )
+            except OSError:
+                pass
+
+    def _handle_rules(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """处理 /rules 命令的补全，支持子命令和规则文件路径。同时支持 @ 和 @@ 符号。"""
+        args_text = text[len("/rules") :].lstrip()
+        parts = args_text.split()
+        last_part = parts[-1] if parts and not text.endswith(" ") else ""
+
+        # 补全子命令
+        if not args_text or (
+            len(parts) == 1 and not text.endswith(" ") and parts[0].startswith("/")
+        ):
+            for sub_cmd in COMMAND_HIERARCHY["/rules"]:
+                if sub_cmd.startswith(last_part):
+                    yield Completion(sub_cmd, start_position=-len(last_part))
+            return
+
+        # 根据子命令补全参数
+        if parts and parts[0] == "/list" or parts[0] == "/get" or parts[0] == "/remove":
+            # 获取规则文件或目录补全，可以是通配符
+            # 这里可以简单地提供文件路径补全
+            yield from self._complete_file_paths(last_part, text)
+            # 也可以添加常用通配符补全
+            common_patterns = ["*.md", "*.rules", "*.txt"]
+            for pattern in common_patterns:
+                if pattern.startswith(last_part):
+                    yield Completion(pattern, start_position=-len(last_part))
+            return
+
+        # 对于 /commit 子命令，补全 /query
+        if parts and parts[0] == "/commit":
+            if "/query".startswith(last_part):
+                yield Completion("/query", start_position=-len(last_part))
+            return
+
+        # 支持 @ 和 @@ 符号的补全，不管当前命令是什么
+        if word.startswith("@") and not word.startswith("@@"):
+            yield from self._handle_at_completion(document, complete_event, word, text)
+        elif word.startswith("@@"):
+            yield from self._handle_double_at_completion(
+                document, complete_event, word, text
+            )
+
+    # --- Symbol/Tag Handlers ---
+
+    def _handle_at_completion(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completion for single '@' (file paths)."""
+        name = word[1:]
+        yield from self._complete_file_paths(name, text, is_symbol=True)
+
+    def _handle_double_at_completion(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completion for double '@@' (symbols)."""
+        name = word[2:]
+        yield from self._complete_symbols(name)
+
+    def _handle_img_tag(
+        self, document: Document, complete_event: CompleteEvent, word: str, text: str
+    ) -> Iterable[Completion]:
+        """Handles completion for <img> tags and paths within them."""
+        image_extensions = (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".bmp",
+            ".tiff",
+            ".tif",
+            ".webp",
+            ".svg",
+            ".ico",
+            ".heic",
+            ".heif",
+            ".raw",
+            ".cr2",
+            ".nef",
+            ".arw",
+            ".dng",
+            ".orf",
+            ".rw2",
+            ".pef",
+            ".srw",
+            ".eps",
+            ".ai",
+            ".psd",
+            ".xcf",
+        )
+
+        # Basic tag completion
+        if "<img".startswith(word):
+            yield Completion("<img>", start_position=-len(word))
+        if "</img".startswith(word):
+            yield Completion("</img>", start_position=-len(word))
+
+        # Path completion inside <img> tag
+        # Find the last opening <img> tag that isn't closed yet
+        last_open_img = text.rfind("<img>")
+        last_close_img = text.rfind("</img>")
+
+        if last_open_img != -1 and (
+            last_close_img == -1 or last_close_img < last_open_img
+        ):
+            path_prefix = text[last_open_img + len("<img>") :]
+            current_path_word = document.get_word_before_cursor(
+                WORD=True
+            )  # Path part being typed
+
+            # Only complete if cursor is within the tag content
+            if document.cursor_position > last_open_img + len("<img>"):
+
+                search_dir = (
+                    os.path.dirname(path_prefix)
+                    if os.path.dirname(path_prefix)
+                    else "."
+                )
+                file_basename = os.path.basename(current_path_word)
+
+                try:
+                    if os.path.isdir(search_dir):
+                        for item in os.listdir(search_dir):
+                            full_path = os.path.join(search_dir, item)
+                            # Suggest directories or image files matching the prefix
+                            if item.startswith(file_basename):
+                                if os.path.isdir(full_path):
+                                    relative_path = os.path.relpath(
+                                        full_path, "."
+                                    )  # Use relative path
+                                    yield Completion(
+                                        relative_path + os.sep,
+                                        start_position=-len(current_path_word),
+                                        display=item + "/",
+                                    )
+                                elif item.lower().endswith(image_extensions):
+                                    relative_path = os.path.relpath(
+                                        full_path, "."
+                                    )  # Use relative path
+                                    yield Completion(
+                                        relative_path,
+                                        start_position=-len(current_path_word),
+                                        display=item,
+                                    )
+                except OSError:
+                    pass  # Ignore errors listing directories
+
+    # --- Helper Methods ---
+
+    def _complete_command_files(self, word: str) -> Iterable[Completion]:
+        """Complete command files from .autocodercommands directory."""
+        if word is None:
+            word = ""
+
+        start_pos = -len(word)
+
+        # Complete files that start with the word
+        for command_file in self.command_files_cache:
+            if command_file.startswith(word):
+                display_name = command_file
+                # Add visual indicator for command files
+                if command_file.endswith(".md"):
+                    display_name = f"{command_file} (command)"
+                yield Completion(
+                    command_file, start_position=start_pos, display=display_name
+                )
+                continue
+
+        # If no exact prefix matches, try partial matches
+        if word:
+            for command_file in self.command_files_cache:
+                # Match by basename
+                basename = os.path.basename(command_file)
+                if word in basename and not command_file.startswith(word):
+                    display_name = f"{command_file} (command)"
+                    yield Completion(
+                        command_file, start_position=start_pos, display=display_name
+                    )
+
+    def _complete_items_with_in(
+        self, word: str, items: Iterable[str]
+    ) -> Iterable[Completion]:
+        """Generic helper to complete a word from a list of items."""
+        for item in items:
+            if item and word in item:
+                yield Completion(item, start_position=-len(word))
+
+    def _complete_items(self, word: str, items: Iterable[str]) -> Iterable[Completion]:
+        """Generic helper to complete a word from a list of items."""
+        if word is None:
+            word = ""
+        for item in items:
+            if item and item.startswith(word):
+                yield Completion(item, start_position=-len(word))
+
+    def _complete_config_keys(
+        self, word: str, add_colon: bool = False
+    ) -> Iterable[Completion]:
+        """Helper to complete configuration keys."""
+        suffix = ":" if add_colon else ""
+        for key in self.config_keys:
+            if key.startswith(word):
+                yield Completion(key + suffix, start_position=-len(word))
+
+    def _complete_file_paths(
+        self, name: str, text: str, is_symbol: bool = False
+    ) -> Iterable[Completion]:
+        """Helper to complete file paths (@ completion or general path)."""
+        if name is None:
+            name = ""
+        start_pos = -len(name)
+
+        # Prioritize active files if triggered by @
+        if is_symbol:
+            for rel_path in self.current_file_rel_paths:
+                if name in rel_path or name in os.path.basename(rel_path):
+                    yield Completion(
+                        rel_path,
+                        start_position=start_pos,
+                        display=f"{rel_path} (active)",
+                    )
+
+        # General file path completion (relative paths with dot)
+        if name.startswith("."):
+            yield from self._complete_items(name, self.all_files_with_dot)
+            # Also complete directories starting with dot
+            for rel_path in self.all_dir_rel_paths:
+                if rel_path.startswith(name):
+                    yield Completion(
+                        rel_path + os.sep,
+                        start_position=start_pos,
+                        display=f"{rel_path}/ (dir)",
+                    )
+            return  # Don't mix with other completions if starting with .
+
+        # Complete directory names first (higher priority)
+        for rel_path in self.all_dir_rel_paths:
+            dir_basename = os.path.basename(rel_path)
+
+            # Match by basename or full path
+            if name and (name in dir_basename or name in rel_path):
+                # Always complete with full relative path
+                yield Completion(
+                    rel_path + os.sep,
+                    start_position=start_pos,
+                    display=f"{rel_path}/ (dir)",
+                )
+            elif not name:
+                # Show all directories when no filter
+                yield Completion(
+                    rel_path + os.sep,
+                    start_position=start_pos,
+                    display=f"{rel_path}/ (dir)",
+                )
+
+        # Complete file names with full paths
+        for rel_path in self.all_file_rel_paths:
+            file_basename = os.path.basename(rel_path)
+
+            # Match by basename or full path
+            if name and (name in file_basename or name in rel_path):
+                # Skip if already shown as active
+                if rel_path not in self.current_file_rel_paths:
+                    yield Completion(
+                        rel_path, start_position=start_pos, display=rel_path
+                    )
+
+    def _complete_symbols(self, name: str) -> Iterable[Completion]:
+        """Helper to complete symbols (@@ completion)."""
+        if name is None:
+            name = ""
+        start_pos = -len(name)
+        for symbol in self.symbol_list:
+            # Assuming symbol has attributes symbol_name, file_name, symbol_type
+            if name in symbol.symbol_name:
+                file_name = symbol.file_name
+                display_name = self._get_display_path(file_name)
+                display_text = (
+                    f"{symbol.symbol_name} ({display_name}/{symbol.symbol_type})"
+                )
+                completion_text = (
+                    f"{symbol.symbol_name} ({display_name}/{symbol.symbol_type})"
+                )
+                yield Completion(
+                    completion_text, start_position=start_pos, display=display_text
+                )
+
+    def _get_display_path(self, file_path: str, max_parts: int = 3) -> str:
+        """Helper to create a display path. Now returns full relative path."""
+        try:
+            # Always return full relative path for clarity
+            rel_path = os.path.relpath(file_path, self.project_root)
+            return rel_path
+        # Handle cases where paths are not relative (e.g., different drives on Windows)
+        except ValueError:
+            return file_path
