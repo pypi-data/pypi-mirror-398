@@ -1,0 +1,150 @@
+Metadata-Version: 2.4
+Name: owl-contracts
+Version: 0.1.1
+Summary: A Python library to retrieve smart contract function metadata and data from EVM-compatible blockchains
+Author: Saurabh Kumar
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/owl
+Project-URL: Documentation, https://github.com/yourusername/owl#readme
+Project-URL: Repository, https://github.com/yourusername/owl
+Keywords: ethereum,smart-contracts,web3,blockchain,abi
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: web3>=6.0.0
+Requires-Dist: requests>=2.28.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+
+# 🦉 Owl - Smart Contract Data Retrieval
+
+A Python library to easily retrieve function metadata and data from any smart contract on EVM-compatible blockchains.
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+Or install with dependencies:
+
+```bash
+pip install web3 requests
+```
+
+## Quick Start
+
+```python
+import owl
+
+# Configure the library
+owl.configure(
+    etherscan_api_key="YOUR_ETHERSCAN_API_KEY",
+    rpc_url="https://eth.public-rpc.com",  # or your preferred RPC
+    chain="ethereum"  # ethereum, polygon, bsc, arbitrum, etc.
+)
+
+# Get all functions from a contract (USDT example)
+functions = owl.get_functions("0xdAC17F958D2ee523a2206206994597C13D831ec7")
+for fn in functions:
+    print(f"📌 {fn['name']}")
+    print(f"   Inputs: {fn['inputs']}")
+    print(f"   Outputs: {fn['outputs']}")
+
+# Call a function and get data
+result = owl.get_data(
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "totalSupply",
+    []
+)
+print(f"Total Supply: {result['result']}")
+```
+
+## Environment Variables
+
+Instead of calling `configure()`, you can set these environment variables:
+
+```bash
+export OWL_ETHERSCAN_API_KEY="your_key"
+export OWL_RPC_URL="https://eth.public-rpc.com"
+export OWL_CHAIN="ethereum"
+```
+
+## API Reference
+
+### `owl.get_functions(contract_address, abi=None, include_events=False, only_view=False)`
+
+Get all functions from a smart contract.
+
+**Parameters:**
+- `contract_address` (str): The contract address
+- `abi` (list, optional): Provide custom ABI instead of fetching
+- `include_events` (bool): Include contract events (default: False)
+- `only_view` (bool): Only return view/pure functions (default: False)
+
+**Returns:** List of function definitions with signatures, inputs, and outputs.
+
+---
+
+### `owl.get_data(contract_address, function_name, inputs=None, start_date=None, end_date=None)`
+
+Call a contract function and get the result.
+
+**Parameters:**
+- `contract_address` (str): The contract address
+- `function_name` (str): Name of the function to call
+- `inputs` (list, optional): Input arguments for the function
+- `start_date` (str, optional): Start date for historical data ("YYYY-MM-DD")
+- `end_date` (str, optional): End date for historical data ("YYYY-MM-DD")
+
+**Returns:** 
+- Without date range: `{"result": ..., "block": 12345, "timestamp": "..."}`
+- With date range: List of results at sampled blocks
+
+---
+
+## Supported Chains
+
+| Chain     | Explorer API |
+|-----------|--------------|
+| Ethereum  | Etherscan    |
+| Polygon   | Polygonscan  |
+| BSC       | BscScan      |
+| Arbitrum  | Arbiscan     |
+| Optimism  | OP Etherscan |
+| Avalanche | Snowtrace    |
+| Fantom    | FTMScan      |
+| Base      | BaseScan     |
+
+## Error Handling
+
+```python
+from owl.exceptions import (
+    OwlConfigurationError,    # Missing API key or RPC
+    ContractNotFoundError,    # Invalid contract address
+    ABINotFoundError,         # Contract not verified
+    FunctionNotFoundError,    # Function doesn't exist
+    InvalidInputError,        # Wrong input parameters
+    HistoricalDataUnavailableError,  # Archive node required
+    DateRangeError,           # Invalid date format
+)
+
+try:
+    result = owl.get_data("0x...", "unknownFunc", [])
+except FunctionNotFoundError as e:
+    print(f"Function not found! Available: {e.available_functions}")
+```
+
+## License
+
+MIT
