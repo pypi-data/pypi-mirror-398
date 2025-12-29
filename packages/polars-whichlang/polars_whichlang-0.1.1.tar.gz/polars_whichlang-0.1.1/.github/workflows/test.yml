@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  linux-test-only:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [x86_64]
+        python-version: [3.13]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: PyO3/maturin-action@v1
+        with:
+          args: --release --out dist
+          sccache: true
+          rust-toolchain: nightly
+      - name: pytest
+        shell: bash
+        run: |
+            set -e
+            python3 -m venv .venv
+            source .venv/bin/activate
+            pip install polars-whichlang --find-links dist --force-reinstall
+            pip install pytest
+            pytest
