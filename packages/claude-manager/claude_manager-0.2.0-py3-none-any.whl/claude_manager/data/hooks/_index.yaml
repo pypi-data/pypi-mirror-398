@@ -1,0 +1,61 @@
+version: "1.0.0"
+
+# Hooks globaux - configuration à ajouter dans ~/.claude/settings.json
+global:
+  - name: add-date
+    file: global/add-date.sh
+    version: "1.0.0"
+    description: "Ajoute la date actuelle au contexte de chaque prompt"
+    event: UserPromptSubmit
+    matcher: null
+
+  - name: security-check
+    file: global/security-check.sh
+    version: "1.0.0"
+    description: "Bloque l'écriture de secrets (GitHub tokens, etc.)"
+    event: PreToolUse
+    matcher: "Edit|Write"
+
+  - name: auto-format
+    file: global/auto-format.sh
+    version: "1.0.0"
+    description: "Formate automatiquement les fichiers frontend avec Prettier"
+    event: PostToolUse
+    matcher: "Edit|Write"
+
+  - name: tdd-reminder
+    file: global/tdd-reminder.sh
+    version: "1.0.0"
+    description: "Rappel TDD après modification de fichiers non-test"
+    event: PostToolUse
+    matcher: "Edit|Write"
+
+# Hooks optionnels - disponibles mais non installés par défaut
+optional:
+  - name: log-event
+    file: global/log-event.sh
+    version: "1.0.0"
+    description: "Log les événements Task, Bash, Edit, Write (debug)"
+    event: PreToolUse
+    matcher: "Task|Bash|Edit|Write"
+    tags: [debug, logging]
+
+# Configuration settings.json générée (sans hooks optionnels)
+settings_template:
+  hooks:
+    UserPromptSubmit:
+      - hooks:
+          - type: command
+            command: "bash ~/.claude/hooks/add-date.sh"
+    PreToolUse:
+      - matcher: "Edit|Write"
+        hooks:
+          - type: command
+            command: "bash ~/.claude/hooks/security-check.sh"
+    PostToolUse:
+      - matcher: "Edit|Write"
+        hooks:
+          - type: command
+            command: "bash ~/.claude/hooks/auto-format.sh"
+          - type: command
+            command: "bash ~/.claude/hooks/tdd-reminder.sh"

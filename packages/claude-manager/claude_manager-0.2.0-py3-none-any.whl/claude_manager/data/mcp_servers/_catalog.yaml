@@ -1,0 +1,136 @@
+version: "1.0.0"
+
+# Serveurs MCP globaux - toujours configurés dans ~/.claude/
+global:
+  - id: filesystem
+    name: "Filesystem MCP Server"
+    description: "Accès fichiers local pour Claude"
+    source:
+      type: npm
+      package: "@anthropic/mcp-server-filesystem"
+    config_template:
+      command: npx
+      args: ["-y", "@anthropic/mcp-server-filesystem"]
+    tags: [files, local]
+
+# Serveurs MCP projet - configurés dans ./.claude/ selon contexte
+project:
+  - id: github
+    name: "GitHub MCP Server"
+    description: "Intégration GitHub (issues, PRs, repos)"
+    source:
+      type: npm
+      package: "@anthropic/mcp-server-github"
+    config_template:
+      command: npx
+      args: ["-y", "@anthropic/mcp-server-github"]
+      env:
+        GITHUB_TOKEN: "${env:GITHUB_TOKEN}"
+    tags: [github, git, vcs]
+
+  - id: gitlab
+    name: "GitLab MCP Server"
+    description: "Intégration GitLab (issues, MRs, repos)"
+    source:
+      type: npm
+      package: "@anthropic/mcp-server-gitlab"
+    config_template:
+      command: npx
+      args: ["-y", "@anthropic/mcp-server-gitlab"]
+      env:
+        GITLAB_TOKEN: "${env:GITLAB_TOKEN}"
+        GITLAB_URL: "${env:GITLAB_URL}"
+    tags: [gitlab, git, vcs]
+
+  - id: postgres
+    name: "PostgreSQL MCP Server"
+    description: "Connexion base PostgreSQL"
+    source:
+      type: github
+      repo: "anthropics/mcp-server-postgres"
+    config_template:
+      command: python
+      args: ["-m", "mcp_server_postgres"]
+      env:
+        DATABASE_URL: "${prompt:Database URL}"
+    tags: [database, postgresql, sql]
+
+  - id: sqlite
+    name: "SQLite MCP Server"
+    description: "Connexion base SQLite"
+    source:
+      type: npm
+      package: "@anthropic/mcp-server-sqlite"
+    config_template:
+      command: npx
+      args: ["-y", "@anthropic/mcp-server-sqlite"]
+    tags: [database, sqlite, sql]
+
+  - id: aws-docs
+    name: "AWS Documentation Server"
+    description: "Accès documentation AWS"
+    source:
+      type: uvx
+      package: "awslabs.aws-documentation-mcp-server@latest"
+    config_template:
+      command: uvx
+      args: ["awslabs.aws-documentation-mcp-server@latest"]
+    tags: [aws, documentation, cloud]
+
+  - id: docker
+    name: "Docker MCP Server"
+    description: "Gestion containers Docker"
+    source:
+      type: npm
+      package: "@anthropic/mcp-server-docker"
+    config_template:
+      command: npx
+      args: ["-y", "@anthropic/mcp-server-docker"]
+    tags: [docker, container, devops]
+
+  - id: mssql
+    name: "MSSQL MCP Server"
+    description: "Connexion Microsoft SQL Server (schemas, queries)"
+    source:
+      type: github
+      repo: "amornpan/py-mcp-mssql"
+    config_template:
+      command: python
+      args: ["-m", "mcp_server_mssql"]
+      env:
+        MSSQL_SERVER: "${prompt:SQL Server hostname}"
+        MSSQL_DATABASE: "${prompt:Database name}"
+        MSSQL_USER: "${prompt:Username}"
+        MSSQL_PASSWORD: "${prompt:Password}"
+        MSSQL_DRIVER: "ODBC Driver 17 for SQL Server"
+    tags: [database, mssql, sqlserver, sql]
+
+  - id: prometheus
+    name: "Prometheus MCP Server"
+    description: "Requêtes PromQL et analyse de métriques Prometheus"
+    source:
+      type: docker
+      image: "ghcr.io/pab1it0/prometheus-mcp-server:latest"
+    config_template:
+      command: docker
+      args: ["run", "-i", "--rm", "-e", "PROMETHEUS_URL", "ghcr.io/pab1it0/prometheus-mcp-server:latest"]
+      env:
+        PROMETHEUS_URL: "${prompt:Prometheus server URL}"
+    tags: [prometheus, monitoring, devops, metrics]
+
+# Règles de détection pour MCP projet
+detection_rules:
+  - detector: ".github"
+    servers: [github]
+
+  - detector: ".gitlab-ci.yml || .git/config contains gitlab"
+    servers: [gitlab]
+
+  - detector: "*.sql || flyway || liquibase || spring.datasource"
+    servers: [postgres]
+
+  - detector: "*.db || sqlite"
+    servers: [sqlite]
+
+  - detector: "Dockerfile || docker-compose.yml"
+    servers: [docker]
