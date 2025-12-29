@@ -1,0 +1,142 @@
+name: Build Linux binary (manylinux)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Build with manylinux (x86_64)
+        run: |
+          set -e
+
+          IMAGE=quay.io/pypa/manylinux2014_x86_64
+          OUT=ssh-para-linux-x86_64
+
+          docker run --rm \
+            -v "$PWD:/src" \
+            $IMAGE \
+            bash -c "
+              set -e
+              cd /opt/_internal
+              tar xf static-libs-for-embedding-only.tar.xz
+
+              cd /src
+
+              # Choose a specific Python version available in manylinux
+              PYBIN=/opt/python/cp311-cp311/bin/python
+
+              \$PYBIN -m pip install --upgrade pip
+              \$PYBIN -m pip install nuitka ssh-para
+
+              \$PYBIN -m nuitka --onefile --follow-imports --assume-yes-for-downloads --output-filename=$OUT --main=ssh_para/ssh_para.py
+            "
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ssh-para-linux-*
+
+  build-linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Build with manylinux (aarch64)
+        run: |
+          set -e
+
+          IMAGE=quay.io/pypa/manylinux2014_aarch64
+          OUT=ssh-para-linux-aarch64
+
+          docker run --rm \
+            -v "$PWD:/src" \
+            $IMAGE \
+            bash -c "
+              set -e
+              cd /opt/_internal
+              tar xf static-libs-for-embedding-only.tar.xz
+
+              cd /src
+
+              # Choose a specific Python version available in manylinux
+              PYBIN=/opt/python/cp311-cp311/bin/python
+
+              \$PYBIN -m pip install --upgrade pip
+              \$PYBIN -m pip install nuitka ssh-para
+
+              \$PYBIN -m nuitka --onefile --follow-imports --assume-yes-for-downloads --output-filename=$OUT --main=ssh_para/ssh_para.py
+            "
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ssh-para-linux-*
+
+  build-macos-x86_64:
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build with Nuitka
+        run: |
+          set -e
+
+          OUT=ssh-para-macos-x86-64
+
+          python -m pip install --upgrade pip
+          python -m pip install nuitka ssh-para
+
+          python -m nuitka --onefile --follow-imports --assume-yes-for-downloads --output-filename=$OUT --main=ssh_para/ssh_para.py
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ssh-para-macos-*
+
+  build-macos-arm64:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build with Nuitka
+        run: |
+          set -e
+
+          OUT=ssh-para-macos-arm64
+
+          python -m pip install --upgrade pip
+          python -m pip install nuitka ssh-para
+
+          python -m nuitka --onefile --follow-imports --assume-yes-for-downloads --output-filename=$OUT --main=ssh_para/ssh_para.py
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ssh-para-macos-*
+
