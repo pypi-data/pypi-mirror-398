@@ -1,0 +1,91 @@
+Metadata-Version: 2.4
+Name: dbl-boundary-service
+Version: 0.2.1
+Summary: Reference service exposing a governed LLM boundary via DBL and KL
+Author: Lukas Pfister
+License: MIT
+Keywords: dbl,kl,llm,governance,boundary,deterministic
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn>=0.30.0
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: dbl-main>=0.3.0
+Requires-Dist: dbl-core>=0.3.0
+Requires-Dist: dbl-policy>=0.1.0
+Requires-Dist: kl-kernel-logic==0.5.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Dynamic: license-file
+
+# DBL Boundary Service Demo
+
+Reference UI and service for deterministic boundary evaluation. Each request produces explicit DECISION events in V (append-only). Observations are non-normative.
+
+## Quick Start
+
+```bash
+pip install dbl-boundary-service
+dbl-boundary
+```
+
+Open http://127.0.0.1:8787
+
+## What it does
+
+Flow:
+
+Input -> Boundary policies -> DECISION -> LLM call -> Observations
+
+DECISION is produced before any LLM call and is the only normative effect in V.
+
+## Demo presets
+
+| Preset | Purpose |
+|--------|---------|
+| minimal | no policies (testing only) |
+| basic_safety | light content safety |
+| standard | content safety and rate limiting |
+| enterprise | strict content safety and rate limiting |
+
+## Dry run (no LLM)
+
+Use "Dry run" to exercise the full boundary flow without calling the LLM.
+
+## Observable outputs
+
+The UI exposes the following outputs for each run:
+
+- Outcome and DECISION events
+- Request context and Psi definition
+- LLM payload and LLM result (when executed)
+- Observations (request id, timestamps, trace id)
+
+Observations and timing metrics are non-normative and MUST NOT affect decisions.
+
+![DBL Boundary Service UI](screenshots/dbl-boundary-ui-example.png)
+
+## API usage
+
+```bash
+curl -X POST http://127.0.0.1:8787/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Hello, how are you?",
+    "pipeline_mode": "standard",
+    "dry_run": true
+  }'
+```
+
+## Learn more
+
+Deterministic Boundary Layer: https://github.com/lukaspfisterch/deterministic-boundary-layer
+
+This repo is the reference UI/service. The theory and ecosystem map live there.
