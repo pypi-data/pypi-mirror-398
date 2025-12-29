@@ -1,0 +1,201 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polyinfer"
+version = "0.2.0"
+description = "Unified ML inference across multiple backends: ONNX Runtime, OpenVINO, TensorRT, IREE"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "Athrva Pandhare", email = "athrva98@gmail.com" }
+]
+keywords = [
+    "machine-learning",
+    "inference",
+    "onnx",
+    "tensorrt",
+    "openvino",
+    "onnxruntime",
+    "deep-learning",
+    "vulkan",
+    "iree",
+    "mlir",
+    "gpu",
+    "amd",
+    "nvidia",
+    "intel",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies (torch/torchvision in extras to avoid CUDA conflicts)
+dependencies = [
+    "numpy>=1.24",
+    "onnx>=1.14",
+]
+
+[project.optional-dependencies]
+# === Individual Backends ===
+onnxruntime = ["onnxruntime>=1.17"]
+onnxruntime-gpu = ["onnxruntime-gpu>=1.17"]
+onnxruntime-directml = ["onnxruntime-directml>=1.17"]
+openvino = ["openvino>=2024.0"]
+iree = ["iree-base-compiler[onnx]>=3.0", "iree-base-runtime>=3.0"]
+
+# TensorRT native backend (install separately to avoid CUDA conflicts)
+# IMPORTANT: tensorrt-cu12-libs depends on cuda-toolkit which overwrites CUDA libraries
+# and breaks PyTorch. After installing TensorRT, reinstall torch:
+#   pip install tensorrt-cu12 cuda-python
+#   pip install torch torchvision --force-reinstall
+tensorrt = [
+    "tensorrt-cu12>=10.0",
+    "cuda-python>=12.0",
+]
+
+# === Device-focused bundles ===
+# CPU-optimized (Intel/AMD/ARM)
+cpu = [
+    "onnxruntime>=1.17",
+    "openvino>=2024.0",
+    "iree-base-compiler>=3.0",
+    "iree-base-runtime>=3.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# NVIDIA GPU - CUDA inference with TensorRT EP support
+# tensorrt-cu12-libs provides libnvinfer for ONNX Runtime TensorRT EP
+# Note: This is the library-only package, NOT tensorrt-cu12 which pulls cuda-python
+nvidia = [
+    "onnxruntime-gpu>=1.17",
+    "tensorrt-cu12-libs>=10.0",  # TensorRT libs only (no cuda-python conflict)
+    "iree-base-compiler>=3.0",
+    "iree-base-runtime>=3.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# AMD GPU (Windows DirectML)
+amd = [
+    "onnxruntime-directml>=1.17",
+    "iree-base-compiler>=3.0",
+    "iree-base-runtime>=3.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# Intel (CPU + integrated GPU + NPU)
+intel = [
+    "openvino>=2024.0",
+    "iree-base-compiler>=3.0",
+    "iree-base-runtime>=3.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# Vulkan (cross-platform GPU via IREE - AMD, NVIDIA, Intel, ARM, Qualcomm)
+vulkan = [
+    "iree-base-compiler[onnx]>=3.0",
+    "iree-base-runtime>=3.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# === Tier bundles ===
+# Tier 1: Most users - easy install, broad compatibility
+tier1 = [
+    "onnxruntime>=1.17",
+    "openvino>=2024.0",
+]
+
+# Tier 2: Power users - NVIDIA GPU with CUDA/TensorRT
+tier2 = [
+    "onnxruntime-gpu>=1.17",
+]
+
+# === ALL BACKENDS (except native TensorRT) ===
+# Native TensorRT excluded to avoid cuda-toolkit conflicts with PyTorch.
+# For native TensorRT, install separately: pip install tensorrt-cu12 cuda-python
+all = [
+    "onnxruntime>=1.17",
+    "openvino>=2024.0",
+    "onnxruntime-gpu>=1.17",
+    "iree-base-compiler>=3.0",
+    "iree-base-runtime>=3.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+# === Example dependencies ===
+# Install with: pip install polyinfer[examples]
+# Note: torch is already a core dependency
+examples = [
+    "pillow>=9.0",
+    "opencv-python>=4.8",
+    "transformers>=4.30",
+    "diffusers>=0.25",
+    "segment-anything",
+    "optimum[onnxruntime]>=1.16",
+    "onnxscript>=0.1",
+    "ultralytics>=8.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.0",
+    "pytest-benchmark>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    # Include onnxruntime so basic tests can run
+    "onnxruntime>=1.17",
+]
+
+[project.urls]
+Homepage = "https://github.com/athrva98/polyinfer"
+Documentation = "https://github.com/athrva98/polyinfer#readme"
+Repository = "https://github.com/athrva98/polyinfer"
+Issues = "https://github.com/athrva98/polyinfer/issues"
+
+[project.scripts]
+polyinfer = "polyinfer.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/polyinfer"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line too long - handled by formatter
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
