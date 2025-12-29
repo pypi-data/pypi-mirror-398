@@ -1,0 +1,314 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "iris-pgwire"
+dynamic = ["version"]
+description = "PostgreSQL Wire Protocol Server for InterSystems IRIS - Connect BI tools, Python frameworks, and PostgreSQL clients to IRIS databases"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+authors = [
+    {name = "Thomas Dyar", email = "thomas.dyar@intersystems.com"},
+]
+maintainers = [
+    {name = "Thomas Dyar", email = "thomas.dyar@intersystems.com"},
+]
+keywords = [
+    "intersystems",
+    "iris",
+    "postgresql",
+    "postgres",
+    "wire-protocol",
+    "database",
+    "sql",
+    "pgvector",
+    "vector-database",
+    "rag",
+    "llm",
+    "bi-tools",
+    "sqlalchemy",
+    "async",
+    "fastapi",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Database",
+    "Topic :: Database :: Database Engines/Servers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Networking",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",
+    "Typing :: Typed",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "structlog>=23.0.0",
+    "cryptography>=41.0.0",
+    "intersystems-irispython>=5.1.2",
+    "sqlparse>=0.4.0",
+    # NOTE: psycopg2-binary kept for legacy compatibility, but psycopg3 recommended for production
+    # See specs/013-vector-query-optimizer/CLIENT_COMPATIBILITY.md for client recommendations
+    "psycopg2-binary>=2.9.10",
+    # DBAPI backend support (feature 018-add-dbapi-option)
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-instrumentation-asyncio>=0.41b0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-cov>=4.1.0",
+    # psycopg3 (NOT psycopg2) - uses server-side parameter binding for vector optimization
+    # Required for E2E tests with large vectors (1024+ dimensions)
+    # [binary] includes C extension + libpq, no system dependencies needed
+    "psycopg[binary]>=3.1.0",
+    "docker>=6.0.0",
+    # Runtime dependencies needed when importing iris_pgwire modules in tests
+    "sqlparse>=0.4.0",
+    # Kerberos test realm isolation (constitutional TDD requirement - feature 024)
+    "k5test>=0.10.3",
+]
+dev = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    # NOTE: iris-devtools is an internal development tool.
+    # For local development, install separately if needed:
+    #   pip install -e /path/to/iris-devtools
+]
+iris = [
+    # IRIS embedded Python (when available)
+    # "intersystems-iris>=3.6.0",
+]
+kerberos = [
+    # Kerberos GSSAPI authentication (optional - not implemented in wire protocol yet)
+    # Install with: pip install iris-pgwire[kerberos]
+    "gssapi>=1.8.0",
+]
+
+[project.scripts]
+iris-pgwire = "iris_pgwire.server:main"
+
+[project.urls]
+Homepage = "https://github.com/intersystems-community/iris-pgwire"
+Documentation = "https://github.com/intersystems-community/iris-pgwire#readme"
+Repository = "https://github.com/intersystems-community/iris-pgwire"
+Issues = "https://github.com/intersystems-community/iris-pgwire/issues"
+Changelog = "https://github.com/intersystems-community/iris-pgwire/releases"
+
+[tool.hatch.version]
+path = "src/iris_pgwire/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/iris_pgwire"]
+
+[tool.hatch.build.targets.sdist]
+# Include only essential files in source distribution
+include = [
+    "/src",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/pyproject.toml",
+    "/examples/*.py",
+    "/examples/BI_TOOLS_SETUP.md",
+    "/docs/TRANSLATION_API.md",
+    "/docs/VECTOR_PARAMETER_BINDING.md",
+    "/docs/DUAL_PATH_ARCHITECTURE.md",
+    "/docs/HNSW_FINDINGS_*.md",
+]
+
+# Explicitly exclude development files
+exclude = [
+    "/.claude",
+    "/.specify",
+    "/.git",
+    "/.github",
+    "/tests",
+    "/benchmarks",
+    "/deployment",
+    "/docker",
+    "/specs",
+    "*.cpf",
+    "*.sh",
+    "/CLAUDE.md",
+    "/PROGRESS.md",
+    "/STATUS.md",
+    "/TODO.md",
+    "/TESTING.md",
+    "/docker-compose*.yml",
+    "/Dockerfile*",
+    "/merge.cpf",
+    "/uv.lock",
+    "/iris_pgwire.json",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "B904",  # exception chaining - good practice but not critical for existing code
+    "E722",  # bare except - sometimes intentional for cleanup handlers
+    "B023",  # function definition does not bind loop variable - common in regex replacement functions
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = [
+    "E402",  # Module level import not at top (common in test setup)
+    "E712",  # Comparison to True/False (explicit in tests)
+    "UP038", # Use X | Y in isinstance (less critical in tests)
+    "B904",  # Exception chaining (less critical in tests)
+    "B007",  # Loop control variable not used (common in benchmarks)
+    "F401",  # Unused imports (used for availability checking in tests)
+    "F821",  # Undefined name (conditional variables in cleanup handlers)
+]
+"src/iris_pgwire/auth/gssapi_auth.py" = [
+    "F401",  # Unused imports (conditional availability checks)
+]
+"src/iris_pgwire/server.py" = [
+    "E402",  # Module level import not at top (intentional - logging setup first)
+]
+"src/iris_pgwire/sql_translator/config.py" = [
+    "E721",  # Type comparison - existing code pattern
+]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = false
+fail-under = 80
+exclude = ["setup.py", "docs", "build", "tests"]
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+generate-badge = "."
+badge-format = "svg"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+
+# Timeout configuration (30 seconds default)
+timeout = 30
+timeout_func_only = false  # Include fixture time in timeout
+
+# Coverage configuration
+addopts = [
+    "--cov=iris_pgwire",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-branch",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+]
+
+markers = [
+    "e2e: E2E tests with real PostgreSQL clients",
+    "integration: Integration tests with IRIS",
+    "unit: Unit tests",
+    "contract: Contract tests for API compliance",
+    "requires_iris: Tests that require IRIS connection",
+    "requires_docker: Tests that require Docker",
+    "iris_integration: Tests that require real IRIS instance",
+    "timeout: Override default timeout threshold",
+    "flaky: Mark known flaky tests for retry",
+    "slow: Tests requiring >10 seconds",
+    "document_db: Tests for document database features",
+    "error_handling: Tests for error handling scenarios",
+    "mixed_sql: Tests for mixed SQL query processing",
+]
+
+# Flaky test detection configuration
+# Use @pytest.mark.flaky(reruns=3, reruns_delay=2) for flaky tests
+# Documented in tests/flaky_tests.md
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "benchmarks/*",
+    "specs/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+# Informational only - NO fail_under threshold
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
