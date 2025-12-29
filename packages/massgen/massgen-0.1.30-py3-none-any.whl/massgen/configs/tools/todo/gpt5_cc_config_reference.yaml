@@ -1,0 +1,105 @@
+# Run with:
+#   uv run massgen --config massgen/configs/tools/todo/gpt5_cc_config_reference.yaml "Create an advertising webpage for MassGen that highlights its key features, benefits, and use cases. Research the codebase, design docs, and existing documentation to ensure you only highlight features that actually exist. Synthesize into a compelling narrative that appeals to new users, which will likely be researchers or software developers looking for a multi-agent framework (not yet companies since it's early stage)."
+
+agents:
+  - id: "agent_a"
+    backend:
+      type: "openai"
+      model: "gpt-5-codex"
+      text:
+        verbosity: "medium"
+      reasoning:
+        effort: "medium"
+        summary: "auto"
+      cwd: "workspace1"
+      enable_mcp_command_line: true
+      command_line_execution_mode: "docker"
+      command_line_docker_enable_sudo: true
+      command_line_docker_network_mode: "bridge"
+
+  - id: "agent_b"
+    backend:
+      type: "claude_code"
+      model: "claude-sonnet-4-5-20250929"
+      cwd: "workspace2"
+      enable_mcp_command_line: true
+      command_line_execution_mode: "docker"
+      command_line_docker_enable_sudo: true
+      command_line_docker_network_mode: "bridge"
+
+memory:
+  # Enable/disable persistent memory (default: true)
+  enabled: true
+
+  # Memory configuration
+  conversation_memory:
+    enabled: true  # Short-term conversation tracking (recommended: always true)
+
+  persistent_memory:
+    enabled: true  # Long-term knowledge storage (set to false to disable)
+    on_disk: true  # Persist across restarts
+    # session_name: "test_session"  # Optional - if not specified, auto-generates unique ID
+                                     # Format: agent_storyteller_20251023_143022_a1b2c3
+                                     # Specify to continue a specific session
+
+    # Vector store backend (default: qdrant)
+    vector_store: "qdrant"
+
+    # LLM configuration for memory operations (fact extraction)
+    # RECOMMENDED: Use mem0's native LLMs (no adapter overhead, no async complexity)
+    llm:
+      provider: "openai"  # Options: openai, anthropic, groq, together, etc.
+      model: "gpt-4.1-nano-2025-04-14"  # Fast and cheap model for memory ops (mem0's default)
+
+    # Embedding configuration (uses mem0's native embedders)
+    # RECOMMENDED: Specify provider and model for clarity
+    embedding:
+      provider: "openai"  # Options: openai, together, azure_openai, gemini, huggingface, etc.
+      model: "text-embedding-3-small"  # OpenAI's efficient embedding model
+
+    # Qdrant client configuration
+    # IMPORTANT: For multi-agent setups, use server mode to avoid concurrent access errors
+    qdrant:
+      mode: "server"  # Options: "server" (recommended for multi-agent) or "local" (single agent only)
+      host: "localhost"  # Qdrant server host (default: localhost)
+      port: 6333         # Qdrant server port (default: 6333)
+      # For local mode (single agent only):
+      # mode: "local"
+      # path: ".massgen/qdrant"  # Local storage path
+
+  # Context window management thresholds
+  compression:
+    trigger_threshold: 0.80  # Compress when context usage exceeds 80%
+    target_ratio: 0.25       # Target 25% of context after compression
+
+  # Memory retrieval configuration
+  retrieval:
+    limit: 5              # Number of memory facts to retrieve from mem0 (default: 5)
+    exclude_recent: true  # Only retrieve after compression to avoid duplicates (default: true)
+
+# Orchestrator-level configuration
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "agent_temp"
+  context_paths:
+    - path: "massgen"
+      permission: "read"
+    - path: "docs"
+      permission: "read"
+
+  # Voting and coordination behavior
+  voting_sensitivity: "balanced"
+  max_new_answers_per_agent: 5
+  # answer_novelty_requirement: "balanced"
+
+  # Restart behavior to catch errors
+  max_orchestration_restarts: 2
+
+  # Enable agent task planning
+  coordination:
+    enable_agent_task_planning: true
+    max_tasks_per_plan: 10
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

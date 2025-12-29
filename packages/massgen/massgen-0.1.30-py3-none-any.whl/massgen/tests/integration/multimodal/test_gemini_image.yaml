@@ -1,0 +1,31 @@
+# MassGen Integration Test: Gemini Image Multimodal
+# Tests read_media tool with Gemini for native image processing
+#
+# Expected: Model should correctly identify "multimodality" infographic from HelpfulProfessor.com
+
+agents:
+  - id: "gemini_image"
+    backend:
+      type: "gemini"
+      model: "gemini-3-flash-preview"
+      cwd: "workspace_gemini"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+    system_message: |
+      You are an AI assistant with full multimodal capabilities.
+      Use the read_media tool to read and analyze media files.
+      When asked about a media file, use read_media to load it, then analyze the content.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    - path: "massgen/configs/resources/v0.1.3-example/multimodality.jpg"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true
