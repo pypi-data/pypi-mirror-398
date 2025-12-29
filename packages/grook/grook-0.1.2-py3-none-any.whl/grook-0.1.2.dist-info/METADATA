@@ -1,0 +1,208 @@
+Metadata-Version: 2.4
+Name: grook
+Version: 0.1.2
+Summary: Simple unofficial client for free access to Grok AI models
+Author-email: AKM Korishee Apurbo <bandinvisible8@gmail.com>
+License: MIT
+Keywords: ai,chatbot,grok,unofficial,xai
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Requires-Dist: beautifulsoup4
+Requires-Dist: coincurve
+Requires-Dist: curl-cffi>=0.7.0
+Requires-Dist: platformdirs
+Provides-Extra: dev
+Requires-Dist: pytest; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Grook
+**The simplest Python client for free access to Grok AI models via public endpoint**
+
+`grook` is a lightweight, easy-to-use Python package that gives you instant access to powerful Grok models like **Grok-3 Auto**, **Grok-3 Fast**, **Grok-4**, and **Grok-4 Mini Thinking** — **completely free**, no API key, no registration required.
+
+It works by communicating directly with the public web interface, delivering high-quality responses with perfect formatting and minimal setup.
+
+## Features
+- **Zero setup** — no accounts, no keys
+- Simple `.ask("your message")` interface
+- **Four powerful models**: `grok-3-auto` (default), `grok-3-fast`, `grok-4`, `grok-4-mini-thinking-tahoe`
+- Streaming support (token-by-token output)
+- Perfect handling of newlines and spacing (no stuck words or visible `\n`)
+- Clean and intuitive CLI
+- Automatic retry mechanism for reliability
+
+## Installation
+```bash
+pip install grook
+```
+> Requires Python 3.8+
+
+**Dependencies:**
+- `curl_cffi`
+- `beautifulsoup4`
+- `coincurve`
+- `platformdirs`
+
+## Quick Start
+
+### Programmatic Use
+```python
+from grook import Grook
+
+# One-shot query (Grok-3 Auto by default)
+print(Grook().ask("Tell me a joke"))
+
+# Use Grok-4
+print(Grook(model="grok-4").ask("Explain quantum computing in simple terms"))
+
+# With streaming
+bot = Grook(stream=True)
+bot.ask("Write a short story about AI")
+```
+
+### Interactive Chat (CLI)
+```bash
+grook                                    # Grok-3 Auto, interactive mode
+grook --model grok-4                     # Use Grok-4
+grook --model grok-3-fast                # Use Grok-3 Fast
+grook --stream                           # Token-by-token streaming
+grook --model grok-4 --stream            # All features combined
+grook "Hello, who are you?"              # One-shot message
+```
+
+## Usage Examples
+```python
+# Quick queries with different models
+bot_auto = Grook(model="grok-3-auto")
+print(bot_auto.ask("What is the capital of Japan?"))
+
+bot_fast = Grook(model="grok-3-fast")
+print(bot_fast.ask("Best way to learn Python?"))
+
+bot_expert = Grook(model="grok-4")
+print(bot_expert.ask("Explain neural networks in detail"))
+```
+
+```python
+# Streaming responses for better UX
+bot = Grook(stream=True)
+print("Response: ", end='')
+bot.ask("Write a haiku about coding")
+```
+
+```python
+# With proxy support
+bot = Grook(proxy="http://your-proxy:8080")
+response = bot.ask("Tell me about the universe")
+print(response)
+```
+
+## Available Models
+
+| Model | Description | Best For |
+|-------|-------------|----------|
+| `grok-3-auto` | Balanced performance (default) | General queries |
+| `grok-3-fast` | Faster responses | Quick answers |
+| `grok-4` | Most capable model | Complex reasoning |
+| `grok-4-mini-thinking-tahoe` | Thinking model variant | Deep analysis |
+
+## CLI Options
+```bash
+grook --help
+```
+```
+usage: grook [-h] [--model {grok-3-auto,grok-3-fast,grok-4,grok-4-mini-thinking-tahoe}] [--stream] [message]
+
+Grook - Free access to Grok AI models
+
+positional arguments:
+  message               Send a single message and exit
+
+options:
+  -h, --help            show this help message
+  --model {grok-3-auto,grok-3-fast,grok-4,grok-4-mini-thinking-tahoe}
+                        Model: grok-3-auto (default), grok-3-fast, grok-4, grok-4-mini-thinking-tahoe
+  --stream              Show response token-by-token (streaming)
+```
+
+## API Reference
+
+### Class: `Grook`
+
+#### `__init__(model="grok-3-auto", stream=False, proxy=None)`
+Initialize Grook client.
+
+**Parameters:**
+- `model` (str): Model to use - "grok-3-auto" (default), "grok-3-fast", "grok-4", "grok-4-mini-thinking-tahoe"
+- `stream` (bool): Enable token-by-token streaming output
+- `proxy` (str): Optional proxy URL
+
+**Example:**
+```python
+bot = Grook(model="grok-4", stream=True)
+```
+
+#### `ask(message, max_retries=3)`
+Send a message and get response.
+
+**Parameters:**
+- `message` (str): Your question or prompt
+- `max_retries` (int): Number of retry attempts on failure (default: 3)
+
+**Returns:**
+- `str`: Complete response text, or `None` if failed
+
+**Example:**
+```python
+response = bot.ask("What is machine learning?")
+print(response)
+```
+
+## Important Notes
+
+### Reliability
+The underlying service is a **free public endpoint** that communicates with Grok's web interface. Grook includes automatic retry mechanisms to ensure reliable responses.
+
+### Rate Limits
+As a free public endpoint, there may be rate limits. The library handles retries automatically, but excessive use may result in temporary blocks.
+
+### Error Handling
+```python
+bot = Grook()
+response = bot.ask("Your question")
+
+if response is None:
+    print("Failed to get response after retries")
+else:
+    print(response)
+```
+
+## Troubleshooting
+
+**Issue: Installation fails with `curl_cffi` error**
+- Solution: Ensure you have a C compiler installed (GCC on Linux, Xcode on macOS, Visual Studio on Windows)
+
+**Issue: Connection timeouts**
+- Solution: Use a proxy or try again later. The public endpoint may be temporarily busy.
+
+**Issue: Empty responses**
+- Solution: The library will automatically retry. If it persists, try a different model.
+
+## Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Author
+**IMApurbo**  
+GitHub: [@IMApurbo](https://github.com/IMApurbo)
+
+## License
+MIT License
+
+## Disclaimer
+This tool is for educational purposes. Please use responsibly and respect the service's terms of use.
+
+---
+Enjoy frontier-level AI models for free — no barriers, no costs! 🚀  
+Made with ❤️ by IMApurbo
