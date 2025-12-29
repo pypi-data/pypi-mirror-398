@@ -1,0 +1,662 @@
+"""FastAPI main application for MySQL Awesome Stats Collector (MASC)."""
+
+import logging
+import sys
+from datetime import datetime
+
+from fastapi import FastAPI, Request, Depends, Form, BackgroundTasks, Query
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from pathlib import Path
+import json
+
+from .db import init_db, get_db
+from .models import Job, JobHost, JobStatus, HostJobStatus
+from .utils import (
+    load_hosts,
+    get_host_by_id,
+    generate_job_id,
+    generate_job_host_id,
+    get_host_output_dir,
+    get_job_dir,
+    read_file_safe,
+    read_json_safe,
+)
+from .collector import run_collection_job
+from .parser import get_key_metrics, parse_innodb_status_structured, CONFIG_VARIABLES_ALLOWLIST, evaluate_config_health
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("masc")
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="MySQL Awesome Stats Collector",
+    description="Collect and visualize MySQL diagnostics from multiple hosts",
+    version="1.0.0"
+)
+
+# Log startup configuration
+from .utils import HOSTS_FILE
+logger.info(f"Hosts file: {HOSTS_FILE}")
+
+# Setup templates and static files
+BASE_DIR = Path(__file__).parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+
+# Custom Jinja2 filters
+def format_bytes(value, precision=2):
+    """Format bytes to human-readable format (KB, MB, GB, TB, PB)."""
+    if value is None or value == 0:
+        return "0 B"
+    try:
+        value = float(value)
+    except (ValueError, TypeError):
+        return str(value)
+    
+    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    unit_index = 0
+    while abs(value) >= 1024 and unit_index < len(units) - 1:
+        value /= 1024
+        unit_index += 1
+    return f"{value:.{precision}f} {units[unit_index]}"
+
+
+def format_number(value, precision=1):
+    """Format large numbers to human-readable format (K, M, B, T)."""
+    if value is None:
+        return "0"
+    try:
+        value = float(value)
+    except (ValueError, TypeError):
+        return str(value)
+    
+    if abs(value) < 1000:
+        return f"{int(value)}" if value == int(value) else f"{value:.{precision}f}"
+    
+    units = ['', 'K', 'M', 'B', 'T']
+    unit_index = 0
+    while abs(value) >= 1000 and unit_index < len(units) - 1:
+        value /= 1000
+        unit_index += 1
+    return f"{value:.{precision}f}{units[unit_index]}"
+
+
+def format_uptime(seconds):
+    """Format seconds to human-readable uptime (e.g., 7d 12h, 3h 45m)."""
+    if seconds is None:
+        return "N/A"
+    try:
+        seconds = int(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    
+    days = seconds // 86400
+    hours = (seconds % 86400) // 3600
+    mins = (seconds % 3600) // 60
+    
+    if days > 0:
+        return f"{days}d {hours}h"
+    elif hours > 0:
+        return f"{hours}h {mins}m"
+    else:
+        return f"{mins}m"
+
+
+# Register custom filters
+templates.env.filters["format_bytes"] = format_bytes
+templates.env.filters["format_number"] = format_number
+templates.env.filters["format_uptime"] = format_uptime
+
+
+# Mount static files - use app/static for package compatibility
+STATIC_DIR = BASE_DIR / "static"
+STATIC_DIR.mkdir(exist_ok=True)
+(STATIC_DIR / "css").mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup."""
+    logger.info("Starting MASC...")
+    init_db()
+    hosts = load_hosts()
+    logger.info(f"Loaded {len(hosts)} host(s) from configuration:")
+    for h in hosts:
+        logger.info(f"  - {h.id}: {h.label} ({h.host}:{h.port}, user={h.user})")
+    logger.info("MASC ready")
+
+
+# =============================================================================
+# HOME PAGE - Host Selection
+# =============================================================================
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    """Home page with host selection."""
+    hosts = load_hosts()
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "hosts": hosts,
+        "page_title": "MASC"
+    })
+
+
+# =============================================================================
+# JOB CREATION
+# =============================================================================
+
+@app.post("/jobs/create")
+async def create_job(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """Create a new collection job."""
+    # Get form data
+    form = await request.form()
+    selected_hosts = form.getlist("hosts")
+    job_name = form.get("job_name", "").strip() or None  # Empty string -> None
+    collect_hot_tables = form.get("collect_hot_tables") == "1"  # Checkbox value
+    
+    if not selected_hosts:
+        logger.warning("Job creation attempted with no hosts selected")
+        # Redirect back with error
+        hosts = load_hosts()
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "hosts": hosts,
+            "page_title": "MASC",
+            "error": "Please select at least one host"
+        })
+    
+    # Create job
+    job_id = generate_job_id()
+    job_display = f"'{job_name}' ({job_id[:8]})" if job_name else job_id[:8]
+    logger.info(f"Creating job {job_display} for {len(selected_hosts)} host(s)")
+    all_hosts = load_hosts()
+    hosts_map = {h.id: h for h in all_hosts}
+    for host_id in selected_hosts:
+        h = hosts_map.get(host_id)
+        if h:
+            logger.info(f"  - {h.id}: {h.label} ({h.host}:{h.port})")
+        else:
+            logger.warning(f"  - {host_id}: (unknown host)")
+    job = Job(id=job_id, name=job_name, status=JobStatus.pending)
+    db.add(job)
+    
+    # Create job hosts
+    for host_id in selected_hosts:
+        job_host = JobHost(
+            id=generate_job_host_id(),
+            job_id=job_id,
+            host_id=host_id,
+            status=HostJobStatus.pending
+        )
+        db.add(job_host)
+    
+    db.commit()
+    
+    # Start background collection (with optional hot tables)
+    background_tasks.add_task(run_collection_job, job_id, list(selected_hosts), collect_hot_tables)
+    
+    if collect_hot_tables:
+        logger.info(f"  Hot Tables collection: ENABLED")
+    
+    # Redirect to job detail page
+    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
+
+# =============================================================================
+# JOBS LIST
+# =============================================================================
+
+@app.get("/jobs", response_class=HTMLResponse)
+async def list_jobs(request: Request, db: Session = Depends(get_db)):
+    """List all jobs."""
+    jobs = db.query(Job).order_by(Job.created_at.desc()).all()
+    
+    # Enrich with host counts and labels
+    jobs_data = []
+    for job in jobs:
+        host_count = len(job.hosts)
+        completed_count = sum(1 for h in job.hosts if h.status == HostJobStatus.completed)
+        failed_count = sum(1 for h in job.hosts if h.status == HostJobStatus.failed)
+        
+        # Get host labels for this job
+        host_labels = []
+        for job_host in job.hosts:
+            host_config = get_host_by_id(job_host.host_id)
+            if host_config:
+                host_labels.append(host_config.label or host_config.host)
+            else:
+                host_labels.append(job_host.host_id)
+        
+        jobs_data.append({
+            "job": job,
+            "host_count": host_count,
+            "completed_count": completed_count,
+            "failed_count": failed_count,
+            "host_labels": host_labels
+        })
+    
+    return templates.TemplateResponse("jobs.html", {
+        "request": request,
+        "jobs": jobs_data,
+        "page_title": "Jobs"
+    })
+
+
+# =============================================================================
+# JOB DETAIL
+# =============================================================================
+
+@app.get("/jobs/{job_id}", response_class=HTMLResponse)
+async def job_detail(request: Request, job_id: str, db: Session = Depends(get_db)):
+    """Job detail page."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    
+    if not job:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": "Job not found",
+            "page_title": "Error"
+        }, status_code=404)
+    
+    # Enrich hosts with labels and replica status
+    hosts_data = []
+    all_hosts = load_hosts()
+    hosts_map = {h.id: h for h in all_hosts}
+    
+    for job_host in job.hosts:
+        host_config = hosts_map.get(job_host.host_id)
+        # Load replica status for this host
+        output_dir = get_host_output_dir(job_id, job_host.host_id)
+        replica_status = read_json_safe(output_dir / "replica_status.json") or {}
+        
+        hosts_data.append({
+            "job_host": job_host,
+            "label": host_config.label if host_config else job_host.host_id,
+            "host": host_config.host if host_config else "unknown",
+            "port": host_config.port if host_config else 0,
+            "replica_status": replica_status
+        })
+    
+    return templates.TemplateResponse("job_detail.html", {
+        "request": request,
+        "job": job,
+        "hosts": hosts_data,
+        "page_title": f"Job {job_id[:8]}..."
+    })
+
+
+# =============================================================================
+# HOST OUTPUT VIEW
+# =============================================================================
+
+@app.get("/jobs/{job_id}/hosts/{host_id}", response_class=HTMLResponse)
+async def host_detail(
+    request: Request,
+    job_id: str,
+    host_id: str,
+    tab: str = "innodb",
+    user_filter: Optional[str] = None,
+    state_filter: Optional[str] = None,
+    min_time: Optional[str] = None,
+    query_filter: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Host output detail page with tabs."""
+    # Convert min_time to int if provided and not empty
+    min_time_int: Optional[int] = None
+    if min_time and min_time.strip():
+        try:
+            min_time_int = int(min_time)
+        except ValueError:
+            min_time_int = None
+    
+    # Verify job and host exist
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": "Job not found",
+            "page_title": "Error"
+        }, status_code=404)
+    
+    job_host = db.query(JobHost).filter(
+        JobHost.job_id == job_id,
+        JobHost.host_id == host_id
+    ).first()
+    
+    if not job_host:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": "Host not found in this job",
+            "page_title": "Error"
+        }, status_code=404)
+    
+    # Get host config
+    host_config = get_host_by_id(host_id)
+    host_label = host_config.label if host_config else host_id
+    
+    # Get all hosts in this job for the dropdown navigation
+    job_hosts_list = []
+    all_host_configs = load_hosts()
+    host_config_map = {h.id: h for h in all_host_configs}
+    for jh in job.hosts:
+        hc = host_config_map.get(jh.host_id)
+        job_hosts_list.append({
+            "host_id": jh.host_id,
+            "label": hc.label if hc else jh.host_id,
+            "status": jh.status.value,
+        })
+    
+    # Get output directory
+    output_dir = get_host_output_dir(job_id, host_id)
+    
+    # Load timing data (always available)
+    timing_data = read_json_safe(output_dir / "timing.json") or {}
+    
+    # Load replica status (always, for header display)
+    replica_status = read_json_safe(output_dir / "replica_status.json") or {}
+    
+    # Load master status (for master binlog position)
+    master_status = read_json_safe(output_dir / "master_status.json") or {}
+    
+    # Load buffer pool metrics (always, for summary card)
+    buffer_pool = read_json_safe(output_dir / "buffer_pool.json") or {}
+    
+    # Load hot tables (optional, only if collected)
+    hot_tables = read_json_safe(output_dir / "hot_tables.json") or {}
+    
+    # Load InnoDB health analysis (deadlocks, lock contention, hot indexes, etc.)
+    innodb_health = read_json_safe(output_dir / "innodb_health.json") or {}
+    
+    # Load ALL tab data upfront for client-side tab switching (no page refresh)
+    master_info = None  # Info about the master if this is a replica
+    
+    # Raw output
+    raw_output = read_file_safe(output_dir / "raw.txt") or "No raw output available"
+    
+    # InnoDB
+    innodb_output = read_file_safe(output_dir / "innodb.txt") or "No InnoDB output available"
+    innodb_structured = parse_innodb_status_structured(raw_output)
+    
+    # Global Status
+    global_status = read_json_safe(output_dir / "global_status.json") or {}
+    key_metrics = get_key_metrics(global_status)
+    
+    # Processlist (all data - filtering is done client-side for better UX)
+    processlist = read_json_safe(output_dir / "processlist.json") or []
+    
+    # Config
+    config_vars = read_json_safe(output_dir / "config_vars.json") or {}
+    important_vars = {k: v for k, v in config_vars.items() if k in CONFIG_VARIABLES_ALLOWLIST}
+    config_health = evaluate_config_health(important_vars, global_status)
+    
+    # Replication - find master info if this is a replica
+    if replica_status.get("is_replica") and replica_status.get("master_host"):
+        master_host_addr = replica_status.get("master_host")
+        master_port = replica_status.get("master_port", 3306)
+        
+        # Look through other hosts in this job to find the master
+        for job_host_entry in job.hosts:
+            other_host_config = get_host_by_id(job_host_entry.host_id)
+            if other_host_config:
+                # Check if this host matches the master address
+                if (other_host_config.host == master_host_addr or 
+                    master_host_addr in other_host_config.host):
+                    if other_host_config.port == master_port:
+                        # Found the master! Load its master_status
+                        master_output_dir = get_host_output_dir(job_id, job_host_entry.host_id)
+                        master_master_status = read_json_safe(master_output_dir / "master_status.json") or {}
+                        if master_master_status.get("is_master"):
+                            master_info = {
+                                "host_id": job_host_entry.host_id,
+                                "label": other_host_config.label,
+                                "host": other_host_config.host,
+                                "port": other_host_config.port,
+                                "binlog_file": master_master_status.get("file"),
+                                "binlog_position": master_master_status.get("position"),
+                                "executed_gtid_set": master_master_status.get("executed_gtid_set"),
+                            }
+                        break
+    
+    return templates.TemplateResponse("host_detail.html", {
+        "request": request,
+        "job": job,
+        "job_host": job_host,
+        "host_id": host_id,
+        "host_label": host_label,
+        "job_hosts_list": job_hosts_list,
+        "tab": tab,
+        "raw_output": raw_output,
+        "innodb_output": innodb_output,
+        "innodb_structured": innodb_structured,
+        "global_status": global_status,
+        "key_metrics": json.dumps(key_metrics) if key_metrics else "{}",
+        "processlist": processlist,
+        "config_vars": config_vars,
+        "config_health": config_health,
+        "config_allowlist": CONFIG_VARIABLES_ALLOWLIST,
+        "user_filter": user_filter or "",
+        "state_filter": state_filter or "",
+        "min_time": min_time_int if min_time_int is not None else "",
+        "query_filter": query_filter or "",
+        "timing_data": timing_data,
+        "replica_status": replica_status,
+        "master_status": master_status,
+        "master_info": master_info,
+        "buffer_pool": buffer_pool,
+        "hot_tables": hot_tables,
+        "innodb_health": innodb_health,
+        "page_title": f"{host_label} Output"
+    })
+
+
+# =============================================================================
+# API ENDPOINTS (for AJAX refreshing)
+# =============================================================================
+
+@app.get("/api/jobs/{job_id}/status")
+async def get_job_status(job_id: str, db: Session = Depends(get_db)):
+    """Get current job status with real-time command progress (for polling)."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    
+    if not job:
+        return {"error": "Job not found"}
+    
+    hosts_status = []
+    for job_host in job.hosts:
+        host_info = {
+            "host_id": job_host.host_id,
+            "status": job_host.status.value,
+            "error_message": job_host.error_message
+        }
+        
+        # Read real-time progress for running hosts
+        if job_host.status.value == "running":
+            progress_file = get_job_dir(job_id) / job_host.host_id / "progress.json"
+            if progress_file.exists():
+                try:
+                    with open(progress_file) as f:
+                        host_info["progress"] = json.load(f)
+                except Exception:
+                    pass
+        
+        hosts_status.append(host_info)
+    
+    return {
+        "job_id": job_id,
+        "status": job.status.value,
+        "hosts": hosts_status
+    }
+
+
+# =============================================================================
+# COMPARE ROUTES
+# =============================================================================
+
+@app.get("/compare", response_class=HTMLResponse)
+async def compare_page(request: Request, db: Session = Depends(get_db)):
+    """Compare entry page - select two jobs to compare."""
+    # Get only completed jobs
+    jobs = db.query(Job).filter(Job.status == JobStatus.completed).order_by(Job.created_at.desc()).all()
+    
+    return templates.TemplateResponse("compare.html", {
+        "request": request,
+        "page_title": "Compare Jobs",
+        "jobs": jobs,
+    })
+
+
+@app.get("/compare/result", response_class=HTMLResponse)
+async def compare_result(
+    request: Request,
+    job_a: str = Query(..., description="Job A ID"),
+    job_b: str = Query(..., description="Job B ID"),
+    db: Session = Depends(get_db)
+):
+    """Compare two jobs and show results."""
+    from .compare import (
+        compare_global_status,
+        compare_processlist,
+        compare_config,
+        compare_innodb_text,
+        find_common_hosts,
+        detect_regressions,
+        refine_regressions,
+    )
+    
+    # Validate jobs exist
+    job_a_obj = db.query(Job).filter(Job.id == job_a).first()
+    job_b_obj = db.query(Job).filter(Job.id == job_b).first()
+    
+    if not job_a_obj or not job_b_obj:
+        jobs = db.query(Job).filter(Job.status == JobStatus.completed).order_by(Job.created_at.desc()).all()
+        return templates.TemplateResponse("compare.html", {
+            "request": request,
+            "page_title": "Compare Jobs",
+            "jobs": jobs,
+            "error": "One or both jobs not found.",
+        })
+    
+    # Get hosts from each job
+    hosts_a = [jh.host_id for jh in job_a_obj.hosts if jh.status == HostJobStatus.completed]
+    hosts_b = [jh.host_id for jh in job_b_obj.hosts if jh.status == HostJobStatus.completed]
+    
+    # Find common hosts
+    common_hosts = find_common_hosts(hosts_a, hosts_b)
+    
+    # Load host labels
+    all_hosts = load_hosts()
+    host_labels = {h.id: h.label for h in all_hosts}
+    
+    # Build comparisons for each common host
+    comparisons = {}
+    for host_id in common_hosts:
+        # Load data from filesystem
+        dir_a = get_host_output_dir(job_a, host_id)
+        dir_b = get_host_output_dir(job_b, host_id)
+        
+        # Global Status
+        gs_a = read_json_safe(dir_a / "global_status.json") or {}
+        gs_b = read_json_safe(dir_b / "global_status.json") or {}
+        
+        # Processlist
+        pl_a = read_json_safe(dir_a / "processlist.json") or []
+        pl_b = read_json_safe(dir_b / "processlist.json") or []
+        
+        # Config
+        cfg_a = read_json_safe(dir_a / "config_vars.json") or {}
+        cfg_b = read_json_safe(dir_b / "config_vars.json") or {}
+        
+        # InnoDB (raw text)
+        innodb_a = read_file_safe(dir_a / "innodb.txt") or ""
+        innodb_b = read_file_safe(dir_b / "innodb.txt") or ""
+        
+        # System info for regression detection (use config if available)
+        system_info = {
+            "cpu_cores": cfg_b.get("innodb_read_io_threads", 4),  # Approximate from config
+        }
+        
+        # Detect regressions (raw)
+        raw_regressions = detect_regressions(gs_a, gs_b, pl_a, pl_b, system_info)
+        
+        comparisons[host_id] = {
+            "global_status": compare_global_status(gs_a, gs_b),
+            "processlist": compare_processlist(pl_a, pl_b),
+            "config": compare_config(cfg_a, cfg_b),
+            "innodb": compare_innodb_text(innodb_a, innodb_b),
+            "raw_regressions": raw_regressions,
+            "gs_a": gs_a,
+            "gs_b": gs_b,
+        }
+    
+    # Collect all raw regressions for cross-host correlation
+    all_host_regressions = [comparisons[h]["raw_regressions"] for h in common_hosts]
+    
+    # Apply refinement to each host's regressions
+    for host_id in common_hosts:
+        visible, suppressed = refine_regressions(
+            comparisons[host_id]["raw_regressions"],
+            comparisons[host_id]["gs_a"],
+            comparisons[host_id]["gs_b"],
+            all_host_regressions
+        )
+        comparisons[host_id]["visible_regressions"] = visible
+        comparisons[host_id]["suppressed_regressions"] = suppressed
+        # Clean up temp data
+        del comparisons[host_id]["raw_regressions"]
+        del comparisons[host_id]["gs_a"]
+        del comparisons[host_id]["gs_b"]
+    
+    # Aggregate all regressions across hosts for summary
+    visible_regressions = []
+    suppressed_regressions = []
+    
+    for host_id in common_hosts:
+        for reg in comparisons[host_id].get("visible_regressions", []):
+            visible_regressions.append({
+                **reg,
+                "host_id": host_id,
+                "host_label": host_labels.get(host_id, host_id),
+            })
+        for reg in comparisons[host_id].get("suppressed_regressions", []):
+            suppressed_regressions.append({
+                **reg,
+                "host_id": host_id,
+                "host_label": host_labels.get(host_id, host_id),
+            })
+    
+    # Sort: severity first, then by root-cause hierarchy
+    def sort_regressions(regs):
+        severity_order = {"critical": 0, "warning": 1}
+        regs.sort(key=lambda x: (severity_order.get(x["severity"], 2), x.get("category", "")))
+    
+    sort_regressions(visible_regressions)
+    sort_regressions(suppressed_regressions)
+    
+    return templates.TemplateResponse("compare_result.html", {
+        "request": request,
+        "page_title": "Comparison Results",
+        "job_a": job_a_obj,
+        "job_b": job_b_obj,
+        "common_hosts": common_hosts,
+        "host_labels": host_labels,
+        "comparisons": comparisons,
+        "visible_regressions": visible_regressions,
+        "suppressed_regressions": suppressed_regressions,
+    })
+

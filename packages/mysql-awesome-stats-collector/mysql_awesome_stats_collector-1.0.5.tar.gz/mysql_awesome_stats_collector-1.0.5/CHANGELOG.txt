@@ -1,0 +1,521 @@
+MySQL Awesome Stats Collector (MASC) - Changes Made
+====================================================
+
+1. INITIAL SETUP
+   • Built FastAPI web application for MySQL diagnostics
+   • Created hosts.yaml for host configuration
+   • Set up SQLite for job metadata storage
+   • Implemented background job collection system
+   • Created Jinja2 templates with TailwindCSS styling
+
+2. UV PACKAGE MANAGER
+   • Switched from pip/requirements.txt to uv for package management
+   • Created pyproject.toml for dependency management
+
+3. HOSTS CONFIGURATION
+   • Updated hosts.yaml with RDS instances (Primary, Replica-3, Replica-4)
+
+4. HOMEPAGE CHECKBOX FIX
+   • Fixed radio select (checkboxes) not working on homepage
+   • Changed @click logic to x-model="selectedHosts" for proper Alpine.js state syncing
+
+5. MYSQL CLI \G ERROR FIX
+   • Fixed "Unknown command '\G'" error
+   • Switched from \G format to tabular output
+   • Updated parsers to handle tabular format
+   • Used MYSQL_PWD environment variable for password security
+
+6. PROCESSLIST SORTING
+   • Added client-side sorting using Alpine.js
+   • Click column headers to sort ascending/descending
+   • Supports sorting by ID, User, Host, DB, Command, Time, State
+
+7. PROCESSLIST COLUMN DISPLAY FIX
+   • Fixed processlist not showing due to JSON parsing issues in x-data
+   • Moved processlist JSON to <script> tag (window.processlistData)
+
+8. GLOBAL STATUS DISPLAY IMPROVEMENTS
+   • Fixed long values (like RSA public keys) extending column width
+   • Added value truncation (>50 chars) with "Expand" button
+   • Added search functionality for variables
+   • Implemented number formatting (K, M, B for large numbers)
+   • InnoDB Row Operations: millions/billions/thousands formatting
+   • Network Bytes: GB formatting
+
+9. TIMESTAMPS IN LOGS
+   • Added timestamps to raw output header and footer
+   • Added timestamps before each MySQL command
+   • Added started_at/completed_at to job detail page
+   • Added duration display for completed hosts
+
+10. SERVER LOGS ENHANCEMENT
+    • Added timestamps to server logs
+    • Added host details (label, host:port) to logs
+    • Added DB connection logging with PID
+    • Logs show: [DB CONNECT] PID xxx - Connected to host
+    • Logs show: [DB DISCONNECT] PID xxx - Closed successfully/with error
+
+11. DATABASE CLEANUP
+    • Added instructions for cleaning observer.db
+    • Created .gitignore to exclude:
+      - observer.db
+      - runs/
+      - __pycache__/
+      - .venv/
+      - *.egg-info/
+      - uv.lock
+      - .env
+      - *.py[cod]
+    • Cleaned up existing .pyc files
+
+12. GLOBAL STATUS JSON FIX
+    • Fixed x-data JSON breaking after Network Bytes section
+    • Moved global_status JSON to <script> tag (window.globalStatusData)
+
+13. COPY TO CLIPBOARD
+    • Added "Copy to Clipboard" button to Raw Output tab
+    • Added "Copy to Clipboard" button to InnoDB tab
+    • Shows green checkmark and "Copied!" message for 2 seconds
+    • Fallback support for older browsers
+
+14. INNODB STATUS STRUCTURED DISPLAY
+    • Created parse_innodb_status_structured() function
+    • Fixed literal \n parsing from MySQL tabular output
+    • Added visual dashboard with key metrics:
+      - Buffer Pool Hit Rate, Utilization, Dirty Pages
+      - History List Length, Active Transactions
+      - Queries in InnoDB
+    • Added Row Operations section (inserts/updates/deletes/reads per sec)
+    • Added Buffer Pool & Memory section with utilization bar
+    • Added Redo Log section
+    • Added File I/O section
+    • Added Insert Buffer & Adaptive Hash Index section
+    • Added Transactions section
+    • Added Background Thread section
+    • Toggle between Parsed view and Raw view
+
+15. CONFIG VARIABLES TAB (4TH TAB)
+    • Added SHOW GLOBAL VARIABLES to MySQL commands
+    • Created parse_config_variables() function
+    • Stores config to config_vars.json
+    • Shows 22 important variables (allowlist)
+    • Human-readable formatting:
+      - Byte sizes → GB/MB/KB with raw value
+      - Numbers → comma-formatted
+      - ON/OFF → colored badges
+
+16. CONFIG VARIABLES TOGGLE (SHOW ALL)
+    • Added toggle to switch between Important (22) and All (~600) variables
+    • Search box when viewing all variables
+    • Important variables marked with ★ star
+    • Scrollable table (max 600px height) with sticky header
+
+17. CONFIG HEALTH INDICATORS
+    • Added health indicators (🟢🟡🔴) to Important Config section
+    • Health column with tooltips showing reason
+    • Variables with health checks:
+      - innodb_buffer_pool_size (vs RAM %)
+      - max_connections (usage %)
+      - tmp_table_size (≥64MB healthy)
+      - max_heap_table_size (vs tmp_table_size)
+      - table_open_cache (vs Open_tables)
+      - table_definition_cache (vs Open_table_definitions)
+      - open_files_limit (≥2× table_open_cache)
+      - thread_cache_size (>0 healthy)
+      - wait_timeout (≥300s healthy)
+      - innodb_log_file_size (≥512MB healthy)
+      - innodb_flush_log_at_trx_commit (1=healthy, 2=warning, 0=critical)
+      - sync_binlog (1=healthy, 0=warning)
+      - innodb_read_io_threads (≥4 healthy)
+      - innodb_write_io_threads (≥4 healthy)
+
+18. ADDITIONAL CONFIG VARIABLES
+    • Added 8 new variables to Important Config (total: 30):
+      - innodb_read_io_threads
+      - innodb_write_io_threads
+      - innodb_sync_array_size
+      - innodb_change_buffering
+      - binlog_group_commit_sync_delay
+      - slave_parallel_workers
+      - slave_preserve_commit_order
+      - max_prepared_stmt_count
+
+19. PROCESSLIST QUERY FILTER
+    • Added query filter to Processlist tab
+    • Filters by Info column content (SQL query)
+    • Case-insensitive substring matching
+    • Useful for filtering by: SELECT, UPDATE, table names, etc.
+
+20. PARALLEL COMMAND EXECUTION
+    • MySQL commands now run in PARALLEL (4 concurrent connections)
+    • Uses ThreadPoolExecutor for concurrent execution
+    • Significantly faster collection (~4x speedup)
+    • Example: 4 commands × 2s each = 2s total (vs 8s sequential)
+
+21. TIMING METRICS IN UI
+    • Added timing.json with per-command metrics
+    • Shows total collection time with ⚡ indicator
+    • Expandable "Command Timing" dropdown showing:
+      - Per-command duration
+      - Success/failure status (✓/✗)
+    • Helps identify slow commands or network issues
+
+22. JOB NAMING
+    • Added optional "Job Name" input field on homepage
+    • Job name displayed in jobs list and job detail pages
+    • Falls back to job ID if no name provided
+    • Helps organize collection runs (e.g., "Load test baseline")
+    • Added `name` column to Job model in SQLite
+
+23. INSTANT TOOLTIPS FOR CONFIG HEALTH
+    • Replaced browser default tooltip (slow ~500ms delay)
+    • Custom Alpine.js tooltip shows instantly on hover
+    • Styled with dark theme matching the app
+
+24. JOB COMPARISON FEATURE
+    • New /compare page to select two completed jobs
+    • Compares only hosts that exist in both jobs
+    • Global Status: numeric diff with delta (increase=red, decrease=green)
+      - Metrics: Threads_running, Slow_queries, Select_scan, etc.
+    • Processlist: summary comparison (total, long_running, users)
+    • Config Variables: side-by-side with changed values highlighted
+    • InnoDB Status: unified text diff with +/- lines
+    • Added "Compare" link to main navigation
+    • No database storage - loads directly from filesystem
+
+25. UI IMPROVEMENTS
+    • Instant tooltips for hostname hover (homepage, job detail)
+    • MySQL database favicon
+    • "Commands to Execute" updated with all 4 commands + descriptions
+    • Command timing shows actual names (InnoDB Status, Global Status, etc.)
+    • Job Name label shows "(optional)" inline
+    • Host detail tabs reordered: InnoDB first, Raw Output last
+
+26. REGRESSION DETECTION HEURISTICS
+    • Added automatic regression detection when comparing jobs
+    • 8 deterministic rules implemented:
+      - Thread pressure (Threads_running > 50% increase + > CPU cores)
+      - Slow query rate increase
+      - Temp table disk spill ratio increase
+      - Row lock contention (waits + avg time)
+      - Buffer pool efficiency drop (> 1%)
+      - Table cache overflow/miss increase
+      - Redo log contention (Innodb_log_waits)
+      - Long-running queries increase (Time > 10s)
+    • Regression Summary section at top of comparison results
+    • 🔴 Critical (red) and 🟡 Warning (yellow) severity levels
+    • ✅ "No Regressions Detected" when metrics stable
+    • Click "View Details" to jump to affected host tab
+    • Pure function: detect_regressions() in compare.py
+
+27. REGRESSION NOISE REDUCTION & ROOT-CAUSE HIERARCHY
+    • Root-cause hierarchy: threads > locking > table_cache > buffer_pool > redo_log > temp_tables > processlist
+    • Noise reduction rules:
+      - Rule 1: Root cause suppression (thread_pressure suppresses processlist/temp_tables)
+      - Rule 2: Low signal suppression (< 5% delta AND small absolute value)
+      - Rule 3: Cold start suppression (uptime < 600s → skip buffer_pool/table_cache)
+      - Rule 4: Single event downgrade (1 event → critical → warning)
+      - Rule 5: Cross-host correlation (all hosts affected → downgrade severity)
+    • Suppressed regressions preserved with reason
+    • "Show suppressed issues" toggle in UI
+    • Suppressed items shown in gray, smaller font, with explanation
+    • Pure function: refine_regressions() in compare.py
+
+28. HOSTS FILE OVERRIDE
+    • Added MASC_HOSTS_FILE environment variable to override hosts.yaml path
+    • Added MASC_RUNS_DIR environment variable to override runs directory
+    • Startup log shows which hosts file is being used
+
+29. PYPI PACKAGE PUBLISHING
+    • Renamed project: MySQL Observer → MySQL Awesome Stats Collector (MASC)
+    • Package name: mysql-awesome-stats-collector
+    • CLI commands: `masc` (short) and `mysql-awesome-stats-collector` (full)
+    • Added CLI entry points with --host, --port, --reload, --hosts-file, --version
+    • Created docs/PUBLISHING.md with PyPI upload instructions
+    • Updated pyproject.toml with full PyPI metadata
+    • Created MANIFEST.in for including templates
+    • Package ready for: pip install mysql-awesome-stats-collector
+
+30. HOST SELECTOR DROPDOWN IN BREADCRUMB
+    • Made DB name in breadcrumb clickable to open dropdown
+    • Dropdown shows all hosts from current job
+    • Status indicators (🟢 completed, 🔴 failed, 🟡 running, ⚪ pending)
+    • Current host highlighted with checkmark
+    • Tab preserved when switching hosts
+    • Click outside to close dropdown
+
+31. BUFFER POOL SUMMARY CARD
+    • New compact card showing InnoDB Buffer Pool metrics
+    • Derived from existing SHOW GLOBAL STATUS and SHOW GLOBAL VARIABLES (no extra queries)
+    • Metrics displayed:
+      - Buffer Pool Size (GB)
+      - Used memory (GB + %)
+      - Free memory (GB + %)
+      - Dirty Pages (%)
+      - Hit Ratio (%)
+      - Wait Free count
+    • Health badge: 🟢 Healthy (≥99% hit, 0 waits), 🟡 Mild (97-99%), 🔴 Pressure (<97% or waits)
+    • Stored in runs/job_<id>/<host>/buffer_pool.json
+    • Appears on host detail page before tabs
+
+32. HOT TABLES (OPTIONAL)
+    • New optional "Collect Hot Tables" toggle on homepage
+    • Queries performance_schema.table_io_waits_summary_by_index_usage
+    • Shows top 10 most active tables by I/O operations
+    • Metrics: Schema, Table, Reads, Writes, Total Ops
+    • Stored in runs/job_<id>/<host>/hot_tables.json
+    • Graceful handling when performance_schema is disabled
+    • OFF by default (no extra queries unless enabled)
+    • Card displays below Buffer Pool summary
+
+33. HUMAN-READABLE NUMBERS IN HOT TABLES
+    • Numbers in Hot Tables now display with K/M/B suffixes
+    • Tooltips show exact values on hover
+    • Uses instant tooltips (no delay)
+
+34. CLIENT-SIDE TAB SWITCHING (NO PAGE REFRESH)
+    • Tabs on host detail page now switch instantly without page refresh
+    • Uses Alpine.js x-show for client-side tab visibility
+    • All tab data loaded upfront for instant switching
+    • Charts in Global Status tab initialize when tab becomes visible
+    • Dramatically improved UX - no more page flickering or scroll position changes
+    • Only host switching (via dropdown) requires server round-trip
+
+35. HOT TABLES SORTING
+    • Added sortable columns to Hot Tables section
+    • Click column headers to sort ascending/descending
+    • Sort indicator arrow shows current sort column and direction
+    • Default sort: Total Ops (descending)
+
+36. SERVER UPTIME DISPLAY
+    • Added server uptime to main header (next to collection timestamp)
+    • Shows human-readable format (e.g., "7d 12h", "3h 45m")
+    • Tooltip shows exact seconds on hover
+    • Uptime sourced from SHOW GLOBAL STATUS (Uptime variable)
+
+37. HOT TABLES OPS/SEC COLUMN
+    • New "Ops/sec" column showing average operations per second
+    • Calculated from total_ops / server_uptime
+    • Sortable like other columns
+    • Provides normalized throughput metric for comparing tables
+
+38. PARALLEL HOST COLLECTION
+    • Fixed: Hosts were being collected serially (one after another)
+    • Now all hosts are collected in parallel using ThreadPoolExecutor
+    • Total job time = slowest host (not sum of all hosts)
+    • Example: 4 hosts × 3s each = ~3s total (was ~12s)
+    • Max 10 parallel workers to avoid overwhelming the system
+
+39. INNODB HEALTH ANALYSIS
+    • New "Health" tab on host detail page with comprehensive InnoDB analysis
+    • Extracts and displays:
+      - Deadlock information (timestamp, tables, indexes, operations, victim transaction)
+      - Lock contention (waiting transactions count, wait details)
+      - Hot indexes (indexes with most contention, lock types)
+      - Semaphore/mutex health (RW-shared, RW-excl, RW-sx OS waits)
+      - Redo log pressure (checkpoint age, log I/O rates, health trend)
+    • Overall health status indicator (🟢/🟡/🔴)
+    • Detailed breakdowns for each issue category
+    • Noise reduction rules:
+      - Only show latest deadlock
+      - Warn on lock contention only if persistent or multiple transactions
+      - Deduplicate hot indexes
+      - Ignore semaphore spin counts, focus on OS waits
+      - Redo log alerts based on trend, not absolute values
+    • Stored as innodb_health.json (not in SQLite)
+
+40. CUSTOM JINJA2 FILTERS
+    • Added format_bytes filter: bytes → KB/MB/GB/TB/PB
+    • Added format_number filter: large numbers → K/M/B/T
+    • Added format_uptime filter: seconds → human-readable (7d 12h, 3h 45m)
+    • Simplified server uptime display using the new filter
+    • Redo log details now use human-readable formatting with tooltips
+
+41. ENHANCED DEADLOCK DETAILS
+    • Added user and host extraction (e.g., polo-worker@172.20.61.93)
+    • Added MySQL thread ID and query ID
+    • Added active time (how long transaction was active)
+    • Added row locks count, lock structs, undo log entries
+    • Added actual SQL query extraction with:
+      - Collapsible view for long queries (>150 chars)
+      - Copy to clipboard button
+      - Clean formatting (removes metadata lines)
+    • Timestamp extraction improved to handle both formats
+
+42. TAB PERSISTENCE & CLIENT-SIDE FILTERING
+    • Tab state now persists on page refresh via URL parameter
+    • Switching tabs updates URL with history.replaceState
+    • Processlist filtering converted to client-side (no page reload)
+    • Instant filtering as you type
+    • Shows "Showing X of Y" count
+    • "Clear All" button to reset all filters
+    • No more scroll-to-top issues when filtering or switching tabs
+
+43. JOBS LIST - HOSTS INCLUDED COLUMN
+    • Added "Hosts Included" column showing all host labels for each job
+    • Host names displayed as styled pill badges
+    • Renamed "Hosts" column to "Progress" for clarity
+    • Fixed progress column alignment (SVG icons instead of emojis)
+    • Checkmarks and X marks now properly aligned with numbers
+
+44. PROCESSLIST SQL PRETTIFICATION
+    • Click on truncated SQL to open full-screen modal
+    • Syntax highlighting with token-based lexer:
+      - Keywords (SELECT, FROM, WHERE) in violet
+      - Strings in green
+      - Numbers in orange
+      - Backtick identifiers in blue
+      - Functions (NOW, CONCAT) in cyan
+      - Comments (/* ... */) in gray italic
+    • Auto line-breaks before major clauses (FROM, WHERE, JOIN, etc.)
+    • Handles literal \n, \r, \t escape sequences
+    • Modal header shows: Process ID, User, Host, Database
+    • Copy button with green checkmark feedback (2 second animation)
+    • Press Escape to close modal
+
+45. REAL-TIME COLLECTION PROGRESS
+    • Job detail page shows command-by-command progress during collection
+    • Each host card displays:
+      - Progress bar (X/6 commands completed)
+      - Grid of command status with individual timings
+      - Phase indicators: "Collecting data...", "Processing data...", "Querying hot tables..."
+    • Command labels: InnoDB, Status, Processes, Variables, Replica, Master
+    • Checkmark when command completes (with duration in seconds)
+    • Spinner animation for pending commands
+    • Red X for failed commands
+    • Polls API every 1.5 seconds for real-time updates
+    • Progress stored in progress.json per host
+
+46. IMPROVED COLLECTION TIMING LOGS
+    • Added separate timing for MySQL commands vs total collection
+    • New log format: "Collection COMPLETED for {host} in X.Xs (commands: Y.Ys)"
+    • Added parsing duration log: "Parsing completed for {host} in X.Xs"
+    • Added hot tables duration in log output
+    • Helps diagnose bottlenecks (commands vs parsing vs hot tables)
+
+47. PARSER PERFORMANCE OPTIMIZATIONS
+    • Rewrote _extract_section() using string operations instead of regex
+      - Before: re.search(r"...(.*?)...", text, re.DOTALL) - O(n²) backtracking
+      - After: str.find() based extraction - O(n) single pass
+    • Rewrote parse_lock_contention() to avoid catastrophic backtracking
+      - Before: re.findall(r"---TRANSACTION.*?LOCK WAIT", section, re.DOTALL)
+      - After: str.count() + split-based processing
+    • Rewrote _extract_index_locks() for line-by-line processing
+      - Only examines lines containing "RECORD LOCKS"
+      - Avoids scanning entire TRANSACTIONS section
+    • Added pre-compiled regex patterns at module level:
+      - _RE_TIMESTAMP, _RE_TABLE_INDEX, _RE_INDEX_NAME
+      - _RE_TRX_ID, _RE_TABLES_LOCKED, _RE_LOCK_STRUCTS
+      - _RE_THREAD_INFO, _RE_HISTORY_LIST, _RE_WAIT_SEC
+    • Result: Parsing time reduced from 100-140s to 1-5s on large outputs
+
+48. HOT TABLES TIMEOUT REDUCTION
+    • Reduced hot tables query timeout from 30s to 15s
+    • Prevents long waits when performance_schema is slow under load
+    • Query still runs with shorter timeout, gracefully times out if needed
+
+49. INFORMATIONAL TOOLTIPS - INNODB STATUS TAB
+    • Added contextual help tooltips (ℹ️ icon) throughout the UI
+    • Hover to see definitions and explanations for MySQL/InnoDB concepts
+    • Tooltips added to:
+      Key Metrics Overview:
+        - Buffer Pool Hit Rate: explains ratio and healthy values
+        - Pool Utilization: explains what high/low values mean
+        - Dirty Pages: explains modified pages awaiting flush
+        - History List: explains undo log purge lag
+        - Active Transactions: explains open transactions and connection leaks
+        - Queries in InnoDB: explains kernel execution and queue
+      Section Headers (with detailed technical explanations):
+        - Row Operations: throughput and workload analysis
+        - Buffer Pool & Memory: LRU, Made Young, Not Made Young
+        - Redo Log: LSN, checkpoint age, crash recovery
+        - File I/O: fsyncs, I/O threads configuration
+        - Insert Buffer & Adaptive Hash Index: change buffer, AHI effectiveness
+        - Transactions: transaction ID counter, purge gap
+        - Background Thread: master thread loops
+      Summary Cards:
+        - Buffer Pool Summary: sizing guidelines (70-80% RAM)
+        - Hot Tables: performance_schema source, ops/sec explanation
+      Health Tab:
+        - Deadlocks: detection, victim, optimization tips
+        - Lock Contention: isolation levels, indexes
+        - Redo Log Health: checkpoint age warnings, innodb_log_file_size
+        - Deadlock Details: victim analysis tips
+        - Waiting Transactions: hot-spot contention
+        - Hot Indexes: bottleneck analysis
+        - Semaphore/Mutex: internal locking (RW-Shared, RW-Excl, RW-SX)
+        - Redo Log Details: LSN interpretation
+    • Tooltip implementation:
+        - Jinja2 macro for consistent styling
+        - Hover-activated, no click required
+        - Positioned right by default, supports left/bottom
+        - Styled with app theme (midnight background, ocean border)
+        - Arrow pointer indicates direction
+
+50. INFORMATIONAL TOOLTIPS - ADDITIONAL PAGES
+    • Global Status Tab:
+      - Thread Connections chart: Threads_connected/running, Max_used_connections
+      - Query Types chart: Com_select/insert/update/delete counters
+      - InnoDB Row Operations chart: Innodb_rows_* counters
+      - Network Bytes chart: Bytes_sent/received explanation
+      - All Status Variables: search tips and data source
+    • Processlist Tab:
+      - Section header: Column definitions (ID, User, Host, DB, Command, Time, State, Info)
+    • Config Tab:
+      - Section header: Important variables with health indicators explanation
+    • Replication Tab:
+      - Replication Lag: Seconds_Behind_Master, NULL meaning
+      - IO Thread: Slave_IO_Running, fetching binary log
+      - SQL Thread: Slave_SQL_Running, relay log execution
+    • Homepage (index.html):
+      - "Collect Hot Tables" option: performance_schema query, safety notes
+      - "Commands to Execute" section header: parallel execution, timeouts
+      - Each MySQL command: detailed explanation of what it returns
+    • Jobs List (jobs.html):
+      - Hosts Included column
+      - Status column: pending/running/completed/failed meanings
+      - Progress column: success/failure counts
+    • Compare Page (compare.html):
+      - Base Job (Before): baseline selection guidance
+      - Compare Job (After): when to use (deploys, incidents)
+      - What Gets Compared section: regression detection overview
+      - Global Status comparison: delta interpretation
+      - Processlist comparison: what to look for
+      - Config Vars comparison: change highlighting
+      - InnoDB Status comparison: diff interpretation
+
+51. VARIABLE-LEVEL TOOLTIPS FOR STATUS & CONFIG
+    • Global Status Variables (~130 variables documented):
+      - Connections & Threads: Aborted_*, Connections, Max_used_connections, Threads_*
+      - Queries & Commands: Com_*, Questions, Queries, Slow_queries, Select_*, Sort_*
+      - InnoDB Buffer Pool: Innodb_buffer_pool_read_*, pages_*, wait_free
+      - InnoDB Row Operations: Innodb_rows_read/inserted/updated/deleted
+      - InnoDB Locking: Innodb_row_lock_* (waits, time, current)
+      - InnoDB I/O: Innodb_data_*, Innodb_os_log_*, Innodb_log_*
+      - InnoDB Transactions: Innodb_history_list_length, purge_trx_id
+      - InnoDB Pages: Innodb_pages_*, Innodb_dblwr_*
+      - Table & Handler: Handler_read_*, Handler_write/update/delete, Open_*, Table_locks_*
+      - Temp Tables: Created_tmp_disk_tables, Created_tmp_tables
+      - Network: Bytes_sent, Bytes_received
+      - Binary Log: Binlog_cache_*, Binlog_stmt_cache_*
+      - Keys (MyISAM): Key_blocks_*, Key_read*, Key_write*
+      - Query Cache: Qcache_* (deprecated in MySQL 8.0)
+      - Performance Schema: Performance_schema_*_lost
+      - Server: Uptime, Uptime_since_flush_status
+    • Config Variables (~75 variables documented):
+      - InnoDB Buffer Pool: innodb_buffer_pool_size/instances/chunk_size
+      - InnoDB Redo Log: innodb_log_file_size, innodb_flush_log_at_trx_commit
+      - InnoDB I/O: innodb_read_io_threads, innodb_write_io_threads, innodb_io_capacity
+      - InnoDB Transactions: innodb_lock_wait_timeout, innodb_deadlock_detect
+      - InnoDB Change Buffer: innodb_change_buffering, innodb_change_buffer_max_size
+      - InnoDB Adaptive Hash: innodb_adaptive_hash_index
+      - Connections: max_connections, thread_cache_size, wait_timeout
+      - Query Execution: tmp_table_size, max_heap_table_size, sort_buffer_size
+      - Table Cache: table_open_cache, table_definition_cache, open_files_limit
+      - Binary Logging: binlog_format, sync_binlog, binlog_group_commit_*
+      - Replication: slave_parallel_workers, replica_preserve_commit_order, gtid_mode
+      - Performance Schema: performance_schema settings
+      - Logging: slow_query_log, long_query_time, log_queries_not_using_indexes
+    • Tooltips appear on hover over info icon (ℹ️) next to variable name
+    • Descriptions explain: purpose, recommended values, impact of changes
+
