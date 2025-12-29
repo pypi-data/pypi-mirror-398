@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --group test
+
+      - name: Check formatting with ruff
+        run: uv run ruff format --check .
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Type check with mypy
+        run: uv run mypy aps_viewer_sdk/
+
+      - name: Run tests (unit only, no secrets)
+        run: uv run pytest tests/unit/
+
+      - name: Run tests (integration, with secrets)
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main'
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          TEST_URN: ${{ secrets.TEST_URN }}
+        run: uv run --group test pytest tests/integration/ -v
