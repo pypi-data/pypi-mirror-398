@@ -1,0 +1,129 @@
+# mm-async
+
+Async HTTP client for Mattermost API with High-Level API support.
+
+## Features
+
+- **Async/await** with httpx
+- **High-Level API** — `client.users`, `client.teams`, `client.channels`, `client.posts`
+- **Type-safe** — Pydantic models for all responses
+- **Resilient** — automatic retry with exponential backoff
+- **Rate limit aware** — respects `Retry-After` headers
+- **Secure** — `SecretStr` for token storage, SSL verification warnings
+
+## Installation
+
+```bash
+pip install mm-async
+```
+
+Or with Poetry:
+
+```bash
+poetry add mm-async
+```
+
+## Quick Start
+
+```python
+from mm_async import AsyncMattermostClient
+
+async def main():
+    async with AsyncMattermostClient(
+        url="https://mattermost.example.com",
+        token="your-bot-token",
+    ) as client:
+        # Get current user
+        me = await client.users.get_me()
+        print(f"Bot: {me.username}")
+
+        # Search users
+        users = await client.users.search("john")
+
+        # Send message
+        post = await client.posts.create(
+            channel_id="abc123",
+            message="Hello from bot!"
+        )
+
+        # Create DM and send message
+        dm = await client.channels.create_direct([me.id, users[0].id])
+        await client.posts.create(dm.id, "Private message")
+```
+
+## Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | str | — | Mattermost server URL |
+| `token` | str | — | Bot or User access token |
+| `verify_ssl` | bool | `True` | Verify SSL certificates |
+| `timeout` | float | `30.0` | Request timeout (sec) |
+| `connect_timeout` | float | `10.0` | Connection timeout (sec) |
+
+## High-Level API
+
+| Namespace | Methods | Description |
+|-----------|---------|-------------|
+| `client.users` | 7 | User operations (search, get, update) |
+| `client.teams` | 11 | Team management (members, admins) |
+| `client.channels` | 14 | Channel operations (create, members, DMs, admin listing) |
+| `client.posts` | 7 | Messaging (create, thread, search) |
+
+See [API Reference](docs/API_REFERENCE.md) for complete method documentation.
+
+## Error Handling
+
+```python
+from mm_async import (
+    AsyncMattermostClient,
+    MattermostAuthError,
+    MattermostRateLimitError,
+    MattermostNotFoundError,
+)
+
+async with AsyncMattermostClient(url=url, token=token) as client:
+    try:
+        user = await client.users.get_by_username("john")
+        if user is None:
+            print("User not found")
+    except MattermostAuthError:
+        print("Invalid token")
+    except MattermostRateLimitError as e:
+        print(f"Rate limited, retry after {e.retry_after}s")
+```
+
+## Retry Logic
+
+- **GET, DELETE** — automatic retry with exponential backoff
+- **POST, PUT** — no retry (to avoid duplicates)
+- Retries on: `500`, `502`, `503`, `504`, `429` status codes
+- Respects `Retry-After` header for rate limits
+
+## Exceptions
+
+| Exception | HTTP Code | Description |
+|-----------|-----------|-------------|
+| `MattermostError` | — | Base exception |
+| `MattermostAuthError` | 401 | Invalid or expired token |
+| `MattermostForbiddenError` | 403 | Insufficient permissions |
+| `MattermostNotFoundError` | 404 | Resource not found |
+| `MattermostRateLimitError` | 429 | Rate limit exceeded |
+| `MattermostServerError` | 5xx | Server error |
+| `MattermostConnectionError` | — | Connection failed |
+| `MattermostValidationError` | — | Invalid input parameters |
+
+## Documentation
+
+- [API Reference](docs/API_REFERENCE.md) — Complete API documentation
+- [Examples](docs/EXAMPLES.md) — Practical usage examples
+
+## Requirements
+
+- Python 3.11+
+- httpx >= 0.28.0
+- pydantic >= 2.0.0
+
+## License
+
+MIT
