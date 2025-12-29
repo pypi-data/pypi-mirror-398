@@ -1,0 +1,106 @@
+# ========== Custom Type Annotations ==========
+# This file contains manually maintained type annotations that provide
+# more detailed type information than auto-generated stubs.
+#
+# These annotations will be appended to the auto-generated __init__.pyi
+
+from typing import List, Callable, Dict, Any
+
+# ========== EEG Data Subscription ==========
+
+async def subscribe_eeg_data(
+    handle: int,
+    batch_size: int,
+    callback: Callable[[List[EegDataPacket]], None]
+) -> None:
+    """
+    Subscribe to EEG data stream with batch callback.
+    
+    This function subscribes to EEG data with batch processing to reduce
+    the overhead of Rust-to-Python callback invocations. The callback will
+    be triggered when the buffer reaches the specified batch size.
+    
+    Args:
+        handle: DeviceApi handle from open_brainsync_serial or open_brainsync_ble
+        batch_size: Number of packets to buffer before callback (must be multiple of 500)
+        callback: Python callable that accepts a list of EegDataPacket
+    
+    Raises:
+        ValueError: If batch_size is not a multiple of 500 or is 0
+        RuntimeError: If subscription fails
+    
+    Example:
+        ```python
+        from typing import List
+        
+        def on_eeg_batch(packets: List[EegDataPacket]) -> None:
+            print(f"Received {len(packets)} EEG packets")
+            for packet in packets:
+                print(f"  seq: {packet.seq_num}, ch0: {packet.channel_data[0]}")
+        
+        device = await open_brainsync_serial()
+        await subscribe_eeg_data(device, 500, on_eeg_batch)
+        await set_eeg_transfer(device, True)
+        ```
+    """
+    ...
+
+async def unsubscribe_eeg_data(handle: int) -> None:
+    """
+    Unsubscribe from EEG data stream.
+    
+    Args:
+        handle: DeviceApi handle from open_brainsync_serial or open_brainsync_ble
+    
+    Example:
+        ```python
+        await unsubscribe_eeg_data(device)
+        ```
+    """
+    ...
+
+async def get_eeg_loss_stats(handle: int) -> Dict[str, Any]:
+    """
+    Get EEG packet loss statistics.
+    
+    Args:
+        handle: DeviceApi handle from open_brainsync_serial or open_brainsync_ble
+    
+    Returns:
+        Dictionary with loss statistics:
+        - total_received (int): Total number of packets received
+        - total_lost (int): Total number of packets lost
+        - loss_rate (float): Packet loss rate in percentage (0-100)
+    
+    Note:
+        The loss_rate is already in percentage form (0-100), not a ratio (0-1).
+        Do not multiply by 100 again.
+    
+    Example:
+        ```python
+        stats = await get_eeg_loss_stats(device)
+        print(f"Received: {stats['total_received']}")
+        print(f"Lost: {stats['total_lost']}")
+        print(f"Loss rate: {stats['loss_rate']:.4f}%")  # Already in percentage
+        
+        # Calculate total expected packets
+        total_expected = stats['total_received'] + stats['total_lost']
+        ```
+    """
+    ...
+
+async def reset_eeg_loss_stats(handle: int) -> None:
+    """
+    Reset EEG packet loss statistics.
+    
+    Args:
+        handle: DeviceApi handle from open_brainsync_serial or open_brainsync_ble
+    
+    Example:
+        ```python
+        # Reset statistics before starting data collection
+        await reset_eeg_loss_stats(device)
+        await set_eeg_transfer(device, True)
+        ```
+    """
+    ...
