@@ -1,0 +1,42 @@
+[package]
+name = "fast-yaml"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A fast YAML parser for Python, powered by Rust"
+keywords = ["yaml", "parser", "python", "pyo3"]
+categories = ["parsing", "encoding"]
+publish = false  # Python bindings published to PyPI, not crates.io
+readme = "README.md"
+
+[lib]
+name = "fast_yaml"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["json-output"]
+json-output = ["fast-yaml-linter/json-output"]
+
+[dependencies]
+fast-yaml-core.workspace = true
+fast-yaml-linter.workspace = true
+fast-yaml-parallel.workspace = true
+pyo3 = { workspace = true, features = ["extension-module"] }
+yaml-rust2.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "parse_benchmark"
+harness = false
+
+# Note: This profile is used by maturin when building the extension module.
+# Workspace builds will show a warning that this is ignored, which is expected.
+[profile.release]
+panic = "unwind"  # PyO3 extension modules require this (not "abort")
+
+[lints]
+workspace = true

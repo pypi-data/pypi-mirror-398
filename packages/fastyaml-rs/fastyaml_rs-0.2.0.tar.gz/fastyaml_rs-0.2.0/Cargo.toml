@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+members = ["python"]
+# FFI bindings require specialized build tools (maturin for Python, napi for Node.js)
+# Build with: `uv run maturin develop` (Python) or `npm run build` (Node.js)
+default-members = [
+    "crates/fast-yaml-core",
+    "crates/fast-yaml-ffi",
+    "crates/fast-yaml-linter",
+    "crates/fast-yaml-parallel",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.88.0"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bug-ops/fast-yaml"
+
+[workspace.dependencies]
+# Internal crates (version required for cargo publish --workspace)
+fast-yaml-core = { path = "crates/fast-yaml-core", version = "0.2.0" }
+fast-yaml-ffi = { path = "crates/fast-yaml-ffi", version = "0.2.0" }
+fast-yaml-linter = { path = "crates/fast-yaml-linter", version = "0.2.0" }
+fast-yaml-parallel = { path = "crates/fast-yaml-parallel", version = "0.2.0" }
+
+# External dependencies
+criterion = "0.8"
+indoc = "2.0"
+is-terminal = "0.4"
+num_cpus = "1.16"
+pyo3 = "0.27"
+rayon = "1.10"
+serde = "1.0"
+serde_json = "1.0"
+thiserror = "2.0"
+yaml-rust2 = "0.10.4"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+# Lint groups with lower priority so individual lints can override
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# Allow specific patterns (higher priority overrides groups)
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cargo_common_metadata = "allow"
+multiple_crate_versions = "allow"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
+# Note: panic = "abort" removed - NAPI-RS requires "unwind" for proper JS error handling
