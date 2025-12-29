@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8"/>
+    <script src="https://unpkg.com/vue@3"></script>
+    <style>
+        ul {
+            padding: 0;
+        }
+
+        li {
+            list-style: none;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 100%;
+            /* margin: 50px auto; */
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            color: #000000;
+            background-color: #e5e5e5;
+        }
+
+        .tabs li {
+            flex-grow: 1;
+            text-align: center;
+            cursor: pointer;
+            padding: 15px 0;
+            /* color: white; */
+            transition: background 0.3s ease;
+        }
+
+        .tabs li.active {
+            color: #18a058;
+            background-color: #daf0e4;
+        }
+
+        .tab-content {
+            padding: 20px;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 公告样式 */
+        .announcement-container .announcement-item {
+            display: flex;
+            align-items: start;
+            position: relative;
+            /* 添加定位以便伪元素可以相对其定位 */
+            /* margin-bottom: 20px; */
+            padding-left: 10px;
+            font-size: 18px;
+            color: #191919;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .announcement-container .announcement-item::before {
+            width: 4px;
+            height: 100%;
+            content: '';
+            position: absolute;
+            left: 0px;
+            background-color: #ccc9d0;
+        }
+
+        .announcement-container .announcement-item .tag {
+            padding: 2px 5px;
+            border-radius: 99px;
+            color: #fff;
+            background-color: #24a76e;
+            font-size: 14px;
+        }
+
+        /* 更新记录样式 */
+        .change-container .change-item {
+            display: flex;
+            align-items: start;
+            position: relative;
+            /* 添加定位以便伪元素可以相对其定位 */
+            /* margin-bottom: 20px; */
+        }
+
+        .change-container .change-item::before {
+            content: '';
+            position: absolute;
+            left: 90px;
+            /* 与 .point 的 margin-left 对齐 */
+            top: 20px;
+            /* 调整以适应点的位置 */
+            height: calc(100% - 20px);
+            /* 连线的高度 */
+            border-left: 1px dashed #24a76e;
+            /* 连线样式 */
+        }
+
+        .change-container .change-item:last-child::before {
+            display: none;
+            /* 最后一个项目不需要连线 */
+        }
+
+        .change-container .point {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #24a76e;
+            margin: 5px;
+        }
+
+        .change-container .left {
+            display: flex;
+            align-items: center;
+        }
+
+        .change-container .left .time {
+            width: 80px;
+            margin: 0;
+            text-align: right;
+        }
+
+        .change-container .right {
+            /* padding-left: 80px; */
+        }
+
+        .content-item {
+            font-size: 12px;
+            color: #3c3c3c;
+        }
+
+        .right li {
+            list-style: disc;
+            margin-left: 12px;
+        }
+    </style>
+</head>
+
+<body>
+<div id="app">
+    <div class="container">
+        <ul class="tabs">
+            <li class="tab" :class="{ active: tabIndex === 1 }" data-tab="announcement" @click="tabIndex=1">
+                通知
+            </li>
+            <li class="tab" :class="{ active: tabIndex === 2 }" data-tab="update-log" @click="tabIndex=2">
+                更新记录
+            </li>
+        </ul>
+        <div id="announcement" class="tab-content announcement-container" :class="{ active: tabIndex === 1 }">
+            <!--            <h2>最新通知</h2>-->
+            <!--            <div v-for="item in announcements" class="announcement-item">-->
+            <!--                <span>{{item.content}}</span>-->
+            <!--                <span v-for="tag in item.tags" class="tag">{{ tag }}</span>-->
+            <!--            </div>-->
+            <!--            -->
+            <!--            <h2>更新记录</h2>-->
+
+            <div class="change-container">
+                <div v-for="item in changeLogs" class="change-item">
+                    <div class="left">
+                        <p class="time">{{ item.date }}</p>
+                        <div class="point"></div>
+                    </div>
+                    <div class="right">
+                        <span>{{ item.title }}</span>
+                        <ul v-for="item in item.content">
+                            <li class="content-item">{{ item }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div id="update-log" class="tab-content" :class="{ active: tabIndex === 2 }">
+            <h2>更新记录</h2>
+            <div class="change-container">
+                <div v-for="item in changeLogs" class="change-item">
+                    <div class="left">
+                        <p class="time">{{ item.date }}</p>
+                        <div class="point"></div>
+                    </div>
+                    <div class="right">
+                        <span>{{ item.title }}</span>
+                        <ul v-for="item in item.content">
+                            <li class="content-item">{{ item }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    //   import { ref, reactive } from './vue.esm-browser.js' //模块化开发方式
+    const App = {
+        setup() {
+            let tabIndex = Vue.ref(1)
+
+            return {
+                tabIndex,
+                announcements: [
+                    {
+                        content: '支持超多模型：',
+                        tags: [
+                            '对话',
+                            '推理',
+                            '图片',
+                            '视频',
+                            '音频',
+                            '变清晰',
+                            '去水印',
+                            '文档解析',
+                        ],
+                    },
+                ],
+                changeLogs: [
+                    {
+                        date: '2025.03.15',
+                        title: '🔥🔥🔥 上线新模型',
+                        content: [
+                            'suno风控成本上涨，单价略微上涨，明日生效',
+                            'google/gemma-3-27b-it：Gemma 3 引入了多模态性，支持视觉语言输入和文本输出。它可以处理多达 128k 个标记的上下文窗口，理解 140 多种语言，并提供改进的数学、推理和聊天功能，包括结构化输出和函数调用。Gemma 3 27B 是 Google 最新的开源模型，是 Gemma 2 的继任者',
+
+                        ],
+                    },
+                    {
+                        date: '2025.03.06',
+                        title: '🔥🔥🔥 上线新模型',
+                        content: [
+                            'qwq-32b：擅长数学和编程，支持高并发',
+                            'hunyuan-t1：腾讯混元自研的快思考模型 Turbo S 正式发布, 混元 Turbo S 能够实现「秒回」，吐字速度提升一倍，首字时延降低 44%。',
+                            'hunyuan-t1-search：支持联网搜索',
+                            'gemini-all：谷歌全模态模型，支持图片、视频、音频、文本等多种输入',
+                            'meta-deepresearch: 秘塔深度搜索 Deepseek + metaso ，超深度超详细的搜索引用',
+                            'deepseek-r1-metasearch：优化旧版本秘塔搜索',
+                            'deepseek-r1-search-pro：优化信源，提升搜索质量',
+                            '海螺视频生成：官方api，支持模型T2V-01-Director、I2V-01-Director、S2V-01、I2V-01-live、I2V-01、T2V-01',
+                        ],
+                    },
+                    {
+                        date: '2025.03.04',
+                        title: '🔥 上线新模型',
+                        content: [
+                            'qwq-max/qwq-max-search：阿里 Qwen 首个推理模型亮相！擅长数学和编程，支持联网搜索',
+                            'qwen2.5-max：支持文件问答',
+                            'qwen-max-search：qwen2.5-max支持联网搜索',
+
+                            '因近期Midjourney封号严重，3月5日起， Relax基础价调整到0.05 Fast基础价调整到0.1 Turbo基础价调整到0.3，我们会保证全天稳定有号。',
+                        ],
+                    },
+                    {
+                        date: '2025.02.25',
+                        title:
+                            '🎉 新增模型claude-3-7-sonnet-20250219，Claude最新模型，',
+                        content: [
+                            '新增模型claude-3-7-sonnet-20250219，Claude最新模型，已兼容think格claude-3-7-sonnet-thinking模型',
+                        ],
+                    },
+                ],
+            }
+        },
+    }
+    const app = Vue.createApp(App)
+    app.mount('#app')
+</script>
+</body>
+
+</html>
