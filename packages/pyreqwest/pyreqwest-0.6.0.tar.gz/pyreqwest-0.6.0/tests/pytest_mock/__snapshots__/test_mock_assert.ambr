@@ -1,0 +1,175 @@
+# serializer version: 1
+# name: test_assert_called_complex_mock_with_all_matchers
+  '''
+  Expected exactly 1 request(s) but received 0 to: "POST /complex". Diff with last unmatched request:
+  assert {'body': '{"user":{"name":"Jane","role":"user"}}'} == {'body': '{"user":{"name":"John","role":"admin"}}'}
+    
+    Differing items:
+    {'body': '{"user":{"name":"Jane","role":"user"}}'} != {'body': '{"user":{"name":"John","role":"admin"}}'}
+    
+    Full diff:
+      {
+    -     'body': '{"user":{"name":"John","role":"admin"}}',
+    ?                                ^^           ^^^^^
+    +     'body': '{"user":{"name":"Jane","role":"user"}}',
+    ?                                ^ +          ^^^^
+      }
+  '''
+# ---
+# name: test_assert_called_custom_matcher_and_handler
+  '''
+  Expected exactly 3 request(s) but received 1 to: "POST /admin". Diff with last unmatched request:
+  assert {'custom': 'No match with request {\'method\': \'POST\', \'url\': \'http://api.example.invalid/admin\', \'path\': \'/admin\', \'query\': None, \'headers\': \'Content-Type: application/json\', \'body\': \'{"action":"view","role":"user"}\'}'} == {'custom': 'Custom matcher: is_admin_request'}
+    
+    Differing items:
+    {'custom': 'No match with request {\'method\': \'POST\', \'url\': \'http://api.example.invalid/admin\', \'path\': \'/admin\', \'query\': None, \'headers\': \'Content-Type: application/json\', \'body\': \'{"action":"view","role":"user"}\'}'} != {'custom': 'Custom matcher: is_admin_request'}
+    
+    Full diff:
+      {
+    -     'custom': 'Custom matcher: is_admin_request',
+    +     'custom': "No match with request {'method': 'POST', 'url': "
+    +     "'http://api.example.invalid/admin', 'path': '/admin', 'query': None, "
+    +     "'headers': 'Content-Type: application/json', 'body': "
+    +     '\'{"action":"view","role":"user"}\'}',
+      }
+  '''
+# ---
+# name: test_assert_called_default_exactly_once_failure
+  '''
+  Expected exactly 1 request(s) but received 0 to: "GET /test". Diff with last unmatched request:
+  assert {'path': '/different'} == {'path': '/test'}
+    
+    Differing items:
+    {'path': '/different'} != {'path': '/test'}
+    
+    Full diff:
+      {
+    -     'path': '/test',
+    ?               ^ ^
+    +     'path': '/different',
+    ?               ^^^^ ^^^
+      }
+  '''
+# ---
+# name: test_assert_called_exact_count_failure
+  '''
+  Expected exactly 3 request(s) but received 1 to: "POST /users". Diff with last unmatched request:
+  assert {'method': 'GET', 'headers': None, 'body': None} == {'method': 'POST', 'headers': 'Authorization: Bearer token123', 'body': '{"name":"John","age":30}'}
+    
+    Differing items:
+    {'body': None} != {'body': '{"name":"John","age":30}'}
+    {'headers': None} != {'headers': 'Authorization: Bearer token123'}
+    {'method': 'GET'} != {'method': 'POST'}
+    
+    Full diff:
+      {
+    -     'body': '{"name":"John","age":30}',
+    -     'headers': 'Authorization: Bearer token123',
+    +     'body': None,
+    +     'headers': None,
+    -     'method': 'POST',
+    ?                ^^^
+    +     'method': 'GET',
+    ?                ^^
+      }
+  '''
+# ---
+# name: test_assert_called_many_unmatched_requests_truncation
+  '''
+  Expected exactly 1 request(s) but received 0 to: "GET /specific". Diff with last unmatched request:
+  assert {'path': '/different/7'} == {'path': '/specific'}
+    
+    Differing items:
+    {'path': '/different/7'} != {'path': '/specific'}
+    
+    Full diff:
+      {
+    -     'path': '/specific',
+    +     'path': '/different/7',
+      }
+  '''
+# ---
+# name: test_assert_called_max_count_failure
+  'Expected at most 3 request(s) but received 5 to: "GET /test"'
+# ---
+# name: test_assert_called_min_count_failure
+  '''
+  Expected at least 3 request(s) but received 1 to: "GET /endpoint". Diff with last unmatched request:
+  assert {'query': 'filter=inactive'} == {'query': 'filter=active'}
+    
+    Differing items:
+    {'query': 'filter=inactive'} != {'query': 'filter=active'}
+    
+    Full diff:
+      {
+    -     'query': 'filter=active',
+    +     'query': 'filter=inactive',
+    ?                      ++
+      }
+  '''
+# ---
+# name: test_assert_called_min_max_range_failure
+  'Expected at least 3 and at most 5 request(s) but received 1 to: "GET /test"'
+# ---
+# name: test_assert_called_regex_matchers_display
+  '''
+  Expected exactly 1 request(s) but received 0 to: "PUT /users/\d+ (regex)". Diff with last unmatched request:
+  assert {'path': '/users/abc', 'query': None, 'headers': 'Authorization: Bearer short', 'body': '{"action": "delete"}'} == {'path': '/users/\\d+ (regex)', 'query': '.*token=\\w+.* (regex)', 'headers': 'Authorization: Bearer [a-zA-Z0-9]{10,} (regex)', 'body': '.*"action":\\s*"(create|update)".* (regex)'}
+    
+    Differing items:
+    {'body': '{"action": "delete"}'} != {'body': '.*"action":\\s*"(create|update)".* (regex)'}
+    {'headers': 'Authorization: Bearer short'} != {'headers': 'Authorization: Bearer [a-zA-Z0-9]{10,} (regex)'}
+    {'path': '/users/abc'} != {'path': '/users/\\d+ (regex)'}
+    {'query': None} != {'query': '.*token=\\w+.* (regex)'}
+    
+    Full diff:
+      {
+    -     'body': '.*"action":\\s*"(create|update)".* (regex)',
+    +     'body': '{"action": "delete"}',
+    -     'headers': 'Authorization: Bearer [a-zA-Z0-9]{10,} (regex)',
+    ?                                       ^^^^^^^^^^^^^^^^^^ ^^^^^
+    +     'headers': 'Authorization: Bearer short',
+    ?                                       ^^^ ^
+    -     'path': '/users/\\d+ (regex)',
+    -     'query': '.*token=\\w+.* (regex)',
+    +     'path': '/users/abc',
+    +     'query': None,
+      }
+  '''
+# ---
+# name: test_assert_called_with_matched_and_unmatched_requests
+  '''
+  Expected exactly 5 request(s) but received 2 to: "GET /users". Diff with last unmatched request:
+  assert {'path': '/posts'} == {'path': '/users'}
+    
+    Differing items:
+    {'path': '/posts'} != {'path': '/users'}
+    
+    Full diff:
+      {
+    -     'path': '/users',
+    ?               ^ ^^
+    +     'path': '/posts',
+    ?               ^^ ^
+      }
+  '''
+# ---
+# name: test_assert_called_zero_count_failure
+  'Expected exactly 0 request(s) but received 1 to: "GET /test"'
+# ---
+# name: test_dirty_equals_matcher_repr
+  '''
+  Expected exactly 2 request(s) but received 1 to: "GET /test". Diff with last unmatched request:
+  assert {'query': 'values=admin'} == {'query': "IsPartialDict(values=IsInstance(<class 'list'>) & Contains('admin', 'user'))"}
+    
+    Differing items:
+    {'query': 'values=admin'} != {'query': "IsPartialDict(values=IsInstance(<class 'list'>) & Contains('admin', 'user'))"}
+    
+    Full diff:
+      {
+    +     'query': 'values=admin',
+    -     'query': "IsPartialDict(values=IsInstance(<class 'list'>) & Contains('admin', "
+    -     "'user'))",
+      }
+  '''
+# ---
