@@ -1,0 +1,117 @@
+Metadata-Version: 2.4
+Name: nsqdriver
+Version: 0.12.18
+Summary: Q series measurement and control equipment driver interface
+Home-page: https://g2hoyqcmh4.feishu.cn/wiki/Jgt1wxlKniveYQkqCgbcJHsMnoe
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.18
+Requires-Dist: astor>=0.8.1
+Provides-Extra: waveforms
+Requires-Dist: waveforms; extra == "waveforms"
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+```
+  _   _   ____     ___    ____           _                       
+ | \ | | / ___|   / _ \  |  _ \   _ __  (_) __   __   ___   _ __ 
+ |  \| | \___ \  | | | | | | | | | '__| | | \ \ / /  / _ \ | '__|
+ | |\  |  ___) | | |_| | | |_| | | |    | |  \ V /  |  __/ | |   
+ |_| \_| |____/   \__\_\ |____/  |_|    |_|   \_/    \___| |_|   
+```
+***
+
+### 简介
+NSQDriver为一套测控系列设备的Python通用驱动接口。可使用Python作为编程语言，基于此驱动接口可以实现对测控设备的控制，进而完成各种超导量子芯片的表征实验和高保真门操作。
+
+```
+                              +------------------------+
+                              |          Python        |
+                              |     +------------------+
+                              |     |      NSQDriver   |
+                              +------------------------+
+                                     :     :         :
+                           +----------     :         -----+
+                           :               :              :
+                           V               V              V
+                     +-----------+   +-----------+   +-----------+   
+                     |  Device A |   |  Device B |   |   QSYNC   |    
+                     +-----------+   +-----------+   +-----------+   
+```
+
+NSQDriver接口可用于统一控制Q100/PQ系列测控仪器，可详细控制每台仪器每个OUT、IN通道的播放与采集行为，以及查看设备的运行状态等。在一个多台测控设备组成的多比特测控系统中，可以有效的在软件层面实现对系统中每台设备的详细控制。
+
+***
+### 快速开始
+- 驱动接口的通用流程如下
+```python
+from nsqdriver import MCIDriver, QSYNCDriver
+
+# 实例化设备驱动接口
+driver = MCIDriver('127.0.0.1')
+qsync = QSYNCDriver('127.0.0.1')
+
+# 连接设备
+qsync.open()
+driver.open()
+
+# 初始化系统
+qsync.sync_system()
+
+
+# 相关参数，参数细节相关参考 8.可用参数列表
+driver.set('Shot', 1024)
+```
+
+- NSWave语言
+  - NSWave是一种对于Sequence序列发生技术的配套编程语言，属于python语法的子集，支持与python程序进行混编
+  - Sequence序列发生模式将测控所需的各种门的编辑由主控计算机直接生成波形转化成了设备实时计算
+  - 提供了一套直观的时序编辑接口
+```python
+from nsqdriver import nswave as nw
+from nsqdriver import MCIDriver
+import numpy as np
+
+@nw.kernel
+def program(envelope: np.ndarray):
+    srate: nw.Var = 8e9
+    time_width: nw.Var = 6e-6
+    freq: nw.Var = 4.1e9
+    time_line: np.ndarray = np.linspace(0, 6e-6, int(time_width * srate + 1))
+    wave: np.ndarray = np.cos(2 * np.pi * time_line * freq)
+    frame_0: nw.Frame = nw.ins_frame(0e9, 0*np.pi)
+    frame_1: nw.Frame = nw.ins_frame(4.3e9, 0*np.pi)
+    envelope_0: nw.Envelope = nw.ins_envelope(wave)
+    envelope_1: "nw.Envelope" = nw.evlp_gaussian(2e-6, srate)
+    envelope_2: nw.Envelope = nw.ins_envelope(envelope)
+
+    nw.wait_for_trigger()
+    nw.reset_frame([frame_0, frame_1])
+    nw.wait(3.2e-6)
+    nw.play_wave(envelope_1, frame_1)
+    nw.play_wave(envelope_0, frame_0)
+    nw.inc_phase(frame_1, np.pi)
+    nw.play_wave(envelope_2, frame_1)
+
+    return nw.Kernel()
+
+driver: MCIDriver
+envelope = np.ones((10240, ))
+driver.set("Program", program(envelope), 'S5-O1')
+```
