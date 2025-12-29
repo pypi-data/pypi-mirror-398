@@ -1,0 +1,408 @@
+# llmctl - Command Line LLM Interface
+
+A powerful CLI tool to interact with various LLM providers (OpenAI, Anthropic/Claude) with **interactive sessions**, **colored output**, and **persistent file attachments**.
+
+[![PyPI version](https://badge.fury.io/py/llmctl.svg)](https://pypi.org/project/llmctl/)
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## ✨ Features
+
+- 🎨 **Colored terminal output** - Beautiful, easy-to-read interface
+- 💬 **Interactive sessions** - Keep conversations going without restarting
+- 📎 **File attachments** - Add/remove files as context during conversations
+- 💾 **Session persistence** - Your conversations are saved automatically
+- 🔄 **Multi-provider support** - Switch between OpenAI and Claude seamlessly
+- 📜 **Conversation history** - Review past exchanges in your session
+- 💰 **Real-time cost tracking** - See exact costs after every API call
+- 📊 **Session statistics** - Track total spending per session
+- 🌍 **Cross-platform** - Works on Windows, Mac, and Linux
+
+## Installation
+
+### Via pip (Recommended)
+
+```bash
+pip install llmctl
+```
+
+### From source
+
+```bash
+git clone https://github.com/sabbiramin113008/llmctl.git
+cd cllm
+pip install -e .
+```
+
+## Quick Start
+
+1. **Initialize CLLM**:
+   ```bash
+   llmctl init
+   ```
+
+2. **Set your API keys**:
+   ```bash
+   export OPENAI_API_KEY="sk-your-key-here"
+   export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+   ```
+
+3. **Start chatting**:
+   ```bash
+   llmctl use claude:sonnet-4
+   llmctl interactive
+   ```
+
+## Usage
+
+### 🎮 Interactive Mode (Recommended)
+
+Start an interactive session where you can have ongoing conversations:
+
+```bash
+llmctl interactive
+```
+
+**Interactive Commands:**
+- `/help` - Show available commands
+- `/use <provider>` - Switch LLM provider (e.g., `/use gpt-4`)
+- `/attach <file>` - Attach a file as context
+- `/detach <file>` - Remove an attached file
+- `/files` - List all attached files
+- `/clear` - Clear conversation history
+- `/clearfiles` - Remove all attached files
+- `/history` - Show conversation history
+- `/stats` - Show session statistics and total costs
+- `/exit` or `/quit` - Exit the session
+
+**Example Session:**
+```bash
+llmctl interactive
+
+═══════════════════════════════════════════════════════════════════
+  🚀 CLLM - Interactive LLM Session
+═══════════════════════════════════════════════════════════════════
+
+  📡 Provider: anthropic (claude-sonnet-4-20250514)
+  💾 Session:  default
+
+───────────────────────────────────────────────────────────────────
+  📚 Quick Commands:
+     /help        - Show all commands
+     /use <model>  - Switch LLM provider
+     /attach <file> - Add file context
+     /stats       - Show costs & usage
+     /exit        - Exit session
+───────────────────────────────────────────────────────────────────
+  💡 Tip: Type naturally - no quotes needed!
+═══════════════════════════════════════════════════════════════════
+
+❯ explain quantum computing
+
+🤖 anthropic (claude-sonnet-4-20250514):
+Quantum computing harnesses quantum mechanical phenomena...
+
+───────────────────────────────────────────────────────────────────
+💰 Cost Breakdown:
+   Model: claude-sonnet-4-20250514
+   Input tokens: 156 ($0.000468)
+   Output tokens: 423 ($0.006345)
+   Total tokens: 579
+   Total cost: $0.006813
+───────────────────────────────────────────────────────────────────
+
+❯ /stats
+
+═══════════════════════════════════════════════════════════════════
+  📊 Session Statistics
+═══════════════════════════════════════════════════════════════════
+
+  Session Name:    default
+  Exchanges:       1 conversations
+  Total Tokens:    579
+  Total Cost:      $0.006813
+═══════════════════════════════════════════════════════════════════
+```
+
+### 📝 One-Off Questions
+
+Ask a single question without entering interactive mode:
+
+```bash
+llmctl ask "what is fibonacci number?"
+llmctl ask "write a Python function to reverse a string"
+```
+
+### 🔄 Provider Management
+
+Switch between different models:
+
+```bash
+# OpenAI models
+llmctl use gpt-4
+llmctl use gpt-4-turbo
+llmctl use gpt-4o-mini
+
+# Claude models
+llmctl use claude:sonnet-4
+llmctl use claude:sonnet-4.5
+llmctl use claude:opus-4
+llmctl use claude:haiku-4
+```
+
+### 💾 Session Management
+
+Use named sessions to keep different conversations separate:
+
+```bash
+# Start a named session
+llmctl interactive --session myproject
+
+# Start another session
+llmctl interactive --session work
+```
+
+Sessions are stored in `~/.cllm/sessions/` and persist across restarts.
+
+## 📂 File Structure
+
+```
+~/.cllm/
+├── config.json              # Current provider and session
+└── sessions/
+    ├── default.json         # Default session
+    ├── myproject.json       # Named session
+    └── work.json            # Another session
+```
+
+## 🎨 Color Scheme
+
+The modern, beautiful interface features:
+- **Cyan** - Borders and structure
+- **Blue** - User input prompts
+- **Magenta** - Section headers and AI labels
+- **Yellow** - Command names and highlights
+- **Green** - Success messages
+- **Red** - Error messages
+- **Black/Default** - Response text (high contrast)
+
+## Advanced Examples
+
+### Code Review Workflow
+
+```bash
+llmctl interactive --session codereview
+
+❯ /attach app.py
+❯ /attach utils.py
+❯ /files
+📎 Attached files:
+  • app.py
+  • utils.py
+
+❯ review these files for security issues
+
+[Assistant analyzes both files...]
+
+───────────────────────────────────────────────────────────────────
+💰 Cost Breakdown:
+   Model: claude-sonnet-4-20250514
+   Input tokens: 2,847 ($0.008541)
+   Output tokens: 1,234 ($0.018510)
+   Total tokens: 4,081
+   Total cost: $0.027051
+───────────────────────────────────────────────────────────────────
+
+❯ /stats
+
+═══════════════════════════════════════════════════════════════════
+  📊 Session Statistics
+═══════════════════════════════════════════════════════════════════
+
+  Session Name:    codereview
+  Exchanges:       1 conversations
+  Total Tokens:    4,081
+  Total Cost:      $0.027051
+  Attached Files:  2 files
+═══════════════════════════════════════════════════════════════════
+```
+
+### Cost Comparison Between Models
+
+```bash
+llmctl interactive --session comparison
+
+❯ /use claude:haiku-4
+❯ explain neural networks in 100 words
+
+───────────────────────────────────────────────────────────────────
+💰 Cost Breakdown:
+   Model: claude-haiku-4-20250514
+   Input tokens: 12 ($0.000010)
+   Output tokens: 95 ($0.000380)
+   Total tokens: 107
+   Total cost: $0.000390
+───────────────────────────────────────────────────────────────────
+
+❯ /clear
+❯ /use gpt-4
+❯ explain neural networks in 100 words
+
+───────────────────────────────────────────────────────────────────
+💰 Cost Breakdown:
+   Model: gpt-4
+   Input tokens: 12 ($0.000360)
+   Output tokens: 102 ($0.006120)
+   Total tokens: 114
+   Total cost: $0.006480
+───────────────────────────────────────────────────────────────────
+
+# Haiku is 16x cheaper! 🎉
+```
+
+## Supported Providers
+
+### OpenAI
+- `gpt-4` - Most capable, $30/$60 per 1M tokens
+- `gpt-4-turbo` - Fast and capable, $10/$30 per 1M tokens
+- `gpt-4o` - Optimized, $2.50/$10 per 1M tokens
+- `gpt-4o-mini` - Fast and cheap, $0.15/$0.60 per 1M tokens
+- `gpt-3.5-turbo` - Legacy, $0.50/$1.50 per 1M tokens
+
+### Anthropic (Claude)
+- `sonnet-4` or `claude-sonnet-4-20250514` - Balanced, $3/$15 per 1M tokens
+- `sonnet-4.5` or `claude-sonnet-4-5-20250929` - Latest Sonnet
+- `opus-4` or `claude-opus-4-20250514` - Most capable, $15/$75 per 1M tokens
+- `haiku-4` or `claude-haiku-4-20250514` - Fastest & cheapest, $0.80/$4 per 1M tokens
+
+## Tips & Best Practices
+
+1. **Start with cheaper models:**
+   ```bash
+   llmctl use claude:haiku-4  # Perfect for simple tasks
+   ```
+
+2. **Attach files for context:**
+   ```bash
+   /attach main.py
+   /attach config.yaml
+   /attach README.md
+   ```
+
+3. **Use named sessions for organization:**
+   ```bash
+   llmctl interactive --session client-work
+   llmctl interactive --session personal-projects
+   ```
+
+4. **Monitor costs regularly:**
+   ```bash
+   /stats  # Check spending anytime
+   ```
+
+5. **Clear history when switching topics:**
+   ```bash
+   /clear  # Start fresh conversation
+   ```
+
+6. **Model selection guide:**
+   - **Simple Q&A, summaries:** `haiku-4` or `gpt-4o-mini`
+   - **Code review, analysis:** `sonnet-4` or `gpt-4o`
+   - **Complex reasoning, research:** `opus-4` or `gpt-4`
+
+## Environment Variables
+
+Set these in your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) for persistence:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export OPENAI_API_KEY="sk-your-key-here"
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+```
+
+Then reload:
+```bash
+source ~/.bashrc  # or source ~/.zshrc
+```
+
+## Troubleshooting
+
+### Colors not showing?
+Colorama is installed automatically. If colors don't work:
+```bash
+pip install --upgrade colorama
+```
+
+### API key errors?
+Verify keys are set:
+```bash
+echo $OPENAI_API_KEY
+echo $ANTHROPIC_API_KEY
+```
+
+### Command not found?
+Ensure Python scripts directory is in PATH:
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Session not saving?
+Check permissions:
+```bash
+ls -la ~/.cllm/
+chmod 755 ~/.cllm
+```
+
+## Development
+
+### Install in development mode:
+```bash
+git clone https://github.com/sabbiramin113008/llmctl.git
+cd cllm
+pip install -e .
+```
+
+### Run tests:
+```bash
+pytest tests/
+```
+
+### Build package:
+```bash
+python -m build
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+**Your Name** - [GitHub](https://github.com/sabbiramin113008)
+
+## Acknowledgments
+
+- OpenAI for the GPT API
+- Anthropic for the Claude API
+- The Python community for amazing tools
+
+## Support
+
+- 🐛 [Report bugs](https://github.com/sabbiramin113008/llmctl/issues)
+- 💡 [Request features](https://github.com/sabbiramin113008/llmctl/issues)
+- ⭐ Star this repo if you find it useful!
+
+---
+
+**Made with ❤️ by developers, for developers**
