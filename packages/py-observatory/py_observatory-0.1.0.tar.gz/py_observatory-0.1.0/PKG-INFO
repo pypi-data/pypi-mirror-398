@@ -1,0 +1,634 @@
+Metadata-Version: 2.4
+Name: py-observatory
+Version: 0.1.0
+Summary: FastAPI Prometheus monitoring package inspired by Laravel Observatory
+Project-URL: Homepage, https://github.com/junixlabs/py-observatory
+Project-URL: Documentation, https://py-observatory.readthedocs.io
+Project-URL: Repository, https://github.com/junixlabs/py-observatory
+Author-email: JunixLabs <contact@junixlabs.com>
+License: MIT
+License-File: LICENSE
+Keywords: apm,fastapi,metrics,monitoring,observability,prometheus
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: System :: Monitoring
+Requires-Python: >=3.9
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: starlette>=0.27.0
+Provides-Extra: all
+Requires-Dist: aiofiles>=23.0.0; extra == 'all'
+Requires-Dist: redis>=4.5.0; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: fakeredis>=2.20.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: file
+Requires-Dist: aiofiles>=23.0.0; extra == 'file'
+Provides-Extra: redis
+Requires-Dist: redis>=4.5.0; extra == 'redis'
+Description-Content-Type: text/markdown
+
+# py-observatory
+
+FastAPI Prometheus monitoring package inspired by Laravel Observatory.
+
+## Features
+
+- **Inbound HTTP Monitoring**: Automatically track all incoming requests
+- **Outbound HTTP Monitoring**: Track external API calls with instrumented client
+- **Cronjob Monitoring**: Monitor scheduled tasks and background jobs
+- **Exception Tracking**: Monitor application exceptions
+- **Custom Metrics**: Add your own counters, gauges, and histograms
+- **Multiple Storage Backends**: Memory, Redis, or File-based storage
+- **Zero Configuration**: Works out of the box with sensible defaults
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Inbound Request Monitoring](#inbound-request-monitoring)
+- [Outbound Request Monitoring](#outbound-request-monitoring)
+- [Cronjob Monitoring](#cronjob-monitoring)
+- [Custom Metrics](#custom-metrics)
+- [Configuration](#configuration)
+- [Prometheus Queries](#prometheus-queries)
+- [Grafana Integration](#grafana-integration)
+
+---
+
+## Installation
+
+```bash
+pip install py-observatory
+```
+
+With Redis storage support:
+```bash
+pip install py-observatory[redis]
+```
+
+With file storage support:
+```bash
+pip install py-observatory[file]
+```
+
+With all optional dependencies:
+```bash
+pip install py-observatory[all]
+```
+
+---
+
+## Quick Start
+
+```python
+from fastapi import FastAPI
+from py_observatory import Observatory
+
+app = FastAPI()
+observatory = Observatory()
+observatory.instrument(app)
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+# Shutdown cleanup
+@app.on_event("shutdown")
+async def shutdown():
+    await observatory.close()
+```
+
+That's it! Visit `http://localhost:8000/metrics` to see your Prometheus metrics.
+
+---
+
+## Inbound Request Monitoring
+
+All incoming HTTP requests are automatically monitored after calling `observatory.instrument(app)`.
+
+### Metrics Produced
+
+| Metric | Type | Labels |
+|--------|------|--------|
+| `{app}_http_requests_total` | counter | method, route, status_code |
+| `{app}_http_request_duration_seconds` | histogram | method, route, status_code |
+
+### Example Output
+
+```
+pyapp_http_requests_total{method="GET",route="/api/users",status_code="200"} 150
+pyapp_http_request_duration_seconds_bucket{method="GET",route="/api/users",status_code="200",le="0.1"} 145
+```
+
+---
+
+## Outbound Request Monitoring
+
+Track external API calls using the instrumented HTTP client:
+
+```python
+@app.get("/external")
+async def external():
+    async with observatory.create_http_client() as client:
+        response = await client.get("https://api.example.com/data")
+        return response.json()
+```
+
+### Metrics Produced
+
+| Metric | Type | Labels |
+|--------|------|--------|
+| `{app}_http_outbound_requests_total` | counter | method, host, status_code |
+| `{app}_http_outbound_duration_seconds` | histogram | method, host, status_code |
+
+---
+
+## Cronjob Monitoring
+
+Monitor scheduled tasks and background jobs with automatic success/failure tracking.
+
+### Method 1: Decorator (Recommended)
+
+Use the `@observatory.monitor_job()` decorator for async or sync functions:
+
+```python
+from py_observatory import Observatory
+
+observatory = Observatory()
+
+# Async job with schedule info
+@observatory.monitor_job(schedule="*/5 * * * *")
+async def data_sync_job():
+    """Runs every 5 minutes."""
+    await sync_data_from_external_api()
+    return {"synced": 100}
+
+# Named job with schedule
+@observatory.monitor_job("daily_cleanup", schedule="0 0 * * *")
+async def cleanup_job():
+    """Runs daily at midnight."""
+    deleted = await delete_old_records()
+    return {"deleted": deleted}
+
+# Sync job (non-async)
+@observatory.monitor_job("report_generator", schedule="0 */6 * * *")
+def generate_report():
+    """Runs every 6 hours."""
+    report = create_pdf_report()
+    return {"report_id": report.id}
+```
+
+### Method 2: Context Manager
+
+Use the async context manager for more control:
+
+```python
+async def my_scheduled_task():
+    async with observatory.track_job("my_task", schedule="0 * * * *"):
+        # Your job logic here
+        await do_work()
+        # Exceptions are automatically tracked
+```
+
+### Method 3: Direct Recording
+
+For maximum flexibility, record job execution manually:
+
+```python
+async def custom_job():
+    start_time = await observatory.cronjob.record_start("custom_job", "*/10 * * * *")
+    try:
+        await do_work()
+        await observatory.cronjob.record_success("custom_job", start_time)
+    except Exception as e:
+        await observatory.cronjob.record_failure("custom_job", start_time, e)
+        raise
+```
+
+### Cronjob Metrics Produced
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `{app}_cronjob_executions_total` | counter | job, status | Total job executions |
+| `{app}_cronjob_failures_total` | counter | job, error_type | Failed executions by error type |
+| `{app}_cronjob_duration_seconds` | histogram | job, status | Execution duration distribution |
+| `{app}_cronjob_last_duration_seconds` | gauge | job | Last execution duration |
+| `{app}_cronjob_last_success` | gauge | job | Last status (1=success, 0=failed) |
+| `{app}_cronjob_last_execution_timestamp` | gauge | job | Unix timestamp of last execution |
+| `{app}_cronjob_running` | gauge | job | Currently running jobs (1=running) |
+| `{app}_cronjob_skipped_total` | counter | job, reason | Skipped executions |
+
+### Example: Background Job Runner
+
+```python
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from py_observatory import Observatory
+
+observatory = Observatory()
+
+@observatory.monitor_job(schedule="*/5 * * * *")
+async def sync_users():
+    await asyncio.sleep(1)  # Simulate work
+    return {"synced": 50}
+
+@observatory.monitor_job(schedule="0 0 * * *")
+async def cleanup_logs():
+    await asyncio.sleep(2)
+    return {"deleted": 100}
+
+async def run_background_jobs():
+    """Background task runner for demo purposes."""
+    while True:
+        try:
+            await sync_users()
+        except Exception:
+            pass  # Errors are tracked automatically
+
+        await asyncio.sleep(300)  # Run every 5 minutes
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background jobs
+    task = asyncio.create_task(run_background_jobs())
+    yield
+    # Cleanup
+    task.cancel()
+    await observatory.close()
+
+app = FastAPI(lifespan=lifespan)
+observatory.instrument(app)
+```
+
+### Querying Job Information
+
+```python
+# Get all registered jobs
+jobs = observatory.get_jobs()
+for job in jobs:
+    print(f"{job.name}: {job.run_count} runs, {job.success_count} success")
+
+# Get specific job info
+job_info = observatory.cronjob.get_job_info("sync_users")
+if job_info:
+    print(f"Last run: {job_info.last_run}")
+    print(f"Last status: {job_info.last_status}")
+    print(f"Success rate: {job_info.success_count / job_info.run_count * 100}%")
+```
+
+---
+
+## Custom Metrics
+
+Add your own application-specific metrics:
+
+```python
+@app.post("/orders")
+async def create_order(order: dict):
+    # Increment counter
+    await observatory.increment("orders_created", {"type": order["type"]})
+
+    # Set gauge value
+    await observatory.gauge("active_orders", 42, {"status": "pending"})
+
+    # Observe histogram value
+    await observatory.histogram("order_value", order["total"])
+
+    return {"status": "created"}
+```
+
+### Counter
+
+Counters only go up. Use for counting events.
+
+```python
+await observatory.increment("api_calls", {"endpoint": "/users"})
+await observatory.increment("errors", {"type": "validation"}, value=1)
+```
+
+### Gauge
+
+Gauges can go up or down. Use for current values.
+
+```python
+await observatory.gauge("active_connections", 42)
+await observatory.gauge("temperature", 23.5, {"location": "server-room"})
+```
+
+### Histogram
+
+Histograms track value distributions. Use for latencies, sizes, etc.
+
+```python
+await observatory.histogram("request_size", 1024)
+await observatory.histogram("processing_time", 0.5, {"job": "import"})
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OBSERVATORY_ENABLED` | `true` | Enable/disable monitoring |
+| `OBSERVATORY_APP_NAME` | `pyapp` | Application name (metric prefix) |
+| `OBSERVATORY_ENDPOINT` | `/metrics` | Prometheus metrics endpoint |
+| `OBSERVATORY_STORAGE` | `memory` | Storage backend: `memory`, `redis`, `file` |
+
+### Authentication
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OBSERVATORY_AUTH_ENABLED` | `false` | Enable basic auth for /metrics |
+| `OBSERVATORY_AUTH_USERNAME` | `prometheus` | Basic auth username |
+| `OBSERVATORY_AUTH_PASSWORD` | `` | Basic auth password |
+
+### Redis Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OBSERVATORY_REDIS_HOST` | `127.0.0.1` | Redis host |
+| `OBSERVATORY_REDIS_PORT` | `6379` | Redis port |
+| `OBSERVATORY_REDIS_PASSWORD` | `` | Redis password |
+| `OBSERVATORY_REDIS_DATABASE` | `0` | Redis database |
+
+### Exclusions
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OBSERVATORY_INBOUND_EXCLUDE_PATHS` | `/metrics,/health,...` | Paths to exclude |
+| `OBSERVATORY_OUTBOUND_EXCLUDE_HOSTS` | `localhost,127.0.0.1` | Hosts to exclude |
+
+### Programmatic Configuration
+
+```python
+from py_observatory import (
+    Observatory,
+    ObservatoryConfig,
+    PrometheusConfig,
+    InboundConfig,
+    OutboundConfig,
+    StorageType,
+)
+
+config = ObservatoryConfig(
+    enabled=True,
+    app_name="my-api",
+    prometheus=PrometheusConfig(
+        endpoint="/metrics",
+        storage=StorageType.REDIS,
+        buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0],
+    ),
+    inbound=InboundConfig(
+        enabled=True,
+        exclude_paths=["/health", "/ready", "/metrics"],
+    ),
+    outbound=OutboundConfig(
+        enabled=True,
+        exclude_hosts=["localhost", "127.0.0.1"],
+    ),
+)
+
+observatory = Observatory(config)
+observatory.instrument(app)
+```
+
+---
+
+## Prometheus Queries
+
+### HTTP Requests
+
+```promql
+# Request rate per second
+rate(pyapp_http_requests_total[5m])
+
+# Request rate by route
+sum(rate(pyapp_http_requests_total[5m])) by (route)
+
+# Error rate (5xx)
+sum(rate(pyapp_http_requests_total{status_code=~"5.."}[5m]))
+/ sum(rate(pyapp_http_requests_total[5m]))
+
+# 95th percentile latency
+histogram_quantile(0.95,
+  sum(rate(pyapp_http_request_duration_seconds_bucket[5m])) by (le)
+)
+
+# 95th percentile latency by route
+histogram_quantile(0.95,
+  sum(rate(pyapp_http_request_duration_seconds_bucket[5m])) by (route, le)
+)
+```
+
+### Outbound Requests
+
+```promql
+# Outbound requests by host
+sum(rate(pyapp_http_outbound_requests_total[5m])) by (host)
+
+# Outbound error rate
+sum(rate(pyapp_http_outbound_requests_total{status_code=~"5.."}[5m])) by (host)
+
+# Outbound latency
+histogram_quantile(0.95,
+  sum(rate(pyapp_http_outbound_duration_seconds_bucket[5m])) by (host, le)
+)
+```
+
+### Cronjob Monitoring
+
+```promql
+# Job execution rate
+sum(rate(pyapp_cronjob_executions_total[5m])) by (exported_job)
+
+# Job success rate
+sum(rate(pyapp_cronjob_executions_total{status="success"}[5m])) by (exported_job)
+/ sum(rate(pyapp_cronjob_executions_total[5m])) by (exported_job)
+
+# Failed jobs in last hour
+sum(increase(pyapp_cronjob_executions_total{status="failed"}[1h])) by (exported_job)
+
+# Average job duration
+rate(pyapp_cronjob_duration_seconds_sum[5m])
+/ rate(pyapp_cronjob_duration_seconds_count[5m])
+
+# Currently running jobs
+pyapp_cronjob_running == 1
+
+# Jobs that failed last execution
+pyapp_cronjob_last_success == 0
+
+# Failures by error type
+sum(rate(pyapp_cronjob_failures_total[5m])) by (exported_job, error_type)
+```
+
+> **Note**: In Prometheus, the `job` label is renamed to `exported_job` because `job` is a reserved label for the scrape job name.
+
+### Exceptions
+
+```promql
+# Exception rate
+sum(rate(pyapp_exceptions_total[5m])) by (exception_class)
+
+# Top exceptions
+topk(5, sum(increase(pyapp_exceptions_total[1h])) by (exception_class))
+```
+
+---
+
+## Grafana Integration
+
+### Prometheus Scrape Configuration
+
+Add to your `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: 'py-observatory'
+    static_configs:
+      - targets: ['your-app:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+```
+
+### Sample Alert Rules
+
+```yaml
+groups:
+  - name: py-observatory-alerts
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(pyapp_http_requests_total{status_code=~"5.."}[5m]))
+          / sum(rate(pyapp_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+
+      # Cronjob failure
+      - alert: CronjobFailed
+        expr: pyapp_cronjob_last_success == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cronjob {{ $labels.exported_job }} failed"
+
+      # Cronjob running too long
+      - alert: CronjobRunningTooLong
+        expr: pyapp_cronjob_running == 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cronjob {{ $labels.exported_job }} running for over 30 minutes"
+
+      # High latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(pyapp_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency is above 1 second"
+```
+
+---
+
+## API Reference
+
+### Observatory Class
+
+```python
+class Observatory:
+    def __init__(self, config: Optional[ObservatoryConfig] = None) -> None
+    def instrument(self, app: FastAPI) -> "Observatory"
+    def create_http_client(self, **kwargs) -> ObservedHTTPXClient
+
+    # Custom metrics
+    async def increment(self, name: str, labels: dict = None, value: float = 1.0)
+    async def gauge(self, name: str, value: float, labels: dict = None)
+    async def histogram(self, name: str, value: float, labels: dict = None)
+
+    # Cronjob monitoring
+    def monitor_job(self, job_name: str = None, schedule: str = "") -> Callable
+    async def track_job(self, job_name: str, schedule: str = "") -> AsyncContextManager
+    def get_jobs(self) -> List[JobInfo]
+
+    # Lifecycle
+    async def close() -> None
+```
+
+### JobInfo Class
+
+```python
+@dataclass
+class JobInfo:
+    name: str
+    schedule: str
+    description: str = ""
+    last_run: Optional[datetime] = None
+    last_status: Optional[JobStatus] = None
+    last_duration: Optional[float] = None
+    run_count: int = 0
+    success_count: int = 0
+    failure_count: int = 0
+```
+
+### JobStatus Enum
+
+```python
+class JobStatus(str, Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    RUNNING = "running"
+    SKIPPED = "skipped"
+```
+
+---
+
+## Troubleshooting
+
+### Metrics not appearing
+
+1. Check if Observatory is enabled: `OBSERVATORY_ENABLED=true`
+2. Verify the metrics endpoint: `curl http://localhost:8000/metrics`
+3. Check Prometheus target status in Prometheus UI
+
+### Cronjob metrics show `exported_job` instead of `job`
+
+This is expected. Prometheus renames custom `job` labels to `exported_job` because `job` is a reserved label for the scrape job name. Use `exported_job` in your queries.
+
+### Redis connection errors
+
+1. Verify Redis is running: `redis-cli ping`
+2. Check connection settings: `OBSERVATORY_REDIS_HOST`, `OBSERVATORY_REDIS_PORT`
+3. Fall back to memory storage if Redis is optional
+
+---
+
+## License
+
+MIT
