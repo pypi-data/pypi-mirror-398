@@ -1,0 +1,1 @@
+docker run --name mypostgres -p 5432:5432 -e POSTGRES_USER=ohdsi -e POSTGRES_PASSWORD=ohdsi postgres:16-alpine
