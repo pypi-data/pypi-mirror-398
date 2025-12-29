@@ -1,0 +1,215 @@
+# --- build system ---
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# --- project & dependencies ---
+
+[project]
+name = "daglite"
+description = "Lightweight Python framework for building static DAGs with explicit bindings."
+dynamic = ["version"]
+requires-python = ">=3.10"
+readme = "README.md"
+dependencies = [
+    "pluggy>=1.6.0",
+    "typing-extensions>=4.15.0", # For Python 3.10 compatibility
+]
+
+[project.optional-dependencies] # Add new plugins here
+cli = ["daglite-cli"]
+serialization = ["daglite-serialization"]
+
+[dependency-groups]
+dev = [
+    "daglite-cli",
+    "daglite-serialization[all]",
+    "nox",
+    "pandas-stubs",
+    "poethepoet",
+    "pre-commit",
+    "pre-commit-uv>=4.2.0",
+    "ruff",
+]
+test = [
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pyrefly",
+    "pyright>=1.1.407",
+    "ty",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.26.0",
+    "pymdown-extensions>=10.0",
+]
+repl = ["ipython"]
+notebook = ["ipykernel"]
+
+# --- tool.coverage ---
+
+[tool.coverage.paths]
+source = ["./src", "extras/*/src", "*/site-packages"]
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class \\(.*\\bProtocol.*\\):",
+    "@(abc\\.)?abstractmethod",
+    "@overload",
+]
+fail_under = 0
+
+[tool.coverage.run]
+source_pkgs = [
+    "daglite",
+    "daglite_cli",
+    "daglite_serialization",
+] # Add new plugins here
+omit = ["tests/typing/assert_type_tests.py"]
+branch = true
+sigterm = true
+
+# --- tool.mypy ---  # currently only used in CI for type checking
+
+[tool.mypy]
+namespace_packages = true
+explicit_package_bases = true
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+ignore_missing_imports = true
+strict = false
+show_error_codes = true
+warn_unreachable = true
+warn_no_return = true
+warn_unused_ignores = true
+mypy_path = "src:extras/cli/src:extras/serialization/src" # Add new plugins here
+
+# --- tool.pyrefly ---  # currently only used in CI for type checking
+
+[tool.pyrefly.errors]
+invalid-param-spec = false
+
+# --- tool.pyright ---
+
+[tool.pyright]
+executionEnvironments = [ # Add new plugins here
+    { root = "src" },
+    { root = "extras/cli/src" },
+    { root = "extras/serialization/src" },
+]
+include = ["src", "extras/*/src", "tests", "extras/*/tests"]
+exclude = [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/.ruff_cache",
+]
+typeCheckingMode = "standard"
+reportUnnecessaryTypeIgnoreComments = true
+
+# --- tool.poe ---
+
+[tool.poe.tasks]
+format = "ruff format src tests"
+lint = "pre-commit run --all-files"
+test = "pytest"
+test-cov = "pytest --cov --cov-branch --cov-report=term-missing --cov-report=html"
+
+# --- tool.pytest ---
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config --import-mode importlib"
+pythonpath = ["."]
+testpaths = ["tests", "extras/*/tests"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+filterwarnings = [
+    # Suppress fork() deprecation from multiprocessing when using pytest-cov
+    "ignore:.*multi-threaded.*fork.*:DeprecationWarning:multiprocessing.popen_fork",
+]
+
+# --- tool.ruff ---
+
+[tool.ruff]
+line-length = 100
+show-fixes = true
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "D",    # pydocstyle errors
+    "D200", # One-liner docstring should fit within a single line
+    "D213", # Multi-line docstring summary should start at second line
+    "D400", # First line should end with a period
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D105", # Missing docstring in magic method
+    "D107", # Missing docstring in __init__
+    "D202", # No blank lines allowed after function docstring
+    "D205", # 1 blank line required between summary line and description
+    "D212", # Multi-line docstring summary should start at the first line
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+single-line-exclusions = ["typing", "typing_extensions"]
+
+[tool.ruff.lint.per-file-ignores]
+"noxfile.py" = ["D"]
+"tests/**" = ["D"]
+"test*.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = [
+    "typing.overload",
+    "typing.no_type_check",
+    "pydantic.field_validator",
+]
+
+# --- tool.setuptools ---
+
+[tool.setuptools.dynamic.version]
+attr = "daglite.__version__"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"daglite" = ["py.typed"]
+
+# --- tool.ty ---  # currently only used in CI for type checking
+
+[tool.ty.rules]
+unused-ignore-comment = "error"
+
+# --- tool.uv ---
+
+[tool.uv]
+default-groups = ["dev", "test"]
+
+[tool.uv.sources] # Add new plugins here
+daglite = { workspace = true }
+daglite-cli = { workspace = true }
+daglite-serialization = { workspace = true }
+
+[tool.uv.workspace]
+members = ["extras/*"]
