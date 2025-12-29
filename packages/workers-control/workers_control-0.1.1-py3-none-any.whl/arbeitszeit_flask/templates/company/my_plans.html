@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block navbar_start %}
+<div class="navbar-item">{{ gettext("My plans") }}</div>
+{% endblock %}
+
+{% block content %}
+<section class="section has-text-centered">
+    <h1 class="title">{{ gettext("My plans") }}</h1>
+</section>
+
+<div class="section">
+  <h1 class="title is-4 has-text-centered">{{ gettext("Active")}}</h1>
+  {% if show_active_plans %}
+  <div class="columns is-centered has-text-left">
+    <div class="column is-one-third">
+      <div class="has-text-centered">{{ gettext("Your active plans.") }}</div>
+      {% for plan in active_plans.rows %}
+      <article class="media">
+        <div class="media-content">
+          <div class="content">
+            <p>
+              <strong class="is-size-5">
+                <a href="{{ plan.plan_details_url }}">{{ plan.prd_name }}</a>
+              </strong>
+              <br>
+              <small title="{{ gettext('Activation date') }}">{{ "calendar"|icon }}&nbsp;{{ plan.approval_date }}</small>
+              <small title="{{ gettext('Expiration date') }}">{{ "hourglass"|icon }}&nbsp;{{ plan.expiration_relative }}</small>
+            </p>
+          </div>
+          <div>
+            {% if plan.is_cooperating %}
+            <span class="tag is-primary">{{ gettext("Cooperating plan") }}</span>
+            {% endif %}
+            {% if plan.is_public_service %}
+            <span class="tag is-warning">{{ gettext("Public") }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="media-right">
+          <p class="is-size-5 pt-1">
+            {{ plan.price_per_unit }}
+          </p>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="has-text-centered">{{ gettext("You don't have active plans.")}}</p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h1 class="title is-4 has-text-centered">{{ gettext("Rejected")}}</h1>
+  {% if show_rejected_plans %}
+  <div class="columns is-centered has-text-left">
+    <div class="column is-one-third">
+      <div class="has-text-centered">{{ gettext("Plans rejected by social accounting.") }}</div>
+      {% for plan in rejected_plans.rows %}
+      <article class="media">
+        <div class="media-content">
+          <div class="content">
+            <p>
+              <strong class="is-size-5">
+                <a href="{{ plan.plan_details_url }}">{{ plan.prd_name }}</a>
+              </strong>
+              <br>
+              <small title="{{ gettext('Creation date') }}">{{ "calendar"|icon }}&nbsp;{{ plan.plan_creation_date }}</small>
+              <small title="{{ gettext('Rejection date') }}">{{ "times"|icon }}&nbsp;{{ plan.rejection_date }}</small>
+            </p>
+          </div>
+          <div>
+            {% if plan.is_public_service %}
+            <span class="tag is-warning">{{ gettext("Public") }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="media-right">
+          <p class="is-size-5 pt-1">
+            {{ plan.price_per_unit }}
+          </p>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="has-text-centered">{{ gettext("You don't have rejected plans.")}}</p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h1 class="title is-4 has-text-centered">{{ gettext("Waiting")}}</h1>
+  <div class="table-container">
+    {% if show_non_active_plans %}
+    <div class="has-text-centered">{{ gettext("Plans waiting for approval by social accounting.") }}</div>
+    <table class="table has-text-left mx-auto">
+      <thead>
+        <tr>
+          <th></th>
+          <th>{{ gettext("Costs")}}</th>
+          <th>{{ gettext("Type")}}</th>
+          <th>{{ gettext("Plan created")}}</th>
+          <th>{{ gettext("Revoke") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in non_active_plans.rows %}
+        <tr>
+          <td><a href="{{ plan.plan_details_url }}">{{ plan.prd_name }}</a></td>
+          <td>{{ plan.price_per_unit }}</td>
+          <td>{{ plan.type_of_plan }}</td>
+          <td>{{ plan.plan_creation_date }}</td>
+          <td><form method="post" action="{{ plan.revoke_plan_filing_url }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button is-ghost" type="submit" title="{{ gettext('Revoke plan filing') }}">
+            {{ "times"|icon }}
+          </button>
+          </form>
+          </td>
+
+          
+          
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="has-text-centered">{{ gettext("You don't have plans waiting for activation.")}}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section">
+  <a id="drafts"></a>
+  <h1 class="title is-4 has-text-centered">{{ gettext("Drafts") }}</h1>
+  {% if show_drafts %}
+  <div class="columns is-centered has-text-left">
+    <div class="column is-one-third">
+      <div class="has-text-centered">{{ gettext("Your drafts. Click the envelope button to submit a plan to social accounting.") }}</div>
+      {% for draft in drafts.rows %}
+      <article class="media">
+        <div class="media-content">
+          <div class="content">
+            <p>
+              <strong class="is-size-5">
+                <a href="{{ draft.draft_details_url }}">{{ draft.product_name }}</a>
+              </strong>
+              <br>
+              <small title="{{ gettext('Creation date') }}">{{ "calendar"|icon }}&nbsp;{{ draft.draft_creation_date }}</small>
+            </p>
+          </div>
+        </div>
+        <div class="media-right">
+          <div class="content pt-1">
+            <form method="post" action="{{ draft.file_plan_url }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button is-ghost" type="submit" title="{{ gettext('File plan') }}">
+                {{ "envelope"|icon }}
+              </button>
+            </form>
+            &nbsp;
+            <form method="post" action="{{ draft.draft_delete_url }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button is-ghost" type="submit" title="{{ gettext('Delete plan') }}">
+                {{ "trash"|icon }}
+              </button>
+            </form>
+            &nbsp;
+            <form method="get" action="{{ draft.edit_plan_url }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button is-ghost" type="submit" title="{{ gettext('Edit plan') }}">
+                {{ "edit"|icon }}
+              </button>
+            </form>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="has-text-centered">{{ gettext("You don't have any drafts saved.") }}</p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h1 class="title is-4 has-text-centered">{{ gettext("Expired")}}</h1>
+  {% if show_expired_plans %}
+  <div class="columns is-centered has-text-left">
+    <div class="column is-one-third">
+      {% for plan in expired_plans.rows %}
+      <article class="media">
+        <div class="media-content">
+          <div class="content">
+            <p>
+              <strong class="is-size-5">
+                <a href="{{ plan.plan_details_url }}">{{ plan.prd_name }}</a>
+              </strong>
+              <br>
+              <small title="{{ gettext('Creation date') }}">{{ "calendar"|icon }}&nbsp;{{ plan.plan_creation_date }}</small>
+            </p>
+          </div>
+        </div>
+        <div class="media-right">
+          <div class="content pt-1">
+            <form method="post" action="{{ plan.renew_plan_url }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button is-ghost" type="submit" title="{{ gettext('Renew plan') }}">
+                {{ "redo"|icon }}
+              </button>
+            </form>
+            &nbsp;
+            <a href="{{ plan.hide_plan_url }}">{{ "trash"|icon }}</a>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="has-text-centered">{{ gettext("You don't have expired plans.") }}</p>
+  {% endif %}
+</div>
+{% endblock %}
