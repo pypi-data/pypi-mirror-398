@@ -1,0 +1,205 @@
+Metadata-Version: 2.1
+Name: ctplite
+Version: 0.1.6
+Summary: Python SDK for pq-futures CTP trading system
+Home-page: https://www.ctplite.com
+Author: pq-futures
+Author-email: ctplite@163.com
+License: MIT
+Keywords: ctp,trading,futures,grpc,rest,sdk
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: grpcio>=1.70.0
+Requires-Dist: grpcio-tools>=1.70.0
+Requires-Dist: protobuf>=5.29.5
+Requires-Dist: requests>=2.31.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+
+# CTPLite
+
+Python SDK for CTPLite. 提供 gRPC 和 REST 两种客户端接口，方便开发人员在 Python 基于CTP API进行交易。
+
+## 功能特性
+
+### gRPC 客户端
+
+- **认证服务**
+  - 登录、登出、刷新token
+  - Token自动刷新机制（后台自动维护token有效性）
+  - 连接自动重连机制（支持指数退避重试）
+- **行情服务**
+  - 订阅/取消订阅行情数据（流式推送）
+  - CTP行情登出
+- **交易服务**
+  - 下单、撤单
+  - 查询持仓、资金账户、订单、成交
+  - 流式接收订单状态更新（支持自动重连）
+  - 流式接收连接状态更新（交易/行情连接状态监控）
+  - 查询合约信息、保证金率、手续费率
+  - 结算确认、查询结算信息
+  - 查询交易所、投资者信息
+  - 查询最大报单量
+  - CTP交易登出
+
+### REST 客户端
+
+- **认证服务**
+  - 登录、登出
+- **行情服务**
+  - 订阅/取消订阅行情数据（支持Kafka topic）
+- **交易服务**
+  - 下单、撤单
+  - 查询持仓、资金账户、订单、成交
+  - 查询合约信息、保证金率、手续费率
+  - 结算确认、查询结算信息
+  - 查询交易所、投资者信息
+  - 查询最大报单量
+  - CTP交易登出
+
+## 安装
+
+```bash
+pip install ctplite
+
+pip install -U ctplite -i https://pypi.org/simple
+```
+
+
+## 配置说明
+
+所有配置项通过 `.env` 文件进行管理，SDK 会自动读取 `.env` 文件中的配置。
+
+### 配置项说明
+
+| 配置项              | 类型 | 默认值                    | 说明                           |
+| ------------------- | ---- | ------------------------- | ------------------------------ |
+| `CTPLITE_GRPC_HOST` | str  | `localhost`               | gRPC服务器地址                 |
+| `CTPLITE_GRPC_PORT` | int  | `50051`                   | gRPC服务器端口                 |
+| `CTPLITE_REST_HOST` | str  | `localhost`               | REST服务器地址                 |
+| `CTPLITE_REST_PORT` | int  | `8080`                    | REST服务器端口                 |
+| `CTP_MD_FRONT`      | str  | -                         | CTP行情前置地址（必填）         |
+| `CTP_TD_FRONT`      | str  | -                         | CTP交易前置地址（必填）         |
+| `CTP_BROKER_ID`     | str  | -                         | CTP经纪商代码（必填）           |
+| `CTP_USER_ID`       | str  | -                         | CTP用户代码（必填）             |
+| `CTP_PASSWORD`      | str  | -                         | CTP密码（必填）                 |
+| `CTP_APP_ID`        | str  | `simnow_client_test`      | CTP应用标识（可选）             |
+| `CTP_AUTH_CODE`     | str  | `0000000000000000`        | CTP认证码（可选）               |
+| `CTP_INVESTOR_ID`   | str  | -                         | CTP投资者代码（可选）           |
+| `CTPLITE_TOKEN`     | str  | -                         | 会话token（登录后自动设置，可选） |
+
+
+## 快速开始
+
+### 配置环境变量
+
+推荐使用 `.env` 文件来管理配置，避免在代码中硬编码敏感信息。
+`.env` 文件应该放在**运行 Python 脚本的目录**（当前工作目录）。
+
+**推荐位置：项目根目录**
+
+```
+my_project/
+├── .env              # 放在这里（推荐）
+├── main.py           # 运行: python main.py
+
+```
+
+`.env` 文件内容示例：
+
+```bash
+# gRPC 服务器配置
+CTPLITE_GRPC_HOST=localhost
+CTPLITE_GRPC_PORT=50051
+
+# REST 服务器配置
+CTPLITE_REST_HOST=localhost
+CTPLITE_REST_PORT=8080
+
+# CTP 前置地址（必填）
+CTP_MD_FRONT=tcp://182.254.243.31:40011
+CTP_TD_FRONT=tcp://182.254.243.31:40001
+
+# CTP 认证信息
+CTP_BROKER_ID=9999
+CTP_USER_ID=your_user_id
+CTP_PASSWORD=your_password
+CTP_APP_ID=simnow_client_test
+CTP_AUTH_CODE=0000000000000000
+CTP_INVESTOR_ID=244753
+
+# Token 认证（如果使用token认证，可替代密码认证）
+CTPLITE_TOKEN=your_token
+```
+
+### 使用 gRPC 客户端
+
+```python
+from ctplite import GrpcClient
+
+# 创建客户端并连接（配置会自动从 .env 文件读取）
+client = GrpcClient()
+try:
+    # 连接到gRPC服务器（建立网络连接）
+    client.connect()
+    
+    # 登录并获取token（用户认证）
+    client.login()
+
+    # 查询资金账户
+    account_resp = client.query_trading_account()
+    if account_resp.error_code == 0:
+        account = account_resp.account
+        print(f"账户余额: {account.balance:.2f}")
+        print(f"可用资金: {account.available:.2f}")
+except Exception as e:
+    print(f"发生错误: {e}")
+finally:
+    # 关闭连接
+    client.close()
+```
+
+### 使用 REST 客户端
+
+```python
+from ctplite import RestClient
+
+# 创建客户端（配置会自动从 .env 文件读取）
+client = RestClient()
+try:
+    # 登录
+    result = client.login()
+    print(f"登录成功: {result['success']}")
+    
+    # 查询资金账户
+    result = client.query_trading_account()
+    if result.get('success'):
+        account = result['data'].get('account', {})
+        print(f"账户余额: {account.get('balance', 0):.2f}")
+        print(f"可用资金: {account.get('available', 0):.2f}")
+except Exception as e:
+    print(f"发生错误: {e}")
+finally:
+    # 登出
+    client.logout()
+```
+
+
+## 许可证
+
+MIT License
