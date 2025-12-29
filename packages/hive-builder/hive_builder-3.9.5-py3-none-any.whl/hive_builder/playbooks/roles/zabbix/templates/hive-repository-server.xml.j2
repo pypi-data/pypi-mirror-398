@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>5.0</version>
+    <date>2020-12-31T02:54:34Z</date>
+    <groups>
+        <group>
+            <name>Repository server</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <template>Hive Repository Server</template>
+            <name>Hive Repository Server</name>
+            <description>Check docker volume usage</description>
+            <groups>
+                <group>
+                    <name>Repository server</name>
+                </group>
+            </groups>
+            <applications>
+                <application>
+                    <name>Docker</name>
+                </application>
+                <application>
+                    <name>Error Log</name>
+                </application>
+            </applications>
+            <items>
+                <item>
+                    <name>Error Log Detecting for Services</name>
+                    <type>ZABBIX_ACTIVE</type>
+                    <key>logrt[/var/log/service-error.log]</key>
+                    <history>30d</history>
+                    <trends>0</trends>
+                    <value_type>LOG</value_type>
+                    <applications>
+                        <application>
+                            <name>Error Log</name>
+                        </application>
+                    </applications>
+                    <logtimefmt>yyyy/MM/dd hh:mm:ss</logtimefmt>
+                    <triggers>
+                        <trigger>
+                            <expression>{count(8h)}&gt;0</expression>
+                            <name>Error Log Detected for Services</name>
+                            <priority>WARNING</priority>
+                        </trigger>
+                    </triggers>
+                </item>
+            </items>
+            <discovery_rules>
+{% for hive in hive_names %}
+                <discovery_rule>
+                    <name>Docker Inner-service discovery {{ hive }}</name>
+                    <key>user.discovery.docker-innerservice.{{ hive }}</key>
+                    <delay>1h</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Docker Inner-service uptime {{ '{#INNER}' }}@{{ '{#SERVICE_NAME}' }} ({{ hive }})</name>
+                            <key>docker-innerservice-uptime.{{ hive }}[{{ '{#SERVICE_NAME}' }},{{ '{#INNER}' }}]</key>
+                            <delay>5m</delay>
+                            <applications>
+                                <application>
+                                    <name>Docker</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last(#1)}&lt;28800</expression>
+                                    <name>Service {{ '{#INNER}' }} in container {{ '{#SERVICE_NAME}' }} restarted ({{ hive }})</name>
+                                    <priority>WARNING</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>Docker Swarm Service discovery {{ hive }}</name>
+                    <key>user.discovery.docker-service.{{ hive }}</key>
+                    <delay>1h</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Docker Swarm Service replicas {{ '{#SERVICE_NAME}' }} ({{ hive }})</name>
+                            <key>docker-service-replicas.{{ hive }}[{{ '{#SERVICE_NAME}' }}]</key>
+                            <applications>
+                                <application>
+                                    <name>Docker</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last(#1)}&lt;100</expression>
+                                    <name>Service {{ '{#SERVICE_NAME}' }} replicas running percetage less than 100 ({{ hive }})</name>
+                                    <priority>WARNING</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <name>Docker Swarm Service uptime {{ '{#SERVICE_NAME}' }} ({{ hive }})</name>
+                            <key>docker-service-uptime.{{ hive }}[{{ '{#SERVICE_NAME}' }}]</key>
+                            <delay>5m</delay>
+                            <applications>
+                                <application>
+                                    <name>Docker</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last(#1)}&lt;28800</expression>
+                                    <name>Service {{ '{#SERVICE_NAME}' }} restarted ({{ hive }})</name>
+                                    <priority>WARNING</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>Docker Swarm Standalone Service discovery {{ hive }}</name>
+                    <key>user.discovery.docker-standalone-service.{{ hive }}</key>
+                    <delay>1h</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Docker Failed Innerservice count in {{ '{#SERVICE_NAME}' }} ({{ hive }})</name>
+                            <key>docker-failed-innerservice-count.{{ hive }}[{{ '{#SERVICE_NAME}' }}]</key>
+                            <applications>
+                                <application>
+                                    <name>Docker</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last(#1)}&gt;0</expression>
+                                    <name>At least one of the services in standalone type container {{ '{#SERVICE_NAME}' }} is in a failed state ({{ hive }})</name>
+                                    <priority>WARNING</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>Volume usage discovery {{ hive }}</name>
+                    <key>user.discovery.docker-volume.{{ hive }}</key>
+                    <delay>1h</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Docker volume {{ '{#NAME}' }} in {{ '{#SERVICE_NAME}' }} ({{ hive }})</name>
+                            <key>docker-volume.{{ hive }}[{{ '{#SERVICE_NAME}' }},{{ '{#PATH}' }}]</key>
+                            <delay>10m</delay>
+                            <units>%</units>
+                            <applications>
+                                <application>
+                                    <name>Docker</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last(#3)}&gt;90</expression>
+                                    <name>Exceed 90% Docker volume {{ '{#NAME}' }} in {{ '{#SERVICE_NAME}' }} usage ({{ hive }})</name>
+                                    <priority>WARNING</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+{% endfor %}
+            </discovery_rules>
+        </template>
+    </templates>
+</zabbix_export>

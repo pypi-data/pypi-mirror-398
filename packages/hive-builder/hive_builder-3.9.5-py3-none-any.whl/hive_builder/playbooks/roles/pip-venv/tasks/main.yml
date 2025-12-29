@@ -1,0 +1,57 @@
+---
+# 2019/8/11 the python36 package disappear from Centos 7 epel repository
+# and fail to inestall python34-virtualenv: python-rpm-macros is not found
+# so we use ius repository
+# hive_safe_python_revision: "{{ hive_python_revision | default('36u')}}"
+# hive_safe_use_ius: True
+
+# 2019/9/21 the python3 package appear on Centos base repository and following warning message is printed by ius's python36u package
+# Package python36u is obsoleted by python3, trying to install python3-3.6.8-10.el7.x86_64 instead
+# Package python36u-libs is obsoleted by python3-libs, trying to install python3-libs-3.6.8-10.el7.x86_64 instead
+# Package python36u-devel is obsoleted by python3-devel, trying to install python3-devel-3.6.8-10.el7.x86_64 instead
+# Package python36u-setuptools is obsoleted by python3-setuptools, trying to install python3-setuptools-39.2.0-10.el7.noarch instead
+
+# - name: install ius and epel yum repo
+# #  ius requrire epel-release
+#   yum: name=https://centos7.iuscommunity.org/ius-release.rpm state=present
+#   when: hive_safe_use_ius
+- name: install python package
+  yum:
+    state: present
+    name:
+      - python{{ hive_safe_python_package_version }}
+      - python{{ hive_safe_python_package_version }}-libs
+      - python{{ hive_safe_python_package_version }}-devel
+      - python{{ hive_safe_python_package_version }}-pip
+      - python{{ hive_safe_python_package_version }}-setuptools
+- name: upgrade pip
+  become: False
+  pip:
+    name:
+      - pip
+      - setuptools
+      - wheel
+    virtualenv: "{{ hive_home_dir }}/docker"
+    virtualenv_command: "python{{ hive_safe_python_revision }} -m venv"
+    # hive-builder does not require libselinux module,
+    # but inherit system site-pacakges for addon which requires libselinux module
+    virtualenv_site_packages: "{{ hive_safe_need_libselinux }}"
+    extra_args: --disable-pip-version-check
+    state: latest
+  args:
+    chdir: "{{ hive_home_dir }}"
+  throttle: 1
+- name: install python-dxf
+  become: False
+  pip:
+    name:
+      - python-dxf
+    virtualenv: "{{ hive_home_dir }}/docker"
+  args:
+    chdir: "{{ hive_home_dir }}"
+  throttle: 1
+- name: setup auto enter virtualenv at login
+  become: False
+  lineinfile:
+    path: "{{ hive_home_dir }}/.bashrc"
+    line: ". {{ hive_home_dir }}/docker/bin/activate"

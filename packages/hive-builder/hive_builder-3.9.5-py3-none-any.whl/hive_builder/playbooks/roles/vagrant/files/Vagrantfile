@@ -1,0 +1,86 @@
+require 'yaml'
+
+Vagrant.configure("2") do |config|
+  vars = YAML.load_file 'vagrant_vars.yml'
+  if "#{vars['vagrant_ssh_insert_key']}" == "false"
+    config.ssh.insert_key = false
+  end
+  config.vm.box = "#{vars['vagrant_box_name']}"
+  # TODO: support disk_size on virtualbox provider
+  # if vars.key?("disk_size")
+  #   config.disksize.size = "#{vars['disk_size']}GB"
+  # end
+  _dir = "#{vars['hive_context_dir']}"
+  if Vagrant.has_plugin?("vagrant-proxyconf") and vars.include?('HTTP_PROXY') and vars['HTTP_PROXY'].length > 0
+    config.proxy.http = vars['HTTP_PROXY']
+    config.proxy.https = vars['HTTP_PROXY']
+    config.proxy.no_proxy = vars['NO_PROXY']
+  end
+
+  vars['vagrant_hosts'].each do |value|
+    # debug print
+    _name = value["name"]
+    _ip = value["ip"]
+    _netmask = value["netmask"]
+
+    # node list
+    config.vm.define "#{_name}" do |node|
+      # network
+      if vars.key?("vagrant_dev")
+        node.vm.network "public_network", ip: "#{_ip}", netmask: "#{_netmask}", dev: "#{vars['vagrant_dev']}", type: "bridge"
+      elsif vars.key?("vagrant_bridge")
+        node.vm.network "public_network", ip: "#{_ip}", netmask: "#{_netmask}", bridge: "#{vars['vagrant_bridge']}"
+      else
+        node.vm.network "private_network", ip: "#{_ip}", netmask: "#{_netmask}"
+      end
+      node.vm.hostname = "#{_name}"
+
+      # root fs disk size
+      if value.key?("disk_size")
+        node.vm.provision "shell", path: "growfs.sh"
+        if Vagrant.has_plugin?("vagrant-disksize") and
+          node.disksize.size = "#{value['disk_size']}GB"
+        end
+      end
+
+      node.vm.provider :libvirt do |v|
+        v.cpu_mode = "host-passthrough"
+        if value.key?("memory_size")
+          v.memory = value['memory_size']
+        end
+        if value.key?("cpus")
+          v.cpus = value['cpus']
+        end
+        if value.key?("disk_size")
+          v.machine_virtual_size = value['disk_size']
+        end
+        if value.key?("mirrored_disk_size")
+          drbdpool_disk = "drbdpool-#{_name}.img"
+          if !File.exist?(drbdpool_disk)
+            v.storage :file, :path => drbdpool_disk, :size => "#{value['mirrored_disk_size']}G"
+          end
+        end
+      end
+      node.vm.provider "virtualbox" do |v|
+        # avoid VBoxHeadless consume cpu 100%
+        # ref: https://masiuchi.com/blog/2019/02/macos-vboxheadless-cpu-100.html
+        v.customize ["modifyvm", :id, "--audio", "none"]
+        v.name = "#{_name}"
+        if value.key?("memory_size")
+          v.memory = value['memory_size']
+        end
+        if value.key?("cpus")
+          v.cpus = value['cpus']
+        end
+        if value.key?("mirrored_disk_size")
+          drbdpool_disk = "#{_dir}/drbdpool#{_name}.vdi"
+          if !File.exist?(drbdpool_disk)
+            v.customize ['createhd', '--filename', drbdpool_disk, '--variant', 'Fixed', '--size', value['mirrored_disk_size'].to_i * 1024]
+          end
+          v.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', drbdpool_disk]
+        end
+      end
+      config.vm.synced_folder ".", "/vagrant", disabled: true
+    end
+  end
+end

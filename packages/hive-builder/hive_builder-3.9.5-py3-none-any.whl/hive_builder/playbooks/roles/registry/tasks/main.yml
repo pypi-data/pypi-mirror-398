@@ -1,0 +1,51 @@
+---
+- name: "setup registry - create dir"
+  file:
+    path: "{{ hive_home_dir }}/registry"
+    state: directory
+    mode: 0755
+
+# - name: make htpasswd file
+#   shell: "docker run --entrypoint htpasswd registry:2 -nBb  '{{ hive_safe_docker_login_user }}' '{{ lookup('password', hive_context_dir + '/registry_password length=15') }}' > {{ hive_home_dir }}/registry/htpasswd"
+#   args:
+#     creates: "{{ hive_home_dir }}/registry/htpasswd"
+
+- name: "install registry docker-compose.yml"
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: 0755
+  with_items:
+    - src: registry.yml.j2
+      dest: "{{ hive_home_dir }}/registry/docker-compose.yml"
+
+- block:
+  - name: install passlib and bcrypt
+    pip:
+      name:
+        - passlib
+        - bcrypt==4.0.1 #passlibの更新が停止しており、最新では動作しないためバージョンを固定
+      state: present
+      virtualenv: "{{ hive_home_dir }}/docker"
+  - name: make htpasswd file
+    htpasswd:
+      path: "{{ hive_home_dir }}/registry/htpasswd"
+      name: "{{ hive_safe_docker_login_user }}"
+      crypt_scheme: bcrypt
+      password: "{{ lookup('password', hive_context_dir + '/registry_password length=15') }}"
+  - name: compose up registry container
+    community.docker.docker_compose_v2:
+      project_src: "{{ hive_home_dir }}/registry"
+  vars:
+    ansible_python_interpreter: "{{ hive_home_dir }}/docker/bin/python"
+
+- name: setup environment variable
+  become: False
+  blockinfile:
+    path: "{{ hive_home_dir }}/.bashrc"
+    marker: "# {mark} environment variables for python-dxf"
+    block: |
+      export DXF_PASSWORD={{ lookup('password', hive_context_dir + '/registry_password length=15') }}
+      export DXF_USERNAME={{ hive_safe_docker_login_user }}
+      export DXF_HOST={{ hive_registry }}
+      export DXF_TLSVERIFY=/etc/pki/ca-trust/source/anchors/cacert.pem

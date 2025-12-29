@@ -1,0 +1,40 @@
+---
+- name: gather facts about all block devices
+  setup:
+    filter: ansible_devices
+- name: set_fact
+  set_fact:
+    vg_name: "rootvg"
+    lv_name: "varlv"
+- name: find the partition containing rootvg
+  shell: "pvs --noheadings -o pv_name,vg_name | grep {{ vg_name }} | awk '{print $1}'"
+  register: rootvg_pv
+  changed_when: false
+- name: find the disk and partition number for rootvg
+  set_fact:
+    rootvg_disk: "{{ rootvg_pv.stdout | regex_replace('([0-9]+)$', '') }}"
+    rootvg_partition: "{{ rootvg_pv.stdout | regex_search('([0-9]+)$') }}"
+- name: create a new partition on the disk using parted
+  parted:
+    device: "{{ rootvg_disk }}"
+    number: "{{ rootvg_partition }}"
+    state: present
+    resize: true
+    label: gpt
+    part_end: 100%
+- name: resize the physical volume
+  lvg:
+    vg: "{{ vg_name }}"
+    pvs: "{{ rootvg_pv.stdout }}"
+    pvresize: true
+- name: extend the logical volume to use all free space
+  lvol:
+    vg: "{{ vg_name }}"
+    lv: "{{ lv_name }}"
+    size: "+100%FREE"
+    resizefs: true
+  register: extend_result
+- name: reboot the system
+  reboot:
+    reboot_timeout: 300
+  when: extend_result is changed

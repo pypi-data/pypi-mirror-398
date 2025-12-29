@@ -1,0 +1,94 @@
+- name: delete instances
+  gcp_compute_instance:
+    state: absent
+    name: "{{ item.split('.') | join('-') }}"
+    metadata:
+      hostname: "{{ item }}"
+      ssh-keys: "{{ hive_safe_admin }}:{{ lookup('file', hostvars[item].hive_safe_public_key_path) }}"
+    zone: "{{ hostvars[item].hive_available_zone }}"
+    project: "{{hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+  register: hive_safe_delete_instance
+  loop: "{{ hive_safe_hosts }}"
+  until: not hive_safe_delete_instance.failed
+  retries: 3
+- name: delete global ip
+  gcp_compute_address:
+    name: "gip-{{ item.split('.') | join('-') }}"
+    region: "{{ hive_region }}"
+    project: "{{hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    state: absent
+  register: gip
+  with_items: "{{ hive_safe_hosts }}"
+- name: Delete filestore instance
+  gcp_filestore_instance:
+    name: "filestore-{{ hive_name }}"
+    zone: "{{ hive_region }}"
+    tier: ENTERPRISE
+    project: "{{hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    file_shares:
+    - capacity_gb: "{{ hive_gcp_capacity_gb | default(1024) }}"
+      name: filestore_root
+    networks:
+    - network: "{{ hive_safe_vpc_name }}"
+      modes:
+      - MODE_IPV4
+      reserved_ip_range: "{{ hive_filestore_cidr | default(omit) }}"
+    state: absent
+  when: (groups['nfs_volumes'] | intersect(groups[hive_stage]) | length) > 0
+- name: delete firewall for internal communication
+  gcp_compute_firewall:
+    name: "{{ hive_firewall_name | default( 'internal-' + hive_name ) }}"
+    project: "{{ hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    state: absent
+- name: delete firewall for ssh
+  gcp_compute_firewall:
+    name: "{{ hive_firewall_name | default( 'ssh-' + hive_name ) }}"
+    project: "{{ hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    state: absent
+- name: delete firewall for published_port
+  gcp_compute_firewall:
+    name: "{{ hive_firewall_name | default( 'inbound-' + hive_name ) }}"
+    project: "{{ hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    state: absent
+- name: "get network facts"
+  gcp_compute_network_info:
+    filters:
+    - name = {{ hive_safe_vpc_name }}
+    project: "{{hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+  register: gcp_vpcs
+- name: delete subnetworks
+  gcp_compute_subnetwork:
+    name: "{{ item.name }}"
+    region: "{{ hive_region }}"
+    network: "{{ gcp_vpcs }}"
+    ip_cidr_range: "{{ item.cidr }}"
+    project: "{{hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    state: absent
+  loop: "{{ hive_subnets }}"
+- name: Delete VPC
+  gcp_compute_network:
+    state: absent
+    name: "{{ hive_safe_vpc_name }}"
+    project: "{{hive_safe_gcp_project }}"
+    auth_kind: "{{ hive_safe_gcp_auth_kind }}"
+    service_account_file: "{{ hive_safe_gcp_service_account_file }}"
+    
+- name: delete known hosts
+  file: path={{ hive_context_dir }}/known_hosts
+        state=absent

@@ -1,0 +1,20 @@
+---
+# common utiility packages.
+
+- name: install packages
+  yum: name=iptables-services state=present disable_excludes=all
+- name: install packages
+  yum: name=iptables state=present disable_excludes=all
+- name: disable firewalld
+  yum: name=firewalld state=removed
+- name: create HIVE-SERVICE chain in iptables config file
+  blockinfile:
+    dest: /etc/sysconfig/iptables
+    insertafter: -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+    block: |
+      -N HIVE-SERVICE
+      -A INPUT -i docker_gwbridge -m state --state NEW -j ACCEPT
+      -A INPUT -j HIVE-SERVICE
+    marker: "# {mark} HIVE-BUILDER MANAGED BLOCK setup HIVE-SERVICE chain"
+- name: enable services
+  service: name=iptables enabled=yes state=started

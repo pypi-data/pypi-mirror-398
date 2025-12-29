@@ -1,0 +1,46 @@
+- name: insert allow port rule into iptables config file (no internal network)
+  become: True
+  blockinfile:
+    dest: /etc/sysconfig/iptables
+    insertafter: "# END HIVE-BUILDER MANAGED BLOCK setup HIVE-SERVICE chain"
+    block: |
+      {%- for source in hive_safe_iptables_sources | default(groups['servers'] | intersect(groups[hive_stage]) | map('extract', hostvars, 'hive_private_ip')) | reverse | list -%}
+      -A HIVE-SERVICE -p {{ hive_safe_iptables_protocol }} -s {{ source }} -m multiport --dports {{ hive_safe_iptables_dports | join(',') }} -m conntrack --ctstate NEW -m comment --comment "allow {{ hive_safe_iptables_name }}" -j ACCEPT
+      {% endfor %}
+    marker: "# {mark} HIVE-BUILDER MANAGED BLOCK for {{ hive_safe_iptables_name }}"
+  when: hive_internal_net_addr is not defined
+- name: insert the rule that allow ports into iptables (no internal network)
+  become: True
+  iptables:
+    chain: HIVE-SERVICE
+    protocol: "{{ hive_safe_iptables_protocol }}"
+    source: "{{ item }}"
+    destination_ports: "{{ hive_safe_iptables_dports | join(',') }}"
+    ctstate: NEW
+    jump: ACCEPT
+    comment: "allow {{ hive_safe_iptables_name }}"
+    action: insert
+  loop: "{{  hive_safe_iptables_sources | default(groups['servers'] | intersect(groups[hive_stage]) | map('extract', hostvars, 'hive_private_ip')) | list }}"
+  when: hive_internal_net_addr is not defined
+- name: insert allow port rule into iptables config file with internal network address
+  become: True
+  blockinfile:
+    dest: /etc/sysconfig/iptables
+    insertafter: "# END HIVE-BUILDER MANAGED BLOCK setup HIVE-SERVICE chain"
+    block: |
+      {%- for port in hive_safe_iptables_dports -%}
+      -A HIVE-SERVICE -p {{ hive_safe_iptables_protocol }} -s {{ hive_internal_net_addr }}/{{ hive_internal_net_cidr }} -m conntrack --ctstate NEW -m {{ hive_safe_iptables_protocol }} --dport {{ port }} -j ACCEPT
+      {% endfor %}
+    marker: "# {mark} HIVE-BUILDER MANAGED BLOCK for {{ hive_safe_iptables_name }}"
+  when: hive_internal_net_addr is defined
+- name: insert allow port rule into iptables with internal network address
+  become: True
+  iptables:
+    chain: HIVE-SERVICE
+    protocol: "{{ hive_safe_iptables_protocol }}"
+    source: "{{ hive_internal_net_addr }}/{{ hive_internal_net_cidr }}"
+    destination_port: "{{ item }}"
+    ctstate: NEW
+    jump: ACCEPT
+  loop: "{{ hive_safe_iptables_dports }}"
+  when: hive_internal_net_addr is defined

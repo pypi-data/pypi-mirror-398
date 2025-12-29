@@ -1,0 +1,56 @@
+#!/bin/bash
+LOGGER=${0##*/}
+
+function message () {
+  echo "INFO: $LOGGER:" $*
+}
+
+function error () {
+  echo "ERROR: $LOGGER:" $* 1>&2
+  exit 1
+}
+
+usage_exit() {
+  error "Usage: $0 [-1 | -2 | -3] [-n] command ..."
+}
+
+no_arg=1
+exec_opts=-it
+
+while getopts 123nh OPT
+do
+  case $OPT in
+    1 | 2 | 3 ) no_arg=$OPT
+      ;;
+    n)  exec_opts=-i
+      ;;
+    h)  usage_exit
+      ;;
+    \?) usage_exit
+      ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+export DOCKER_HOST="${DOCKER_HOST:-{{ groups['first_hive'] | intersect(groups[hive_stage]) | first }}:2376}"
+export DOCKER_TLS=1
+suffix="${HIVE_NAME:-{{ hive_name }}}"
+{% raw %}
+# followin code cause error when name can be matching for multiple serivce
+# (ex. name=dhcp is matching for dhcp and dhcpdb)
+# num_replicas=$(docker service ls --format '{{.Replicas}}' --filter "name=$1" | cut -f 1 -d /)
+num_replicas=$(docker service ls --format '{{.Name}} {{.Replicas}}' | awk '$1 == "'$1'" {cnt = split($2, r, "/");print r[1]}')
+if [ -z "$num_replicas" ]; then
+  error "service $1 is not found."
+fi
+if [ ${no_arg} -gt $num_replicas ]; then
+  error "the index ${no_arg} exceed the number of replicas of the service $num_replicas."
+fi
+set -eo pipefail
+docker_command=$(docker service ps "$1" --format "docker -H tcp://{{.Node}}.$suffix:2376 exec $exec_opts {{.Name}}.{{.ID}}" --filter desired-state=running --no-trunc | head -$no_arg | tail -1)
+if [ -z "$docker_command" ]; then
+  error "the service $1 is not runing"
+fi
+shift
+exec $docker_command "$@"
+{% endraw %}

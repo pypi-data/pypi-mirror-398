@@ -1,0 +1,69 @@
+---
+- name: "setup tls connection - create dir"
+  become: False
+  file:
+    path: "{{ hive_home_dir }}/.docker"
+    state: directory
+    mode: 0700
+- name: "setup tls connection - put ca certs"
+  become: False
+  copy:
+    src: "{{ hive_safe_ca_dir }}/cacert.pem"
+    dest: "{{ hive_home_dir }}/.docker/ca.pem"
+    mode: 0600
+- name: "setup tls connection - put certs"
+  copy:
+    remote_src: True
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: 0600
+    owner: "{{ hive_safe_admin }}"
+  with_items:
+    - src: "{{ hive_safe_tls_dir }}/private/{{ inventory_hostname }}_key.pem"
+      dest: "{{ hive_home_dir }}/.docker/key.pem"
+    - src: "{{ hive_safe_tls_dir }}/certs/{{ inventory_hostname }}_cert.pem"
+      dest: "{{ hive_home_dir }}/.docker/cert.pem"
+# 2021/05/19 following error occured in newly build AWS environment(amazon linux 2), so add module six
+# 'Failed to import the required Python library (Docker SDK for Python: docker (Python >= 2.7) or
+# docker-py (Python 2.6)) on s-hive2''s Python /home/ec2-user/docker/bin/python.
+# Please read module documentation and install in the appropriate location.
+# If the required library is installed, but Ansible is using the wrong Python interpreter,
+# please consult the documentation on ansible_python_interpreter, for example via `pip install docker`
+# or `pip install docker-py` (Python 2.6). The error was: No module named ''six'''
+# The verions when above error occured
+# $ python --version
+# Python 3.7.9
+# $ pip list | grep docker
+# docker           5.0.0
+
+# 2023/05/05 avoid error in docker login task: Error connecting: Error while fetching server API version: request() got an unexpected keyword argument ''chunked''
+# https://github.com/docker/docker-py/issues/3113#issue-1685565058
+- name: install ncurses
+  yum:
+    name: ncurses
+    state: present
+- name: install docker python module
+  become: False
+  pip:
+    name:
+    - "requests<2.29"
+    - docker
+    - six
+    state: present
+    virtualenv: "{{ hive_home_dir }}/docker"
+  throttle: 1
+- name: install utility comnand
+  template:
+    dest: /usr/bin/{{ item }}
+    src: "{{ item }}"
+    mode: 0755
+  loop:
+    - dexec
+    - dsh
+    - dcp
+# - name: setup bash completion for docker command
+#   become: False
+#   lineinfile:
+#     path: "{{ hive_home_dir }}/.bashrc"
+#     line: ". /usr/share/bash-completion/docker"
+#   when: ansible_distribution == 'Amazon'

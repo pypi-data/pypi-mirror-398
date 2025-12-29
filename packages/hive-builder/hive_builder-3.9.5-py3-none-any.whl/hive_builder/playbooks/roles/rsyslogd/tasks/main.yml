@@ -1,0 +1,65 @@
+---
+- name: install tls packages
+  become: True
+  yum:
+    state: present
+    name:
+      - rsyslog-openssl
+      - rsyslog-gnutls
+      - gnutls-utils
+  when: hive_tls_logging
+- name: "setup rsyslogd - create dir"
+  become: True
+  file:
+    path: "/var/log/services"
+    state: directory
+    mode: 0755
+
+- name: "install rsyslog config file"
+  become: True
+  template:
+    src: services.conf
+    dest: /etc/rsyslog.d/
+    mode: 0755
+  notify: update rsyslog config
+
+
+- name: "set logrotate for services log files"
+  become: True
+  lineinfile:
+    dest: /etc/logrotate.d/rsyslog
+    insertbefore: BOF
+    line: "/var/log/services/*.log"
+
+- name: "set logrotate for services log files"
+  become: True
+  lineinfile:
+    dest: /etc/logrotate.d/rsyslog
+    regexp: '^    create 0640 root zabbix'
+    line: "    create 0640 root zabbix"
+
+- name: create ignore directory
+  become: True
+  file:
+    path: /etc/rsyslog-services.d/
+    state: directory
+    mode: 0775
+
+- name: get ip list of hives
+  when: hive_shared_repository is defined
+  block:
+  - name: get ip list
+    include_vars:
+      file: "{{ hive_shared_repository_path }}/hosts.yml"
+      name: loaded_ip_addresses
+
+- import_tasks: iptables.yml
+  vars:
+    hive_safe_iptables_name: syslog
+    hive_safe_iptables_dports:
+      - "{{ hive_safe_syslog_port }}"
+    hive_safe_iptables_protocol: "{{ 'tcp' if hive_tls_logging else 'udp' }}"
+    hive_safe_iptables_sources: "{{ (groups['servers'] | intersect(groups[hive_stage]) | map('extract', hostvars, 'hive_private_ip') | list) +
+      [hive_internal_cidr | ipaddr((hive_internal_cidr | ipaddr('size')) / 8 * 4) | ipaddr('address') + '/' +
+      (((hive_internal_cidr | ipaddr('prefix')) + 3) | string) if hive_internal_cidr is defined else '172.20.0.0/16'] +
+      ( loaded_ip_addresses.values() | list if loaded_ip_addresses is defined else [] ) }}"
