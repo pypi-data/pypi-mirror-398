@@ -1,0 +1,728 @@
+# TrinityPython Library
+
+This package contains high level functions for common programming use cases.
+
+## What is it?
+
+trinitypython is a Python package that makes it easy to work with common programming use cases.
+It aims to provide ready-to-use functions for solving practical, real world problems in Python.
+
+## Table of Contents
+
+1. File Utilities
+    1. [Compare Directories](#compare-directories)
+    2. [Compare Files](#compare-files)
+    3. [Disk cleanup](#disk-cleanup)
+    4. [Extract URLs from excel file](#extract-urls-from-excel-file)
+2. UI Utilities
+    1. [Menu based app](#menu-based-app)
+3. Debug Utilities
+    1. [Getting execution duration](#getting-execution-duration)
+    2. [Print current position](#print-current-position)
+    3. [Track package changes](#track-package-changes)
+    4. [Search for functions](#search-for-functions)
+4. Data Utilities
+    1. [Flatten JSON](#flatten-json)
+    2. [List of JSON object to CSV file](#list-of-json-object-to-csv-file)
+    3. [Search for text inside JSON data](#search-for-text-inside-json-data)
+    4. [Get all objects for a particular key in JSON](#get-all-objects-for-a-particular-key-in-json)
+    5. [Parse markdown table](#parse-markdown-table)
+    6. [Parse fixed width table](#parse-fixed-width-table)
+5. Account Utilities
+    1. [Reconcile bills and payments](#reconcile-bills-and-payments)
+6. Network Utilities
+    1. [Show open ports and listening program](#show-open-ports-and-listening-program)
+    2. [Get open ports and listening program](#get-open-ports-and-listening-program)
+    3. [Get details of ports](#get-details-of-ports)
+7. Document Utilities
+    1. [Generate test case document](#generate-test-case-document)
+    2. [Generate base research document](#generate-base-research-document)
+
+## Main Features
+
+1. Utilities for file operations
+2. Utilities for UI operations
+3. Utilities for Debugging the code
+4. Utilities for data processing
+5. Utilities for accounting information
+6. Utilities for networking information
+
+## Where to get it
+
+    pip install trinitypython
+
+## Dependencies
+
+1. openpyxl - For reading excel files and generating excel reports
+2. pandas - For dataframe operations
+
+## License
+
+BSD 3
+
+## Background
+
+Work on trinitypython started with an aim to develop functionalities that can be readily plugged into
+applications. The application developer should be focussed business use case in mind.
+The common functionality should directly be used from the library. This will make code cleaner and
+developer can focus more time on quality work.
+
+## Compare Directories
+
+This function will compare two directories. The comparison results can be dumped out as a html report.
+The gen_html_report takes an additional list of extensions. If file names match this extension, then
+detailed difference for these files will be included in report.
+The returned cmp object can also be used to access file differences as list. 4 lists are provided -
+
+1. files_only_in_left
+2. dirs_only_in_left
+3. files_only_in_right
+4. dirs_only_in_right
+
+Directories will be recursively scanned to report the differences.
+
+    from trinitypython.fileutils import compare  
+      
+    cmp = compare.compare_dirs(r"C:\Users\Dell\OneDrive\Desktop\result_9th",  
+                               r"C:\Users\Dell\OneDrive\Desktop\result_9th_v2")  
+      
+    cmp.gen_html_report(r"C:\Users\Dell\OneDrive\Desktop\out.html", ["py", "txt",  
+                                                                     "json"])  
+      
+    for fl in cmp.files_only_in_right:  
+        if fl.name.endswith("py"):  
+            print(fl.absolute())
+
+[Back to contents](#table-of-contents)
+
+## Compare Files
+
+This function is used to compare files. it is a convenient wrapper around difflib library. It takes
+as input file1, file2 and the output file where html report will be saved.
+
+    from trinitypython.fileutils import compare
+    
+    compare.compare_files(r"C:\Users\Dell\OneDrive\Desktop\spark\b.py",
+                          r"C:\Users\Dell\OneDrive\Desktop\spark\c.py",
+                          r"C:\Users\Dell\OneDrive\Desktop\spark\out.html")
+
+[Back to contents](#table-of-contents)
+
+## Disk cleanup
+
+This function is a helper to assist in clearing up space on disk. The retrieve_info is to be called
+on directory that needs to be cleaned. This will scan all files recursively. Post this, the object returned
+by retrieve_info can be used to perform additional operations.
+
+1. sort_by_time - Gets the files sorted by modified time ascending
+2. sort_by_size - Gets the files sorted by filesize in descending order
+3. modified_within - Gets the files modified within provided minutes
+4. modified_before - Gets the files modified before provided minutes
+5. sort_by_file_count - Gets directories sorted by number of files within the directory in descending order
+
+All the files are returned as Path objects
+
+    from trinitypython.fileutils import cleanup
+    
+    dr = r"C:\Users\Dell\OneDrive\Desktop\result_9th"
+    
+    info = cleanup.retrieve_info(dr)
+    
+    print("sorted by time")
+    for dtl in info.sort_by_time()[:5]:
+        print(dtl)
+    
+    print("\nsorted by size")
+    for dtl in info.sort_by_size()[:5]:
+        print(dtl)
+    
+    print("\nmodified in last 30 mins")
+    for dtl in info.modified_within(mins=30)[:5]:
+        print(dtl)
+    
+    print("\nmodified more than 1 day ago")
+    for dtl in info.modified_before(mins=24 * 60)[:5]:
+        print(dtl)
+    
+    print("\nsorted by number of files in directory")
+    for dtl in info.sort_by_file_count()[:5]:
+        print(dtl)
+
+[Back to contents](#table-of-contents)
+
+## Extract URLs from excel file
+
+This function generates an extract of all hyperlinks present in an excel file. It extracts
+both explicit ( where hyperlink is attached to cell ) and implicit ( where text content is
+a http or https link ). Report contains file name, sheet name, row number, column name, type ( explicit
+or implicit ), hyperlink text and hyperlink URL.
+
+    import trinitypython.fileutils.excel as mdexcel
+    import json
+    from trinitypython.datautils import jsonutil
+    
+    # Get URLs
+    xl = mdexcel.Excel(r"c:\users\dell\onedrive\desktop\dummy_data.xlsx")
+    urls = xl.extract_urls(["A", "B"])
+    print(json.dumps(urls['data'], indent=2))
+    
+    # Save as CSV
+    jsonutil.list_to_csv(urls['data'], r"c:\users\dell\onedrive\desktop\out.csv",
+                         colkey=urls['keys'])
+
+[Back to contents](#table-of-contents)
+
+## Menu based app
+
+Once you have implemented different functions for an application, you can use this function
+as a quick and easy wrapper to bind all functions into a menu based application. It uses tkinter
+menu. It takes as input a list of 3 value tuples - menu name, sub menu name, function to be called
+when user clicks on the sub menu item.
+
+    from datetime import datetime
+    from random import randint, choice
+    from trinitypython.uiutils import menu_based_app
+    
+    def show_date():
+        print(datetime.now().strftime("%Y-%m-%d"))
+    
+    
+    def show_time():
+        print(datetime.now().strftime("%H:%M:%S"))
+    
+    
+    def show_date_and_time():
+        print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    
+    
+    def show_random_number():
+        print(randint(1, 100))
+    
+    
+    def show_random_color():
+        print(choice(['red', 'blue', 'green']))
+    
+    
+    ar = [
+        ["Random", "Random Integer", show_random_number],
+        ["Random", "Random Color", show_random_color],
+        ["Date", "Show Date", show_date],
+        ["Date", "Show Time", show_time],
+        ["Date", "Show Date and Time", show_date_and_time]
+    ]
+    
+    menu_based_app.start(ar)
+
+[Back to contents](#table-of-contents)
+
+## Getting execution duration
+
+A 'timer' object is provided to set it on or off for different user defined names. This can be used to
+get a report of execution times of a function or block of statements. call timer.start('somename') when
+you want to start timer and timer.stop('somename') when you want to stop timer. call timer.show() to get a
+report of execution times. More than one timer can be set in the same program by passing different names.
+If the timer.start is called within a loop body, then execution times will be reported as different iterations.
+
+    from trinitypython.debugutils import timer
+    from random import randint
+    from math import factorial
+    
+    timer.start("main")
+    
+    def count_elements_in_array():
+        ar = list(range(randint(1000000,10000000)))
+        print(len(ar))
+    
+    def get_factorial():
+        for i in range(5):
+            timer.start("looptest")
+            num = randint(900,1000)
+            print(num, factorial(num))
+            timer.stop("looptest")
+    
+    timer.start("func1")
+    count_elements_in_array()
+    timer.stop("func1")
+    
+    get_factorial()
+    
+    timer.stop("main")
+    
+    timer.show()
+
+    -- Output
+    Name                           Duration             Start Time           End Time            
+    ============================== ==================== ==================== ====================
+    main                           0:00:00.046207       2024-04-08 21:24:59  2024-04-08 21:24:59 
+    func1                          0:00:00.033129       2024-04-08 21:24:59  2024-04-08 21:24:59 
+    looptest.4                     0:00:00.010020       2024-04-08 21:24:59  2024-04-08 21:24:59 
+    looptest.2                     0:00:00.003058       2024-04-08 21:24:59  2024-04-08 21:24:59 
+    looptest.1                     0:00:00              2024-04-08 21:24:59  2024-04-08 21:24:59 
+    looptest.3                     0:00:00              2024-04-08 21:24:59  2024-04-08 21:24:59 
+    looptest.5                     0:00:00              2024-04-08 21:24:59  2024-04-08 21:24:59 
+
+[Back to contents](#table-of-contents)
+
+## Print current position
+
+This function comes in handy while debugging using print. Instead of manually writting print statements
+and thinking what to write after print to pinpoint to the position, we can simply write curpos.show(). This
+makes it easy to delete the lines later as print statements can be part of programs or debug. But curpos will
+only be part of debug. To temporarily disable debug, write curpos.disable_show() at the beginning of program.
+This will suppress all curpos.show() messages.
+
+    from trinitypython.debugutils import curpos
+    from random import randint
+    from math import factorial
+    
+    
+    def count_elements_in_array():
+        ar = list(range(randint(1000000, 10000000)))
+        print(len(ar))
+    
+    
+    def get_factorial():
+        for i in range(5):
+            num = randint(900, 1000)
+            print(num, factorial(num))
+            curpos.show()
+    
+    
+    count_elements_in_array()
+    curpos.show()
+    
+    get_factorial()
+
+[Back to contents](#table-of-contents)
+
+## Track package changes
+
+This function is used to identify changes to installed python library versions over a period
+of time. Periodically call version.save to save a dump of current version details for all
+installed packages in a JSON file. Pass the directory where a time stamped JSON file will be created.
+If any version issue occurs in future or if we want to check if there are any changes to installed
+versions, call version.timeline to get timeline of what was changed and when. Call version.compare to see
+what has changed after the latest snapshot and now.
+
+    from trinitypython.debugutils import version
+    
+    version.save("app_dev", r"D:\data\version")
+    version.timeline("app_dev", r"D:\data\version")
+    version.compare("app_dev", r"D:\data\version")
+
+[Back to contents](#table-of-contents)
+
+## Search for functions
+
+This functions scans through docstrings to search for text within them. To get of elements, call
+list_elements function and pass object, search string. To also see relevant documentation, pass
+showdoc=True
+
+    import pandas as pd
+    from trinitypython.debugutils import find
+    
+    a = [1,2]
+    b = {"k": 1}
+    s = pd.Series(range(10))
+    
+    find.search_function(pd, "")
+    find.list_elements(s, "truncate", showdoc=True)
+
+[Back to contents](#table-of-contents)
+
+## Flatten JSON
+
+This function is used to flatten a nested JSON into a single key value pair flat JSON. Nested keys are
+flattened to . notation. So {"car":{"color":"red"}} will be flattened to {"car.color": "red"}. Nested
+arrays are flattened to position. So {"car": [{"color": "red"}, {"color": "blue"}]} will be flattened to
+{"car.0.color": "red", "car.1.color": "blue"}
+
+    from trinitypython.datautils import jsonutil
+    import json
+    
+    json_data = {
+        "name": "John",
+        "age": 30,
+        "car": {
+            "make": "Toyota",
+            "model": "Camry"
+        },
+        "colors": ["red", "blue", "green"],
+        "nested_list": [
+            [1, 2, 3],
+            {"hello": "world"},
+            [[7, 8], [9, 10]],
+            [[[11, 12], [13, 14]], [[], [17, 18]]]
+        ],
+        "nested_dict": {
+            "info1": {"key1": "value1"},
+            "info2": {"key2": "value2"}
+        },
+        "list_of_dicts": [
+            {"item1": "value1"},
+            {"item2": "value2"}
+        ]
+    }
+    
+    flattened_data = jsonutil.flatten_json(json_data)
+    print(json.dumps(flattened_data, indent=2))
+
+[Back to contents](#table-of-contents)
+
+## List of JSON object to CSV file
+
+This functions flattens a nested JSON and dumps it into a csv file. Flattening happens in same fashion
+as described in [Flatten JSON](#flatten-json). Each unique key forms a column in the CSV file.
+
+    from trinitypython.datautils import jsonutil
+    
+    out_fl = r"C:\Users\Dell\Onedrive\Desktop\out.csv"
+    
+    json_data = [
+        {
+            "name": "John",
+            "age": 30,
+            "car": {
+                "make": "Toyota",
+                "model": "Camry"
+            },
+            "colors": ["red", "blue", "green"]
+        }, {
+            "name": "Sheema",
+            "age": 25,
+            "car": {
+                "make": "Audi",
+                "model": "a4",
+                "dimension": [5000, 1850, 1433]
+            },
+            "colors": ["blue", "yellow"]
+        }, {
+            "name": "Bruce",
+            "car": {
+                "make": "Ford"
+            }
+        }
+    ]
+    
+    jsonutil.list_to_csv(json_data, out_fl)
+
+[Back to contents](#table-of-contents)
+
+## Search for text inside JSON data
+
+This function searches for text within a nested JSON. Both keys and values are searched for the
+provided text. The output is returned as a list of flattened JSON for matched values. flattening
+rules are same as applied in [Flatten JSON](#flatten-json)
+
+    from trinitypython.datautils import jsonutil
+    
+    json_data = {
+        "data": [
+            {
+                "name": "John",
+                "age": 30,
+                "car": {
+                    "make": "Toyota",
+                    "model": "Camry"
+                },
+                "colors": ["red", "blue", "green"]
+            }, {
+                "name": "Sheema",
+                "age": 25,
+                "car": {
+                    "make": "Audi",
+                    "model": "a4",
+                    "dimension": [5000, 1850, 1433]
+                },
+                "colors": ["blue", "yellow"]
+            }, {
+                "name": "Bruce",
+                "car": {
+                    "make": "Ford"
+                }
+            }
+        ]
+    }
+    
+    print(jsonutil.search(json_data, "blue"))
+
+    # Output
+    [['data.0.colors.1', 'blue'], ['data.1.colors.0', 'blue']]
+
+[Back to contents](#table-of-contents)
+
+## Get all objects for a particular key in JSON
+
+This function recursively searches through a nested JSON and returns a list of all values
+corresponding to provided key.
+
+    from trinitypython.datautils import jsonutil
+
+    json_data = {
+        "data": [
+            {
+                "name": "John",
+                "age": 30,
+                "car": {
+                    "make": "Toyota",
+                    "model": "Camry"
+                },
+                "colors": ["red", "blue", "green"]
+            }, {
+                "name": "Sheema",
+                "age": 25,
+                "car": {
+                    "make": "Audi",
+                    "model": "a4",
+                    "dimension": [5000, 1850, 1433]
+                },
+                "colors": ["blue", "yellow"]
+            }, {
+                "name": "Bruce",
+                "car": {
+                    "make": "Ford"
+                }
+            }
+        ]
+    }
+    
+    print(jsonutil.find_values_by_key(json_data, "colors"))
+
+    # Output
+    [['red', 'blue', 'green'], ['blue', 'yellow']]
+
+[Back to contents](#table-of-contents)
+
+## Parse markdown table
+
+This function parses formatted table with pipes and dashes and returns 
+a 2 dimensional list.
+
+      from trinitypython.datautils import table
+      
+      markdown_table = """
+      | Command | Description |
+      | --- | --- |
+      | git status | List all new or modified files |
+      | git diff | Show file differences that haven't been staged |
+      """
+      
+      parsed_table = table.parse_markdown_table(markdown_table)
+      for row in parsed_table:
+         print(row)
+
+      # Output
+      ['Command', 'Description']
+      ['git status', 'List all new or modified files']
+      ['git diff', "Show file differences that haven't been staged"]
+
+[Back to contents](#table-of-contents)
+
+## Parse fixed width table
+
+This function parses fixed width table and returns a 2 dimensional list.
+
+      from trinitypython.datautils import table
+      
+      fixed_width_table = """
+      Emp ID   Emp Name           Age
+      -------  -----------------  -----
+      1        John Steve         32
+      2        Agastha Thomas     28
+      """
+      
+      parsed_table = table.parse_fixed_width_table(fixed_width_table)
+      for row in parsed_table:
+          print(row)
+
+      # Output
+      ['Emp ID', 'Emp Name', 'Age']
+      ['1', 'John Steve', '32']
+      ['2', 'Agastha Thomas', '28']
+
+[Back to contents](#table-of-contents)
+
+## Reconcile bills and payments
+
+This function reconciles payments against bills. It uses a 4 step approach to match bills and payments
+
+1. First payments with exact amount with date greater than or equal to bill date are mapped
+2. Discount percentages can be passed as a list to the function to provide discount on final bill amount
+3. If addition of more than one payment with date same or after bill amount matches value, then it is mapped.
+   Similarly if addition of more than one bill amount matches a payment amount on or after bill date, then it
+   is mapped.
+4. Remaining payments are distributed across bills on a first come first serve basis where payment date is
+   greater than or equal to bill date
+
+The function requires 2 dataframes, one for payment and one for bill. 4 columns are required - bill date, bill amount
+, payment date and payment amount.
+
+    import pandas as pd
+    from trinitypython.account import reconcile
+    
+    inp_fl = r"C:\Users\Dell\Onedrive\Desktop\input.xlsx"
+    out_fl = r"C:\Users\Dell\Onedrive\Desktop\output.xlsx"
+    
+    disc_ar = [2, 2.5, 5, 10]
+    
+    bill_df = pd.read_excel(inp_fl, usecols="B:C").dropna()
+    pymt_df = pd.read_excel(inp_fl, usecols="G:H").dropna()
+    
+    recon = reconcile.reconcile_payment(
+        bill_df=bill_df
+        , pymt_df=pymt_df
+        , bill_dt_col="Bill Date"
+        , bill_amt_col="Bill Amount"
+        , pymt_dt_col="Payment Date"
+        , pymt_amt_col="Payment Amount"
+        , disc_ar=disc_ar
+    )
+    
+    print(recon.bill_dtl_df)
+    print(recon.pymt_dtl_df)
+    
+    recon.to_excel(out_fl)
+
+[Back to contents](#table-of-contents)
+
+## Show open ports and listening program
+
+This function shows open ports and the corresponding program that is
+listening to the port.
+
+      from trinitypython.netutils import port
+
+      port.show_open_ports_and_programs()
+
+      # Output
+      Open Ports and Listening Programs:
+      Port 135: svchost.exe
+      Port 139: System
+      Port 445: System
+      Port 5040: svchost.exe
+      Port 7679: GoogleDriveFS.exe     
+      ....
+
+      # To get information of program from ollama based model, pass model name in function
+      from trinitypython.netutils import port
+
+      port.show_open_ports_and_programs("phi")
+
+      # Output
+      Open Ports and Listening Programs:
+      Getting description for svchost.exe service from OLLAMA
+      Port 135: svchost.exe -  SVCHOST.EXE is a Windows service responsible for managing network connections, allowing users to connect to different online services and applications on their computer. It acts as an intermediary between the computer and these external resources, translating requests from the user's operating system into appropriate commands for the network and vice versa.
+      Getting description for System service from OLLAMA
+      Port 139: System -  Systems Service provides technical support and assistance, including troubleshooting issues with systems and software. It aims to provide reliable and efficient customer support for various technological needs.
+      Port 445: System -  Systems Service provides technical support and assistance, including troubleshooting issues with systems and software. It aims to provide reliable and efficient customer support for various technological needs.
+      Port 5040: svchost.exe -  SVCHOST.EXE is a Windows service responsible for managing network connections, allowing users to connect to different online services and applications on their computer. It acts as an intermediary between the computer and these external resources, translating requests from the user's operating system into appropriate commands for the network and vice versa.
+      Getting description for GoogleDriveFS.exe service from OLLAMA
+      Port 7679: GoogleDriveFS.exe -  GoogleDriveFS.exe is a Windows service that manages file storage for users of Google Drive, allowing them to store files on their computer's hard drive instead of using an external storage device.
+      Getting description for Wacom_Tablet.exe service from OLLAMA
+      Port 23130: Wacom_Tablet.exe -  Wacom_Tablet.exe is a Windows service that allows users to use the Wacom Tablet pen input device on their computer and take notes, draw, or sketch using the pen's pressure sensitivity.
+      Port 49664: lsass.exe -  "lsass.exe" is a C compiler with additional features such as syntax highlighting, auto-formatting, and built-in support for a subset of ANSI escape sequences. It can be enabled by passing the command "-flextra" to the compile command.
+      Port 49668: spoolsv.exe -  Spoolsv.exe is a Windows command-line tool used for managing disk images by reading, writing, and updating metadata such as file timestamps, sizes, permissions, etc.
+      Port 49669: jhi_service.exe -  jhi_service.exe is a Windows service that provides support for other services, such as security, by managing network access and allowing remote control of certain services.
+
+[Back to contents](#table-of-contents)
+
+## Get open ports and listening program
+
+This function gets open ports and the corresponding program that is
+listening to the port as a list of tuples.
+
+      from trinitypython.netutils import port
+
+      print(port.get_open_ports_and_programs())
+
+      # Output
+      [(135, 'svchost.exe'), (139, 'System'), (445, 'System'), (5040, 'svchost.exe'), (7679, 'GoogleDriveFS.exe')]     
+
+[Back to contents](#table-of-contents)
+
+## Get details of ports
+
+This function gets details of the ports passed as parameter. input to this
+function is a list of port numbers.
+
+      from trinitypython.netutils import port
+      import json
+      
+      print(json.dumps(port.get_port_details([7679,7680]),indent=2))
+
+      # Output
+      {
+        "7679": [
+          {
+            "status": "LISTEN",
+            "pid": 18876,
+            "process_name": "GoogleDriveFS.exe",
+            "process_cmdline": "C:\\Program Files\\Google\\Drive File Stream\\xx\\GoogleDriveFS.exe --crash_handler_token=\\\\.\\pipe\\crashpad_xx --parent_version=xx --startup_mode",
+            "process_user": "cc\\cc",
+            "local_address": "::1:7679",
+            "remote_address": null,
+            "family": "AF_INET6",
+            "type": "SOCK_STREAM"
+          }
+        ],
+        "7680": [
+          {
+            "status": "LISTEN",
+            "pid": 17728,
+            "process_name": "Unknown",
+            "process_cmdline": "Unknown",
+            "process_user": "Unknown",
+            "local_address": "0.0.0.0:7680",
+            "remote_address": null,
+            "family": "AF_INET",
+            "type": "SOCK_STREAM"
+          },
+          {
+            "status": "LISTEN",
+            "pid": 17728,
+            "process_name": "Unknown",
+            "process_cmdline": "Unknown",
+            "process_user": "Unknown",
+            "local_address": ":::7680",
+            "remote_address": null,
+            "family": "AF_INET6",
+            "type": "SOCK_STREAM"
+          }
+        ]
+      }
+
+[Back to contents](#table-of-contents)
+
+## Generate test case document
+
+This function generates test cases for Python application. All .py files
+present in the application folder are scanned. The test body is sent to OLLAMA
+model to generate max 2 test cases per function. The output returned by mode
+is parsed and stored to an excel worksheet. This function takes, input folder path,
+output excel path, ollama model name and max_retry_attempts as input parameter.
+If the test cases cannot be retrieved from the model, max_retry_attempts value
+is used to retry generating test case.
+
+      from trinitypython.docutils import testcase
+
+      testcase.generate_test_cases(r"D:\data\trinitypython\trinitypython_code"
+                             r"\src\trinitypython", r"D:\data\output.xlsx", "phi", 2)
+
+
+[Back to contents](#table-of-contents)
+
+## Generate base research document
+
+This function generates base research document for a given project description.
+Pre defined prompts are asked to ollama model and responses are stored into a pdf file.
+The function takes as input project description, output file name, model name from ollama
+and max retries. Max retries is the maximum number of times program will attempt
+per question to get response from the model.
+
+      from trinitypython.docutils import project
+      
+      proj_desc = "Migrate SQL Server on premise to Snowflake on AWS"
+      out_fl = r"C:\Users\Dell\OneDrive\Desktop\output.pdf"
+      project.base_research(proj_desc, out_fl, "phi", 3)
+
+[Back to contents](#table-of-contents)
