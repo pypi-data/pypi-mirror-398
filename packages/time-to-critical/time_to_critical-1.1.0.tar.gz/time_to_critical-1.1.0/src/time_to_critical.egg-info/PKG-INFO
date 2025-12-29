@@ -1,0 +1,386 @@
+Metadata-Version: 2.4
+Name: time-to-critical
+Version: 1.1.0
+Summary: A Python CLI application for time series forecasting using FFT with automatic trend detection
+Author-email: Octavio Deliberato Neto <octavio.deliberato@aggxtream.com>
+License: MIT License
+        
+        Copyright (c) 2025 Octavio Deliberato Neto
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/yourusername/pytimetc
+Project-URL: Repository, https://github.com/yourusername/pytimetc
+Project-URL: Issues, https://github.com/yourusername/pytimetc/issues
+Keywords: time-series,forecasting,fft,data-analysis,cli
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: matplotlib>=3.7.0
+Requires-Dist: pyarrow>=12.0.0
+Requires-Dist: python-dateutil>=2.8.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: pytest-benchmark>=4.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Dynamic: license-file
+
+# Time Series Forecasting Tool (Python)
+
+A Python CLI application for time series forecasting using FFT (Fast Fourier Transform) with automatic trend detection.
+
+## Features
+
+- **Automatic Trend Detection**: Uses linear regression to detect positive trends in time series data
+- **Adaptive FFT Forecasting**:
+  - FFT with trend preservation for trending data
+  - FFT without trend preservation for stationary data
+- **Multiple Input Formats**: Supports CSV and Parquet files with flexible automatic date parsing
+- **Enhanced Date Format Support**: Automatically detects 42+ different date formats including ISO 8601, US, European, and text-based formats
+- **Visualization**: PNG plotting capabilities with matplotlib for original and forecasted data
+- **Comprehensive Reporting**: Generate detailed reports with statistics and plots
+- **Flexible Output**: Save forecasts to CSV, plots to PNG files, or display in terminal
+
+## Installation
+
+### Development Setup (Recommended)
+
+For development, it's recommended to use a local conda environment:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/pytimetc.git
+cd pytimetc
+
+# Create a local conda environment
+conda create --prefix ./venv python=3.11 -y
+
+# Activate the environment
+conda activate ./venv
+
+# Install with development dependencies
+pip install -e .[dev]
+```
+
+### From Source (Simple)
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/pytimetc.git
+cd pytimetc
+
+# Install the package
+pip install -e .
+
+# Or install with development dependencies
+pip install -e .[dev]
+```
+
+### Using Task (Recommended)
+
+This project includes a Taskfile for easy management:
+
+```bash
+# Install in development mode
+task install
+
+# Run tests
+task test
+
+# Build the package
+task build
+```
+
+## Requirements
+
+- Python >= 3.9
+- numpy >= 1.24.0
+- pandas >= 2.0.0
+- matplotlib >= 3.7.0
+- pyarrow >= 12.0.0
+- python-dateutil >= 2.8.0
+
+## Usage
+
+### Basic Usage
+
+```bash
+# Simple forecast with plot
+time-to-critical -i data.csv -s 10 -p
+
+# Forecast with output to CSV
+time-to-critical -i data.csv -s 20 -o forecast.csv -v
+
+# Generate comprehensive report
+time-to-critical -i data.csv --steps 15 --report report.txt --save-plot plot.png
+```
+
+### Command Line Options
+
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `--input` | `-i` | Input CSV or Parquet file path (required) | - |
+| `--steps` | `-s` | Number of steps to forecast ahead | 10 |
+| `--output` | `-o` | Output CSV file for forecast results | - |
+| `--plot` | `-p` | Display PNG plot | false |
+| `--date-format` | `-d` | Date format for parsing or 'auto' for flexible parsing | "auto" |
+| `--save-plot` | - | Save plot to PNG file | - |
+| `--report` | - | Generate comprehensive report | - |
+| `--verbose` | `-v` | Enable verbose output | false |
+
+### Input Format
+
+The tool supports both CSV and Parquet files:
+
+**CSV Format:**
+```csv
+date,value
+2024-01-01,10.5
+2024-01-02,11.2
+2024-01-03,12.1
+```
+
+**Parquet Format:**
+- Expected schema: columns named 'date' and 'value'
+- Date column: string format with automatic flexible parsing
+- Value column: numeric (double, float, int)
+- Always uses flexible date parsing (42+ formats supported)
+
+### Supported Date Formats
+
+The tool supports 42+ different date formats with automatic detection:
+
+#### ISO 8601 Formats
+- `2024-01-15` (YYYY-MM-DD)
+- `2024-01-15 10:30:00` (YYYY-MM-DD HH:MM:SS)
+- `2024-01-15T10:30:00Z` (ISO with timezone)
+
+#### US Formats
+- `01/15/2024` (MM/DD/YYYY)
+- `1/15/2024` (M/D/YYYY)
+- `1/15/24` (M/D/YY)
+
+#### European Formats
+- `15/01/2024` (DD/MM/YYYY)
+- `15.01.2024` (DD.MM.YYYY)
+- `15-01-2024` (DD-MM-YYYY)
+
+#### Text-Based Formats
+- `Jan 15, 2024` (Mon D, YYYY)
+- `January 15, 2024` (Month D, YYYY)
+- `15 Jan 2024` (D Mon YYYY)
+
+## Examples
+
+### Example 1: Basic Forecasting with CSV
+
+```bash
+time-to-critical -i sample-data/sample_data.csv -s 5 -v
+```
+
+### Example 2: Forecasting with Parquet
+
+```bash
+time-to-critical -i sample-data/sample_data.parquet -s 5 -v
+```
+
+### Example 3: Comprehensive Analysis
+
+```bash
+time-to-critical -i data.csv -s 10 -o forecast.csv --report analysis.txt --save-plot plot.png -v
+```
+
+This will:
+- Load data from `data.csv` (or `data.parquet`)
+- Forecast 10 steps ahead
+- Save forecasts to `forecast.csv`
+- Generate a comprehensive report in `analysis.txt`
+- Save the plot to `plot.png`
+- Display verbose output
+
+## Algorithm Details
+
+### Trend Detection
+- Uses linear regression to fit a trend line to the data
+- Calculates R-squared to measure trend strength
+- Considers trend positive if slope > 0 and R² > 0.1
+
+### FFT Forecasting
+
+**Without Trend Preservation** (for stationary data):
+1. Apply FFT to the time series
+2. Filter out high-frequency noise (keep 50% of dominant frequencies)
+3. Apply inverse FFT
+4. Extract forecasted values by pattern extension
+
+**With Trend Preservation** (for trending data):
+1. Remove linear trend from the original data
+2. Apply FFT forecasting to detrended data
+3. Add the projected trend back to forecasted values
+
+### Visualization
+- PNG plots with matplotlib
+- Different markers for original and forecasted data
+- Automatic scaling and axis labeling
+- Date range display
+
+## Development
+
+### Using Task Commands
+
+```bash
+# Show all available tasks
+task
+
+# Install dependencies
+task install
+
+# Run tests
+task test
+
+# Run specific test types
+task test-unit
+task test-integration
+
+# Run linting
+task lint
+task lint-fix
+
+# Format code
+task format
+task format-check
+
+# Generate coverage report
+task coverage
+
+# Build package
+task build
+
+# Clean build artifacts
+task clean
+
+# Run all quality checks
+task check-all
+
+# Run CI pipeline locally
+task ci
+```
+
+### Manual Commands
+
+```bash
+# Run tests with coverage
+pytest --cov=time_to_critical --cov-report=html
+
+# Run linting
+ruff check src/ tests/
+
+# Format code
+black src/ tests/
+
+# Build package
+python -m build
+```
+
+## Project Structure
+
+```
+pytimetc/
+├── src/
+│   └── time_to_critical/
+│       ├── __init__.py
+│       ├── cli.py           # CLI interface
+│       ├── timeseries.py    # Time series data handling
+│       ├── forecast.py      # FFT forecasting logic
+│       ├── trend.py         # Trend detection
+│       └── plotting.py      # Visualization
+├── tests/
+│   ├── __init__.py
+│   ├── test_timeseries.py
+│   ├── test_forecast.py
+│   ├── test_trend.py
+│   └── test_integration.py
+├── sample-data/             # Sample test data
+├── .github/
+│   └── workflows/
+│       └── ci.yml           # GitHub Actions CI/CD
+├── pyproject.toml           # Project configuration
+├── Taskfile.yml             # Task automation
+├── README.md
+└── LICENSE
+```
+
+## Testing
+
+The project includes comprehensive unit and integration tests:
+
+```bash
+# Run all tests
+task test
+
+# Run with coverage
+task coverage
+
+# Run only unit tests
+task test-unit
+
+# Run only integration tests
+task test-integration
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to:
+- Implement additional forecasting methods (ARIMA, Prophet, etc.)
+- Add support for more file formats (JSON, XML, databases)
+- Improve visualization capabilities
+- Add more date formats to the flexible parsing system
+- Enhance error reporting and user feedback
+- Write tests and benchmarks
+- Optimize performance for large datasets
+
+## License
+
+This project is open source. See the LICENSE file for details.
+
+## Comparison with Go Version
+
+This Python implementation is functionally equivalent to the original Go version with these benefits:
+- More flexible date parsing with dateutil
+- Better cross-platform plotting with matplotlib
+- Easier package distribution via PyPI
+- Rich Python data science ecosystem integration
+- Simpler installation and dependency management
+
+The FFT forecasting algorithm and trend detection produce numerically equivalent results.
