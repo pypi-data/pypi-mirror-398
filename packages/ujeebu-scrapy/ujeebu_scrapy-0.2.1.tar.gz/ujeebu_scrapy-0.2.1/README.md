@@ -1,0 +1,451 @@
+# Ujeebu Scrapy - Scrapy Middleware for Ujeebu APIs
+
+[![PyPI version](https://badge.fury.io/py/ujeebu-scrapy.svg)](https://badge.fury.io/py/ujeebu-scrapy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+
+**ujeebu_scrapy** is a powerful Scrapy middleware that integrates your crawlers with the [Ujeebu APIs](https://ujeebu.com) for advanced web scraping, content extraction, and search engine results.
+
+## Features
+
+- 🌐 **Scrape API**: Render JavaScript-heavy pages with a headless browser
+- 📰 **Extract API**: Automatically extract article content from news and blogs
+- 🔍 **SERP API**: Get structured Google search results
+- 📸 **Screenshots & PDFs**: Capture visual snapshots of web pages
+- 🔄 **Infinite Scroll**: Handle dynamically loaded content
+- 🌍 **Geo-Targeting**: Use proxies from 100+ countries
+- 🔐 **Anti-Bot Bypass**: Automatically handles CAPTCHAs and bot detection
+- 📊 **Extract Rules**: Define CSS-based rules for structured data extraction
+
+## Installation
+
+### Using pip
+
+```bash
+pip install ujeebu-scrapy
+```
+
+### From source
+
+```bash
+git clone https://github.com/ujeebu/ujeebu-scrapy.git
+cd ujeebu-scrapy
+python setup.py install
+```
+
+## Quick Start
+
+### 1. Configure your Scrapy project
+
+Add the middleware to your `settings.py`:
+
+```python
+# Enable Ujeebu middleware
+DOWNLOADER_MIDDLEWARES = {
+    'ujeebu_scrapy.UjeebuMiddleware': 543,
+}
+
+# Ujeebu configuration
+UJEEBU_ENABLED = True
+UJEEBU_API_KEY = 'your-api-key'  # Get yours at https://ujeebu.com/signup
+
+# Optional: Default settings
+UJEEBU_DEFAULT_PROXY_TYPE = 'rotating'
+UJEEBU_DEFAULT_TIMEOUT = 60
+```
+
+### 2. Use Ujeebu Requests in your spiders
+
+```python
+import scrapy
+from ujeebu_scrapy import UjeebuScrapeRequest
+
+class MySpider(scrapy.Spider):
+    name = 'my_spider'
+
+    def start_requests(self):
+        yield UjeebuScrapeRequest(
+            url='https://example.com',
+            js=True,               # Enable JavaScript rendering
+            wait_for=2000,         # Wait 2 seconds for JS
+            proxy_type='rotating', # Use rotating proxies
+            callback=self.parse
+        )
+
+    def parse(self, response):
+        # Parse the response as usual
+        yield {'title': response.css('title::text').get()}
+```
+
+## Request Classes
+
+### UjeebuScrapeRequest
+
+For scraping web pages with full browser rendering support.
+
+```python
+from ujeebu_scrapy import UjeebuScrapeRequest
+
+yield UjeebuScrapeRequest(
+    url='https://example.com',
+    # Named parameters (recommended)
+    js=True,                    # Enable JavaScript
+    wait_for=2000,              # Wait time/selector/JS callable
+    custom_js='...',            # Custom JS to execute
+    proxy_type='premium',       # Proxy type
+    proxy_country='US',         # Geo-targeting
+    device='mobile',            # Device emulation
+    scroll_down=True,           # Enable scrolling
+    screenshot_fullpage=True,   # Full page screenshot
+    block_ads=True,             # Block advertisements
+    timeout=90,                 # Request timeout
+
+    # Or use params dict
+    params={
+        'response_type': 'html',  # 'html', 'raw', 'pdf', 'screenshot'
+        'extract_rules': {...},   # Extraction rules
+    },
+
+    # Custom headers (auto-prefixed with Ujb-)
+    headers={'Authorization': 'Bearer token'},
+
+    callback=self.parse
+)
+```
+
+#### Scrape API Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | string | required | URL to scrape |
+| `js` | boolean | true | Enable JavaScript execution |
+| `response_type` | string | 'html' | Response type: 'html', 'raw', 'pdf', 'screenshot' |
+| `wait_for` | string/int | 0 | Wait condition: ms, CSS selector, or JS callable |
+| `custom_js` | string | null | Custom JavaScript to execute |
+| `proxy_type` | string | 'rotating' | Proxy type (see Proxy Types) |
+| `proxy_country` | string | 'US' | Country code for geo-targeting |
+| `device` | string | 'desktop' | Device: 'desktop' or 'mobile' |
+| `scroll_down` | boolean | false | Enable page scrolling |
+| `progressive_scroll` | boolean | false | Keep scrolling until content stops loading |
+| `screenshot_fullpage` | boolean | false | Capture full page screenshot |
+| `block_ads` | boolean | false | Block advertisements |
+| `block_resources` | boolean | false | Block images, CSS, fonts |
+| `extract_rules` | object | null | Rules for structured data extraction |
+| `timeout` | number | 60 | Request timeout in seconds |
+
+### UjeebuExtractRequest
+
+For extracting article content from news and blog pages.
+
+```python
+from ujeebu_scrapy import UjeebuExtractRequest
+
+yield UjeebuExtractRequest(
+    url='https://example.com/article',
+    text=True,         # Extract text content
+    html=True,         # Extract HTML content
+    images=True,       # Extract images
+    author=True,       # Extract author
+    pub_date=True,     # Extract publish date
+    media=True,        # Extract embedded media
+    feeds=True,        # Extract RSS feeds
+    is_article=True,   # Get article probability score
+    quick_mode=False,  # Use quick analysis
+    js=False,          # Enable JS rendering
+    callback=self.parse_article
+)
+```
+
+#### Extract API Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | string | required | Article URL to extract |
+| `text` | boolean | true | Extract article text |
+| `html` | boolean | true | Extract article HTML |
+| `images` | boolean | true | Extract images |
+| `author` | boolean | true | Extract author name |
+| `pub_date` | boolean | true | Extract publish date |
+| `media` | boolean | false | Extract embedded media |
+| `feeds` | boolean | false | Extract RSS feeds |
+| `is_article` | boolean | true | Return article probability |
+| `quick_mode` | boolean | false | Use faster analysis |
+| `js` | boolean | false | Enable JavaScript rendering |
+| `raw_html` | string | null | Extract from provided HTML |
+
+### UjeebuSerpRequest
+
+For getting Google search results.
+
+```python
+from ujeebu_scrapy import UjeebuSerpRequest
+
+yield UjeebuSerpRequest(
+    search='python web scraping',
+    search_type='search',   # 'search', 'images', 'news', 'videos', 'maps'
+    lang='en',              # Language code
+    location='us',          # Country code
+    device='desktop',       # 'desktop', 'mobile', 'tablet'
+    results_count=10,       # Results per page
+    page=1,                 # Page number
+    callback=self.parse_results
+)
+```
+
+#### SERP API Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `search` | string | required* | Search query |
+| `url` | string | required* | Google search URL (alternative to search) |
+| `search_type` | string | 'search' | Type: 'search', 'images', 'news', 'videos', 'maps' |
+| `lang` | string | 'en' | Result language (ISO 639-1) |
+| `location` | string | 'us' | Country (ISO 3166-1 alpha-2) |
+| `device` | string | 'desktop' | Device type |
+| `results_count` | number | 10 | Results per page |
+| `page` | number | 1 | Page number |
+| `extra_params` | string | null | Additional Google parameters |
+
+## Extract Rules
+
+Use extract rules to scrape structured data without writing CSS selectors in Python:
+
+```python
+yield UjeebuScrapeRequest(
+    url='https://quotes.toscrape.com/',
+    extract_rules={
+        'quotes': {
+            'selector': '.quote',
+            'type': 'obj',
+            'multiple': True,
+            'children': {
+                'text': {
+                    'selector': '.text',
+                    'type': 'text'
+                },
+                'author': {
+                    'selector': '.author',
+                    'type': 'text'
+                },
+                'tags': {
+                    'selector': '.tag',
+                    'type': 'text',
+                    'multiple': True
+                }
+            }
+        }
+    },
+    callback=self.parse_quotes
+)
+
+def parse_quotes(self, response):
+    import json
+    data = json.loads(response.text)
+
+    for quote in data['result']['quotes']:
+        yield {
+            'text': quote['text'],
+            'author': quote['author'],
+            'tags': quote['tags']
+        }
+```
+
+### Rule Types
+
+| Type | Description |
+|------|-------------|
+| `text` | Extract text content of element |
+| `link` | Extract href attribute from links |
+| `image` | Extract src attribute from images |
+| `attr` | Extract specific attribute (use `attribute` param) |
+| `obj` | Extract nested object (use `children` param) |
+
+## Proxy Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `rotating` | Basic rotating proxies | General scraping |
+| `advanced` | Enhanced rotating proxies | More reliable scraping |
+| `premium` | Premium with geo-targeting | Location-specific content |
+| `residential` | Real residential IPs | Anti-bot bypass |
+| `mobile` | Mobile network IPs | Mobile-specific content |
+| `custom` | Your own proxy | Custom infrastructure |
+
+### Geo-Targeting Example
+
+```python
+yield UjeebuScrapeRequest(
+    url='https://google.com',
+    proxy_type='premium',
+    proxy_country='DE',  # Germany
+    callback=self.parse
+)
+```
+
+### Sticky Sessions
+
+Use the same IP across multiple requests:
+
+```python
+yield UjeebuScrapeRequest(
+    url='https://example.com/page1',
+    params={
+        'proxy_type': 'premium',
+        'session_id': 'my_session_123',  # Reuse for 30 minutes
+    },
+    callback=self.parse
+)
+```
+
+## Screenshots & PDFs
+
+### Take a Screenshot
+
+```python
+yield UjeebuScrapeRequest(
+    url='https://example.com',
+    params={
+        'response_type': 'screenshot',
+        'screenshot_fullpage': True,
+        'json': True,
+    },
+    callback=self.save_screenshot
+)
+
+def save_screenshot(self, response):
+    import base64
+    data = json.loads(response.text)
+    screenshot = base64.b64decode(data['screenshot'])
+    with open('screenshot.png', 'wb') as f:
+        f.write(screenshot)
+```
+
+### Generate a PDF
+
+```python
+yield UjeebuScrapeRequest(
+    url='https://example.com',
+    params={
+        'response_type': 'pdf',
+        'json': True,
+    },
+    callback=self.save_pdf
+)
+```
+
+## Infinite Scroll Handling
+
+```python
+yield UjeebuScrapeRequest(
+    url='https://example.com/infinite-scroll',
+    params={
+        'js': True,
+        'scroll_down': True,
+        'progressive_scroll': True,  # Keep scrolling until no new content
+        'scroll_wait': 500,          # Wait 500ms between scrolls
+    },
+    callback=self.parse
+)
+```
+
+## Custom JavaScript
+
+Execute custom JavaScript before getting the page:
+
+```python
+# Click a button to load more content
+custom_js = '''
+document.querySelector('.load-more-btn').click();
+'''
+
+yield UjeebuScrapeRequest(
+    url='https://example.com',
+    params={
+        'js': True,
+        'custom_js': custom_js,
+        'wait_for': 2000,
+    },
+    callback=self.parse
+)
+```
+
+## Settings Reference
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `UJEEBU_ENABLED` | boolean | True | Enable/disable middleware |
+| `UJEEBU_API_KEY` | string | required | Your API key |
+| `UJEEBU_BASE_URL` | string | https://api.ujeebu.com | API base URL |
+| `UJEEBU_DEFAULT_PROXY_TYPE` | string | None | Default proxy type |
+| `UJEEBU_DEFAULT_TIMEOUT` | int | 60 | Default timeout |
+
+## Examples
+
+The `examples/` directory contains complete spider examples:
+
+- **`basic_scrape_spider.py`**: Basic scraping with JavaScript rendering
+- **`extract_rules_spider.py`**: Structured data extraction with extract_rules
+- **`article_extractor_spider.py`**: Article content extraction
+- **`serp_spider.py`**: Google search results
+- **`screenshot_spider.py`**: Screenshots and PDFs
+- **`infinite_scroll_spider.py`**: Handling infinite scroll pages
+- **`proxy_spider.py`**: Proxy types and geo-targeting
+
+## Error Handling
+
+Handle Ujeebu API errors in your spider:
+
+```python
+from scrapy.spidermiddlewares.httperror import HttpError
+
+def errback_handler(self, failure):
+    if failure.check(HttpError):
+        response = failure.value.response
+        self.logger.error(f'HttpError on {response.url}')
+
+        # Check for Ujeebu-specific error
+        try:
+            error_data = json.loads(response.text)
+            self.logger.error(f'Error: {error_data.get("message")}')
+        except:
+            pass
+
+yield UjeebuScrapeRequest(
+    url='https://example.com',
+    callback=self.parse,
+    errback=self.errback_handler
+)
+```
+
+## API Credits
+
+Different operations consume different amounts of credits:
+
+| Operation | Credits |
+|-----------|---------|
+| Scrape (rotating proxy) | 1 |
+| Scrape (premium proxy) | 5 |
+| Scrape (residential proxy) | 10 |
+| Screenshot/PDF | +1 |
+| Extract | 1-5 |
+| SERP | 25 |
+
+Check your usage at [ujeebu.com/dashboard](https://ujeebu.com/dashboard)
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- 📧 Email: support@ujeebu.com
+- 📖 Documentation: [ujeebu.com/docs](https://ujeebu.com/docs)
+- 🐛 Issues: [GitHub Issues](https://github.com/ujeebu/ujeebu-scrapy/issues)
