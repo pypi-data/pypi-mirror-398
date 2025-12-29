@@ -1,0 +1,177 @@
+use alopex_embedded::{Database, TxnMode};
+use std::fs;
+use std::sync::{Arc, Barrier};
+use std::thread;
+use tempfile::tempdir;
+
+fn key(s: &str) -> Vec<u8> {
+    s.as_bytes().to_vec()
+}
+
+fn val(s: &str) -> Vec<u8> {
+    s.as_bytes().to_vec()
+}
+
+#[test]
+fn crud_cycle_in_memory() {
+    let db = Database::open_in_memory().expect("in-memory db");
+
+    // Put and commit.
+    let mut txn = db.begin(TxnMode::ReadWrite).unwrap();
+    txn.put(&key("k1"), &val("v1")).unwrap();
+    txn.commit().unwrap();
+
+    // Read verifies value.
+    let mut read_txn = db.begin(TxnMode::ReadOnly).unwrap();
+    assert_eq!(read_txn.get(&key("k1")).unwrap(), Some(val("v1")));
+
+    // Delete and commit.
+    let mut del_txn = db.begin(TxnMode::ReadWrite).unwrap();
+    del_txn.delete(&key("k1")).unwrap();
+    del_txn.commit().unwrap();
+
+    // Ensure removed.
+    let mut read_txn2 = db.begin(TxnMode::ReadOnly).unwrap();
+    assert_eq!(read_txn2.get(&key("k1")).unwrap(), None);
+}
+
+#[test]
+fn rollback_discards_changes() {
+    let db = Database::open_in_memory().expect("in-memory db");
+
+    let mut txn = db.begin(TxnMode::ReadWrite).unwrap();
+    txn.put(&key("temp"), &val("value")).unwrap();
+    txn.rollback().unwrap();
+
+    let mut read_txn = db.begin(TxnMode::ReadOnly).unwrap();
+    assert_eq!(read_txn.get(&key("temp")).unwrap(), None);
+}
+
+#[test]
+fn detects_conflict_between_transactions() {
+    let db = Database::open_in_memory().expect("in-memory db");
+
+    let mut t1 = db.begin(TxnMode::ReadWrite).unwrap();
+    t1.get(&key("shared")).unwrap(); // track read version
+
+    let mut t2 = db.begin(TxnMode::ReadWrite).unwrap();
+    t2.put(&key("shared"), &val("second")).unwrap();
+    t2.commit().unwrap();
+
+    // t1 now conflicts because shared key was updated by t2.
+    t1.put(&key("shared"), &val("first")).unwrap();
+    let result = t1.commit();
+    assert!(
+        result.is_err(),
+        "expected conflict when committing t1 after t2"
+    );
+}
+
+#[test]
+fn persist_to_disk_is_atomic_and_reloadable() {
+    let dir = tempdir().unwrap();
+    let wal_path = dir.path().join("db.alopex");
+    let data_dir = wal_path.with_extension("alopex.d");
+
+    // Seed data in memory.
+    let db = Database::open_in_memory().expect("in-memory db");
+    let mut txn = db.begin(TxnMode::ReadWrite).unwrap();
+    txn.put(&key("hello"), &val("world")).unwrap();
+    txn.commit().unwrap();
+
+    db.persist_to_disk(&wal_path).expect("persist success");
+
+    // Marker + data directory exists, no temp leftovers.
+    assert!(wal_path.exists());
+    assert!(data_dir.exists());
+    assert!(data_dir.join("lsm.wal").exists());
+    assert!(!data_dir.with_extension("tmp").exists());
+
+    // Reload from disk path and verify data.
+    let disk_db = Database::open(&wal_path).expect("open persisted db");
+    let mut read_txn = disk_db.begin(TxnMode::ReadOnly).unwrap();
+    assert_eq!(read_txn.get(&key("hello")).unwrap(), Some(val("world")));
+}
+
+#[test]
+fn persist_to_disk_path_exists_error_reports_actual_path() {
+    let dir = tempdir().unwrap();
+    let wal_path = dir.path().join("db.alopex");
+    let data_dir = wal_path.with_extension("alopex.d");
+
+    // Pre-create marker file to trigger PathExists.
+    fs::write(&wal_path, b"already").unwrap();
+
+    let db = Database::open_in_memory().expect("in-memory db");
+    let err = db.persist_to_disk(&wal_path).unwrap_err();
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("path exists:") && msg.contains("db.alopex"),
+        "expected PathExists with wal path, got {msg}"
+    );
+
+    // No temp artifacts should exist.
+    assert!(!data_dir.exists());
+    assert!(!data_dir.with_extension("tmp").exists());
+}
+
+#[test]
+fn clone_to_memory_is_independent() {
+    let db = Database::open_in_memory().expect("in-memory db");
+    let mut txn = db.begin(TxnMode::ReadWrite).unwrap();
+    txn.put(&key("k1"), &val("v1")).unwrap();
+    txn.commit().unwrap();
+
+    let clone = db.clone_to_memory().expect("clone");
+
+    // Change original after cloning.
+    let mut txn_orig = db.begin(TxnMode::ReadWrite).unwrap();
+    txn_orig.put(&key("k1"), &val("v2")).unwrap();
+    txn_orig.commit().unwrap();
+
+    // Clone should still see old value.
+    let mut read_clone = clone.begin(TxnMode::ReadOnly).unwrap();
+    assert_eq!(read_clone.get(&key("k1")).unwrap(), Some(val("v1")));
+
+    // Original sees new value.
+    let mut read_orig = db.begin(TxnMode::ReadOnly).unwrap();
+    assert_eq!(read_orig.get(&key("k1")).unwrap(), Some(val("v2")));
+}
+
+#[test]
+fn concurrent_reads_and_writes_do_not_race() {
+    let db = Arc::new(Database::open_in_memory().expect("in-memory db"));
+    let threads = 4;
+    let per_thread = 50;
+    let barrier = Arc::new(Barrier::new(threads));
+
+    let mut handles = Vec::new();
+    for t in 0..threads {
+        let dbc = db.clone();
+        let b = barrier.clone();
+        handles.push(thread::spawn(move || {
+            // synchronize start
+            b.wait();
+            for i in 0..per_thread {
+                let k = format!("t{}:k{}", t, i).into_bytes();
+                let v = format!("v{}", i).into_bytes();
+                let mut txn = dbc.begin(TxnMode::ReadWrite).unwrap();
+                txn.put(&k, &v).unwrap();
+                txn.commit().unwrap();
+
+                // Read back in a read-only txn.
+                let mut rtxn = dbc.begin(TxnMode::ReadOnly).unwrap();
+                let got = rtxn.get(&k).unwrap();
+                assert_eq!(got, Some(v));
+            }
+        }));
+    }
+
+    for h in handles {
+        h.join().expect("thread join");
+    }
+
+    // Verify total keys written.
+    let snapshot = db.snapshot();
+    assert_eq!(snapshot.len(), threads * per_thread);
+}
