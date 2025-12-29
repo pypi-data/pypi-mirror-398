@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db
+      PGDATA: /pgdata
+    tmpfs:
+      - /pgdata:mode=770,uid=200,gid=10000
+    command:
+      - -clog_min_messages=fatal
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:20.0.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_PROXY: edge
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/realms/master"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ./tests/keycloak.json:/opt/keycloak/data/import/realm.json
