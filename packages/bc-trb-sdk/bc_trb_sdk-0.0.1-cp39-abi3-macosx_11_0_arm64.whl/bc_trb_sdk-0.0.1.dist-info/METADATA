@@ -1,0 +1,367 @@
+Metadata-Version: 2.4
+Name: bc_trb_sdk
+Version: 0.0.1
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+# BrainSync TriggerBox SDK
+
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
+
+BrainSync TriggerBox 设备的多语言 SDK，提供简单、类型安全、高性能的 API。
+
+## 🚀 快速开始
+
+### Rust
+
+```rust
+use bc_trb_sdk::usb::open_triggerbox_usb;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // 1. 打开设备
+    let device_api = open_triggerbox_usb().await?;
+    
+    // 2.获取 TriggerBox 各信号激活状态
+    let status = device_api.trigger().get_status().await?;
+    println!("PD: {}, AUD: {}, MIC: {}, BTN: {}", 
+        status.pd_active, status.aud_active, 
+        status.mic_active, status.btn_active);
+    
+    // 3. 获取 ADC 读数
+    let adc = device_api.trigger().get_adc_value().await?;
+    println!("参考电压: {:.2} V", adc.vref_v());
+    println!("PD 电压: {:.2} mV", adc.pd_voltage_mv());
+    
+    // 4. 配置 Trigger 信号
+    let config = TrbConfig {
+        pd_enabled: true,
+        pd_threshold: 30000,
+        aud_enabled: true,
+        aud_threshold: 25000,
+        mic_enabled: false,
+        mic_threshold: 0,
+    };
+    device_api.trigger().set_config(&config).await?;
+    
+    Ok(())
+}
+```
+
+### Python
+
+```python
+import asyncio
+from bc_trb_sdk import open_bc_trb_usb
+
+async def main():
+    # 1. 打开设备
+    device = await open_bc_trb_usb()
+    trigger = device.trigger()
+    
+    # 2.获取 TriggerBox 各信号激活状态
+    status = await trigger.get_status()
+    print(f"PD: {status.pd_active}, AUD: {status.aud_active}")
+    
+    # 3. 获取 ADC 读数
+    adc = await trigger.get_adc_value()
+    print(f"参考电压: {adc.vref_v():.2f} V")
+    print(f"PD 电压: {adc.pd_voltage_mv():.2f} mV")
+    
+    # 4. 配置 Trigger 信号
+    config = TrbConfig(
+        pd_enabled=True,
+        pd_threshold=30000,
+        aud_enabled=True,
+        aud_threshold=25000,
+        mic_enabled=False,
+        mic_threshold=0
+    )
+    await trigger.set_config(config)
+
+asyncio.run(main())
+```
+
+### Node.js
+
+```javascript
+const { openTriggerboxUsb } = require('bc-trb-sdk');
+
+async function main() {
+    // 1. 打开设备
+    const device = await openTriggerboxUsb();
+    
+    // 2.获取 TriggerBox 各信号激活状态
+    const status = await device.getTriggerStatus();
+    console.log(`PD: ${status.pdActive}, AUD: ${status.audActive}`);
+    
+    // 3. 获取 ADC 读数
+    const adc = await device.getTriggerAdcValue();
+    console.log(`参考电压: ${adc.vrefMv / 1000} V`);
+    console.log(`PD 电压: ${adc.values[2] / adc.adcValueMax * adc.vrefMv} mV`);
+    
+    // 4. 配置 Trigger 信号
+    await device.setTriggerConfig({
+        pdEnabled: true,
+        pdThreshold: 30000,
+        audEnabled: true,
+        audThreshold: 25000,
+        micEnabled: false,
+        micThreshold: 0
+    });
+}
+
+main().catch(console.error);
+```
+
+## 📚 文档
+
+- **[通讯协议](../docs/BrainSync%20TriggerBox%20通讯协议.md)** - 完整协议规范
+- **[TriggerBox API 使用指南](../docs/TRIGGERBOX_API_USAGE.md)** - API 使用说明
+- **[快速开始](QUICK_START.md)** - 快速上手指南
+
+## 🎯 核心功能
+
+### TriggerBox API
+
+| 功能 | 描述 | 命令 |
+|------|------|------|
+| **获取状态** | 获取各个 Trigger 信号的当前状态 | CMD_TRG_STATUS (0x10) |
+| **ADC 传输控制** | 开启/关闭 ADC 读数连续传输 | CMD_TRG_ADC_ENABLE_TRANSFER (0x11) |
+| **获取 ADC 值** | 获取单次或连续 ADC 读数 | CMD_TRG_ADC_VALUE (0x12) |
+| **配置管理** | 获取/设置 Trigger 信号配置 | CMD_TRG_CONFIG (0x13) |
+
+### 数据结构
+
+#### TrbStatus - Trigger 信号状态
+
+```rust
+pub struct TrbStatus {
+    pub pd_active: bool,    // PD (光电) 信号是否激活
+    pub aud_active: bool,   // AUD (音频) 信号是否激活
+    pub mic_active: bool,   // MIC (麦克风) 信号是否激活
+    pub btn_active: bool,   // BTN (按钮) 信号是否激活
+}
+```
+
+#### TrbAdcValue - ADC 读数
+
+```rust
+pub struct TrbAdcValue {
+    pub adc_value_max: u32,  // ADC 最大值（0xFFFF）
+    pub vref_mv: u32,        // 参考电压（mV，通常 3300mV）
+    pub values: Vec<u16>,    // ADC 读数 [VREF_INT, PD_TRGLEVEL, PD, MIC, AUD]
+}
+```
+
+#### TrbConfig - Trigger 信号配置
+
+```rust
+pub struct TrbConfig {
+    pub pd_enabled: bool,      // PD 信号是否开启
+    pub pd_threshold: u32,     // PD 信号阈值（ADC 原始值）
+    pub aud_enabled: bool,     // AUD 信号是否开启
+    pub aud_threshold: u32,    // AUD 信号阈值（ADC 原始值）
+    pub mic_enabled: bool,     // MIC 信号是否开启
+    pub mic_threshold: u32,    // MIC 信号阈值（ADC 原始值）
+}
+```
+
+## 📦 示例程序
+
+### Rust 示例
+
+```bash
+# TriggerBox 基础示例
+cargo run --example triggerbox_example
+
+# TriggerBox ADC 流示例
+cargo run --example triggerbox_adc_stream
+```
+
+### Python 示例
+
+```bash
+# 安装依赖
+cd sdk
+pip install maturin
+maturin develop
+
+# 运行示例
+cd examples/python
+python triggerbox_example.py
+python triggerbox_adc_stream.py
+```
+
+### Node.js 示例
+
+```bash
+# 构建 Neon 模块
+cd sdk
+npm install
+npm run build
+
+# 运行示例
+cd examples/neon
+node triggerbox_example.js
+node triggerbox_adc_stream.js
+```
+
+## 🏗️ 架构
+
+```
+用户代码
+    ↓
+DeviceApi
+    ├── trigger() → TriggerApi
+    │   ├── get_status()
+    │   ├── get_adc_value()
+    │   ├── set_config()
+    │   └── set_adc_transfer()
+    ↓
+协议层 (帧编解码)
+    ├── Frame (0xAA ... 0x55)
+    ├── CMD_TRG_STATUS (0x10)
+    ├── CMD_TRG_ADC_ENABLE_TRANSFER (0x11)
+    ├── CMD_TRG_ADC_VALUE (0x12)
+    └── CMD_TRG_CONFIG (0x13)
+    ↓
+传输层 (USB Bulk Transfer)
+    ├── VID: 0x5243 (BrainSync)
+    └── PID: 0x0009 (TriggerBox)
+    ↓
+TriggerBox 硬件
+```
+
+## 🎨 设计特点
+
+### 简单性
+
+```rust
+// 一行代码打开设备
+let device_api = open_triggerbox_usb().await?;
+```
+
+### 类型安全
+
+```rust
+// 编译时检查，避免运行时错误
+let status: TrbStatus = device_api.trigger().get_status().await?;
+```
+
+### 异步优先
+
+```rust
+// 所有 I/O 操作都是异步的
+let adc = device_api.trigger().get_adc_value().await?;
+```
+
+### 多语言支持
+
+- **Rust** - 原生 API，零开销
+- **Python** - PyO3 bindings，直接复用 Rust 类型
+- **Node.js** - Neon bindings，高性能
+
+### 直接类型复用
+
+Python 和 Node.js bindings 直接复用 Rust 数据结构，无需包装类型：
+
+```rust
+// Rust 定义
+#[cfg_attr(feature = "python", pyclass(name = "TrbStatus", get_all))]
+pub struct TrbStatus {
+    pub pd_active: bool,
+    pub aud_active: bool,
+    pub mic_active: bool,
+    pub btn_active: bool,
+}
+```
+
+Python 可以直接使用：
+
+```python
+status = await trigger.get_status()  # 返回 TrbStatus
+print(status.pd_active)  # 直接访问字段
+```
+
+## 🔧 Feature Flags
+
+```toml
+[dependencies]
+bc-trb-sdk = { path = "sdk", features = ["usb"] }
+```
+
+可用 features：
+
+- `usb` - USB 通信（默认启用）
+- `python` - Python bindings
+- `node_addons` - Node.js bindings
+
+## 📊 性能
+
+- **零开销抽象** - 泛型 + 静态分发
+- **零拷贝解析** - 直接从字节流解析
+- **异步 I/O** - 基于 Tokio
+- **USB Bulk Transfer** - 高速数据传输
+
+## 🔌 USB 设备信息
+
+- **VID**: 0x5243 (BrainSync)
+- **PID**: 0x0009 (TriggerBox)
+- **接口类**: 0xFF (Vendor Defined)
+- **传输方式**: Bulk Transfer
+- **端点**: 自动检测 IN/OUT 端点
+
+## 🧪 测试
+
+```bash
+# 运行所有测试
+cargo test
+
+# 运行特定模块测试
+cargo test --lib protocol
+cargo test --lib model
+
+# 运行示例作为集成测试
+cargo run --example triggerbox_example
+```
+
+## 📝 协议规范
+
+完整协议规范请查看：[BrainSync TriggerBox 通讯协议](../docs/BrainSync%20TriggerBox%20通讯协议.md)
+
+### 帧格式
+
+```
+[START 0xAA] [CMD 1B] [LEN 1B] [DATA byte[LEN]] [END 0x55]
+```
+
+### 命令列表
+
+| 命令 | 值 | 描述 |
+|------|-----|------|
+| CMD_TRG_STATUS | 0x10 | Trigger 信号状态 |
+| CMD_TRG_ADC_ENABLE_TRANSFER | 0x11 | ADC 传输控制 |
+| CMD_TRG_ADC_VALUE | 0x12 | ADC 读数 |
+| CMD_TRG_CONFIG | 0x13 | Trigger 配置 |
+
+## 🤝 贡献
+
+欢迎贡献！请查看 [贡献指南](../CONTRIBUTING.md)。
+
+## 📄 许可证
+
+MIT License
+
+---
+
+**快速链接**：
+- [通讯协议](../docs/BrainSync%20TriggerBox%20通讯协议.md)
+- [API 使用指南](../docs/TRIGGERBOX_API_USAGE.md)
+- [快速开始](QUICK_START.md)
+- [示例程序](examples/)
+
