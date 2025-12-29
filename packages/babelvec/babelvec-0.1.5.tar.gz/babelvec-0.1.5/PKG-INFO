@@ -1,0 +1,231 @@
+Metadata-Version: 2.4
+Name: babelvec
+Version: 0.1.5
+Summary: Position-aware, cross-lingually aligned word embeddings built on FastText
+Author-email: Omar Kamali <babelvec@omarkama.li>
+License: MIT
+Project-URL: Homepage, https://github.com/omarkamali/babelvec
+Project-URL: Documentation, https://github.com/omarkamali/babelvec#readme
+Project-URL: Repository, https://github.com/omarkamali/babelvec
+Project-URL: Issues, https://github.com/omarkamali/babelvec/issues
+Keywords: embeddings,word-embeddings,fasttext,nlp,cross-lingual,multilingual,positional-encoding
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: scipy>=1.11.0
+Requires-Dist: fasttext>=0.9.2
+Requires-Dist: tqdm>=4.66.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Provides-Extra: viz
+Requires-Dist: matplotlib>=3.7.0; extra == "viz"
+Requires-Dist: seaborn>=0.12.0; extra == "viz"
+Requires-Dist: umap-learn>=0.5.3; extra == "viz"
+Requires-Dist: scikit-learn>=1.3.0; extra == "viz"
+Provides-Extra: all
+Requires-Dist: babelvec[dev,viz]; extra == "all"
+Dynamic: license-file
+
+# BabelVec
+
+**Position-aware, cross-lingually aligned word embeddings built on FastText.**
+
+[![PyPI version](https://badge.fury.io/py/babelvec.svg)](https://badge.fury.io/py/babelvec)
+[![License](https://img.shields.io/badge/licence-MIT-green)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+## Features
+
+- **Cross-Lingual Alignment**: Procrustes alignment for multilingual compatibility
+- **Position-Aware Embeddings**: Optional positional encoding (RoPE, sinusoidal, decay)
+- **FastText Foundation**: Handles OOV words through subword information
+
+## Installation
+
+```bash
+pip install babelvec
+```
+
+For visualization support:
+```bash
+pip install babelvec[viz]
+```
+
+## Quick Start
+
+```python
+from babelvec import BabelVec
+
+# Load a model
+model = BabelVec.load('path/to/model.bin')
+
+# Get word vector
+vec = model.get_word_vector("hello")
+
+# Position-aware sentence embedding
+vec1 = model.get_sentence_vector("The dog bites the man", method='rope')
+vec2 = model.get_sentence_vector("The man bites the dog", method='rope')
+# vec1 != vec2 because word order is encoded
+
+# Simple averaging (no position encoding)
+vec = model.get_sentence_vector("Hello world", method='average')
+```
+
+## Training
+
+### Monolingual Training
+
+```python
+from babelvec.training import train_monolingual
+
+model = train_monolingual(
+    lang='en',
+    corpus_path='corpus.txt',
+    dim=300,
+    epochs=5
+)
+model.save('en_300d.bin')
+```
+
+### Parallel Multi-Language Training (v0.1.4+)
+
+Train multiple languages simultaneously for faster training on multi-core servers:
+
+```python
+from babelvec.training import train_multiple_languages, get_cpu_count
+
+# Auto-detects CPU cores
+print(f"Using {get_cpu_count()} cores")
+
+models = train_multiple_languages(
+    languages={'en': 'en_corpus.txt', 'ar': 'ar_corpus.txt'},
+    parallel=True,      # Train languages simultaneously
+    max_workers=2,      # Number of parallel training jobs
+)
+```
+
+### Multilingual Training with Alignment
+
+```python
+from babelvec.training import train_multilingual
+
+models = train_multilingual(
+    languages=['en', 'ar'],
+    corpus_paths={'en': 'en.txt', 'ar': 'ar.txt'},
+    parallel_data={('en', 'ar'): parallel_pairs},
+    alignment='procrustes'
+)
+```
+
+### Post-hoc Alignment
+
+```python
+from babelvec.training import align_models
+
+aligned = align_models(
+    models={'en': model_en, 'ar': model_ar},
+    parallel_data={('en', 'ar'): parallel_pairs},
+    method='procrustes'
+)
+```
+
+## Model Save/Load (v0.1.3+)
+
+Models save projection matrices alongside the FastText binary:
+
+```python
+# Save model
+model.save('model.bin')
+# Creates: model.bin, model.projection.npy (if aligned), model.meta.json
+
+# Load model - projection is automatically restored
+model = BabelVec.load('model.bin')
+print(model.is_aligned)  # True if projection was loaded
+```
+
+## Encoding Methods
+
+| Method | Description |
+|--------|-------------|
+| `rope` | Rotary Position Embedding |
+| `decay` | Exponential position decay |
+| `sinusoidal` | Transformer-style positional encoding |
+| `average` | Simple averaging (no position encoding) |
+
+## Evaluation
+
+```python
+from babelvec.evaluation import cross_lingual_retrieval
+
+metrics = cross_lingual_retrieval(
+    model_src=model_en,
+    model_tgt=model_ar,
+    parallel_sentences=test_pairs,
+    method='rope'
+)
+print(f"Recall@1: {metrics['recall@1']:.3f}")
+```
+
+## Language Families for Joint Training
+
+BabelVec includes a curated family assignment system for 355 Wikipedia languages, optimized for joint multilingual training.
+
+```python
+from babelvec.families import get_family_key, get_family_languages, get_training_groups
+
+# Get family for a language
+get_family_key("ary")  # -> "arabic"
+get_family_key("fr")   # -> "romance_galloitalic"
+
+# Get all languages in a family
+get_family_languages("arabic")  # -> ["ar", "ary", "arz"]
+
+# Create training groups (hybrid strategy)
+groups = get_training_groups(
+    languages=["en", "ar", "ary", "arz"],
+    article_counts={"en": 6000000, "ar": 840000, "ary": 17000, "arz": 40000},
+    low_resource_threshold=50000
+)
+# -> {"separate": ["en", "ar"], "joint": {"arabic": ["ary", "arz"]}}
+```
+
+Joint training dramatically improves low-resource languages (+200-600% for Arabic dialects) while high-resource languages should be trained separately.
+
+## Examples
+
+See the `examples/` directory:
+
+- `01_basic_usage.py` - Getting started
+
+## Citation
+
+```bibtex
+@software{babelvec2025,
+  title = {BabelVec: Position-Aware Cross-Lingual Word Embeddings},
+  author = {Kamali, Omar},
+  year = {2025},
+  url = {https://github.com/omarkamali/babelvec}
+}
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+Copyright © 2025 [Omar Kamali](https://omarkamali.com)
