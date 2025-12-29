@@ -1,0 +1,92 @@
+import logging
+import ssl
+from os import environ
+from os.path import exists
+from types import SimpleNamespace
+from typing import Final
+
+import docker
+from docker.constants import DEFAULT_TIMEOUT_SECONDS
+
+from deck_chores.utils import split_string, trueish
+
+
+####
+
+
+cfg: Final = SimpleNamespace()
+local_environment: Final[dict[str, str]] = environ.copy()
+log: Final = logging.getLogger('deck_chores')
+getenv: Final = local_environment.get
+
+
+####
+
+
+CONTAINER_CACHE_SIZE: Final = int(getenv("CONTAINER_CACHE_SIZE", "128"))
+
+
+class ConfigurationError(Exception):
+    pass
+
+
+def _check_docker_api(client: docker.DockerClient) -> docker.DockerClient:
+    try:  # pragma: nocover
+        if not client.ping():
+            log.error(
+                "The Docker daemon replied unexpected content on the /ping endpoint."
+            )
+            raise SystemExit(1)
+    except docker.errors.APIError:  # pragma: nocover
+        log.exception("Docker daemon error:")
+        raise SystemExit(1)
+
+    return client
+
+
+def _resolve_tls_version(version: str) -> int:
+    return getattr(ssl, 'PROTOCOL_' + version.replace('.', '_'))
+
+
+def _test_daemon_socket(url: str) -> str:  # pragma: nocover
+    if url.startswith("unix:") and not exists(url.removeprefix("unix:/")):
+        raise ConfigurationError(f'Docker socket file not found: {url}')
+
+    return url
+
+
+####
+
+
+def generate_config():
+    cfg.__dict__.clear()
+    cfg.client_timeout = int(getenv('CLIENT_TIMEOUT', DEFAULT_TIMEOUT_SECONDS))
+    cfg.default_flags = split_string(
+        getenv('DEFAULT_FLAGS', 'image,service'), sort=True
+    )
+    cfg.docker_host = _test_daemon_socket(
+        getenv('DOCKER_HOST', 'unix://var/run/docker.sock')
+    )
+    cfg.debug = trueish(getenv('DEBUG', 'no'))
+    cfg.default_max = int(getenv('DEFAULT_MAX', 1))
+    cfg.job_executor_pool_size = int(getenv('JOB_POOL_SIZE', 10))
+    cfg.job_name_regex = getenv("JOB_NAME_REGEX", "[a-z0-9-]+")
+    cfg.label_ns = getenv('LABEL_NAMESPACE', 'deck-chores') + '.'
+    cfg.logformat = getenv('LOG_FORMAT', '{asctime}|{levelname:8}|{message}')
+    cfg.service_identifiers = split_string(
+        getenv(
+            'SERVICE_ID_LABELS', 'com.docker.compose.project,com.docker.compose.service'
+        )
+    )
+    cfg.stderr_level = logging.getLevelName(getenv('STDERR_LEVEL', 'NOTSET'))
+    cfg.timezone = getenv('TIMEZONE', 'UTC').replace(' ', '_')
+    cfg.client = _check_docker_api(
+        docker.from_env(
+            version='auto',
+            timeout=cfg.client_timeout,
+            environment=local_environment,
+        )
+    )
+
+
+__all__ = ('cfg', generate_config.__name__, ConfigurationError.__name__)
