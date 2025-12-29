@@ -1,0 +1,33 @@
+import urllib
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from requests import Response
+
+from stoobly_agent.lib.api.interfaces.tests import TestCreateParams
+
+from ..logger import Logger
+from .stoobly_api import StooblyApi
+
+LOG_ID = 'TestsResource'
+
+class TestsResource(StooblyApi):
+  TESTS_ENDPOINT = 'tests'
+
+  def create(self, project_id: str, raw_request, params: TestCreateParams = {}):
+    url = f"{self.service_url}/{self.TESTS_ENDPOINT}"
+
+    body = {
+        'project_id': project_id,
+        **params,
+    }
+
+    return self.post(url, headers=self.default_headers, data=body, files={ 'request': raw_request })
+
+  def show(self, test_id: int, **query_params) -> 'Response':
+    url = f"{self.service_url}/{self.TESTS_ENDPOINT}/{test_id}"
+
+    Logger.instance(LOG_ID).debug(f"{url}?{urllib.parse.urlencode(query_params)}")
+
+    return self.get(url, headers=self.default_headers, params=query_params)
