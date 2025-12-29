@@ -1,0 +1,174 @@
+{% extends 'generic/object.html' %}
+{% load buttons %}
+{% load helpers %}
+{% load perms %}
+{% load netbox_optics_extras %}
+
+{% block title %}{{ object.name|default:object }}{% endblock %}
+
+{% block breadcrumbs %}
+  <li><a href="{% url 'plugins:netbox_optics:opticalspan_list' %}">Optical Spans</a></li>
+  <li>{{ object.name }}</li>
+{% endblock %}
+
+{% block buttons %}
+  {% if perms.netbox_optics.change_opticalspan %}
+    <a href="{% url 'plugins:netbox_optics:opticalspan_edit' pk=object.pk %}" class="btn btn-warning">
+      <span class="mdi mdi-pencil" aria-hidden="true"></span> Edit
+    </a>
+  {% endif %}
+  {% if perms.netbox_optics.delete_opticalspan %}
+    <a href="{% url 'plugins:netbox_optics:opticalspan_delete' pk=object.pk %}" class="btn btn-danger">
+      <span class="mdi mdi-trash-can-outline" aria-hidden="true"></span> Delete
+    </a>
+  {% endif %}
+{% endblock %}
+
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Optical Span</strong>
+                    </div>
+                    <table class="table table-hover panel-body attr-table">
+                        <tr>
+                            <td>Name</td>
+                            <td>{{ object.name }}</td>
+                        </tr>
+                        <tr>
+                            <td>Site A</td>
+                            <td><a href="{% url 'dcim:site' pk=object.site_a.pk %}">{{ object.site_a }}</a></td>
+                        </tr>
+                        <tr>
+                            <td>Site B</td>
+                            <td><a href="{% url 'dcim:site' pk=object.site_b.pk %}">{{ object.site_b }}</a></td>
+                        </tr>
+                        <tr>
+                            <td>Optical Grid</td>
+                            <td>
+                                {% if object.grid %}
+                                    <a href="{% url 'plugins:netbox_optics:opticalgrid' pk=object.grid.pk %}">{{ object.grid.name }}</a> ({{ object.grid.spacing }} GHz)
+                                {% else %}
+                                    <span class="text-muted">None</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Spacing</td>
+                            <td>{{ object.spacing }} GHz</td>
+                        </tr>
+                        <tr>
+                            <td>Description</td>
+                            <td>{{ object.description|default:"<span class='text-muted'>None</span>" }}</td>
+                        </tr>
+                        <tr>
+                            <td>Mux A</td>
+                            <td>
+                                {% if object.mux_a %}
+                                    <a href="{% url 'dcim:device' pk=object.mux_a.pk %}">{{ object.mux_a }}</a>
+                                {% else %}
+                                    <span class="text-muted">None</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Mux Z</td>
+                            <td>
+                                {% if object.mux_z %}
+                                    <a href="{% url 'dcim:device' pk=object.mux_z.pk %}">{{ object.mux_z }}</a>
+                                {% else %}
+                                    <span class="text-muted">None</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Circuit Details</strong>
+                    </div>
+                    <table class="table table-hover panel-body attr-table">
+                        <tr>
+                            <td>Vendor Circuit ID</td>
+                            <td>{{ object.vendor_circuit_id }}</td>
+                        </tr>
+                        <tr>
+                            <td>Vendor</td>
+                            <td>{{ object.vendor }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Allowed Wavelengths</strong>
+                    </div>
+                    <div class="panel-body">
+                        {% if object.grid.allowed_wavelengths.all %}
+                            <table class="table table-sm table-bordered" style="width: auto;">
+                                <thead>
+                                    <tr>
+                                        <th>Wavelength (nm)</th>
+                                        <th>Connection</th>
+                                        <th>Mux A Port</th>
+                                        <th>Mux Z Port</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for wavelength in object.grid.allowed_wavelengths.all %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'plugins:netbox_optics:opticalgridwavelength' pk=wavelength.id %}">
+                                                    {{ wavelength.value }}
+                                                </a>
+                                            </td>
+                                            <td>
+                                                {% if wavelength.id in connections_by_wavelength %}
+                                                    {% with conn=connections_by_wavelength|get_item:wavelength.id %}
+                                                        <a href="{% url 'plugins:netbox_optics:opticalconnection' pk=conn.pk %}">
+                                                            {{ conn.name|default:conn }}
+                                                        </a>
+                                                    {% endwith %}
+                                                {% else %}
+                                                    <!-- Span list table labels free via render_free_wavelengths -->
+                                                    <a href="{% url 'plugins:netbox_optics:opticalconnection_add' %}" style="color: #28a745;">Show</a>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if wavelength.id in mux_a_maps %}
+                                                    {% with port=mux_a_maps|get_item:wavelength.id %}
+                                                        <a href="{{ port.get_absolute_url }}">{{ port.name }}</a>
+                                                    {% endwith %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if wavelength.id in mux_z_maps %}
+                                                    {% with port=mux_z_maps|get_item:wavelength.id %}
+                                                        <a href="{{ port.get_absolute_url }}">{{ port.name }}</a>
+                                                    {% endwith %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <span class="text-muted">None</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
