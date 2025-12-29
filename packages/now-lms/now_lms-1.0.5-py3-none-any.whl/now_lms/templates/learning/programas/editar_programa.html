@@ -1,0 +1,122 @@
+{% set current_theme = current_theme() %} {% from "macros/form_buttons.j2" import render_form_buttons %} {% from
+"macros/form_errors.j2" import render_field_errors, render_form_errors %}
+<!doctype html>
+<html lang="{{ current_locale() }}" class="h-100">
+    <head>
+        {{ current_theme.headertags() }}
+        <title>{{ _("Editar") }} {{ _("Programa") }}</title>
+
+        {{ current_theme.local_style() }}
+        <!-- Custom styles for this template -->
+        <link href="{{ url_for('static', filename='css/form-validation') }}" rel="stylesheet" />
+    </head>
+
+    <body>
+        {{ current_theme.navbar() }}
+
+        <main>
+            {{ current_theme.notify() }}
+
+            <div class="container px-4 py-5" id="icon-grid">
+                {% if not is_programs_enabled() %}
+                <div class="alert alert-warning" role="alert">
+                    <strong>⚠️ Aviso:</strong> Los programas están deshabilitados en la configuración principal del sitio. Los
+                    usuarios no verán este programa en el menú de navegación hasta que se habilite la opción "Habilitar {{
+                    _("Programas") }}" en la configuración general.
+                </div>
+                {% endif %}
+                <div class="d-flex justify-content-between border-bottom">
+                    <h4 class="pb-2 border-bottom">{{ _("Editar") }} {{ _("Programa") }}.</h4>
+
+                    <p>
+                        <span class="badge bg-success">
+                            <a href="{{ url_for('program.programa_cursos', codigo=programa.codigo) }}" class="link-light"
+                                >Lista de {{ _("Cursos") }}</a
+                            >
+                        </span>
+                    </p>
+                </div>
+
+                <form method="post" enctype="multipart/form-data">
+                    {{ form.csrf_token }} {{ render_form_errors(form) }}
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="nombre" class="form-label">{{ _("Programa") }}</label>
+                            {{ form.nombre(class="form-control", id="nombre", placeholder="Categoria") }} {{
+                            render_field_errors(form.nombre) }}
+                        </div>
+
+                        <div class="col-sm-3">
+                            <label for="codigo" class="form-label">Publico</label>
+                            {{ form.publico(checked=programa.publico) }} {{ render_field_errors(form.publico) }}
+                            <label for="codigo" class="form-label">Promocionado</label>
+                            {{ form.promocionado(checked=programa.promocionado) }} {{ render_field_errors(form.promocionado)
+                            }}
+                        </div>
+
+                        <div class="col-sm-3">
+                            <label for="estado" class="form-label">{{ _("Estado") }}</label>
+                            {{ form.estado() }} {{ render_field_errors(form.estado) }}
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="descripcion" class="form-label">Descripcion</label>
+                            {{ form.descripcion(class="form-control", id="descripcion", placeholder=_("Descripción")) }} {{
+                            render_field_errors(form.descripcion) }}
+                        </div>
+
+                        <div class="col-sm-6">
+                            <label for="precio" class="form-label">{{ _("Precio") }}</label>
+                            {{ form.precio(class="form-control", id="codigo") }} {{ render_field_errors(form.precio) }}
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="categoria" class="form-label">Categoría</label>
+                            {{ form.categoria(class="form-control", id="categoria") }} {{ render_field_errors(form.categoria)
+                            }}
+                        </div>
+
+                        <div class="col-sm-6">
+                            <label for="etiquetas" class="form-label">Etiquetas</label>
+                            {{ form.etiquetas(class="form-control", id="etiquetas", multiple=True) }} {{
+                            render_field_errors(form.etiquetas) }}
+                            <div class="form-text">
+                                Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples etiquetas.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="plantilla_certificado" class="form-label">Plantilla Certificado</label>
+                            {{ form.plantilla_certificado(class="form-control", id="plantilla_certificado") }} {{
+                            render_field_errors(form.plantilla_certificado) }}
+                        </div>
+                    </div>
+
+                    <br />
+                    <div>
+                        {% if programa.logo %}
+                        <img
+                            src="{{ url_for('static', filename='/files/public/images/'+ 'program' + programa.codigo + '/logo.jpg') }}"
+                            alt="Portada del programa"
+                        />
+                        <br />
+                        <a href="#">{{ _("Eliminar") }} Portada</a>
+                        {% else %}
+                        <label for="logo" class="form-label">Portada</label>
+                        <input type="file" name="logo" accept="image/jpeg" />
+                        {% endif %}
+                    </div>
+
+                    <br />
+
+                    {{ render_form_buttons(_("Actualizar Programa"), "/admin/panel") }}
+                </form>
+            </div>
+        </main>
+    </body>
+</html>

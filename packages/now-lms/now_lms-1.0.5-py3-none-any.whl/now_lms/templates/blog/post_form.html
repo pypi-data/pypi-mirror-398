@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="{{ current_locale() }}" class="h-100">
+    {% set current_theme = current_theme() %} {% from "macros/form_buttons.j2" import render_form_buttons %}
+
+    <head>
+        {{ current_theme.headertags() }} {{ current_theme.local_style() }}
+        <title>{{ title }}</title>
+        {{mde.css}}
+    </head>
+
+    <body>
+        {{ current_theme.navbar() }}
+
+        <main>
+            {{ current_theme.notify() }}
+
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-8 offset-md-2">
+                        <h1>{{ title }}</h1>
+
+                        <form method="POST">
+                            {{ form.hidden_tag() }}
+
+                            <div class="mb-3">
+                                {{ form.title.label(class="form-label") }} {{ form.title(class="form-control") }} {% for error
+                                in form.title.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-3">
+                                {{ form.content.label(class="form-label") }} {{ form.content(class="form-control") }} {% for
+                                error in form.content.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-3">
+                                {{ form.tags.label(class="form-label") }} {{ form.tags(class="form-control",
+                                placeholder=_("Separar etiquetas con comas")) }}
+                                <div class="form-text">
+                                    {{ _('Separa las etiquetas con comas.') }} {% if current_user.tipo != 'admin' %}{{ _('Solo
+                                    se asignarán etiquetas existentes.') }}{% endif %}
+                                </div>
+                                {% for error in form.tags.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        {{ form.status.label(class="form-label") }} {{ form.status(class="form-select") }} {%
+                                        for error in form.status.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            {{ form.allow_comments(class="form-check-input") }} {{
+                                            form.allow_comments.label(class="form-check-label") }}
+                                        </div>
+                                        {% for error in form.allow_comments.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <h3>{{ _('Vista Previa de la publicación:') }}</h3>
+                                {{mde.preview}}
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                {% if current_user.tipo == 'admin' %} {{ render_form_buttons(_("Grabar entrada"),
+                                url_for('blog.admin_blog_index')) }} {% else %} {{ render_form_buttons(_("Grabar entrada"),
+                                url_for('blog.instructor_blog_index')) }} {% endif %}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+        {{mde.editor()}} {{mde.js}}
+    </body>
+</html>
