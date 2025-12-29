@@ -1,0 +1,223 @@
+import re
+import asyncio
+from pathlib import Path
+
+from nonebot import require, get_driver, on_command, on_startswith
+from nonebot.log import logger
+from nonebot.plugin import PluginMetadata
+from nonebot.plugin.load import inherit_supported_adapters
+
+require("nonebot_plugin_uninfo")
+require("nonebot_plugin_alconna")
+require("nonebot_plugin_apscheduler")
+require("nonebot_plugin_localstore")
+require("nonebot_plugin_htmlrender")
+from nonebot_plugin_apscheduler import scheduler
+
+from .config import CHINESE_FONT_PATH, Config, fconfig
+
+__plugin_meta__ = PluginMetadata(
+    name="堡垒之夜游戏插件",
+    description="堡垒之夜战绩, 季卡, 商城, vb图查询",
+    usage="季卡/生涯季卡/战绩/生涯战绩/商城/vb图",
+    type="application",
+    config=Config,
+    homepage="https://github.com/fllesser/nonebot-plugin-fortnite",
+    supported_adapters=inherit_supported_adapters(
+        "nonebot_plugin_alconna", "nonebot_plugin_uninfo"
+    ),
+)
+
+from . import pve, shop, stats, utils
+
+
+@get_driver().on_startup
+async def check_resources():
+    import httpx
+    import aiofiles
+
+    paths = [CHINESE_FONT_PATH]
+
+    async def dwonload_file(path: Path):
+        url = f"{fconfig.raw_base_url}/master/resources/{path.name}"
+        logger.info(f"文件 {path.name} 不存在，开始从 {url} 下载...")
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.get(url)
+            response.raise_for_status()
+            font_data = response.content
+
+            async with aiofiles.open(path, "wb") as f:
+                await f.write(font_data)
+
+            size = utils.get_size_in_mb(path)
+            logger.success(f"文件 {path.name} 下载成功，文件大小: {size:.2f} MB")
+        except Exception:
+            logger.exception("文件下载失败")
+            logger.warning(f"请前往仓库下载资源文件到 {path}")
+
+    await asyncio.gather(*[dwonload_file(path) for path in paths if not path.exists()])
+
+
+if fconfig.github_token is None:
+    minute = 2
+else:
+    minute = 0
+
+
+@scheduler.scheduled_job(
+    "cron",
+    id="fortnite-screenshot",
+    hour=8,
+    minute=minute,
+    coalesce=True,
+    misfire_grace_time=30,
+)
+async def daily_update():
+    if fconfig.github_token is not None:
+        await utils.trigger_screenshot_action()
+        await asyncio.sleep(90)
+
+    utils.clear_files_with_prefix("VB")
+    utils.clear_files_with_prefix("SHOP")
+
+    logger.info("开始更新商城/VB图...")
+    try:
+        await shop.update_shop_img()
+    except Exception:
+        logger.exception("商城更新失败")
+    try:
+        await pve.update_vb_img()
+    except Exception:
+        logger.exception("vb图更新失败")
+
+
+from arclet.alconna import Args, Alconna, Arparma
+from nonebot.permission import SUPERUSER
+from nonebot_plugin_uninfo import Uninfo
+from nonebot_plugin_alconna import Match, AlconnaMatcher, on_alconna
+from nonebot_plugin_alconna.uniseg import Text, Image, UniMessage
+
+timewindow_prefix = ["生涯", ""]
+name_args = Args["name?", str]
+
+battle_pass_alc = on_alconna(Alconna(timewindow_prefix, "季卡", name_args))
+stats_alc = on_alconna(Alconna(timewindow_prefix, "战绩", name_args))
+
+
+@battle_pass_alc.handle()
+@stats_alc.handle()
+async def _(matcher: AlconnaMatcher, session: Uninfo, name: Match[str]):
+    if name.available:
+        matcher.set_path_arg("name", name.result)
+        return
+    # 获取群昵称
+    if not session.member or not session.member.nick:
+        return
+    pattern = r"(?:id:|id\s)(.+)"
+    if matched := re.match(pattern, session.member.nick, re.IGNORECASE):
+        matcher.set_path_arg("name", matched.group(1))
+
+
+name_prompt = UniMessage.template(
+    "{:At(user, $event.get_user_id())} 请发送游戏名称\n"
+    "群昵称设置如下可快速查询:\n"
+    "    id:name\n"
+    "    ID name"
+)
+
+
+@battle_pass_alc.got_path("name", prompt=name_prompt)
+async def _(arp: Arparma, name: str):
+    header: str = arp.header_match.result
+    receipt = await UniMessage.text(f"正在查询 {name} 的{header}，请稍后...").send()
+    level_info = await stats.get_level(name, header)
+    await UniMessage(Text(level_info)).send()
+    await receipt.recall(delay=1)
+
+
+@stats_alc.got_path("name", prompt=name_prompt)
+async def _(arp: Arparma, name: str):
+    header: str = arp.header_match.result
+    receipt = await UniMessage.text(f"正在查询 {name} 的{header}，请稍后...").send()
+    try:
+        file = await stats.get_stats_image(name, header)
+    except Exception as e:
+        if isinstance(e, ValueError):
+            await UniMessage(Text(str(e))).finish()
+        logger.exception("查询失败")
+        await UniMessage(Text("查询失败")).finish()
+    await UniMessage(Image(path=file)).send()
+    await receipt.recall(delay=1)
+    file.unlink(missing_ok=True)
+
+
+shop_matcher = on_startswith("商城")
+vb_matcher = on_startswith(("vb图", "VB图", "Vb图"))
+
+
+@shop_matcher.handle()
+async def _():
+    shop_file = shop.get_shop_file()
+
+    if not shop_file.exists():
+        await UniMessage(Text("商城未更新, 请稍后再试")).finish()
+
+    await UniMessage(
+        Image(path=shop_file)
+        + Text("可前往 https://www.fortnite.com/item-shop?lang=zh-Hans 购买")
+    ).send()
+
+
+@vb_matcher.handle()
+async def _():
+    vb_file = pve.get_vb_file()
+
+    if not vb_file.exists():
+        await UniMessage(Text("VB 图未更新, 请稍后再试")).finish()
+
+    await UniMessage(Image(path=vb_file)).send()
+
+
+@on_startswith("更新商城", permission=SUPERUSER).handle()
+async def _():
+    receipt = await UniMessage.text("正在更新商城，请稍后...").send()
+
+    try:
+        shop_file = await shop.update_shop_img()
+        await UniMessage(Text("手动更新商城成功") + Image(path=shop_file)).send()
+    except Exception:
+        logger.exception("手动更新商城失败")
+        await UniMessage(Text("手动更新商城失败")).send()
+    finally:
+        await receipt.recall(delay=1)
+
+
+@on_startswith("更新vb图", permission=SUPERUSER).handle()
+async def _():
+    receipt = await UniMessage.text("正在更新vb图, 请稍后...").send()
+
+    try:
+        vb_file = await pve.update_vb_img()
+        await UniMessage(Text("手动更新 VB 图成功") + Image(path=vb_file)).send()
+    except Exception as e:
+        await UniMessage(Text(f"手动更新 VB 图失败 | {e}")).send()
+    finally:
+        await receipt.recall(delay=1)
+
+
+if fconfig.github_token is not None:
+    action_matcher = on_command("更新堡垒", permission=SUPERUSER)
+
+    @action_matcher.handle()
+    async def _():
+        await utils.trigger_screenshot_action()
+        await UniMessage(Text(utils.TRIGGER_SCREENSHOT_TIP)).send()
+        await asyncio.sleep(70)
+
+        shop_file = await shop.update_shop_img()
+        vb_file = await pve.update_vb_img()
+
+        await UniMessage(
+            Text("更新成功") + Image(path=shop_file) + Image(path=vb_file)
+        ).send()
