@@ -1,0 +1,129 @@
+# fatfs-ng - Enhanced FatFS Python Wrapper
+
+Enhanced Python wrapper around [ChaN's FatFS](http://elm-chan.org/fsw/ff/00index_e.html) library with extended features.
+
+This is a fork of [fatfs-python](https://github.com/krakonos/fatfs-python) by Ladislav Laska, with significant improvements and extended functionality.
+
+## What's New in fatfs-ng
+
+### Extended Features (v0.1.4)
+- ✅ **Complete Directory Traversal**: `walk()`, `listdir()`, `stat()`
+- ✅ **Path Operations**: `exists()`, `isfile()`, `isdir()`
+- ✅ **File Operations**: `remove()`, `rmdir()`, `rename()`
+- ✅ **Convenience Methods**: `makedirs()`, `read_file()`, `write_file()`
+- ✅ **Bulk Operations**: `copy_tree_from()`, `copy_tree_to()`
+
+### Improvements
+- ✅ **Fixed SyntaxWarnings** in Python 3.13+
+- ✅ **Abstract Base Class** for Disk with proper type hints
+- ✅ **Better Error Messages** with descriptive exceptions
+- ✅ **Comprehensive Documentation** with examples
+- ✅ **Production Ready** for build and upload operations
+
+## Installation
+
+```bash
+pip install fatfs-ng
+```
+
+## Quick Start
+
+```python
+from fatfs import RamDisk, create_extended_partition
+
+# Create and format filesystem
+storage = bytearray(1024 * 1024)  # 1MB
+disk = RamDisk(storage, sector_size=512)
+partition = create_extended_partition(disk)
+partition.mkfs()
+partition.mount()
+
+# Use extended features
+partition.makedirs("/test/dir", exist_ok=True)
+partition.write_file("/test/file.txt", b"Hello fatfs-ng!")
+
+# Walk directory tree
+for root, dirs, files in partition.walk("/"):
+    print(f"{root}: {files}")
+
+# Copy entire tree
+from pathlib import Path
+partition.copy_tree_to("/", Path("./extracted"))
+
+partition.unmount()
+```
+
+## Features
+
+### Basic Operations (from original fatfs-python)
+- Mount/unmount FAT filesystems
+- Create FAT filesystems (mkfs)
+- Open, read, write files
+- Create directories
+
+### Extended Operations (new in pyfatfs)
+- Complete directory traversal with `walk()`
+- List directory contents with `listdir()`
+- Get file information with `stat()`
+- Check path existence and type
+- Delete files and directories
+- Rename/move files
+- Bulk copy operations
+
+## Use Cases
+
+### ESP32 Development with PlatformIO
+Perfect for creating and extracting filesystem images for ESP32:
+
+```python
+# Build filesystem image
+partition.copy_tree_from(Path("./data"), "/")
+
+# Extract filesystem from device
+partition.copy_tree_to("/", Path("./extracted"))
+```
+
+### Testing
+Great for testing filesystem operations without real hardware:
+
+```python
+# Create in-memory filesystem for testing
+storage = bytearray(1024 * 1024)
+disk = RamDisk(storage)
+partition = create_extended_partition(disk)
+# ... run tests ...
+```
+
+## Documentation
+
+- [Extended Features Guide](EXTENDED_FEATURES.md)
+- [Changelog](CHANGELOG.md)
+- [Original fatfs-python](https://github.com/krakonos/fatfs-python)
+
+## Differences from Original
+
+| Feature | fatfs-python | fatfs-ng |
+|---------|--------------|----------|
+| Directory Traversal | ❌ Limited | ✅ Complete |
+| walk() function | ❌ No | ✅ Yes |
+| Type Hints | ❌ Partial | ✅ Complete |
+| Error Messages | ⚠️ Basic | ✅ Descriptive |
+| Python 3.13+ | ⚠️ Warnings | ✅ Clean |
+| Documentation | ⚠️ Basic | ✅ Comprehensive |
+| Status | Alpha | Beta |
+
+## Credits
+
+- **Original Author**: Ladislav Laska ([fatfs-python](https://github.com/krakonos/fatfs-python))
+- **Fork Maintainer**: Johann Obermeier ([fatfs-ng](https://github.com/Jason2866/pyfatfs))
+- **FatFS Library**: ChaN ([elm-chan.org](http://elm-chan.org/fsw/ff/00index_e.html))
+
+## License
+
+MIT License (same as original fatfs-python)
+
+## Contributing
+
+Issues and pull requests welcome at [https://github.com/Jason2866/pyfatfs](https://github.com/Jason2866/pyfatfs)!
+
+**Note**: Package name on PyPI is `fatfs-ng`, but import remains `from fatfs import ...`
