@@ -1,0 +1,155 @@
+Metadata-Version: 2.4
+Name: dataform-view-migrator
+Version: 0.1.6
+Summary: Migrate BigQuery views into Dataform view definitions.
+Author: Alan Vainsencher
+License: MIT
+License-File: LICENSE
+Keywords: bigquery,bigquery-views,dataform
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: google-cloud-bigquery>=3.25.0
+Requires-Dist: polars>=1.12.0
+Requires-Dist: tomli>=2.0.1; python_version < '3.11'
+Requires-Dist: typer>=0.12.0
+Description-Content-Type: text/markdown
+
+# 🚚 dataform-view-migrator
+
+**Export BigQuery VIEW definitions into Dataform with ease.** 🚀
+
+`dataform-view-migrator` is a handy CLI tool that discovers your BigQuery views and turns them into Dataform-ready `.sqlx` or `.sql` files. It handles complex folder structures, provides safe backup policies, and automatically generates Dataform configuration headers.
+
+---
+
+### ⚡ Super Quickstart
+
+1. **Install**
+   ```bash
+   pip install dataform-view-migrator
+   ```
+
+2. **Authenticate**
+   ```bash
+   gcloud auth application-default login
+   ```
+
+3. **Migrate!**
+   ```bash
+   dataform-view-migrator migrate-views --source-project my-project --dest ./my-dataform-repo
+   ```
+
+#### 💡 Example Input & Output
+
+**BigQuery View (`my_project.my_dataset.daily_sales`):**
+```sql
+SELECT date, SUM(amount) as total_sales
+FROM `my_project.my_dataset.raw_transactions`
+GROUP BY 1
+```
+
+**Generated Dataform File (`my-dataform-repo/my_dataset/daily_sales.sqlx`):**
+```sql
+config {
+  type: "view",
+  schema: "my_dataset",
+  name: "daily_sales",
+  description: "CREATED BY DATAFORM.",
+  tags: ["my-tag","another-tag"],
+}
+
+SELECT date, SUM(amount) as total_sales
+FROM `my_project.my_dataset.raw_transactions`
+GROUP BY 1
+```
+
+---
+
+## ✨ Features
+
+- 🔍 **Auto-discovery**: Find all views across multiple datasets automatically.
+- 📂 **Flexible Layout**: Map BigQuery datasets to custom subfolders in your Dataform project.
+- 🛡️ **Safe Writes**: Choose to `skip`, `backup`, or `force` overwrite existing files.
+- 📝 **Dataform Headers**: Automatically adds `config { type: "view", ... }` to your `.sqlx` files.
+- 🧪 **Dry Run**: Preview exactly what will happen before making any changes.
+- 🚀 **Fast**: Uses `INFORMATION_SCHEMA` for high-performance discovery in large projects.
+
+---
+
+## 🛠 Prerequisites
+
+- Python 3.10+
+- GCP Authentication via Application Default Credentials (ADC).
+
+---
+
+## 📖 Commands
+
+- **`ping-bq`**: 📡 Verify your authentication and BigQuery access.
+  ```bash
+  dataform-view-migrator ping-bq --project my-project
+  ```
+- **`migrate-views`**: 🚜 The main event. Discovers and exports views.
+  ```bash
+  dataform-view-migrator migrate-views [options]
+  ```
+
+Run `--help` on any command for a full list of available options.
+
+---
+
+## ⚙️ Configuration
+
+While you can use CLI flags, using a TOML file is often easier for recurring tasks. Copy `dataform_view_migrator.example.toml` to `dataform_view_migrator.toml` and customize it.
+
+### Available Keys
+
+| Key | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `source_project` | `string` | | **Required.** The GCP project ID containing your views. |
+| `dest` | `string` | | **Required.** Local path to your Dataform repository. |
+| `datasets_include` | `list` | `[]` | List of datasets to process. If empty, processes all. |
+| `datasets_exclude` | `list` | `[]` | List of datasets to ignore. |
+| `location` | `string` | | BigQuery region (e.g., `US`, `EU`). Required for high-performance discovery. |
+| `ext` | `string` | `sqlx` | File extension: `sqlx` or `sql`. |
+| `overwrite` | `string` | `skip` | Policy: `skip`, `backup` (renames existing), or `force`. |
+| `add_dataform_header` | `boolean` | `true` | Prepend `config {}` block to files. |
+| `dry_run` | `boolean` | `false` | If `true`, only show what would happen. |
+| `dataform_header.description`| `string` | | Optional description for the Dataform config block. |
+| `dataform_header.tags` | `list` | `[]` | Optional list of tags for the Dataform config block. |
+| `dataset_folders` | `dict` | | Map dataset IDs to custom subfolders (e.g., `ds_id = "path/to/dir"`). |
+
+---
+
+## 📂 Output Layout
+
+By default, files are saved as `dest/<dataset>/<view_name>.sqlx`.
+You can remap dataset names to specific folders using the `dataset_folders` setting in your config:
+
+```toml
+[dataset_folders]
+raw_data = "sources/raw"
+analytics = "definitions/reporting"
+```
+
+---
+
+## 🤝 Contributing & Development
+
+We love contributions! Please check out [DEVELOPMENT.md](DEVELOPMENT.md) for setup instructions, linting rules, and testing guidelines.
+
+---
+
+## 🔗 Links
+
+- 📦 **PyPI**: [https://pypi.org/project/dataform-view-migrator/](https://pypi.org/project/dataform-view-migrator/)
+- 💻 **GitHub**: [https://github.com/elvainch/dataform-view-migrator](https://github.com/elvainch/dataform-view-migrator)
+- 📝 **License**: MIT
+
+---
+Developed by Alan Vainsencher.
+
