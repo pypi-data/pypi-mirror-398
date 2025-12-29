@@ -1,0 +1,131 @@
+# Copyright 2025 Daniil Shmelev
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =========================================================================
+
+import pytest
+import numpy as np
+import torch
+import iisignature
+
+import pysiglib
+
+np.random.seed(42)
+torch.manual_seed(42)
+
+SINGLE_EPSILON = 1e-4
+DOUBLE_EPSILON = 1e-10
+
+def lead_lag(X):
+    lag = []
+    lead = []
+
+    for val_lag, val_lead in zip(X[:-1], X[1:]):
+        lag.append(val_lag)
+        lead.append(val_lag)
+
+        lag.append(val_lag)
+        lead.append(val_lead)
+
+    lag.append(X[-1])
+    lead.append(X[-1])
+
+    return np.c_[lag, lead]
+
+def check_close(a, b):
+    a_ = np.array(a)
+    b_ = np.array(b)
+    EPSILON = SINGLE_EPSILON if a_.dtype == np.float32 else DOUBLE_EPSILON
+    assert not np.any(np.abs(a_ - b_) > EPSILON)
+
+def test_signature_trivial():
+    check_close(pysiglib.sig(np.array([[0., 0.], [1., 1.]]), 0), [1.])
+    check_close(pysiglib.sig(np.array([[0., 0.], [1., 1.]]), 1), [1., 1., 1.])
+    check_close(pysiglib.sig(np.array([[0., 0.]]), 1), [1., 0., 0.])
+
+
+@pytest.mark.parametrize("deg", range(1, 6))
+@pytest.mark.parametrize("dtype", [np.float64, np.float32])
+def test_signature_random(deg, dtype):
+    X = np.random.uniform(size=(100, 5)).astype(dtype)
+    iisig = iisignature.sig(X, deg).astype(dtype)
+    sig = pysiglib.sig(X, deg).astype(dtype)
+    check_close(iisig, sig[1:])
+
+@pytest.mark.skipif(not (pysiglib.BUILT_WITH_CUDA and torch.cuda.is_available()), reason="CUDA not available or disabled")
+@pytest.mark.parametrize("deg", range(1, 6))
+def test_signature_random_cuda(deg):
+    X = np.random.uniform(size=(100, 5))
+    iisig = iisignature.sig(X, deg)
+    X = torch.tensor(X, device="cuda")
+    sig = pysiglib.sig(X, deg).cpu()
+    check_close(iisig, sig[1:])
+
+
+@pytest.mark.parametrize("deg", range(1, 6))
+def test_signature_random_batch(deg):
+    X = np.random.uniform(size=(32, 100, 5))
+    iisig = iisignature.sig(X, deg)
+    sig_serial = pysiglib.sig(X, deg, n_jobs=1)
+    sig_parallel = pysiglib.sig(X, deg, n_jobs=-1)
+    check_close(iisig, sig_serial[:, 1:])
+    check_close(iisig, sig_parallel[:, 1:])
+
+
+def test_signature_non_contiguous():
+    # Make sure signature works with any form of array
+    dim, degree, length, batch = 10, 3, 100, 32
+
+    rand_data = torch.rand((batch, length), dtype=torch.float64)[:, :, None]
+    X_non_cont = rand_data.expand(-1, -1, dim)
+    X = X_non_cont.clone()
+
+    res1 = pysiglib.sig(X, degree)
+    res2 = pysiglib.sig(X_non_cont, degree)
+    check_close(res1, res2)
+
+    rand_data = np.random.normal(size=(batch, length))[:, :, None]
+    X_non_cont = np.broadcast_to(rand_data, (batch, length, dim))
+    X = np.array(X_non_cont)
+
+    res1 = pysiglib.sig(X, degree)
+    res2 = pysiglib.sig(X_non_cont, degree)
+    check_close(res1, res2)
+
+@pytest.mark.parametrize("deg", range(1, 6))
+def test_signature_time_aug(deg):
+    X = np.random.uniform(size=(10, 4))
+    t = np.linspace(0, 1, 10)[:, np.newaxis]
+    X_aug = np.concatenate([X, t], axis = 1)
+    iisig = iisignature.sig(X_aug, deg)
+    sig = pysiglib.sig(X, deg, time_aug = True)
+    check_close(iisig, sig[1:])
+
+@pytest.mark.parametrize("deg", range(1, 6))
+def test_signature_lead_lag(deg):
+    X = np.random.uniform(size=(10, 2))
+    X_aug = lead_lag(X)
+    iisig = iisignature.sig(X_aug, deg)
+    sig = pysiglib.sig(X, deg, lead_lag = True)
+    check_close(iisig, sig[1:])
+
+@pytest.mark.parametrize("deg", range(1, 6))
+@pytest.mark.parametrize("dtype", [np.float64, np.float32])
+def test_signature_time_aug_lead_lag(deg, dtype):
+    X = np.random.uniform(size=(10, 2)).astype(dtype)
+    X_aug = lead_lag(X)
+    t = np.linspace(0, 1, 19)[:, np.newaxis]
+    X_aug = np.concatenate([X_aug, t], axis = 1)
+    iisig = iisignature.sig(X_aug, deg).astype(dtype)
+    sig = pysiglib.sig(X, deg, lead_lag = True, time_aug = True)
+    check_close(iisig, sig[1:])
