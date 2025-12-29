@@ -1,0 +1,625 @@
+Metadata-Version: 2.4
+Name: genesis-llm
+Version: 2.0.2
+Summary: Genesis architecture (PyTorch) and utilities for inference/benchmarking.
+Author: Guilherme Ferrari Bréscia
+License: MIT License
+        
+        Copyright (c) 2022 Andrej Karpathy
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Requires-Dist: safetensors>=0.4.0
+Requires-Dist: transformers>=4.35.0
+Provides-Extra: benchmark
+Requires-Dist: lighteval; extra == "benchmark"
+Requires-Dist: datasets; extra == "benchmark"
+Requires-Dist: tqdm; extra == "benchmark"
+Provides-Extra: publish
+Requires-Dist: build; extra == "publish"
+Requires-Dist: twine; extra == "publish"
+Requires-Dist: huggingface_hub<1.0,>=0.34.0; extra == "publish"
+Dynamic: license-file
+
+---
+license: apache-2.0
+language:
+  - en
+pipeline_tag: text-generation
+tags:
+  - pytorch
+  - safetensors
+  - text-generation
+  - small-llm
+  - custom-architecture
+  - linear-attention
+  - gated-deltanet
+  - test-time-training
+  - hybrid-attention
+  - research
+library_name: genesis-llm
+datasets:
+  - HuggingFaceTB/smol-smoltalk
+base_model: []
+---
+
+<div align="center">
+  <h1>🧬 Genesis-152M-Instruct</h1>
+  <p><em>A Research-Oriented Small Language Model with Hybrid Linear Attention</em></p>
+  
+  <p>
+    <a href="#architecture"><img alt="Architecture" src="https://img.shields.io/badge/Architecture-Hybrid_GLA%2BFoX-blue"></a>
+    <a href="#training"><img alt="Training" src="https://img.shields.io/badge/Pre--training-2B_tokens-green"></a>
+    <a href="#license"><img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-orange"></a>
+  </p>
+</div>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Model Summary](#model-summary)
+- [Architecture Deep Dive](#architecture-deep-dive)
+  - [Hybrid Attention Layout](#hybrid-attention-layout)
+  - [Gated DeltaNet (GLA)](#gated-deltanet-gla)
+  - [Forgetting Attention (FoX)](#forgetting-attention-fox)
+  - [Test-Time Training (TTT)](#test-time-training-ttt)
+  - [Selective Activation](#selective-activation)
+  - [Additional Components](#additional-components)
+- [Comparison with Other Architectures](#comparison-with-other-architectures)
+- [Training Details](#training-details)
+  - [Pre-training](#pre-training)
+  - [Supervised Fine-Tuning (SFT)](#supervised-fine-tuning-sft)
+- [Usage](#usage)
+- [Benchmarks](#benchmarks)
+- [Limitations](#limitations)
+- [Citation](#citation)
+- [License](#license)
+
+---
+
+## Overview
+
+**Genesis-152M-Instruct** is an experimental small language model that combines recent advances in efficient attention mechanisms into a single architecture. It serves as a research platform for exploring:
+
+- **Hybrid attention**: Mixing O(n) linear attention with O(n²) softmax attention
+- **Efficient inference**: Sub-quadratic complexity for most layers
+- **Adaptive computation**: Test-time training for dynamic model adaptation
+
+> ⚠️ **Experimental Model**: This is a research artifact, not a production-ready model. It demonstrates architectural innovations but has limitations typical of small models.
+
+---
+
+## Model Summary
+
+| Property | Value |
+|----------|-------|
+| **Parameters** | 151.8M total (~122.8M non-embedding) |
+| **Architecture** | Hybrid GLA + FoX Attention |
+| **Context Length** | 2,048 tokens |
+| **Vocab Size** | 50,279 (GPT-NeoX + ChatML tokens) |
+| **Pre-training Data** | 2B tokens |
+| **SFT Dataset** | [smol-smoltalk](https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk) |
+| **License** | Apache 2.0 |
+
+### Files in this Repository
+
+```
+├── genesis_152m_instruct.safetensors  # Model weights
+├── README.md                           # This model card
+└── LICENSE                             # Apache 2.0
+```
+
+---
+
+## Architecture Deep Dive
+
+Genesis follows a **"deep-and-thin"** design philosophy inspired by [SmolLM2](https://arxiv.org/abs/2502.02737) and [MobileLLM](https://arxiv.org/abs/2402.14905), which has proven effective for small language models.
+
+### Core Configuration
+
+| Component | Value | Rationale |
+|-----------|-------|-----------|
+| Layers | 30 | Deep architecture for better representation |
+| Hidden Size | 576 | Optimal width for 150M scale |
+| Attention Heads | 9 | Query heads |
+| KV Heads | 3 | 3:1 GQA ratio for memory efficiency |
+| Head Dimension | 64 | Standard for efficient attention |
+| FFN Size | 1,440 | 2.5× expansion (SwiGLU-efficient) |
+| Weight Tying | ✓ | Embeddings tied with LM head |
+
+---
+
+### Hybrid Attention Layout
+
+Genesis employs a **hybrid attention layout** inspired by [Qwen3-Next](https://huggingface.co/docs/transformers/main/en/model_doc/qwen3_next), alternating between linear and full attention:
+
+```
+Layer Distribution (30 layers):
+├── 23 layers: GLA (Gated DeltaNet) - O(n) linear attention
+└──  7 layers: FoX (Forgetting Attention) - O(n²) softmax with forget gate
+
+Ratio: 75% Linear / 25% Full Attention
+```
+
+**Why hybrid?** Pure linear attention struggles with precise retrieval tasks (e.g., copying, in-context learning). Interleaving full attention layers restores this capability while maintaining overall efficiency.
+
+> 📖 **Reference**: The hybrid approach is validated by Qwen3-Next (2025) and research showing that [3:1 to 6:1 linear-to-full ratios](https://arxiv.org/abs/2507.06457) optimize the efficiency-quality tradeoff.
+
+---
+
+### Gated DeltaNet (GLA)
+
+The primary attention mechanism (75% of layers) is **Gated DeltaNet**, a state-of-the-art O(n) linear attention mechanism from NVIDIA.
+
+#### Key Features
+
+| Feature | Description | Paper Reference |
+|---------|-------------|-----------------|
+| **Delta Rule** | Online learning rule for recurrent state updates | [Schlag et al., 2021](https://arxiv.org/abs/2102.11174) |
+| **Gated Forget** | Mamba-style data-dependent forgetting | [Gu & Dao, 2023](https://arxiv.org/abs/2312.00752) |
+| **Short Convolution** | 1D conv on Q, K, V for local context | [Gu et al., 2022](https://arxiv.org/abs/2212.14052) |
+| **L2 QK-Norm** | Stabilizes attention scores | Standard practice |
+
+#### Mathematical Formulation
+
+The delta rule update enables the model to selectively write to and erase from a recurrent state:
+
+```
+S_t = α_t * S_{t-1} + β_t * (v_t ⊗ k_t - S_{t-1} @ k_t ⊗ k_t)
+o_t = S_t @ q_t
+```
+
+Where:
+- `S_t`: Recurrent state matrix
+- `α_t`: Forget gate (data-dependent)
+- `β_t`: Learning rate gate (per-token)
+
+> 📖 **Paper**: [Gated Delta Networks: Improving Mamba2 with Delta Rule](https://arxiv.org/abs/2412.06464) (ICLR 2025)
+> 
+> 📦 **Code**: [NVlabs/GatedDeltaNet](https://github.com/NVlabs/GatedDeltaNet)
+
+#### Configuration in Genesis
+
+```python
+gla_expand_k: 0.75      # Key expansion ratio
+gla_expand_v: 1.5       # Value expansion ratio (asymmetric)
+gla_gate_fn: "swish"    # Gating activation
+gla_use_short_conv: True
+gla_conv_size: 4
+gla_chunk_size: 64      # For chunked parallel training
+gla_use_delta_rule: True
+gla_qk_norm: "l2"
+gla_use_mamba_gate: True
+```
+
+---
+
+### Forgetting Attention (FoX)
+
+The full attention layers (25%) use **FoX (Forgetting Transformer)**, which augments standard softmax attention with a learnable forget gate.
+
+#### Why FoX over Standard Attention?
+
+| Aspect | Standard Attention | FoX |
+|--------|-------------------|-----|
+| Position Encoding | Requires RoPE/ALiBi | **NoPE** (implicit via forget gate) |
+| Long-range Decay | Uniform attention | Data-dependent decay |
+| Length Extrapolation | Poor | Better generalization |
+
+#### Mechanism
+
+FoX modifies attention scores with cumulative forget gates:
+
+```
+attn[i,j] = softmax(q_i @ k_j / √d + Σ_{k=j}^{i} log(f_k))
+```
+
+Where `f_k = sigmoid(W_f @ x_k)` is a learned forget gate that naturally down-weights distant tokens.
+
+> 📖 **Paper**: [Forgetting Transformer: Softmax Attention with a Forget Gate](https://arxiv.org/abs/2503.02130) (ICLR 2025)
+> 
+> 📦 **Code**: [zhixuan-lin/forgetting-transformer](https://github.com/zhixuan-lin/forgetting-transformer)
+
+#### FoX "Pro" Design
+
+Genesis uses the enhanced "Pro" block design:
+
+| Component | Purpose |
+|-----------|---------|
+| Output Gate | Controls information flow (like GLA) |
+| QK-Norm | Training stability |
+| Short Convolution | Local context on K, V |
+| FusedRMSNormSwishGate | Efficient fused operations |
+
+---
+
+### Test-Time Training (TTT)
+
+Genesis includes an experimental **TTT metacognition layer** that adapts the model during inference.
+
+#### Concept
+
+Traditional models have **fixed weights** at inference. TTT layers have a small set of **fast weights** that update based on the input sequence, allowing the model to "learn" from context.
+
+```
+Standard: y = f(x; θ_fixed)
+TTT:      y = f(x; θ_fixed, θ_fast(x))
+```
+
+#### Implementation Details
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `ttt_rank` | 4 | Low-rank adaptation dimension |
+| `ttt_inner_lr` | 0.01 | Learning rate for fast weights |
+| `ttt_mode` | "dual" | Parallel dual-form computation |
+| `ttt_chunk_size` | 64 | Chunking for efficiency |
+
+The "dual form" enables fully parallel gradient computation:
+
+```python
+# Instead of sequential updates:
+# W_1 = W_0 - lr * grad_0
+# W_2 = W_1 - lr * grad_1
+# ...
+
+# Dual form computes all at once:
+# W_t = W_0 - lr * Σ_{i<t} grad_i  (via cumsum)
+```
+
+> 📖 **Paper**: [Learning to (Learn at Test Time): RNNs with Expressive Hidden States](https://arxiv.org/abs/2407.04620) (ICML 2024)
+> 
+> 📦 **Code**: [test-time-training/ttt-lm-pytorch](https://github.com/test-time-training/ttt-lm-pytorch)
+
+#### When TTT Activates
+
+TTT is designed for **inference-time adaptation** and runs only during `model.eval()`. During training, it's disabled to avoid overhead.
+
+---
+
+### Selective Activation
+
+The FFN layers use **SwiGLU** with optional top-k sparsity masking.
+
+#### SwiGLU FFN
+
+```python
+FFN(x) = (Swish(W_gate @ x) ⊙ (W_up @ x)) @ W_down
+```
+
+> 📖 **Paper**: [GLU Variants Improve Transformer](https://arxiv.org/abs/2002.05202) (Shazeer, 2020)
+
+#### Selective Activation (Experimental)
+
+| Parameter | Value |
+|-----------|-------|
+| `selective_k_ratio` | 0.85 (keeps top 85%) |
+| `selective_use_soft_mask` | True |
+
+**Important**: This is a **regularization technique**, not a speedup mechanism. Real sparse acceleration requires specialized kernels (e.g., Triton sparse GEMM).
+
+> 📖 **Related**: [ReLU Strikes Back](https://arxiv.org/abs/2310.04564) (Apple, ICLR 2024) shows natural activation sparsity can be exploited for inference.
+
+---
+
+### Additional Components
+
+#### Grouped Query Attention (GQA)
+
+Genesis uses 3:1 GQA (9 query heads, 3 KV heads) for memory efficiency during inference.
+
+> 📖 **Paper**: [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) (Google, 2023)
+
+#### Rotary Position Embeddings (RoPE)
+
+Partial RoPE (50% rotation) is applied in GLA layers for position awareness.
+
+> 📖 **Paper**: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864) (Su et al., 2021)
+
+#### µP (Maximal Update Parametrization)
+
+Hyperparameters were tuned using µP for potential scaling transfer.
+
+> 📖 **Paper**: [Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer](https://arxiv.org/abs/2203.03466) (Yang et al., 2022)
+>
+> 📖 **Guide**: [The Practitioner's Guide to µP](https://www.cerebras.ai/blog/the-practitioners-guide-to-the-maximal-update-parameterization) (Cerebras)
+
+#### Zero-Centered RMSNorm
+
+Used throughout for better weight decay compatibility with µP.
+
+---
+
+## Comparison with Other Architectures
+
+### vs. SmolLM2-135M (HuggingFace)
+
+| Aspect | Genesis-152M | SmolLM2-135M |
+|--------|--------------|--------------|
+| **Attention** | Hybrid GLA + FoX | Standard Multi-Head |
+| **Complexity** | O(n) for 75% layers | O(n²) all layers |
+| **Position Encoding** | RoPE (GLA) / NoPE (FoX) | RoPE |
+| **TTT** | ✓ Experimental | ✗ |
+| **Pre-training** | 2B tokens | 2T tokens |
+| **Architecture** | 30L × 576 | 30L × 576 |
+
+> SmolLM2 uses 1000× more training tokens, making direct benchmark comparison unfair. Genesis demonstrates architectural innovations, not data scaling.
+
+### vs. Qwen3-Next
+
+| Aspect | Genesis-152M | Qwen3-Next-80B-A3B |
+|--------|--------------|---------------------|
+| **Scale** | 152M | 80B (3B active) |
+| **Linear Attention** | GLA (same) | GLA |
+| **Full Attention** | FoX | Standard |
+| **Hybrid Ratio** | 75/25 | Similar |
+| **MoE** | ✗ | ✓ |
+
+Genesis can be seen as a **miniature research version** of the hybrid attention approach that Qwen3-Next uses at scale.
+
+### vs. Mamba / Mamba-2
+
+| Aspect | Genesis-152M | Mamba-2 |
+|--------|--------------|---------|
+| **Architecture** | Hybrid (Linear + Softmax) | Pure SSM |
+| **Retrieval** | Strong (FoX layers) | Limited |
+| **Implementation** | PyTorch + Optional Triton | Requires CUDA |
+| **Flexibility** | Modular | Monolithic |
+
+---
+
+## Training Details
+
+### Pre-training
+
+| Parameter | Value |
+|-----------|-------|
+| **Tokens** | 2 billion |
+| **Dataset Mix** | FineWeb-Edu (51%), DCLM (22%), FineMath (12%), Stack-Edu (8%), Cosmopedia (5%), Synth (2%) |
+| **Context Length** | 2,048 |
+| **Batch Size** | 128 |
+| **Learning Rate** | 1e-3 (WSD schedule) |
+| **Optimizer** | AdamW (β₁=0.9, β₂=0.95) |
+| **Weight Decay** | 0.1 |
+| **Warmup** | 5% of steps |
+| **Hardware** | Single A100 80GB |
+
+#### Learning Rate Schedule
+
+**WSD (Warmup-Stable-Decay)**:
+- Warmup: 5% of training (linear ramp)
+- Stable: 85% of training (constant LR)
+- Decay: 10% of training (cosine to min_lr)
+
+### Supervised Fine-Tuning (SFT)
+
+| Parameter | Value |
+|-----------|-------|
+| **Dataset** | [smol-smoltalk](https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk) |
+| **Samples** | ~485K conversations |
+| **Epochs** | 1 |
+| **Learning Rate** | 1e-3 |
+| **Batch Size** | 32 (effective: 128 with grad accum) |
+
+#### smol-smoltalk Composition
+
+The SFT dataset is the same used to train SmolLM2-135M-Instruct:
+
+| Subset | Purpose |
+|--------|---------|
+| smol-magpie-ultra-short | Instruction following |
+| everyday-conversations | Multi-turn dialogue |
+| smol-rewrite | Text editing |
+| smol-summarize | Summarization |
+| openhermes-100k | Knowledge & reasoning |
+| systemchats-30k | System prompt following |
+
+> This dataset was specifically curated for small models (<1B params) and avoids issues like `<think>` tags from reasoning models.
+
+---
+
+## Usage
+
+### Installation
+
+```bash
+pip install genesis-llm
+```
+
+### Download Weights
+
+```bash
+pip install "huggingface-hub>=0.20"
+huggingface-cli download guiferrarib/genesis-152m-instruct genesis_152m_instruct.safetensors --local-dir .
+```
+
+### Interactive Chat
+
+```bash
+genesis --model ./genesis_152m_instruct.safetensors
+```
+
+### Python API
+
+```python
+from genesis import Genesis, GenesisConfig
+from genesis.tokenizer import GenesisTokenizer
+
+# Load model
+model = Genesis.from_pretrained("./genesis_152m_instruct.safetensors")
+tokenizer = GenesisTokenizer()
+
+# ChatML format
+prompt = """<|im_start|>system
+You are a helpful assistant.
+<|im_end|>
+<|im_start|>user
+Explain what linear attention is in simple terms.
+<|im_end|>
+<|im_start|>assistant
+"""
+
+# Generate
+input_ids = tokenizer.encode(prompt, return_tensors="pt")
+output = model.generate(input_ids, max_new_tokens=256, temperature=0.7)
+print(tokenizer.decode(output[0]))
+```
+
+### Prompt Format
+
+Genesis uses **ChatML** format:
+
+```
+<|im_start|>system
+{system_message}
+<|im_end|>
+<|im_start|>user
+{user_message}
+<|im_end|>
+<|im_start|>assistant
+{assistant_response}<|im_end|>
+```
+
+---
+
+## Benchmarks
+
+Evaluated using LightEval on MPS (Apple Silicon).
+
+### Results
+
+| Task | Metric | Score | Stderr |
+|------|--------|-------|--------|
+| **ARC-Easy** (25-shot) | acc_norm | 44.02% | ±1.02 |
+| **ARC-Challenge** (25-shot) | acc_norm | 24.66% | ±1.26 |
+| **BoolQ** (0-shot) | acc_norm | 56.30% | ±0.87 |
+| **HellaSwag** (10-shot) | acc_norm | 30.19% | ±0.46 |
+| **Winogrande** (5-shot) | acc | 49.09% | ±1.41 |
+| **CommonsenseQA** (0-shot) | acc_norm | 29.16% | ±1.30 |
+| **OpenBookQA** (0-shot) | acc_norm | 28.60% | ±2.02 |
+| **SciQ** (0-shot) | acc_norm | 46.80% | ±1.58 |
+
+### Interpretation
+
+| Task | Random Baseline | Genesis | Signal |
+|------|-----------------|---------|--------|
+| ARC-Easy | 25% | 44% | ✅ **Strong** |
+| BoolQ | 50% | 56% | ✅ Learning |
+| HellaSwag | ~25% | 30% | ✅ Learning |
+| Winogrande | 50% | 49% | ⚠️ At baseline |
+| ARC-Challenge | ~25% | 25% | ⚠️ Too hard for size |
+
+> **Note**: With only 2B pre-training tokens (vs. 2T for SmolLM2), benchmarks primarily reflect architectural capacity rather than world knowledge.
+
+---
+
+## Limitations
+
+### Known Issues
+
+1. **Hallucinations**: Frequent factual errors due to limited pre-training data
+2. **Math**: Unreliable arithmetic and multi-step reasoning
+3. **Instruction Following**: Can be brittle with strict constraints
+4. **TTT Overhead**: Metacognition layer adds latency (can be disabled)
+
+### Not Suitable For
+
+- Production deployments requiring reliability
+- Tasks requiring factual accuracy
+- Complex multi-step reasoning
+- Safety-critical applications
+
+### Best Use Cases
+
+- Architecture research and ablation studies
+- Efficient attention mechanism exploration
+- Small model behavior analysis
+- Educational purposes
+
+---
+
+## Citation
+
+If you use Genesis in your research, please cite:
+
+```bibtex
+@misc{genesis2025,
+  title={Genesis: A Hybrid Linear Attention Architecture for Small Language Models},
+  author={Ferrari Brescia, Guilherme},
+  year={2025},
+  url={https://huggingface.co/guiferrarib/genesis-152m-instruct}
+}
+```
+
+### Related Papers
+
+```bibtex
+@inproceedings{yang2024gated,
+  title={Gated Delta Networks: Improving Mamba2 with Delta Rule},
+  author={Yang, Songlin and Wang, Bailin and Zhang, Yu and Shen, Yikang and Keutzer, Kurt},
+  booktitle={ICLR},
+  year={2025}
+}
+
+@inproceedings{lin2025forgetting,
+  title={Forgetting Transformer: Softmax Attention with a Forget Gate},
+  author={Lin, Zhixuan and others},
+  booktitle={ICLR},
+  year={2025}
+}
+
+@inproceedings{sun2024learning,
+  title={Learning to (Learn at Test Time): RNNs with Expressive Hidden States},
+  author={Sun, Yu and others},
+  booktitle={ICML},
+  year={2024}
+}
+
+@article{allal2025smollm2,
+  title={SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model},
+  author={Allal, Loubna Ben and others},
+  journal={arXiv preprint arXiv:2502.02737},
+  year={2025}
+}
+```
+
+---
+
+## License
+
+| Component | License |
+|-----------|---------|
+| **Model Weights** | Apache 2.0 |
+| **Code** | Apache 2.0 |
+| **Training Data** | Various (see dataset cards) |
+
+---
+
+<div align="center">
+  <p><em>Built with 🧬 by the Orch-Mind team</em></p>
+  <p>
+    <a href="https://pypi.org/project/genesis-llm/">PyPI</a>
+  </p>
+</div>
