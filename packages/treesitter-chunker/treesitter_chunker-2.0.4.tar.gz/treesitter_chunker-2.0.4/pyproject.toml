@@ -1,0 +1,416 @@
+[project]
+name            = "treesitter-chunker"
+version = "2.0.4"
+description     = "Semantic code chunker using Tree-sitter for intelligent code analysis"
+readme          = "README.md"
+requires-python = ">=3.11"
+license         = { text = "MIT" }
+authors         = [{ name = "Consiliency", email = "dev@consiliency.com" }]
+maintainers     = [{ name = "Consiliency", email = "dev@consiliency.com" }]
+keywords        = ["tree-sitter", "code-analysis", "chunking", "parsing", "ast", "semantic-analysis", "llm", "embeddings", "rag"]
+classifiers     = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "tree_sitter>=0.20.0,<1.0.0",
+    "rich>=13.0.0",
+    "typer>=0.9.0",
+    "pyarrow>=15.0.0",
+    "pyyaml>=6.0",
+    "pygments>=2.15.0",
+    "chardet>=5.0.0",
+    "python-dateutil>=2.9.0",
+    "gitpython>=3.1.40",
+    "pathspec>=0.11.0",
+    "tqdm>=4.66.0",
+    "tiktoken>=0.7.0",
+    "tomli-w>=1.0.0",  # For writing TOML files (tomllib is read-only in stdlib)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.1",
+    "pytest-timeout>=2.1.0",
+    "psutil>=5.9.0",
+    "black>=24.3.0",
+    "ruff>=0.3.4",
+    "mypy>=1.9.0",
+    "isort>=5.13.0",
+    "pre-commit>=3.5.0",
+    "bandit[toml]>=1.7.8",
+    "types-setuptools",
+    "types-pyyaml",
+    "build",
+    "wheel",
+    "twine",
+]
+viz = ["graphviz"]
+profile = ["memory-profiler>=0.61.0", "line-profiler>=4.1.0"]
+docs = ["sphinx", "sphinx-rtd-theme", "sphinx-autodoc-typehints"]
+api = ["fastapi>=0.100.0", "uvicorn[standard]>=0.23.0", "pydantic>=2.0.0"]
+templates = ["jinja2>=3.0.0"]
+advanced = ["numpy>=1.20.0"]
+full = ["jinja2>=3.0.0", "numpy>=1.20.0"]
+all = ["treesitter-chunker[dev,viz,docs,profile,api,templates,advanced]"]
+
+[project.urls]
+Homepage = "https://github.com/Consiliency/treesitter-chunker"
+Documentation = "https://treesitter-chunker.readthedocs.io"
+Repository = "https://github.com/Consiliency/treesitter-chunker"
+Issues = "https://github.com/Consiliency/treesitter-chunker/issues"
+Changelog = "https://github.com/Consiliency/treesitter-chunker/blob/main/CHANGELOG.md"
+
+[project.scripts]
+treesitter-chunker = "cli.main:app"
+tsc = "cli.main:app"
+
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "wheel",
+    # "setuptools-scm[toml]>=6.2",
+]
+build-backend = "setuptools.build_meta"
+
+
+
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["chunker", "chunker.*", "cli", "cli.*"]
+exclude = ["tests*", "benchmarks*", "examples*", "docs*", "scripts*", "grammars*"]
+
+[tool.setuptools.package-data]
+chunker = [
+    "py.typed",
+    "data/grammars/build/*",
+    "data/grammars/build/queries/*/*.scm",
+]
+"*" = ["*.so", "*.dll", "*.dylib", "*.pyi"]
+
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "--ignore=grammars/",
+    "--strict-markers",
+    "--tb=short",
+    # "--cov=chunker",
+    # "--cov-report=term-missing",
+    # "--cov-report=html",
+    # "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "benchmark: marks tests as benchmark tests",
+]
+
+[tool.coverage.run]
+source = ["chunker"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311', 'py312', 'py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | grammars
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["*/grammars/*", "*/build/*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+fix = true
+unsafe-fixes = false
+preview = true
+exclude = [
+    ".git",
+    ".mypy_cache", 
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "build",
+    "dist",
+    ".claude",
+    "grammars",
+    "archive",
+    "worktrees",
+    "ide",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ARG",  # flake8-unused-arguments
+    "SIM",  # flake8-simplify
+    "PL",   # pylint
+    "RUF",  # ruff-specific rules
+    "N",    # pep8-naming
+    "YTT",  # flake8-2020
+    "ASYNC",# flake8-async
+    "S",    # flake8-bandit
+    "BLE",  # flake8-blind-except
+    "A",    # flake8-builtins
+    "COM",  # flake8-commas
+    "C90",  # mccabe complexity
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    "G",    # flake8-logging-format
+    "INP",  # flake8-no-pep420
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "Q",    # flake8-quotes
+    "RSE",  # flake8-raise
+    "RET",  # flake8-return
+    "SLOT", # flake8-slots
+    "TID",  # flake8-tidy-imports
+    "TCH",  # flake8-type-checking
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate
+    "PD",   # pandas-vet
+    "PGH",  # pygrep-hooks
+    "FLY",  # flynt
+    "PERF", # perflint
+    "LOG",  # flake8-logging
+]
+
+ignore = [
+    "E501",   # line too long (handled by black)
+    "S101",   # use of assert (needed for tests)
+    "S404",   # subprocess module is used legitimately for build tools
+    "S603",   # subprocess without shell=True
+    "S607",   # start process with partial path
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+    "SIM108",  # use ternary operator (sometimes less readable)
+    "RET504",  # unnecessary variable assignment before return
+    "C901",    # too complex
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "TRY003",  # long exception messages
+    "EM101",   # raw string in exception
+    "EM102",   # f-string in exception
+    "PD011",   # pandas .values deprecation (false positives)
+    "RUF001",  # ambiguous unicode character (used in tests)
+    "RUF002",  # ambiguous unicode character (docstrings)
+    "RUF003",  # ambiguous unicode character (comments)
+    "ERA001",  # commented-out code (false positives on example comments)
+    # Additional ignores for legitimate patterns
+    "ARG005",  # unused lambda argument (often needed for interface)
+    "PLC2701", # import private name (needed for testing internals)
+    "ARG003",  # unused class method argument (often for interface compatibility)
+    "PLR0914", # too many locals (complex functions sometimes need many variables)
+    "PLR1702", # too many nested blocks (complex logic sometimes unavoidable)
+    "PLR0917", # too many positional arguments (some functions legitimately need many)
+    "S301",    # pickle usage (OK for internal caching)
+    "S403",    # pickle import (OK for internal use)
+    "S310",    # URL open (needed for legitimate downloads)
+    "S608",    # SQL construction (false positives with hardcoded table names)
+    "PERF203", # try-except in loop (often legitimate for per-item error handling)
+    "PLR6201", # use set literal for membership (sometimes tuple is clearer)
+    "S602",    # subprocess with shell=True (needed for complex commands)
+    "S324",    # insecure hash (MD5 is fine for non-cryptographic IDs)
+    "S202",    # tarfile.extractall (we handle untrusted carefully)
+    "G004",    # f-string in logging (modern Python practice)
+    "BLE001",  # blind exception catch (needed for robust error handling)
+    "SIM113",  # use enumerate (not always clearer)
+    "PLW2901", # loop variable overwritten (intentional in some cases)
+    "PTH123",  # use Path.open (not always necessary)
+    "E741",    # ambiguous variable name (sometimes single letters are clear in context)
+    "PLW1508", # invalid env var default (int defaults are fine)
+    "SIM115",  # use context manager (not always practical)
+    "S108",    # hardcoded temp path (sometimes necessary)
+    "N806",    # non-lowercase variable (following external conventions)
+    "B007",    # unused loop variable (clearer than underscore sometimes)
+    # "RUF059",  # unused unpacked variable (interface consistency) -- not supported in this ruff version
+    "PLR6301", # could be static method (but clearer as instance method)
+    "S311",    # random for non-crypto (fine for IDs)
+    # "B903",    # dataclass without methods (that's the point) -- not supported by current ruff plugin
+    # "B909",    # loop mutation (already fixed critical ones) -- not supported by current ruff plugin
+    "E722",    # bare except (sometimes needed)
+    "PLR0904", # too many public methods (large classes sometimes needed)
+    "PLR0911", # too many return statements (sometimes clearer)
+    # "RUF039",  # unraw regex (false positives) -- not supported in this ruff version
+    "S104",    # bind all interfaces (needed for servers)
+    "S105",    # hardcoded password (in examples only)
+    "S605",    # shell usage (controlled inputs)
+    "N815",    # mixed case variable (following conventions)
+    "F401",    # unused import (in __init__ files)
+    "F403",    # star import (in __init__ files)
+    "PLE0604", # invalid __all__ (false positives)
+    "A001",    # builtin shadowing (copyright is standard in conf.py)
+    "INP001",  # implicit namespace (scripts/examples don't need __init__)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files
+"tests/*" = ["S101", "PLR2004", "ARG001", "ARG002", "ARG003", "ARG005", "BLE001", "S113", "B008", "PLC0415", "PLR1702", "PT011", "PT012", "PT017", "PT019", "PLC2701", "SIM115", "SIM117", "PLC1901", "B023", "RUF059"]
+"test_*.py" = ["S113", "BLE001", "S101", "PLR2004", "PLC0415", "PLR1702", "ARG003", "ARG005", "PT011", "PT012", "PT017", "PT019", "PLC2701", "SIM115", "SIM117", "RUF059"]
+# Scripts and examples
+"scripts/*" = ["INP001", "T201", "T203", "S603", "S607", "BLE001", "PLC0415", "PLR1702"]
+"examples/*" = ["INP001", "T201", "S113", "BLE001", "PLC0415", "S105"]  # S105 for demo passwords
+"api/examples/*" = ["S113", "RUF013"]
+"api/server.py" = ["S104"]  # Binding to 0.0.0.0 is intentional for API server
+# CLI
+"cli/**/*.py" = ["B008", "BLE001"]  # typer uses function calls in defaults, CLI needs broad exception handling
+# Benchmarks and profiling
+"benchmarks/*" = ["INP001", "T201", "S113", "PLC0415", "B023", "PLR0914", "SIM115", "PLR1702", "PERF203"]
+"profiling/*" = ["INP001"]
+# Stub files
+"*.pyi" = ["E501"]
+# Module init files
+"**/__init__.py" = ["E402", "PLE0604", "F401", "F403"]  # init files have special import needs
+# Language modules
+"chunker/languages/*.py" = ["E402"]
+"chunker/**/*.py" = ["PLC0415"]  # Allow conditional imports for optional dependencies
+# XML handling modules (using defusedxml would be overkill for our use case)
+"chunker/export/graphml*.py" = ["S405", "S408", "S318"]
+"chunker/export/formats/graph.py" = ["S405", "S408", "S318", "S314"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 7
+max-branches = 15
+max-returns = 6
+max-statements = 50
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+show_error_context = true
+show_column_numbers = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "scripts.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["tree_sitter.*", "graphviz.*"]
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv", "build", "dist", "grammars"]
+skips = ["B101", "B601", "B602", "B603", "B607"]
+
+[tool.cibuildwheel]
+# Build for multiple platforms
+build = ["cp311-*", "cp312-*", "cp313-*"]
+skip = ["*-musllinux_i686", "*-win32", "pp*"]
+
+# Platform-specific build settings
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
+before-all = [
+    "yum install -y tree-sitter || apt-get update && apt-get install -y tree-sitter || true"
+]
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64", "universal2"]
+before-all = [
+    "brew install tree-sitter || true"
+]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+before-build = [
+    "pip install delvewheel"
+]
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+
+# Test configuration
+[tool.cibuildwheel.test]
+test-command = "python -m pytest {project}/tests/test_parser.py::TestParserAPI::test_get_parser_basic"
+test-extras = ["dev"]
+test-skip = ["*-macosx_arm64", "*-macosx_universal2:arm64"]

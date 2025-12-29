@@ -1,0 +1,130 @@
+"""Common types used across the chunker modules."""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass, field
+from typing import Any
+
+__all__ = [
+    "CodeChunk",
+    "compute_definition_id",
+    "compute_file_id",
+    "compute_node_id",
+    "compute_symbol_id",
+    "compute_text_hash16",
+]
+
+
+def compute_text_hash16(text: str) -> str:
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
+
+
+def compute_file_id(file_path: str) -> str:
+    seed = f"file:{file_path}".encode()
+    return hashlib.sha1(seed).hexdigest()
+
+
+def compute_node_id(
+    file_path: str,
+    language: str,
+    parent_route: list[str],
+    content: str,
+) -> str:
+    route = "/".join(parent_route or [])
+    text_hash16 = compute_text_hash16(content or "")
+    to_hash = f"{file_path}|{language}|{route}|{text_hash16}".encode()
+    return hashlib.sha1(to_hash).hexdigest()
+
+
+def compute_symbol_id(language: str, file_path: str, symbol_name: str) -> str:
+    seed = f"sym:{language}:{file_path}:{symbol_name}".encode()
+    return hashlib.sha1(seed).hexdigest()
+
+
+def compute_definition_id(
+    file_path: str,
+    language: str,
+    qualified_route: list[str],
+) -> str:
+    """Compute a content-insensitive stable ID for a definition.
+
+    Unlike node_id/chunk_id which include a content hash, definition_id is
+    computed purely from structural/positional information:
+    - file_path: The source file
+    - language: The programming language
+    - qualified_route: Hierarchical path with names, e.g. ["class_definition:MyClass", "method_definition:foo"]
+
+    This ID remains stable when the definition's body changes but changes when:
+    - The definition is moved to a different structural location
+    - The definition is renamed
+    - The file path changes
+
+    For anonymous definitions, the implementation falls back to a positional
+    format like "function:anon@42", where 42 is the start line number.
+    """
+    route = "/".join(qualified_route or [])
+    to_hash = f"def:{file_path}|{language}|{route}".encode()
+    return hashlib.sha1(to_hash).hexdigest()
+
+
+@dataclass
+class CodeChunk:
+    language: str
+    file_path: str
+    node_type: str
+    start_line: int
+    end_line: int
+    byte_start: int
+    byte_end: int
+    parent_context: str
+    content: str
+    chunk_id: str = ""
+    parent_chunk_id: str | None = None
+    references: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    # New stable identity and hierarchy fields
+    node_id: str = ""
+    file_id: str = ""
+    symbol_id: str | None = None
+    parent_route: list[str] = field(default_factory=list)
+    # Content-insensitive identity for tracking definitions across code changes
+    qualified_route: list[str] = field(default_factory=list)
+    definition_id: str = ""
+
+    def generate_id(self) -> str:
+        """Generate a stable ID using file/language/route/text hash."""
+        return compute_node_id(
+            self.file_path,
+            self.language,
+            self.parent_route,
+            self.content,
+        )
+
+    def __post_init__(self):
+        if not self.node_id:
+            self.node_id = self.generate_id()
+        if not self.chunk_id:
+            # Use full 40-char SHA1 for chunk_id to match tests
+            self.chunk_id = self.generate_id()
+        if not self.file_id and self.file_path:
+            self.file_id = compute_file_id(self.file_path)
+        # Compute definition_id from qualified_route if not already set
+        if not self.definition_id and self.qualified_route and self.file_path:
+            self.definition_id = compute_definition_id(
+                self.file_path,
+                self.language,
+                self.qualified_route,
+            )
+        # Do not auto-inject span/route into metadata; tests expect control over metadata presence
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, CodeChunk):
+            return NotImplemented
+        # Chunks with same id but different content should not be equal
+        return self.chunk_id == other.chunk_id and self.content == other.content
+
+    def __hash__(self) -> int:
+        # Hash by stable identifier to allow set/dict usage
+        return hash(self.chunk_id)
