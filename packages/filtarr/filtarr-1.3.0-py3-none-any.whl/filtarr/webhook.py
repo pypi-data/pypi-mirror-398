@@ -1,0 +1,475 @@
+"""Webhook server for receiving Radarr/Sonarr notifications."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+import httpx
+from pydantic import ValidationError
+
+from filtarr.checker import ReleaseChecker
+from filtarr.config import Config, ConfigurationError
+from filtarr.models.webhook import (
+    RadarrWebhookPayload,
+    SonarrWebhookPayload,
+    WebhookResponse,
+)
+
+if TYPE_CHECKING:
+    from filtarr.scheduler import SchedulerManager
+    from filtarr.state import StateManager
+
+logger = logging.getLogger(__name__)
+
+# Global reference to scheduler manager for status endpoint
+_scheduler_manager: SchedulerManager | None = None
+# Global reference to state manager for TTL checks
+_state_manager: StateManager | None = None
+
+
+def _validate_api_key(api_key: str | None, config: Config) -> str | None:
+    """Validate the API key against configured keys.
+
+    Args:
+        api_key: The API key from the X-Api-Key header.
+        config: Application configuration.
+
+    Returns:
+        The service name ('radarr' or 'sonarr') if valid, None otherwise.
+    """
+    if not api_key:
+        return None
+
+    # Check against Radarr API key
+    if config.radarr and api_key == config.radarr.api_key:
+        return "radarr"
+
+    # Check against Sonarr API key
+    if config.sonarr and api_key == config.sonarr.api_key:
+        return "sonarr"
+
+    return None
+
+
+async def _process_movie_check(movie_id: int, movie_title: str, config: Config) -> None:
+    """Background task to check 4K availability for a movie."""
+    logger.debug(f"[{movie_title}] Starting availability check (id={movie_id})...")
+
+    try:
+        # Check TTL cache first
+        if _state_manager is not None and config.state.ttl_hours > 0:
+            cached = _state_manager.get_cached_result("movie", movie_id, config.state.ttl_hours)
+            if cached is not None:
+                logger.info(
+                    f"[{movie_title}] Using cached result: "
+                    f"result={cached.result}, checked={cached.last_checked.isoformat()}"
+                )
+                return
+
+        radarr_config = config.require_radarr()
+        logger.debug(f"[{movie_title}] Checking releases against criteria: 4K")
+        checker = ReleaseChecker(
+            radarr_url=radarr_config.url,
+            radarr_api_key=radarr_config.api_key,
+            timeout=config.timeout,
+            tag_config=config.tags,
+        )
+
+        result = await checker.check_movie(movie_id, apply_tags=True)
+        matching_count = len(result.matched_releases)
+        logger.debug(
+            f"[{movie_title}] Found {matching_count} matching releases out of {len(result.releases)} total"
+        )
+
+        # Build completion message with tag info if available
+        tag_info = ""
+        if result.tag_result and result.tag_result.tag_applied:
+            tag_info = f", tag={result.tag_result.tag_applied}"
+        logger.info(
+            f"[{movie_title}] Check complete - result={'available' if result.has_match else 'unavailable'}{tag_info}"
+        )
+
+        # Record result in state file (even if no tag was applied)
+        if _state_manager is not None:
+            _state_manager.record_check(
+                "movie",
+                movie_id,
+                result.has_match,
+                result.tag_result.tag_applied if result.tag_result else None,
+            )
+    except ConfigurationError as e:
+        logger.error(f"Configuration error checking movie {movie_id} ({movie_title}): {e}")
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"HTTP error checking movie {movie_id} ({movie_title}): "
+            f"{e.response.status_code} {e.response.reason_phrase}"
+        )
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.error(f"Network error checking movie {movie_id} ({movie_title}): {e}")
+    except ValidationError as e:
+        logger.error(f"Validation error checking movie {movie_id} ({movie_title}): {e}")
+    except Exception:
+        # Catch-all for unexpected errors - use exception() for full traceback
+        logger.exception(f"Unexpected error checking 4K availability for movie {movie_id}")
+
+
+async def _process_series_check(series_id: int, series_title: str, config: Config) -> None:
+    """Background task to check 4K availability for a series."""
+    logger.debug(f"[{series_title}] Starting availability check (id={series_id})...")
+
+    try:
+        # Check TTL cache first
+        if _state_manager is not None and config.state.ttl_hours > 0:
+            cached = _state_manager.get_cached_result("series", series_id, config.state.ttl_hours)
+            if cached is not None:
+                logger.info(
+                    f"[{series_title}] Using cached result: "
+                    f"result={cached.result}, checked={cached.last_checked.isoformat()}"
+                )
+                return
+
+        sonarr_config = config.require_sonarr()
+        logger.debug(f"[{series_title}] Checking releases against criteria: 4K")
+        checker = ReleaseChecker(
+            sonarr_url=sonarr_config.url,
+            sonarr_api_key=sonarr_config.api_key,
+            timeout=config.timeout,
+            tag_config=config.tags,
+        )
+
+        result = await checker.check_series(series_id, apply_tags=True)
+        matching_count = len(result.matched_releases)
+        logger.debug(
+            f"[{series_title}] Found {matching_count} matching releases out of {len(result.releases)} total"
+        )
+
+        # Build completion message with tag info if available
+        tag_info = ""
+        if result.tag_result and result.tag_result.tag_applied:
+            tag_info = f", tag={result.tag_result.tag_applied}"
+        logger.info(
+            f"[{series_title}] Check complete - result={'available' if result.has_match else 'unavailable'}{tag_info}"
+        )
+
+        # Record result in state file (even if no tag was applied)
+        if _state_manager is not None:
+            _state_manager.record_check(
+                "series",
+                series_id,
+                result.has_match,
+                result.tag_result.tag_applied if result.tag_result else None,
+            )
+    except ConfigurationError as e:
+        logger.error(f"Configuration error checking series {series_id} ({series_title}): {e}")
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"HTTP error checking series {series_id} ({series_title}): "
+            f"{e.response.status_code} {e.response.reason_phrase}"
+        )
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.error(f"Network error checking series {series_id} ({series_title}): {e}")
+    except ValidationError as e:
+        logger.error(f"Validation error checking series {series_id} ({series_title}): {e}")
+    except Exception:
+        # Catch-all for unexpected errors - use exception() for full traceback
+        logger.exception(f"Unexpected error checking 4K availability for series {series_id}")
+
+
+def create_app(config: Config | None = None) -> Any:
+    """Create the FastAPI application for webhook handling.
+
+    Args:
+        config: Application configuration. If None, loads from default sources.
+
+    Returns:
+        Configured FastAPI application.
+    """
+    try:
+        from fastapi import FastAPI, Header, HTTPException, Request
+        from fastapi.responses import JSONResponse
+    except ImportError as e:
+        raise ImportError(
+            "FastAPI is required for webhook server. Install with: pip install filtarr[webhook]"
+        ) from e
+
+    if config is None:
+        config = Config.load()
+
+    app = FastAPI(
+        title="Filtarr Webhook Server",
+        description="Receive Radarr/Sonarr webhooks and check 4K availability",
+        version="1.3.0",  # x-release-please-version
+    )
+
+    # Store background tasks to prevent garbage collection
+    background_tasks: set[asyncio.Task[None]] = set()
+
+    @app.get("/health")
+    async def health_check() -> dict[str, str]:
+        """Health check endpoint."""
+        return {"status": "healthy"}
+
+    @app.get("/status")
+    async def status() -> dict[str, Any]:
+        """Status endpoint showing server and scheduler state."""
+        result: dict[str, Any] = {
+            "status": "healthy",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "radarr_configured": config.radarr is not None,
+            "sonarr_configured": config.sonarr is not None,
+            "scheduler": None,
+        }
+
+        if _scheduler_manager is not None:
+            schedules = _scheduler_manager.get_all_schedules()
+            enabled_schedules = [s for s in schedules if s.enabled]
+            running = _scheduler_manager.get_running_schedules()
+            recent_history = _scheduler_manager.get_history(limit=5)
+
+            result["scheduler"] = {
+                "enabled": True,
+                "running": _scheduler_manager.is_running,
+                "total_schedules": len(schedules),
+                "enabled_schedules": len(enabled_schedules),
+                "currently_running": list(running),
+                "recent_runs": [
+                    {
+                        "schedule": r.schedule_name,
+                        "status": r.status.value,
+                        "started_at": r.started_at.isoformat(),
+                        "items_processed": r.items_processed,
+                        "items_with_4k": r.items_with_4k,
+                    }
+                    for r in recent_history
+                ],
+            }
+        else:
+            result["scheduler"] = {"enabled": False}
+
+        return result
+
+    @app.post("/webhook/radarr", response_model=WebhookResponse)
+    async def radarr_webhook(
+        payload: RadarrWebhookPayload,
+        x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    ) -> WebhookResponse:
+        """Handle Radarr webhook events.
+
+        Expects X-Api-Key header matching the configured Radarr API key.
+        Only processes MovieAdded events.
+        """
+        # Validate API key
+        auth_service = _validate_api_key(x_api_key, config)
+        if auth_service is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing X-Api-Key header",
+            )
+
+        # Check if Radarr is configured
+        if config.radarr is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Radarr is not configured",
+            )
+
+        # Only process MovieAdded events
+        if not payload.is_movie_added():
+            logger.debug(f"Ignoring Radarr event: {payload.event_type}")
+            return WebhookResponse(
+                status="ignored",
+                message=f"Event type '{payload.event_type}' is not handled",
+                media_id=payload.movie.id,
+                media_title=payload.movie.title,
+            )
+
+        # Schedule background task for 4K check
+        logger.info(
+            f"Received MovieAdded webhook for: {payload.movie.title} (id={payload.movie.id})"
+        )
+        task = asyncio.create_task(
+            _process_movie_check(payload.movie.id, payload.movie.title, config)
+        )
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
+
+        return WebhookResponse(
+            status="accepted",
+            message="4K availability check queued",
+            media_id=payload.movie.id,
+            media_title=payload.movie.title,
+        )
+
+    @app.post("/webhook/sonarr", response_model=WebhookResponse)
+    async def sonarr_webhook(
+        payload: SonarrWebhookPayload,
+        x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    ) -> WebhookResponse:
+        """Handle Sonarr webhook events.
+
+        Expects X-Api-Key header matching the configured Sonarr API key.
+        Only processes SeriesAdd events.
+        """
+        # Validate API key
+        auth_service = _validate_api_key(x_api_key, config)
+        if auth_service is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing X-Api-Key header",
+            )
+
+        # Check if Sonarr is configured
+        if config.sonarr is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Sonarr is not configured",
+            )
+
+        # Only process SeriesAdd events
+        if not payload.is_series_add():
+            logger.debug(f"Ignoring Sonarr event: {payload.event_type}")
+            return WebhookResponse(
+                status="ignored",
+                message=f"Event type '{payload.event_type}' is not handled",
+                media_id=payload.series.id,
+                media_title=payload.series.title,
+            )
+
+        # Schedule background task for 4K check
+        logger.info(
+            f"Received SeriesAdd webhook for: {payload.series.title} (id={payload.series.id})"
+        )
+        task = asyncio.create_task(
+            _process_series_check(payload.series.id, payload.series.title, config)
+        )
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
+
+        return WebhookResponse(
+            status="accepted",
+            message="4K availability check queued",
+            media_id=payload.series.id,
+            media_title=payload.series.title,
+        )
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(
+        request: Request,  # noqa: ARG001
+        exc: Exception,  # noqa: ARG001
+    ) -> JSONResponse:
+        """Handle unexpected exceptions."""
+        logger.exception("Unhandled exception in webhook handler")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": "Internal server error",
+                "media_id": None,
+                "media_title": None,
+            },
+        )
+
+    return app
+
+
+def run_server(
+    host: str = "0.0.0.0",
+    port: int = 8080,
+    config: Config | None = None,
+    log_level: str = "info",
+    scheduler_enabled: bool = True,
+) -> None:
+    """Run the webhook server with optional scheduler.
+
+    Args:
+        host: Host to bind to.
+        port: Port to listen on.
+        config: Application configuration.
+        log_level: Logging level for uvicorn.
+        scheduler_enabled: Whether to start the scheduler.
+    """
+    global _scheduler_manager, _state_manager
+
+    try:
+        import uvicorn
+    except ImportError as e:
+        raise ImportError(
+            "uvicorn is required for webhook server. Install with: pip install filtarr[webhook]"
+        ) from e
+
+    if config is None:
+        config = Config.load()
+
+    app = create_app(config)
+
+    # Initialize state manager for TTL checks and ensure state file exists
+    from filtarr.state import StateManager
+
+    state_manager = StateManager(config.state.path)
+    state_manager.ensure_initialized()
+    _state_manager = state_manager
+    logger.info("State file initialized at: %s", config.state.path)
+    if config.state.ttl_hours > 0:
+        logger.info("State TTL: %d hours", config.state.ttl_hours)
+    else:
+        logger.info("State TTL: disabled")
+
+    # Set up scheduler if enabled
+    scheduler_manager: SchedulerManager | None = None
+    if scheduler_enabled and config.scheduler.enabled:
+        try:
+            from filtarr.scheduler import SchedulerManager
+
+            scheduler_manager = SchedulerManager(config, state_manager)
+            _scheduler_manager = scheduler_manager
+            logger.info("Scheduler configured and will start with server")
+        except ImportError:
+            logger.warning(
+                "Scheduler dependencies not installed. Install with: pip install filtarr[scheduler]"
+            )
+
+    async def run_with_scheduler() -> None:
+        """Run uvicorn with scheduler lifecycle management."""
+        uvicorn_config = uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level=log_level,
+        )
+        server = uvicorn.Server(uvicorn_config)
+
+        # Start scheduler before server
+        if scheduler_manager is not None:
+            try:
+                await scheduler_manager.start()
+            except (ImportError, ValueError) as e:
+                # ImportError: APScheduler not installed
+                # ValueError: Invalid schedule configuration
+                logger.error("Failed to start scheduler: %s", e)
+            except RuntimeError as e:
+                # RuntimeError: Scheduler already running or other state issues
+                logger.error("Scheduler runtime error: %s", e)
+
+        try:
+            await server.serve()
+        finally:
+            # Stop scheduler after server
+            if scheduler_manager is not None:
+                try:
+                    await scheduler_manager.stop(wait=True)
+                except asyncio.CancelledError:
+                    # Expected during shutdown
+                    logger.debug("Scheduler stop cancelled during shutdown")
+                except RuntimeError as e:
+                    # RuntimeError: Scheduler state issues during shutdown
+                    logger.warning("Error during scheduler shutdown: %s", e)
+
+    if scheduler_manager is not None:
+        # Run with asyncio to manage scheduler lifecycle
+        asyncio.run(run_with_scheduler())
+    else:
+        # Simple case - just run uvicorn directly
+        uvicorn.run(app, host=host, port=port, log_level=log_level)
