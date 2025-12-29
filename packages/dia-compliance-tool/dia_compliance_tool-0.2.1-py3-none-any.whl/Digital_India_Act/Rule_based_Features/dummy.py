@@ -1,0 +1,1 @@
+print("Digital India Act Rule based")
