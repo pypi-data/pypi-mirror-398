@@ -1,0 +1,103 @@
+# This workflow will upload a Python Package using Twine when a release is created
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Upload Python Package
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # for documentation builds
+      - name: Set up Python and dependencies
+        uses: ./.github/actions/setup-python
+      - name: Install build tools
+        run: uv build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: dist
+          path: dist
+  publish_docs:
+    name: Publish documentation
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # for documentation builds
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+      - name: Set up Python and dependencies
+        uses: ./.github/actions/setup-python
+      - name: Append release notes to RELEASE_NOTES.md # automatically update release notes on new release
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git config --local core.autocrlf input
+          git checkout main
+          git fetch origin
+
+          RELEASE_NOTES_FILE="RELEASE_NOTES.md"
+          HEADING="# Release Notes"
+
+          # Get release notes from GitHub Actions variable
+          RELEASE_NOTES="\n## $(echo "${{ github.event.release.published_at }}" | cut -d'T' -f1) - version ${{ github.event.release.tag_name }}\n${{ github.event.release.body }}\n\n---"
+
+          # Insert release notes below the heading
+          awk -v heading="$HEADING" -v notes="$RELEASE_NOTES" '
+              $0 == heading { print; print notes; next }
+              { print }
+          ' "$RELEASE_NOTES_FILE" > temp.md && mv --force temp.md "$RELEASE_NOTES_FILE"
+          echo "Release notes updated successfully."
+
+          git add "$RELEASE_NOTES_FILE"
+          git commit -m "Updated release notes for ${{ github.event.release.tag_name }}"
+          git push origin main
+      - name: Publish documentation
+        uses: ./.github/actions/mike-docs
+        with:
+          version: ${{ github.event.release.tag_name }}
+          alias: latest
+          push: true
+  publish_pypi:
+    name: Publish wheels to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7.0.0
+        with:
+          name: dist
+          path: dist
+      - name: Publish Python 🐍 distribution 📦 to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true # tolerate release package file duplicates
+          attestations: false
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          print-hash: true
+          # Temp workaround since attestations are on by default as of gh-action-pypi-publish v1.11.0
+          attestations: false
