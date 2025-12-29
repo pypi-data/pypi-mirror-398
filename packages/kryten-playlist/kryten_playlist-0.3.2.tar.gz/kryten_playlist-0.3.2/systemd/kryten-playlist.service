@@ -1,0 +1,28 @@
+[Unit]
+Description=Kryten Playlist Service
+After=network.target nats.service
+Wants=nats.service
+
+[Service]
+Type=simple
+User=kryten
+Group=kryten
+WorkingDirectory=/opt/kryten-playlist
+Environment="PATH=/opt/kryten-playlist/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/kryten-playlist/.venv/bin/kryten-playlist --config /etc/kryten/playlist/config.json
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kryten-playlist
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/kryten-playlist
+ReadOnlyPaths=/etc/kryten/playlist
+
+[Install]
+WantedBy=multi-user.target
