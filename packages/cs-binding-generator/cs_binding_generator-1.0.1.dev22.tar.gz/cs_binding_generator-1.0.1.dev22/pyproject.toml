@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cs_binding_generator"
+dynamic = ["version"]
+description = "Generate C# bindings from C headers using libclang with modern LibraryImport"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    {name = "Robin 'Ruadeil' Degen", email = "mail@ruadeil.lgbt"}
+]
+keywords = ["csharp", "bindings", "interop", "libclang", "code-generation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: C",
+    "Programming Language :: C#",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries",
+]
+
+dependencies = [
+    "libclang>=16.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "mypy>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/cs-binding-generator/cs-binding-generator"
+Repository = "https://github.com/cs-binding-generator/cs-binding-generator"
+Issues = "https://github.com/cs-binding-generator/cs-binding-generator"
+
+[project.scripts]
+cs_binding_generator = "cs_binding_generator.main:main"
+
+[tool.setuptools]
+packages = ["cs_binding_generator"]
+
+[tool.setuptools.package-data]
+cs_binding_generator = ["py.typed"]
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503", "E501"]  # E203 conflicts with Black, W503 is outdated, E501 handled by Black
+exclude = [".git", "__pycache__", "build", "dist", "*.egg-info"]
+per-file-ignores = [
+    "__init__.py:F401",  # Allow unused imports in __init__.py files
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = ["B101"]  # Skip assert checks in tests
+
+[tool.setuptools_scm]
+write_to = "cs_binding_generator/_version.py"
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"

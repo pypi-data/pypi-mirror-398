@@ -1,0 +1,367 @@
+"""
+Unit tests for CodeGenerator and OutputBuilder
+"""
+
+import pytest
+from unittest.mock import Mock, MagicMock
+from clang.cindex import CursorKind, TypeKind
+
+from cs_binding_generator.code_generators import CodeGenerator, OutputBuilder
+from cs_binding_generator.type_mapper import TypeMapper
+
+
+class TestCodeGenerator:
+    """Test the CodeGenerator class"""
+    
+    def setup_method(self):
+        """Set up test fixtures"""
+        self.type_mapper = TypeMapper()
+        self.generator = CodeGenerator(self.type_mapper)
+    
+    def test_generate_simple_function(self):
+        """Test generating a simple function with no parameters"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "get_version"
+        
+        mock_result_type = Mock()
+        mock_result_type.kind = TypeKind.INT
+        mock_result_type.spelling = "int"
+        mock_cursor.result_type = mock_result_type
+        
+        mock_cursor.get_arguments.return_value = []
+        
+        result = self.generator.generate_function(mock_cursor, "mylib")
+        
+        assert 'LibraryImport("mylib", EntryPoint = "get_version"' in result
+        assert 'StringMarshalling = StringMarshalling.Utf8' in result
+        assert 'UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])' in result
+        assert "public static partial int get_version();" in result
+    
+    def test_generate_function_with_parameters(self):
+        """Test generating a function with parameters"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "add"
+        
+        mock_result_type = Mock()
+        mock_result_type.kind = TypeKind.INT
+        mock_result_type.spelling = "int"
+        mock_cursor.result_type = mock_result_type
+        
+        # Create mock arguments
+        arg1 = Mock()
+        arg1.spelling = "a"
+        arg1_type = Mock()
+        arg1_type.kind = TypeKind.INT
+        arg1_type.spelling = "int"
+        arg1.type = arg1_type
+        
+        arg2 = Mock()
+        arg2.spelling = "b"
+        arg2_type = Mock()
+        arg2_type.kind = TypeKind.INT
+        arg2_type.spelling = "int"
+        arg2.type = arg2_type
+        
+        mock_cursor.get_arguments.return_value = [arg1, arg2]
+        
+        result = self.generator.generate_function(mock_cursor, "mylib")
+        
+        assert 'LibraryImport("mylib", EntryPoint = "add"' in result
+        assert 'StringMarshalling = StringMarshalling.Utf8' in result
+        assert "public static partial int add(int a, int b);" in result
+    
+    def test_generate_function_unnamed_parameter(self):
+        """Test generating a function with unnamed parameters"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "process"
+        
+        mock_result_type = Mock()
+        mock_result_type.kind = TypeKind.VOID
+        mock_result_type.spelling = "void"
+        mock_cursor.result_type = mock_result_type
+        
+        # Create mock argument with no name
+        arg1 = Mock()
+        arg1.spelling = ""  # Unnamed parameter
+        arg1_type = Mock()
+        arg1_type.kind = TypeKind.INT
+        arg1_type.spelling = "int"
+        arg1.type = arg1_type
+        
+        mock_cursor.get_arguments.return_value = [arg1]
+        
+        result = self.generator.generate_function(mock_cursor, "mylib")
+        
+        assert "void process(int param0);" in result
+    
+    def test_generate_struct_simple(self):
+        """Test generating a simple struct"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "Point"
+        
+        # Create mock fields
+        field1 = Mock()
+        field1.kind = CursorKind.FIELD_DECL
+        field1.spelling = "x"
+        field1_type = Mock()
+        field1_type.kind = TypeKind.INT
+        field1_type.spelling = "int"
+        field1.type = field1_type
+        field1.get_field_offsetof.return_value = 0  # offset in bits
+        
+        field2 = Mock()
+        field2.kind = CursorKind.FIELD_DECL
+        field2.spelling = "y"
+        field2_type = Mock()
+        field2_type.kind = TypeKind.INT
+        field2_type.spelling = "int"
+        field2.type = field2_type
+        field2.get_field_offsetof.return_value = 32  # offset in bits (4 bytes * 8)
+        
+        mock_cursor.get_children.return_value = [field1, field2]
+        
+        result = self.generator.generate_struct(mock_cursor)
+        
+        assert "[StructLayout(LayoutKind.Explicit)]" in result
+        assert "public unsafe partial struct Point" in result
+        assert "[FieldOffset(0)]" in result
+        assert "[FieldOffset(4)]" in result
+        assert "public int x;" in result
+        assert "public int y;" in result
+    
+    def test_generate_struct_empty(self):
+        """Test that empty struct returns empty string"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "EmptyStruct"
+        mock_cursor.get_children.return_value = []
+        
+        result = self.generator.generate_struct(mock_cursor)
+        
+        assert result == ""
+    
+    def test_generate_union_simple(self):
+        """Test generating a simple union"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "Data"
+        
+        # Create mock fields
+        field1 = Mock()
+        field1.kind = CursorKind.FIELD_DECL
+        field1.spelling = "as_int"
+        field1_type = Mock()
+        field1_type.kind = TypeKind.INT
+        field1_type.spelling = "int"
+        field1.type = field1_type
+        field1.get_field_offsetof.return_value = -1  # unions return -1
+        
+        field2 = Mock()
+        field2.kind = CursorKind.FIELD_DECL
+        field2.spelling = "as_float"
+        field2_type = Mock()
+        field2_type.kind = TypeKind.FLOAT
+        field2_type.spelling = "float"
+        field2.type = field2_type
+        field2.get_field_offsetof.return_value = -1  # unions return -1
+        
+        mock_cursor.get_children.return_value = [field1, field2]
+        
+        result = self.generator.generate_union(mock_cursor)
+        
+        assert "[StructLayout(LayoutKind.Explicit)]" in result
+        assert "public unsafe partial struct Data" in result
+        # Both fields should be at offset 0 in a union
+        assert result.count("[FieldOffset(0)]") == 2
+        assert "public int as_int;" in result
+        assert "public float as_float;" in result
+    
+    def test_generate_union_empty(self):
+        """Test that empty union returns empty string"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "EmptyUnion"
+        mock_cursor.get_children.return_value = []
+        
+        result = self.generator.generate_union(mock_cursor)
+        
+        assert result == ""
+    
+    def test_generate_enum_simple(self):
+        """Test generating a simple enum"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "Status"
+        
+        # Create mock enum constants
+        const1 = Mock()
+        const1.kind = CursorKind.ENUM_CONSTANT_DECL
+        const1.spelling = "OK"
+        const1.enum_value = 0
+        
+        const2 = Mock()
+        const2.kind = CursorKind.ENUM_CONSTANT_DECL
+        const2.spelling = "ERROR"
+        const2.enum_value = 1
+        
+        mock_cursor.get_children.return_value = [const1, const2]
+        
+        result = self.generator.generate_enum(mock_cursor)
+        
+        assert "public enum Status" in result
+        assert "OK = 0," in result
+        assert "ERROR = 1," in result
+    
+    def test_generate_enum_anonymous(self):
+        """Test generating an anonymous enum"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = ""  # Anonymous
+        
+        const1 = Mock()
+        const1.kind = CursorKind.ENUM_CONSTANT_DECL
+        const1.spelling = "VALUE1"
+        const1.enum_value = 100
+        
+        mock_cursor.get_children.return_value = [const1]
+        
+        result = self.generator.generate_enum(mock_cursor)
+        
+        # Single-member enum should derive name from the member
+        assert "public enum VALUE1" in result
+        assert "VALUE1 = 100," in result
+    
+    def test_generate_enum_empty(self):
+        """Test that empty enum returns empty string"""
+        mock_cursor = Mock()
+        mock_cursor.spelling = "EmptyEnum"
+        mock_cursor.get_children.return_value = []
+        
+        result = self.generator.generate_enum(mock_cursor)
+        
+        assert result == ""
+    
+    def test_generate_enum_with_inheritance(self):
+        """Test generating enum with underlying type inheritance"""
+        from clang.cindex import TypeKind
+        
+        mock_cursor = Mock()
+        mock_cursor.spelling = "ByteStatus"
+        
+        # Mock underlying type
+        mock_underlying_type = Mock()
+        mock_underlying_type.kind = TypeKind.UCHAR
+        mock_cursor.enum_type = mock_underlying_type
+        
+        # Create mock enum constants
+        const1 = Mock()
+        const1.kind = CursorKind.ENUM_CONSTANT_DECL
+        const1.spelling = "OK"
+        const1.enum_value = 0
+        
+        const2 = Mock()
+        const2.kind = CursorKind.ENUM_CONSTANT_DECL
+        const2.spelling = "ERROR"
+        const2.enum_value = 1
+        
+        mock_cursor.get_children.return_value = [const1, const2]
+        
+        result = self.generator.generate_enum(mock_cursor)
+        
+        assert "public enum ByteStatus : byte" in result
+        assert "OK = 0," in result
+        assert "ERROR = 1," in result
+    
+    def test_generate_enum_int_no_inheritance(self):
+        """Test that int enums don't show inheritance clause"""
+        from clang.cindex import TypeKind
+        
+        mock_cursor = Mock()
+        mock_cursor.spelling = "IntStatus"
+        
+        # Mock int underlying type (default)
+        mock_underlying_type = Mock()
+        mock_underlying_type.kind = TypeKind.INT
+        mock_cursor.enum_type = mock_underlying_type
+        
+        const1 = Mock()
+        const1.kind = CursorKind.ENUM_CONSTANT_DECL
+        const1.spelling = "OK"
+        const1.enum_value = 0
+        
+        mock_cursor.get_children.return_value = [const1]
+        
+        result = self.generator.generate_enum(mock_cursor)
+        
+        # Should not have inheritance clause for int
+        assert "public enum IntStatus\n{" in result
+        assert ": int" not in result
+
+
+class TestOutputBuilder:
+    """Test the OutputBuilder class"""
+    
+    def test_build_complete_output(self):
+        """Test building complete C# output"""
+        enums = ['public enum Status\n{\n    OK = 0,\n}\n']
+        structs = ['[StructLayout(LayoutKind.Explicit)]\npublic partial struct Point\n{\n    [FieldOffset(0)]\n    public int x;\n}\n']
+        functions = ['    [LibraryImport("mylib")]\n    public static partial int add(int a, int b);\n']
+        
+        result = OutputBuilder.build(
+            namespace="MyApp.Bindings",
+            enums=enums,
+            structs=structs,
+            unions=[],
+            functions=functions,
+            class_name="NativeMethods"
+        )
+        
+        assert "using System.Runtime.InteropServices;" in result
+        assert "using System.Runtime.InteropServices.Marshalling;" in result
+        assert "namespace MyApp.Bindings;" in result
+        assert "public enum Status" in result
+        assert "public partial struct Point" in result
+        assert "public static unsafe partial class NativeMethods" in result
+        assert "public static partial int add(int a, int b);" in result
+    
+    def test_build_minimal_output(self):
+        """Test building output with only functions"""
+        functions = ['    [LibraryImport("lib")]\n    public static partial void init();\n']
+        
+        result = OutputBuilder.build(
+            namespace="Test",
+            enums=[],
+            structs=[],
+            unions=[],
+            functions=functions
+        )
+        
+        assert "namespace Test;" in result
+        assert "public static unsafe partial class NativeMethods" in result
+        assert "public static partial void init();" in result
+    
+    def test_build_empty_output(self):
+        """Test building output with no content (no namespace for empty files)"""
+        result = OutputBuilder.build(
+            namespace="Empty",
+            enums=[],
+            structs=[],
+            unions=[],
+            functions=[]
+        )
+
+        # Empty files (with only assembly attributes) should not have namespace
+        assert "namespace Empty;" not in result
+        assert "public static partial class" not in result
+        # Should still have assembly attribute
+        assert "DisableRuntimeMarshalling" in result
+    
+    def test_build_custom_class_name(self):
+        """Test using custom class name for native methods"""
+        functions = ['    [LibraryImport("lib")]\n    public static partial void test();\n']
+        
+        result = OutputBuilder.build(
+            namespace="Test",
+            enums=[],
+            structs=[],
+            unions=[],
+            functions=functions,
+            class_name="CustomNative"
+        )
+        
+        assert "public static unsafe partial class CustomNative" in result
