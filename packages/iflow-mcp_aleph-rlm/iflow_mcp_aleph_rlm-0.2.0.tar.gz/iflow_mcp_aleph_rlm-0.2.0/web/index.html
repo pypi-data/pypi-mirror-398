@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aleph - Recursive Language Model Reasoning</title>
+  <meta name="description" content="MCP server for recursive LLM reasoning. Load context, iterate with search/code/think tools, converge on answers with provenance.">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://aleph-web.pages.dev/">
+  <meta property="og:title" content="Aleph - Recursive Language Model Reasoning">
+  <meta property="og:description" content="The Whole in Parts. Recursive language model reasoning for documents with full provenance tracking.">
+
+  <!-- Fonts: Match Hegelion exactly -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Inter:wght@400..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #F5F5F0;
+      --bg-dark: #0A0A0A;
+      --text: #0A0A0A;
+      --text-light: #F5F5F0;
+      --font-sans: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-serif: 'EB Garamond', serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-serif);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    ::selection {
+      background-color: #000000;
+      color: #FFFFFF;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    /* Header - matches Hegelion exactly */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--bg);
+      border-bottom: 1px solid var(--text);
+    }
+
+    header .container {
+      height: 4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-family: var(--font-sans);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      text-transform: uppercase;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .nav-links a {
+      font-family: var(--font-mono);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-links a span {
+      padding: 0 0.25rem;
+      transition: none;
+    }
+
+    .nav-links a:hover span {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    /* Hero Section */
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+      padding: 6rem 0 8rem;
+      border-bottom: 1px solid var(--text);
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .version-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      border: 1px solid var(--text);
+      padding: 0.25rem 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      width: fit-content;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: 6rem;
+      font-weight: 400;
+      line-height: 0.9;
+      letter-spacing: -0.02em;
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      line-height: 1.6;
+      border-left: 2px solid var(--text);
+      padding-left: 1.5rem;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+      max-width: 28rem;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      padding-top: 2rem;
+    }
+
+    .btn {
+      font-family: var(--font-mono);
+      padding: 1rem 2rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      text-decoration: none;
+      border: 1px solid var(--text);
+      display: inline-block;
+      box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+      transition: none;
+    }
+
+    .btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0px 0px rgba(0,0,0,1);
+    }
+
+    .btn-primary {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    .btn-primary:hover {
+      filter: invert(1);
+    }
+
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    /* Hero Visual */
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 400px;
+      border-left: 1px dashed var(--text);
+    }
+
+    .aleph-symbol {
+      position: relative;
+      width: 16rem;
+      height: 16rem;
+    }
+
+    .aleph-symbol .square {
+      position: absolute;
+      inset: 0;
+      border: 2px solid var(--text);
+      transition: transform 10s ease;
+    }
+
+    .aleph-symbol:hover .square:first-child {
+      transform: rotate(180deg);
+    }
+
+    .aleph-symbol .square:nth-child(2) {
+      inset: 1rem;
+      transform: rotate(45deg);
+    }
+
+    .aleph-symbol .square:nth-child(3) {
+      inset: 2rem;
+      transform: rotate(12deg);
+      background: rgba(0,0,0,0.03);
+    }
+
+    .aleph-symbol .inner-circle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 5rem;
+      height: 5rem;
+      border: 1px solid var(--text);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-serif);
+      font-size: 2.5rem;
+      background: var(--bg);
+    }
+
+    /* Loop Section */
+    .loop-section {
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--text);
+    }
+
+    .loop-section .header {
+      padding-bottom: 3rem;
+      border-bottom: 1px solid var(--text);
+    }
+
+    .loop-section .header h2 {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    .loop-section .header p {
+      font-family: var(--font-serif);
+      font-size: 1.875rem;
+    }
+
+    .loop-flow {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 3rem 0;
+    }
+
+    .loop-step {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      border: 1px solid var(--text);
+      padding: 0.25rem 0.5rem;
+    }
+
+    .loop-step.highlight {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    .arrow {
+      font-family: var(--font-mono);
+    }
+
+    .loop-cta {
+      text-align: center;
+      padding-bottom: 1rem;
+    }
+
+    .loop-cta a {
+      font-family: var(--font-mono);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid var(--text);
+      padding: 0.5rem 1rem;
+      text-decoration: none;
+      color: var(--text);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .loop-cta a:hover {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    /* Features Section (dark) */
+    .features-section {
+      background: var(--bg-dark);
+      color: var(--text-light);
+      border-top: 1px solid var(--text);
+      border-bottom: 1px solid var(--text);
+    }
+
+    .features-section .container {
+      padding: 6rem 1rem;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .features-content .badge {
+      font-family: var(--font-mono);
+      display: inline-block;
+      border: 1px solid var(--text-light);
+      padding: 0.25rem 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+    }
+
+    .features-content h2 {
+      font-family: var(--font-serif);
+      font-size: 3.75rem;
+      font-weight: 400;
+      line-height: 1;
+      margin-bottom: 1.5rem;
+    }
+
+    .features-content > p {
+      font-family: var(--font-serif);
+      font-size: 1.25rem;
+      line-height: 1.6;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+    }
+
+    .feature-list {
+      list-style: none;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .feature-list .icon {
+      flex-shrink: 0;
+      margin-top: 0.125rem;
+    }
+
+    /* Provenance Card */
+    .provenance-card {
+      border: 1px solid rgba(245, 245, 240, 0.3);
+      padding: 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+    }
+
+    .provenance-card h3 {
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(245, 245, 240, 0.3);
+      opacity: 0.6;
+    }
+
+    .evidence-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .evidence-item .check {
+      color: #4ade80;
+    }
+
+    .evidence-item .search {
+      color: #fbbf24;
+    }
+
+    .evidence-item .x {
+      color: #f87171;
+    }
+
+    .card-divider {
+      border: none;
+      border-top: 1px solid rgba(245, 245, 240, 0.3);
+      margin: 1rem 0;
+    }
+
+    .verdict {
+      font-size: 0.75rem;
+    }
+
+    .verdict .status {
+      color: #4ade80;
+    }
+
+    .verdict-note {
+      font-size: 0.75rem;
+      opacity: 0.5;
+      margin-top: 0.5rem;
+    }
+
+    /* Quote Section */
+    .quote-section {
+      padding: 6rem 1rem;
+      border-bottom: 1px solid var(--text);
+    }
+
+    .quote-section .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .quote-content h2 {
+      font-family: var(--font-serif);
+      font-size: 3.75rem;
+      font-weight: 400;
+      line-height: 1;
+      margin-bottom: 1.5rem;
+    }
+
+    .quote-content > p {
+      font-family: var(--font-serif);
+      font-size: 1.25rem;
+      line-height: 1.6;
+      opacity: 0.9;
+      margin-bottom: 1rem;
+    }
+
+    .quote-content blockquote {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      border-left: 1px solid var(--text);
+      padding-left: 1rem;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+      opacity: 0.7;
+    }
+
+    .quote-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .quote-visual blockquote {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-style: italic;
+      line-height: 1.4;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    .quote-visual .author {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      margin-top: 1rem;
+      opacity: 0.7;
+    }
+
+    .quote-visual .author a {
+      color: var(--text);
+    }
+
+    /* Footer */
+    footer {
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--text);
+    }
+
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    footer a {
+      color: var(--text);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding: 3rem 0;
+      }
+
+      h1 {
+        font-size: 3.5rem;
+      }
+
+      .hero-visual {
+        border-left: none;
+        border-top: 1px dashed var(--text);
+        padding-top: 3rem;
+        min-height: auto;
+      }
+
+      .loop-flow {
+        flex-wrap: wrap;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .features-content h2 {
+        font-size: 2.5rem;
+      }
+
+      .quote-section .container {
+        grid-template-columns: 1fr;
+      }
+
+      .quote-content h2 {
+        font-size: 2.5rem;
+      }
+
+      footer .container {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="logo">ALEPH</div>
+      <nav class="nav-links">
+        <a href="https://github.com/Hmbown/aleph"><span>[GITHUB]</span></a>
+        <a href="https://github.com/Hmbown/aleph#quick-start"><span>[DOCS]</span></a>
+        <a href="https://pypi.org/project/aleph-rlm/"><span>[PYPI]</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container" style="display: contents;">
+        <div class="hero-content">
+          <div class="version-badge">v0.1.1 — Recursive Reasoning</div>
+          <h1>The Whole<br>in Parts.</h1>
+          <p class="tagline">
+            Recursive language model reasoning for documents. Iterate with search, code, and think tools. Converge on answers with provenance.
+          </p>
+          <div class="cta-buttons">
+            <a href="https://github.com/Hmbown/aleph#quick-start" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com/Hmbown/aleph" class="btn btn-secondary">View on GitHub</a>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <div class="aleph-symbol">
+            <div class="square"></div>
+            <div class="square"></div>
+            <div class="square"></div>
+            <div class="inner-circle">א</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="loop-section">
+      <div class="container">
+        <div class="header">
+          <h2>The Process</h2>
+          <p>Load. Explore. Cite. Converge.</p>
+        </div>
+        <div class="loop-flow">
+          <span class="loop-step">Load</span>
+          <span class="arrow">→</span>
+          <span class="loop-step">Search</span>
+          <span class="arrow">→</span>
+          <span class="loop-step">Cite</span>
+          <span class="arrow">→</span>
+          <span class="loop-step">Evaluate</span>
+          <span class="arrow">→</span>
+          <span class="loop-step highlight">Finalize</span>
+        </div>
+        <div class="loop-cta">
+          <a href="https://github.com/Hmbown/aleph#the-solution">↻ The Recursive Loop</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="features-section">
+      <div class="container">
+        <div class="features-grid">
+          <div class="features-content">
+            <div class="badge">MCP Server</div>
+            <h2>Provenance<br>Tracking.</h2>
+            <p>
+              Every search, every citation, every piece of evidence is logged automatically. When you finalize, you get a complete audit trail.
+            </p>
+            <ul class="feature-list">
+              <li><span class="icon">&lt;&gt;</span> <span><strong>exec_python</strong> — Run code against context</span></li>
+              <li><span class="icon">⌕</span> <span><strong>search_context</strong> — Regex search with evidence logging</span></li>
+              <li><span class="icon">✓</span> <span><strong>cite()</strong> — Tag findings with notes</span></li>
+              <li><span class="icon">◉</span> <span><strong>evaluate_progress</strong> — Track convergence</span></li>
+            </ul>
+          </div>
+          <div class="provenance-card">
+            <h3>EVIDENCE TRAIL</h3>
+            <div class="evidence-item"><span class="search">⌕</span> [search] pattern: "liability" lines 42-58</div>
+            <div class="evidence-item"><span class="check">✓</span> [manual] note: "key exclusion clause"</div>
+            <div class="evidence-item"><span class="search">⌕</span> [search] pattern: "indemnif" lines 112-130</div>
+            <div class="evidence-item"><span class="check">✓</span> [manual] note: "carve-out for negligence"</div>
+            <hr class="card-divider">
+            <p class="verdict">CONFIDENCE: <span class="status">HIGH (0.92)</span></p>
+            <p class="verdict-note">→ Ready to finalize with 4 citations</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="quote-section">
+      <div class="container">
+        <div class="quote-content">
+          <h2>The Recursive<br>Method.</h2>
+          <p>
+            Aleph is inspired by research on Recursive Language Models. Rather than solving context limits at the architecture level, let models partition context and make recursive calls to themselves.
+          </p>
+          <blockquote>
+            "Each iteration lets the model refine its search based on what it learned, rather than betting everything on one attention pass."
+          </blockquote>
+        </div>
+        <div class="quote-visual">
+          <div>
+            <blockquote>
+              "What my eyes beheld was simultaneous, but what I shall now write down will be successive, because language is successive."
+            </blockquote>
+            <p class="author">— Jorge Luis Borges, <a href="https://web.mit.edu/allanmc/www/borgesaleph.pdf" target="_blank">"The Aleph"</a> (1945)</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>MIT License</span>
+      <span>A <a href="https://shannonlabs.dev" target="_blank">Shannon Labs</a> project</span>
+      <a href="https://github.com/Hmbown/aleph">GitHub</a>
+    </div>
+  </footer>
+</body>
+</html>
