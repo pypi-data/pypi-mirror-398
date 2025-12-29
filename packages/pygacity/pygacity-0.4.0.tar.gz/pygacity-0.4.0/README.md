@@ -1,0 +1,55 @@
+# pygacity
+
+> A Python package to enable high-throughput generation of problems suitable for exams and problem sets for thermodynamics courses
+
+You may have learned how to use Python to solve thermodynamics problems, like equilibrium compositions for a reacting system, or phase compositions in vapor-liquid equilibrium.  `Pygacity` takes this idea and uses Python to generate new problems.  The problems are generated in such a way that they can be typeset into PDF's using LaTeX.  `Pygacity` relies on the `pythontex` package in LaTeX to allow Python code to run during document compilation and results of those calculations automatically included in the document.
+
+## Installation
+
+`Pygacity` is in development.  Best to install it that way.
+
+```sh
+git clone git@github.com:cameronabrams/pygacity.git
+cd pygacity
+pip install -e .
+```
+
+`Pygacity` includes the LaTeX class file `autoprob.cls` under `[INSTALL-DIR]/pygacity/resources/autoprob-package/tex/latex/`.  All `latex` commands that are managed by `pygacity` append this directory in a ``--include-directory`` argument.  If you would like to use `autoprob.cls` outside of `pygacity`, you will need to make your LaTeX installation aware of `autoprob-package` root.
+
+## Release History
+
+* 0.4.0
+   * examples
+* 0.3.0
+   * Added multiple choice, short answer, and fill in the blank question types
+* 0.2.0
+   * Package reorg
+   * updated config yaml
+* 0.1.4
+    * single-shot assignment creation with no serial numbers
+    * additional LaTeX header commands available via config
+    * upgraded ycleptic dependencies to 2.0.3
+* 0.1.3
+    * `combine` subcommand
+    * `build` subcommand
+    * renamed to `pygacity`
+* 0.1.1
+    * reorganized package
+* 0.0.1
+    * Initial version
+
+## Meta
+
+Cameron F. Abrams – cfa22@drexel.edu
+
+Distributed under the MIT license. See ``LICENSE`` for more information.
+
+[https://github.com/cameronabrams](https://github.com/cameronabrams/)
+
+## Contributing
+
+1. Fork it (<https://github.com/cameronabrams/pygacity/fork>)
+2. Create your feature branch (`git checkout -b feature/fooBar`)
+3. Commit your changes (`git commit -am 'Add some fooBar'`)
+4. Push to the branch (`git push origin feature/fooBar`)
+5. Create a new Pull Request
