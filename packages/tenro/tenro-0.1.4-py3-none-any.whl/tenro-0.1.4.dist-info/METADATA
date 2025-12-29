@@ -1,0 +1,236 @@
+Metadata-Version: 2.4
+Name: tenro
+Version: 0.1.4
+Summary: A modern multi-agent AI testing framework
+Project-URL: Homepage, https://github.com/tenro-ai/tenro-python
+Project-URL: Repository, https://github.com/tenro-ai/tenro-python
+Project-URL: Changelog, https://github.com/tenro-ai/tenro-python/releases
+Author-email: Tenro <support@tenro.ai>
+Maintainer-email: Tenro <support@tenro.ai>
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: agent-testing,ai-agents,llm,llm-testing,mocking,multi-agent,pytest,pytest-plugin,simulation,testing,tracing
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: Pytest
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Testing :: Mocking
+Classifier: Topic :: Software Development :: Testing :: Unit
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Requires-Dist: httpx>=0.28.0
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: respx>=0.22.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: uuid-utils>=0.9.0
+Description-Content-Type: text/markdown
+
+# Tenro
+
+[![PyPI version](https://img.shields.io/pypi/v/tenro.svg)](https://pypi.org/project/tenro/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/tenro-ai/tenro-python/blob/main/LICENSE)
+
+A modern, **provider-agnostic simulation engine** to safely test AI agents.
+
+Verify multi-agent workflows and tool usage **without burning tokens**.
+
+Simulate everything. Trust your agents.
+
+## Install
+
+```bash
+pip install tenro
+# or
+uv add tenro
+```
+
+## Quick Start
+
+```python
+# myapp/agent.py
+from tenro import link_tool, link_llm
+
+@link_tool("search")
+def search(query: str) -> str:
+    return external_api.search(query)
+
+@link_llm("openai")
+def call_llm(prompt: str) -> str:
+    return openai.chat.completions.create(...)
+```
+
+```python
+# tests/test_agent.py
+def test_agent(construct):
+    construct.simulate_tool("search", result=["Simulated Doc"])    
+    construct.simulate_llm(provider="openai", response="Done")
+    
+    agent.run("Hello")
+    
+    construct.verify_tool("search", query="Secret Docs", times=1)
+    construct.verify_llm(times=1)
+```
+
+No mocks to configure, no expensive API calls, no flaky tests.
+
+## Why Tenro?
+
+- **Zero API calls** — Tests run instantly, no rate limits or costs
+- **Full control** — Simulate LLM responses, test edge cases reliably
+- **Ship with confidence** — Verify agent behaviour, not just their final response
+- **pytest-native** — Drop-in fixture or standalone, works with your existing setup
+- **Provider-aware** — Mocks OpenAI, Anthropic, Gemini with real response shapes
+
+## Before / After
+
+<details>
+<summary><b>Without Tenro</b> — manual mocks, helper functions, boilerplate</summary>
+
+```python
+# test_helpers.py - you write and maintain this
+def mock_llm_response(content=None, tool_call=None):
+    if tool_call:
+        message = ChatCompletionMessage(
+            role="assistant", content=None,
+            tool_calls=[ChatCompletionMessageToolCall(
+                id="call_abc", type="function",
+                function=Function(name=tool_call["name"], arguments=json.dumps(tool_call["args"]))
+            )]
+        )
+    else:
+        message = ChatCompletionMessage(role="assistant", content=content, tool_calls=None)
+    return ChatCompletion(
+        id="chatcmpl-123", created=0, model="gpt-5", object="chat.completion",
+        choices=[Choice(index=0, finish_reason="stop", message=message)]
+    )
+
+# test_agent.py
+@patch("myapp.tools.get_weather")
+@patch("openai.chat.completions.create")
+def test_agent(mock_llm, mock_weather):
+    mock_weather.return_value = {"temp": 72, "condition": "sunny"}
+    mock_llm.side_effect = [
+        mock_llm_response(tool_call={"name": "get_weather", "args": {"city": "Paris"}}),
+        mock_llm_response(content="It's 72°F and sunny in Paris."),
+    ]
+    result = my_agent.run("Weather in Paris?")
+    assert result == "It's 72°F and sunny in Paris."
+    mock_weather.assert_called_once_with(city="Paris")
+```
+
+</details>
+
+**With Tenro:**
+
+```python
+def test_agent(construct):
+    construct.simulate_tool("get_weather", result={"temp": 72, "condition": "sunny"})
+    construct.simulate_llm(provider="openai", responses=[
+        {"tools": [{"name": "get_weather", "arguments": {"city": "Paris"}}]},
+        "It's 72°F and sunny in Paris.",
+    ])
+
+    my_agent.run("Weather in Paris?")
+
+    construct.verify_agent("WeatherAgent", output_contains="72°F and sunny")
+    construct.verify_tool("get_weather", city="Paris")
+```
+
+No mocks. No helpers. Just behavior.
+
+## How It Works
+
+Tenro's `Construct` is a simulation environment for your AI agents. Link your functions with decorators, then test with full control:
+
+```python
+from tenro import link_agent, link_llm, link_tool
+
+@link_agent("Manager")
+def manager(task: str) -> str:
+    docs = search(task)
+    return summarize(docs)
+
+@link_tool("search")
+def search(query: str) -> list[str]:
+    return external_search_api(query)
+
+@link_llm("openai", model="gpt-5")
+def summarize(docs: list[str]) -> str:
+    return openai.chat.completions.create(...)
+```
+
+In tests, the `construct` fixture intercepts these calls and applies your simulations.
+
+## Trace Output
+
+Enable trace visualization to debug agent execution:
+
+> Set `TENRO_TRACE=true` in your `.env` or run `TENRO_TRACE=true pytest`
+
+```
+🤖 SupportAgent
+   ├─ → user: "My order #12345 hasn't arrived"
+   │
+   ├─ 🧠 claude-sonnet-4-5
+   │     ├─ → prompt: "Help customer: My order #12345 hasn't arrived"
+   │     └─ ← tool_call: lookup_order(order_id='12345')
+   │
+   ├─ 🔧 lookup_order
+   │     ├─ → order_id='12345'
+   │     └─ ← {'status': 'shipped', 'eta': '2025-01-02'}
+   │
+   ├─ 🧠 claude-sonnet-4-5
+   │     ├─ → prompt: "Tool result: {'status': 'shipped', ...}"
+   │     └─ ← "Your order has shipped and will arrive by Jan 2nd!"
+   │
+   └─ ← "Your order has shipped and will arrive by Jan 2nd!"
+
+────────────────────────────────────────────────────────────────
+Summary: 1 agent | 2 LLM calls | 1 tool call | Total: 1.24s
+```
+
+## LLM Provider Support
+
+| Provider  | Status |
+|-----------|--------|
+| OpenAI    | ✅     |
+| Anthropic | ✅     |
+| Gemini    | ✅     |
+| Others    | 🚧 Coming soon |
+
+## Compatibility
+
+- Python 3.11+
+- pytest 7.0+
+
+## Contributing
+
+Thanks for your interest in contributing!
+
+We are currently in the early stages of development and are focused on stabilizing the core API. Because of this, we aren't accepting external Pull Requests just yet.
+
+However, your support is incredibly valuable to us. You can help us right now by:
+
+- **Starring the Repository** ⭐️: This helps others discover the project and lets you track when we open up for code contributions.
+- **Reporting Bugs**: If something breaks, let us know.
+- **Suggesting Features**: Have an idea on how to make this better? Tell us!
+- **Asking Questions**: We are happy to discuss the roadmap and usage.
+
+Please use [GitHub Issues](https://github.com/tenro-ai/tenro-python/issues) for discussions and reports.
+
+## License
+
+[Apache 2.0](LICENSE)
+
+## Support
+
+- Issues: [GitHub Issues](https://github.com/tenro-ai/tenro-python/issues)
+- Email: support@tenro.ai
