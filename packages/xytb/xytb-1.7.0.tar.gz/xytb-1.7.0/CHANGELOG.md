@@ -1,0 +1,157 @@
+# CHANGELOG
+
+<!-- version list -->
+
+## v1.7.0 (2025-12-26)
+
+### Chores
+
+- Add commit parser options for semantic release patch tags
+  ([`d665b6f`](https://github.com/you-n-g/toolbox/commit/d665b6f99621c752d6de14ae21cbfb5e3dec1149))
+
+### Features
+
+- Update code review guidelines for error handling and simplification
+  ([`5f7e3c5`](https://github.com/you-n-g/toolbox/commit/5f7e3c5295e166e453127588e793c80c5027e5d8))
+
+
+## v1.6.4 (2025-12-26)
+
+### Bug Fixes
+
+- Update code review guidelines for error handling and simplification
+  ([`0581a65`](https://github.com/you-n-g/toolbox/commit/0581a65657f8593d5f226520be3c783718301018))
+
+### Chores
+
+- Add commit parser options for semantic release patch tags
+  ([`d665b6f`](https://github.com/you-n-g/toolbox/commit/d665b6f99621c752d6de14ae21cbfb5e3dec1149))
+
+
+## v1.6.2 (2025-12-24)
+
+### Bug Fixes
+
+- Use git rev-parse to determine repo root in get_changed_files
+  ([`ecef914`](https://github.com/you-n-g/toolbox/commit/ecef9143641c3e2429cd275df4a036d6e40ac231))
+
+
+## v1.6.1 (2025-11-18)
+
+### Bug Fixes
+
+- Add space before echo marker in tmux command string
+  ([`2fc2213`](https://github.com/you-n-g/toolbox/commit/2fc2213ffa472cea04cf87d9278fb0b18b0e5d3f))
+
+
+## v1.6.0 (2025-11-18)
+
+### Features
+
+- Add create_if_not_exists to T and add test for tmux creation
+  ([`0baaea6`](https://github.com/you-n-g/toolbox/commit/0baaea6bd2c70c654f1b0e4420906293a782cb99))
+
+
+## v1.5.1 (2025-11-09)
+
+### Bug Fixes
+
+- Improve tmux pane command logging and done marker detection logic
+  ([`7d0210d`](https://github.com/you-n-g/toolbox/commit/7d0210da9dab499bc8f5ff904f1bd0857c0778c6))
+
+
+## v1.5.0 (2025-11-07)
+
+### Features
+
+- Add loguru logging and improve sleep timing in TmuxPane
+  ([`27638d6`](https://github.com/you-n-g/toolbox/commit/27638d674a579b7c6561fa7bf9653fe2fbec18d8))
+
+
+## v1.4.1 (2025-11-07)
+
+### Bug Fixes
+
+- Lower required Python version to 3.10 in pyproject.toml
+  ([`0458633`](https://github.com/you-n-g/toolbox/commit/045863339f6d4c5112edfb2f55c9fd2754380b07))
+
+
+## v1.4.0 (2025-11-07)
+
+### Build System
+
+- Add optional crawl dependency group to pyproject.toml
+  ([`af15f18`](https://github.com/you-n-g/toolbox/commit/af15f18c71810a58d59158245cb5895673713108))
+
+### Features
+
+- Add TmuxPane wrapper and T function using libtmux
+  ([`526a419`](https://github.com/you-n-g/toolbox/commit/526a4196d4afc0b85a84938b7be12dcc461d47ff))
+
+
+## v1.3.1 (2025-10-25)
+
+### Bug Fixes
+
+- Handle Selenium server connection errors and update endpoint path
+  ([`23b66b6`](https://github.com/you-n-g/toolbox/commit/23b66b6e124f60a8377c245f6e18eff242860b68))
+
+
+## v1.3.0 (2025-10-25)
+
+### Features
+
+- Add selenium-based crawler for WeChat article content extraction
+  ([`e288479`](https://github.com/you-n-g/toolbox/commit/e28847902b461495ed24f34ef2771f783d394605))
+
+
+## v1.2.1 (2025-10-13)
+
+### Bug Fixes
+
+- Resolve file path issues in get_changed_files for git diff
+  ([`279d54a`](https://github.com/you-n-g/toolbox/commit/279d54a4f712c963294b1d37771b0696a5334630))
+
+
+## v1.2.0 (2025-06-28)
+
+### Chores
+
+- Update project description with GitHub URL
+  ([`488dd90`](https://github.com/you-n-g/toolbox/commit/488dd908cd4ce1f95d825dc9901759c65af0727a))
+
+### Documentation
+
+- Update README and pyproject metadata
+  ([`0df7965`](https://github.com/you-n-g/toolbox/commit/0df79652e8d9adf4503f38bcb12d868f0a1bc5f8))
+
+### Features
+
+- Add design feedback
+  ([`124f780`](https://github.com/you-n-g/toolbox/commit/124f780b073137b2c04d66ab7e874ad4789d7a5e))
+
+
+## v1.1.0 (2025-06-28)
+
+### Build System
+
+- Add uv publish step to release target
+  ([`9868264`](https://github.com/you-n-g/toolbox/commit/9868264fc2e76a6de3bf088d723116b527b60f13))
+
+- Switch to setuptools-scm and update build targets
+  ([`d157100`](https://github.com/you-n-g/toolbox/commit/d1571007d0c16cb15b6fea8474b543cf8a9bc401))
+
+### Chores
+
+- Use uvx for build/release, ignore .uv, enable dynamic version
+  ([`713ba4f`](https://github.com/you-n-g/toolbox/commit/713ba4fdc73a05dac14ca268f9345bfd78287cc2))
+
+### Features
+
+- Add xytb code review CLI and update project dependencies
+  ([`cc6bc3a`](https://github.com/you-n-g/toolbox/commit/cc6bc3a26c2c7d1db277a2f3da8f1daec4c65851))
+
+
+## v1.0.0 (2025-06-28)
+
+- Initial Release
