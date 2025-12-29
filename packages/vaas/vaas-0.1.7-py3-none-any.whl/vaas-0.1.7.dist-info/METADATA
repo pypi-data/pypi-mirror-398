@@ -1,0 +1,147 @@
+Metadata-Version: 2.4
+Name: vaas
+Version: 0.1.7
+Summary: VAAS (Vision-Attention Anomaly Scoring) is a dual-module vision framework for image anomaly detection and localisation.
+Author: Opeyemi Bamigbade, Mark Scanlon, John Sheppard
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: transformers>=4.40
+Requires-Dist: numpy
+Requires-Dist: pillow
+Requires-Dist: tqdm
+Requires-Dist: scipy
+Requires-Dist: opencv-python-headless
+Requires-Dist: matplotlib>=3.10.8
+Dynamic: license-file
+
+# VAAS — Vision-Attention Anomaly Scoring
+
+VAAS (Vision-Attention Anomaly Scoring) is an inference-focused Python library for image anomaly detection and localisation.
+
+It combines global attention-based reasoning with patch-level consistency analysis to produce a continuous anomaly score alongside dense anomaly maps. The output is designed to be interpretable, spatially grounded, and suitable for research and prototyping workflows.
+
+This package provides the **runtime inference pipeline only**.
+Pretrained model weights and research assets are hosted separately.
+
+---
+
+## Installation
+
+Install the VAAS inference library from PyPI:
+
+```bash
+pip install vaas
+```
+
+### Optional dependency: PyTorch
+
+VAAS uses **lazy loading** for PyTorch.
+
+* Importing `vaas` does **not** require PyTorch
+* PyTorch is required **only when running inference**
+
+If PyTorch is not installed, VAAS will raise a clear runtime error when inference is invoked.
+
+To install PyTorch (CPU, CUDA, or ROCm), follow the official guide:
+[https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)
+
+---
+
+## Quick Start
+
+```python
+from vaas.inference.pipeline import VAASPipeline
+from PIL import Image
+
+pipeline = VAASPipeline.from_pretrained(
+    "OBA-Research/vaas-v1-df2023",
+    device="cpu",
+    alpha=0.5,
+)
+
+image = Image.open("image.jpg").convert("RGB")
+result = pipeline(image)
+
+print(result["S_H"])
+```
+
+### Output format
+
+```python
+{
+    "S_F": float,
+    "S_P": float,
+    "S_H": float,
+    "anomaly_map": numpy.ndarray  # shape (224, 224)
+}
+```
+
+---
+
+## Visualisation
+
+VAAS can optionally generate qualitative visual explanations combining:
+
+* Patch-level anomaly heatmaps
+* Global attention overlays
+* A hybrid anomaly score gauge
+
+```python
+pipeline.visualize(
+    image="image.jpg",
+    save_path="vaas_visualization.png",
+    mode="all",
+    threshold=0.5,
+)
+```
+
+---
+
+## Model Variants
+
+This release supports pretrained models hosted on Hugging Face.
+
+Example:
+
+* VAAS v1 — trained on 10% of DF2023
+
+Additional variants and future releases may extend training scale and evaluation coverage.
+
+---
+
+## Intended Use
+
+VAAS is intended for:
+
+* Image anomaly detection
+* Visual integrity assessment
+* Explainable inspection of irregular regions
+* Research on attention-based anomaly scoring
+* Prototyping anomaly-aware vision systems
+
+The library supports CPU-only inference and GPU acceleration when available.
+
+---
+
+## Limitations
+
+* Trained on a subset of a single dataset
+* Does not classify anomaly types
+* Performance may degrade on out-of-distribution imagery
+
+VAAS should not be used as a standalone decision-making system in high-stakes applications.
+
+---
+
+## License
+
+MIT License
+
+---
+
+## Maintainers
+
+OBA-Research
+- [https://github.com/OBA-Research](https://github.com/OBA-Research)
+- [https://huggingface.co/OBA-Research](https://huggingface.co/OBA-Research)
