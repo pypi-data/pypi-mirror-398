@@ -1,0 +1,253 @@
+# Multi-Tenancy Question-Pack
+# Questions about tenant isolation, identification, and management
+
+domain: multi-tenancy
+description: "Multi-tenant architecture, tenant isolation, and data segregation"
+critical: false
+
+questions:
+  isolation_model:
+    - question: "What tenant isolation model is used?"
+      critical: true
+      options:
+        - "Row-level security (RLS) - shared tables with tenant_id"
+        - "Schema-per-tenant - separate schemas in one database"
+        - "Database-per-tenant - separate databases per tenant"
+        - "Hybrid (shared + dedicated for enterprise)"
+      follow_ups:
+        - "How is tenant context established in queries?"
+        - "What happens if tenant_id is missing from a query?"
+        - "Are there performance implications of the chosen model?"
+      examples:
+        - "PostgreSQL RLS policies with set_config('app.tenant_id')"
+        - "Django with schema routing middleware"
+        - "Separate RDS instances for enterprise customers"
+
+    - question: "How is cross-tenant data access prevented?"
+      critical: true
+      options:
+        - "Database constraints and RLS policies"
+        - "Application-layer checks in every query"
+        - "ORM middleware/filters"
+        - "API gateway tenant validation"
+      follow_ups:
+        - "Is there automated testing for tenant isolation?"
+        - "How are admin/support users handled (multi-tenant access)?"
+      examples:
+        - "PostgreSQL RLS policy: tenant_id = current_setting('app.tenant_id')"
+        - "Django queryset filter: .filter(tenant=request.tenant)"
+
+  tenant_identification:
+    - question: "How are tenants identified in requests?"
+      critical: true
+      options:
+        - "Subdomain (tenant.app.com)"
+        - "Custom domain (tenant.com)"
+        - "HTTP header (X-Tenant-ID)"
+        - "JWT claim (tenant_id in token)"
+        - "Path prefix (/tenants/{id})"
+        - "Multiple methods supported"
+      follow_ups:
+        - "How is tenant ID extracted and validated?"
+        - "What happens if tenant ID is missing or invalid?"
+        - "Is tenant switching allowed (e.g., for support)?"
+      examples:
+        - "Subdomain extraction: request.get_host().split('.')[0]"
+        - "JWT claim: jwt.payload['tenant_id']"
+
+    - question: "Are custom domains supported?"
+      critical: false
+      options:
+        - "Yes, with DNS CNAME verification"
+        - "Yes, with SSL/TLS certificate provisioning"
+        - "No, only subdomains"
+        - "Enterprise tier only"
+      follow_ups:
+        - "How are SSL certificates managed (Let's Encrypt, ACM, etc.)?"
+        - "Is there a domain verification process?"
+
+  tenant_provisioning:
+    - question: "How are new tenants provisioned?"
+      critical: true
+      options:
+        - "Self-service signup (automated)"
+        - "Admin-initiated provisioning"
+        - "Async job queue (Celery, SQS)"
+        - "Manual setup"
+      follow_ups:
+        - "What resources are created (database, storage, config)?"
+        - "Is there a provisioning timeout or rollback mechanism?"
+        - "Are there provisioning rate limits?"
+      examples:
+        - "Signup triggers Celery task to create schema and seed data"
+        - "Admin panel calls provision_tenant() API"
+
+    - question: "What happens during tenant onboarding?"
+      critical: true
+      options:
+        - "Create database schema/tables"
+        - "Seed default data (roles, settings)"
+        - "Create S3/blob storage bucket"
+        - "Initialize search indexes"
+        - "Send welcome email"
+      examples:
+        - "Run migrations in tenant schema"
+        - "Copy default roles and permissions"
+
+  data_isolation:
+    - question: "How is data isolation validated?"
+      critical: true
+      options:
+        - "Automated tests for every query"
+        - "Manual security audits"
+        - "Database-level constraints only"
+        - "No formal validation"
+      follow_ups:
+        - "Are there CI/CD gates for tenant isolation tests?"
+        - "How often are isolation audits performed?"
+      examples:
+        - "Pytest fixture that creates 2 tenants and verifies no cross-access"
+        - "Monthly pen-testing by security team"
+
+    - question: "Are there shared resources across tenants?"
+      critical: true
+      options:
+        - "Yes, shared lookup tables (countries, timezones, etc.)"
+        - "Yes, shared file storage (with access control)"
+        - "Yes, shared cache layer"
+        - "No, complete isolation"
+      follow_ups:
+        - "How is access control enforced on shared resources?"
+        - "Are shared resources read-only?"
+
+  tenant_customization:
+    - question: "What can tenants customize?"
+      critical: false
+      options:
+        - "Branding (logo, colors, domain)"
+        - "Feature flags (enable/disable features)"
+        - "User roles and permissions"
+        - "Email templates"
+        - "API webhooks"
+        - "Nothing (standardized)"
+      follow_ups:
+        - "Where are customizations stored (database, config service)?"
+        - "Are there limits on customization (e.g., max 5 roles)?"
+
+    - question: "How is tenant configuration managed?"
+      critical: false
+      options:
+        - "Database table (tenant_settings)"
+        - "Config service (Consul, etcd)"
+        - "Environment variables per tenant"
+        - "Hardcoded in application"
+      examples:
+        - "tenant_config JSON field in tenants table"
+        - "Redis hash: tenant:{id}:config"
+
+  tenant_lifecycle:
+    - question: "How are tenants suspended or deactivated?"
+      critical: true
+      options:
+        - "Soft delete (is_active flag)"
+        - "Revoke API access immediately"
+        - "Grace period before full suspension"
+        - "Read-only mode"
+      follow_ups:
+        - "Can suspended tenants be reactivated?"
+        - "What happens to their data during suspension?"
+      examples:
+        - "Set tenant.is_active = False, return 403 on API calls"
+        - "30-day grace period, then data archived to S3"
+
+    - question: "How is tenant data deleted?"
+      critical: true
+      options:
+        - "Hard delete (immediate removal)"
+        - "Soft delete with retention period"
+        - "Archive to cold storage (S3 Glacier)"
+        - "Manual deletion by admin"
+      follow_ups:
+        - "What is the data retention policy?"
+        - "Is there a compliance requirement (GDPR, HIPAA)?"
+        - "Are backups also deleted?"
+      examples:
+        - "90-day soft delete, then hard delete + backup purge"
+        - "GDPR: right to deletion within 30 days"
+
+  performance_isolation:
+    - question: "How is performance isolated between tenants?"
+      critical: false
+      options:
+        - "Rate limiting per tenant"
+        - "Separate database connection pools"
+        - "Dedicated infrastructure for large tenants"
+        - "No performance isolation"
+      follow_ups:
+        - "What happens if one tenant overloads the system?"
+        - "Are there tenant-specific resource quotas?"
+      examples:
+        - "100 req/sec per tenant via API gateway"
+        - "Separate RDS instance for enterprise tier"
+
+    - question: "Are there tenant resource quotas?"
+      critical: false
+      options:
+        - "Yes, storage limits (e.g., 10GB per tenant)"
+        - "Yes, user limits (e.g., max 50 users)"
+        - "Yes, API rate limits"
+        - "No quotas"
+      follow_ups:
+        - "What happens when a quota is exceeded?"
+        - "Can quotas be increased (upsell)?"
+
+  data_migration:
+    - question: "Can tenants export their data?"
+      critical: false
+      options:
+        - "Yes, self-service export (CSV, JSON)"
+        - "Yes, via API"
+        - "Manual export by admin"
+        - "No export capability"
+      follow_ups:
+        - "What format is the export (CSV, JSON, SQL dump)?"
+        - "Are there export rate limits or size limits?"
+      examples:
+        - "Export button generates ZIP with all tables as CSV"
+        - "GET /api/export returns tenant data as JSON"
+
+    - question: "Can tenants import data?"
+      critical: false
+      options:
+        - "Yes, self-service import (CSV upload)"
+        - "Yes, via API"
+        - "Manual import by admin during onboarding"
+        - "No import capability"
+      follow_ups:
+        - "What validation is performed on imported data?"
+        - "How are conflicts handled (duplicate IDs, etc.)?"
+
+  admin_access:
+    - question: "How do admins access tenant data?"
+      critical: true
+      options:
+        - "Impersonation/tenant switching"
+        - "Separate admin API with tenant_id parameter"
+        - "Direct database access (emergency only)"
+        - "No admin access to tenant data"
+      follow_ups:
+        - "Is admin access logged/audited?"
+        - "Are there approval workflows for admin access?"
+      examples:
+        - "Admin can switch tenant context in UI"
+        - "Audit log: admin_user_id, tenant_id, action, timestamp"
+
+    - question: "Are there cross-tenant analytics or reports?"
+      critical: false
+      options:
+        - "Yes, aggregated analytics (no PII)"
+        - "Yes, admin-only reports with full access"
+        - "No cross-tenant visibility"
+      examples:
+        - "Total users across all tenants (aggregated)"
+        - "Revenue dashboard showing per-tenant breakdown"

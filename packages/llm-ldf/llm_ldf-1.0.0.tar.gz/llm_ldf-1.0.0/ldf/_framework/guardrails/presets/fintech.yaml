@@ -1,0 +1,119 @@
+# Fintech Guardrails Preset
+# Adds guardrails for financial applications
+
+version: "1.0"
+extends: "core"
+
+guardrails:
+  - id: 9
+    name: "Double-Entry Ledger"
+    description: "All money movements use double-entry accounting"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Every transaction has DR and CR entries"
+      - "Sum of DR equals sum of CR"
+      - "Ledger entries are immutable (append-only)"
+      - "Adjustments use reversing entries"
+      - "Account balances derived from entries"
+    config:
+      precision: "NUMERIC(20,6)"
+      require_balance_check: true
+
+  - id: 10
+    name: "Money Precision"
+    description: "Exact decimal handling for money"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Money stored as NUMERIC/DECIMAL, not FLOAT"
+      - "Precision of at least 6 decimal places"
+      - "Currency code stored with amount"
+      - "Rounding rules explicitly defined"
+      - "Currency conversion documented"
+    config:
+      data_type: "NUMERIC(20,6)"
+      require_currency_code: true
+      rounding: "HALF_UP"
+
+  - id: 11
+    name: "Idempotency"
+    description: "All money operations are idempotent"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Idempotency key on all mutations"
+      - "UNIQUE constraint on idempotency keys"
+      - "Duplicate requests return original result"
+      - "Idempotency keys expire after 24h"
+    config:
+      key_format: "{user_id}:{action}:{timestamp}"
+      expiry_hours: 24
+
+  - id: 12
+    name: "Audit Trails"
+    description: "Complete audit trail for compliance"
+    severity: critical
+    enabled: true
+    checklist:
+      - "All transactions logged"
+      - "Who, what, when, where captured"
+      - "Audit logs tamper-evident"
+      - "Retention meets regulatory requirements"
+      - "Audit logs exportable"
+    config:
+      retention_years: 7
+      tamper_evident: true
+      fields:
+        - user_id
+        - action
+        - resource
+        - timestamp
+        - ip_address
+        - old_value
+        - new_value
+
+  - id: 13
+    name: "Compliance Logging"
+    description: "Regulatory compliance logging"
+    severity: high
+    enabled: true
+    checklist:
+      - "PCI DSS logging requirements met"
+      - "SOC 2 audit trail requirements met"
+      - "GDPR data access logging"
+      - "Logs retained per regulation"
+    config:
+      regulations:
+        - pci_dss
+        - soc2
+        - gdpr
+
+  - id: 14
+    name: "Reconciliation"
+    description: "Regular balance reconciliation"
+    severity: high
+    enabled: true
+    checklist:
+      - "Daily reconciliation process defined"
+      - "Discrepancies flagged automatically"
+      - "External provider balances verified"
+      - "Reconciliation reports available"
+    config:
+      frequency: "daily"
+      alert_threshold: 0.01  # 1 cent difference
+
+  - id: 15
+    name: "Rate Limiting (Financial)"
+    description: "Prevent abuse of financial endpoints"
+    severity: high
+    enabled: true
+    checklist:
+      - "Transfer endpoints rate limited"
+      - "Account creation rate limited"
+      - "Failed auth attempts limited"
+      - "Velocity checks for transactions"
+    config:
+      transfer_limit: 10  # per minute
+      creation_limit: 5   # per minute
+      auth_failure_limit: 5  # before lockout

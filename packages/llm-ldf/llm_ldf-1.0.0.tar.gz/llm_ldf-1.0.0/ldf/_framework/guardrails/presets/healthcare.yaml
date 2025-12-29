@@ -1,0 +1,109 @@
+# Healthcare Guardrails Preset
+# Adds guardrails for HIPAA compliance and healthcare applications
+
+version: "1.0"
+extends: "core"
+
+guardrails:
+  - id: 9
+    name: "HIPAA Compliance"
+    description: "HIPAA Security Rule requirements"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Access controls implemented"
+      - "Audit controls in place"
+      - "Integrity controls verified"
+      - "Transmission security enforced"
+      - "BAA with vendors documented"
+    config:
+      require_baa: true
+      encryption_standard: "AES-256"
+
+  - id: 10
+    name: "PHI Handling"
+    description: "Protected Health Information safeguards"
+    severity: critical
+    enabled: true
+    checklist:
+      - "PHI identified and classified"
+      - "Minimum necessary access enforced"
+      - "PHI encrypted at rest"
+      - "PHI encrypted in transit"
+      - "PHI not in logs or error messages"
+      - "De-identification for analytics"
+    config:
+      phi_fields:
+        - name
+        - dob
+        - ssn
+        - medical_record
+        - diagnosis
+        - treatment
+      encryption: "AES-256-GCM"
+
+  - id: 11
+    name: "Access Logging"
+    description: "Log all PHI access for audit"
+    severity: critical
+    enabled: true
+    checklist:
+      - "All PHI views logged"
+      - "All PHI modifications logged"
+      - "Access logs include user, timestamp, record"
+      - "Logs retained 6+ years"
+      - "Unusual access patterns flagged"
+    config:
+      retention_years: 6
+      alert_on_bulk_access: true
+      bulk_threshold: 100  # records
+
+  - id: 12
+    name: "Encryption at Rest"
+    description: "All PHI encrypted when stored"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Database encryption enabled"
+      - "File storage encryption enabled"
+      - "Backup encryption enabled"
+      - "Key management documented"
+      - "Key rotation schedule defined"
+    config:
+      algorithm: "AES-256"
+      key_rotation_days: 90
+
+  - id: 13
+    name: "Consent Management"
+    description: "Patient consent tracking"
+    severity: high
+    enabled: true
+    checklist:
+      - "Consent captured before data collection"
+      - "Consent scope documented"
+      - "Consent withdrawal supported"
+      - "Consent history maintained"
+      - "Consent enforced in queries"
+    config:
+      consent_types:
+        - treatment
+        - payment
+        - healthcare_operations
+        - marketing
+        - research
+
+  - id: 14
+    name: "Data Retention"
+    description: "Compliant data retention and deletion"
+    severity: high
+    enabled: true
+    checklist:
+      - "Retention periods defined by data type"
+      - "Automatic purge after retention"
+      - "Legal hold capability"
+      - "Secure deletion verified"
+      - "Retention policy documented"
+    config:
+      default_retention_years: 6
+      legal_hold_supported: true
+      secure_deletion: "DOD-5220.22-M"

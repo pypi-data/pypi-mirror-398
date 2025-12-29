@@ -1,0 +1,445 @@
+# LDF Descriptions Configuration
+# Central repository for all user-facing descriptions used in CLI and documentation
+version: "1.0"
+
+presets:
+  saas:
+    short: "Multi-tenant SaaS applications"
+    description: |
+      Best for: Multi-tenant SaaS platforms where different customers (tenants)
+      share the same application but must have isolated data.
+    extra_guardrails: "+5 (RLS, tenancy, billing, audit, export)"
+    recommended_packs:
+      - multi-tenancy
+      - billing
+    why_matters: "Prevents data leaks between customers and ensures compliance"
+
+  fintech:
+    short: "Financial applications with ledger and compliance"
+    description: |
+      Best for: Applications handling money, payments, or financial transactions
+      that require strict accuracy and audit trails.
+    extra_guardrails: "+7 (ledger, precision, idempotency, audit, compliance)"
+    recommended_packs:
+      - billing
+    why_matters: "Financial errors can result in legal liability and lost trust"
+
+  healthcare:
+    short: "HIPAA-compliant healthcare applications"
+    description: |
+      Best for: Applications handling Protected Health Information (PHI) subject
+      to HIPAA regulations in the US.
+    extra_guardrails: "+6 (HIPAA, PHI, access logs, encryption, consent)"
+    recommended_packs: []
+    why_matters: "HIPAA violations can result in fines up to $1.5M per incident"
+
+  api-only:
+    short: "Pure API services and developer platforms"
+    description: |
+      Best for: Backend APIs consumed by other applications or developers,
+      microservices, and developer platforms.
+    extra_guardrails: "+4 (versioning, rate limits, webhooks, API keys)"
+    recommended_packs:
+      - webhooks
+    why_matters: "API stability and security are critical for developer trust"
+
+  custom:
+    short: "Core guardrails only - add your own"
+    description: |
+      Starts with the 8 core guardrails that apply to most software projects.
+      Use this when other presets don't fit or you want full control.
+    extra_guardrails: "+0 (add your own)"
+    recommended_packs: []
+    why_matters: "Maximum flexibility for unique requirements"
+
+question_packs:
+  # Core packs (always included)
+  security:
+    short: "Authentication, authorization, and secrets management"
+    description: |
+      Covers critical security decisions that should be made before writing code.
+      Topics: auth methods, authorization strategy, MFA, secrets management,
+      input validation, XSS/CSRF prevention, rate limiting.
+    is_core: true
+    critical: true
+
+  testing:
+    short: "Coverage requirements and testing strategies"
+    description: |
+      Ensures test coverage decisions are explicit before implementation.
+      Topics: minimum coverage targets, testing frameworks, mocking strategies,
+      integration tests, E2E testing, test data management.
+    is_core: true
+    critical: true
+
+  api-design:
+    short: "REST/GraphQL patterns, versioning, and error handling"
+    description: |
+      Standardizes API design decisions for consistent developer experience.
+      Topics: API style, versioning strategy, pagination, error response format,
+      rate limit communication, API documentation.
+    is_core: true
+    critical: true
+
+  data-model:
+    short: "Database schema, migrations, and data patterns"
+    description: |
+      Captures database design decisions to avoid migration headaches.
+      Topics: database selection, ORM choice, migration tooling, ID strategy,
+      timestamp handling, soft deletes, indexing, constraints.
+    is_core: true
+    critical: true
+
+  # Optional packs (selectable based on feature needs)
+  billing:
+    short: "Payment processing, subscriptions, and invoicing"
+    description: |
+      For features involving money, payments, or subscriptions.
+      Topics: payment provider integration, subscription models, invoicing,
+      refunds, tax calculation, PCI compliance.
+    is_core: false
+    critical: false
+    use_when: "Feature involves charging customers or managing subscriptions"
+
+  multi-tenancy:
+    short: "RLS (Row Level Security) and tenant isolation for SaaS"
+    description: |
+      For multi-tenant applications where data must be isolated between customers.
+      Topics: tenant identification, data isolation strategy, RLS policy design,
+      cross-tenant features, tenant provisioning and deletion.
+    is_core: false
+    critical: false
+    use_when: "Application serves multiple customers who shouldn't see each other's data"
+
+  provisioning:
+    short: "Async jobs, queues, and background processing"
+    description: |
+      For features involving background work or long-running operations.
+      Topics: queue technology, job retry and failure handling, idempotency,
+      progress tracking, timeouts, circuit breakers.
+    is_core: false
+    critical: false
+    use_when: "Feature involves async processing or operations taking more than a few seconds"
+
+  webhooks:
+    short: "Event-driven integrations and webhook delivery"
+    description: |
+      For features that send or receive webhooks.
+      Topics: webhook event design, delivery guarantees, signature verification,
+      retry strategies, inbox/outbox patterns.
+    is_core: false
+    critical: false
+    use_when: "Feature needs to notify external systems or receive external notifications"
+
+# Guardrails metadata for custom selection mode
+guardrails:
+  # Core guardrails (always included with all presets)
+  1:
+    name: "Testing Coverage"
+    short: "Minimum test coverage thresholds"
+    is_core: true
+    severity: critical
+  2:
+    name: "Security Basics"
+    short: "OWASP Top 10 prevention"
+    is_core: true
+    severity: critical
+  3:
+    name: "Error Handling"
+    short: "Consistent error responses"
+    is_core: true
+    severity: high
+  4:
+    name: "Logging & Observability"
+    short: "Structured logging with correlation IDs"
+    is_core: true
+    severity: high
+  5:
+    name: "API Design"
+    short: "Consistent API patterns"
+    is_core: true
+    severity: high
+  6:
+    name: "Data Validation"
+    short: "Input validation at boundaries"
+    is_core: true
+    severity: critical
+  7:
+    name: "Database Migrations"
+    short: "Safe, reversible schema changes"
+    is_core: true
+    severity: high
+  8:
+    name: "Documentation"
+    short: "Code and API documentation"
+    is_core: true
+    severity: medium
+
+  # SaaS preset guardrails
+  9:
+    name: "Multi-Tenancy Isolation"
+    short: "Tenant data isolation"
+    is_core: false
+    preset: saas
+    severity: critical
+  10:
+    name: "Row-Level Security"
+    short: "Database-level tenant isolation"
+    is_core: false
+    preset: saas
+    severity: critical
+  11:
+    name: "Subscription Billing"
+    short: "Billing and subscription handling"
+    is_core: false
+    preset: saas
+    severity: high
+  12:
+    name: "Audit Logging"
+    short: "Security event tracking"
+    is_core: false
+    preset: saas
+    severity: high
+  13:
+    name: "Data Export/Portability"
+    short: "User data export capability"
+    is_core: false
+    preset: saas
+    severity: medium
+
+  # Fintech preset guardrails
+  14:
+    name: "Double-Entry Ledger"
+    short: "Balanced financial transactions"
+    is_core: false
+    preset: fintech
+    severity: critical
+  15:
+    name: "Decimal Precision"
+    short: "Accurate monetary calculations"
+    is_core: false
+    preset: fintech
+    severity: critical
+  16:
+    name: "Transaction Idempotency"
+    short: "Safe retry handling for payments"
+    is_core: false
+    preset: fintech
+    severity: critical
+  17:
+    name: "Audit Trail"
+    short: "Immutable financial records"
+    is_core: false
+    preset: fintech
+    severity: critical
+  18:
+    name: "Regulatory Compliance"
+    short: "Financial regulation adherence"
+    is_core: false
+    preset: fintech
+    severity: high
+  19:
+    name: "Reconciliation"
+    short: "Balance verification processes"
+    is_core: false
+    preset: fintech
+    severity: high
+  20:
+    name: "Currency Handling"
+    short: "Multi-currency support"
+    is_core: false
+    preset: fintech
+    severity: high
+
+  # Healthcare preset guardrails
+  21:
+    name: "HIPAA Compliance"
+    short: "PHI protection requirements"
+    is_core: false
+    preset: healthcare
+    severity: critical
+  22:
+    name: "PHI Encryption"
+    short: "Protected health info encryption"
+    is_core: false
+    preset: healthcare
+    severity: critical
+  23:
+    name: "Access Logging"
+    short: "PHI access audit trail"
+    is_core: false
+    preset: healthcare
+    severity: critical
+  24:
+    name: "Consent Management"
+    short: "Patient consent tracking"
+    is_core: false
+    preset: healthcare
+    severity: high
+  25:
+    name: "Data Retention"
+    short: "PHI retention policies"
+    is_core: false
+    preset: healthcare
+    severity: high
+  26:
+    name: "Breach Notification"
+    short: "HIPAA breach procedures"
+    is_core: false
+    preset: healthcare
+    severity: critical
+
+  # API-only preset guardrails
+  27:
+    name: "API Versioning"
+    short: "Backward-compatible versions"
+    is_core: false
+    preset: api-only
+    severity: high
+  28:
+    name: "Rate Limiting"
+    short: "Request throttling per client"
+    is_core: false
+    preset: api-only
+    severity: high
+  29:
+    name: "API Key Management"
+    short: "Secure key lifecycle"
+    is_core: false
+    preset: api-only
+    severity: critical
+  30:
+    name: "Webhook Delivery"
+    short: "Reliable event notifications"
+    is_core: false
+    preset: api-only
+    severity: high
+
+mcp_servers:
+  spec_inspector:
+    short: "Query spec status, guardrail coverage, and task progress"
+    description: |
+      Provides real-time access to specification data without reading files.
+      Capabilities: list specs, check guardrail coverage, get task progress,
+      validate answerpacks, lint specs.
+    default: true
+    why_matters: "Saves ~96% tokens compared to reading spec files directly"
+
+  coverage_reporter:
+    short: "Test coverage metrics by service and guardrail"
+    description: |
+      Provides test coverage data without parsing coverage reports.
+      Capabilities: overall coverage, per-service breakdown, coverage by guardrail,
+      uncovered lines and functions.
+    default: true
+    why_matters: "Enables AI to check coverage before marking tasks complete"
+
+  db_inspector:
+    short: "PostgreSQL schema, RLS policies, and index inspection"
+    description: |
+      Provides real-time queries for PostgreSQL database schema, Row-Level
+      Security (RLS) policies, and indexes without parsing files.
+      This is a template server that should be copied and customized for your project.
+    default: false
+    why_matters: "Saves token usage for schema-heavy inspections and ensures RLS policy correctness"
+
+# Technical terms glossary for non-technical users
+glossary:
+  RLS:
+    full_name: "Row-Level Security"
+    short: "Database-enforced access control for multi-tenant data isolation"
+    description: |
+      A database feature that automatically filters query results based on
+      the current user's permissions. Instead of adding WHERE tenant_id = X
+      to every query, RLS policies enforce this at the database level.
+    example: |
+      In PostgreSQL:
+      CREATE POLICY tenant_isolation ON orders
+        USING (tenant_id = current_setting('app.tenant_id'));
+    why_matters: |
+      Prevents data leaks even if application code forgets to filter.
+      Critical for multi-tenant apps where one customer shouldn't see another's data.
+
+  PHI:
+    full_name: "Protected Health Information"
+    short: "Any health data that can identify a patient"
+    description: |
+      Any health information that can identify a patient, including names,
+      dates, diagnoses, treatments, and 16 other identifiers defined by HIPAA.
+    example: |
+      PHI includes: patient name, DOB, medical record number, diagnosis codes,
+      prescription history, appointment dates.
+      NOT PHI: Aggregate statistics like "50% of patients have diabetes"
+    why_matters: |
+      HIPAA requires specific protections for PHI. Improper handling can
+      result in fines up to $1.5 million per violation category per year.
+
+  HIPAA:
+    full_name: "Health Insurance Portability and Accountability Act"
+    short: "US federal law protecting patient health information"
+    description: |
+      US federal law that sets standards for protecting sensitive patient
+      health information. Applies to healthcare providers, health plans,
+      and their business associates.
+    requirements: |
+      - Administrative safeguards (policies, training)
+      - Physical safeguards (facility access)
+      - Technical safeguards (encryption, access control, audit logs)
+    why_matters: |
+      Legal requirement for US healthcare applications. Non-compliance can
+      result in civil and criminal penalties.
+
+  OWASP:
+    full_name: "Open Web Application Security Project"
+    short: "Industry standard for web application security"
+    description: |
+      A nonprofit foundation that produces security guidelines, including
+      the famous OWASP Top 10 list of most critical web application security risks.
+    top_10: |
+      1. Injection (SQL, command)
+      2. Broken Authentication
+      3. Sensitive Data Exposure
+      4. XML External Entities (XXE)
+      5. Broken Access Control
+      6. Security Misconfiguration
+      7. Cross-Site Scripting (XSS)
+      8. Insecure Deserialization
+      9. Using Components with Known Vulnerabilities
+      10. Insufficient Logging & Monitoring
+    why_matters: "Following OWASP guidelines prevents the most common security vulnerabilities"
+
+  idempotency:
+    full_name: "Idempotency"
+    short: "Operations that produce same result when repeated"
+    description: |
+      An operation is idempotent if performing it multiple times has the same
+      effect as performing it once. Critical for handling retries safely.
+    example: |
+      Idempotent: GET /user/123 - returns same user each time
+      Idempotent: PUT /user/123 {name: "John"} - sets name to John each time
+      NOT idempotent: POST /orders - creates new order each time
+
+      To make POST idempotent, use idempotency keys:
+      POST /orders with header X-Idempotency-Key: abc123
+    why_matters: |
+      Network failures cause retries. Without idempotency, retries can cause
+      duplicate charges, duplicate orders, or data corruption.
+
+  double_entry:
+    full_name: "Double-Entry Bookkeeping"
+    short: "Accounting method where every transaction affects two accounts"
+    description: |
+      An accounting system where every transaction is recorded in at least
+      two accounts: a debit in one and a credit in another. The sum of all
+      debits must equal the sum of all credits.
+    example: |
+      Customer pays $100 for service:
+      - Debit: Cash account +$100
+      - Credit: Revenue account +$100
+
+      Internal transfer of $50:
+      - Debit: Destination account +$50
+      - Credit: Source account -$50
+    why_matters: |
+      Automatically catches errors - if debits don't equal credits, something
+      is wrong. Required for financial audits and regulatory compliance.

@@ -1,0 +1,79 @@
+# SaaS Guardrails Preset
+# Adds guardrails for multi-tenant SaaS applications
+
+version: "1.0"
+extends: "core"
+
+guardrails:
+  - id: 9
+    name: "Multi-Tenancy Isolation"
+    description: "Ensure data isolation between tenants"
+    severity: critical
+    enabled: true
+    checklist:
+      - "Tenant ID in all queries"
+      - "Row-Level Security (RLS) policies defined"
+      - "Cross-tenant access explicitly blocked"
+      - "Tenant context set on every request"
+    config:
+      tenant_column: "organization_id"  # or tenant_id
+      rls_enabled: true
+
+  - id: 10
+    name: "Row-Level Security"
+    description: "Database-level tenant isolation"
+    severity: critical
+    enabled: true
+    checklist:
+      - "RLS enabled on tenant tables"
+      - "RLS policies defined per table"
+      - "Context variables set (app.tenant_id)"
+      - "Bypass mechanism for admin/worker"
+      - "RLS tested in integration tests"
+    config:
+      context_variable: "app.tenant_id"
+      bypass_variable: "app.admin_bypass"
+
+  - id: 11
+    name: "Subscription Billing"
+    description: "Correct billing and subscription handling"
+    severity: high
+    enabled: true
+    checklist:
+      - "Subscription status checked before features"
+      - "Usage limits enforced"
+      - "Billing events logged"
+      - "Upgrade/downgrade paths tested"
+    config:
+      billing_provider: "stripe"  # stripe, paddle, custom
+
+  - id: 12
+    name: "Audit Logging"
+    description: "Track security-relevant events"
+    severity: high
+    enabled: true
+    checklist:
+      - "Login/logout events logged"
+      - "Permission changes logged"
+      - "Data access logged (where required)"
+      - "Audit logs immutable"
+      - "Retention policy defined"
+    config:
+      events:
+        - login
+        - logout
+        - password_change
+        - permission_change
+        - data_export
+      retention_days: 90
+
+  - id: 13
+    name: "Data Export/Portability"
+    description: "Users can export their data"
+    severity: medium
+    enabled: true
+    checklist:
+      - "Data export endpoint exists"
+      - "Export includes all user data"
+      - "Format is portable (JSON, CSV)"
+      - "Rate limited to prevent abuse"

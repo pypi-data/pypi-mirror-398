@@ -1,0 +1,115 @@
+[build-system]
+requires = ["hatchling", "hatch-fancy-pypi-readme"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-ldf"
+dynamic = ["readme"]
+version = "1.0.0"
+description = "LLM Development Framework - Spec-driven development for AI-assisted engineering"
+license = {text = "MIT"}
+authors = [
+    {name = "LLM.info Team"},
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["development", "framework", "spec-driven", "ai", "mcp"]
+dependencies = [
+    "click>=8.0.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+    "jinja2>=3.0.0",
+    "questionary>=2.0.0",
+    "packaging>=21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pip-audit>=2.6.0",
+]
+mcp = [
+    "mcp>=0.9.0",
+    "coverage>=7.0.0",  # Required by coverage_reporter MCP server
+]
+automation = [
+    "openai>=1.0.0",
+    "google-generativeai>=0.3.0",
+]
+s3 = [
+    "boto3>=1.26.0",  # Required for S3 coverage upload
+]
+
+[project.scripts]
+ldf = "ldf.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/LLMdotInfo/ldf"
+Documentation = "https://github.com/LLMdotInfo/ldf#readme"
+Repository = "https://github.com/LLMdotInfo/ldf"
+Issues = "https://github.com/LLMdotInfo/ldf/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ldf"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/ldf",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+# Convert relative links to absolute GitHub URLs
+pattern = '\[([^\]]+)\]\((?!https?://)([^)]+)\)'
+replacement = '[\1](https://github.com/LLMdotInfo/ldf/blob/main/\2)'
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow longer lines in tests, MCP servers, and multi-agent automation
+"tests/*" = ["E501"]
+"ldf/_mcp_servers/*" = ["E501"]
+"multi-agent/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+exclude = ["ldf/_mcp_servers/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --cov=ldf --cov-report=term-missing --cov-fail-under=80"
