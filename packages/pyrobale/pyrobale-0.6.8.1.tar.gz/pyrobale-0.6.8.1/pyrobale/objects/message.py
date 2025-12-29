@@ -1,0 +1,514 @@
+from typing import TYPE_CHECKING, Optional, Union
+
+from pyrobale.objects.forwardorigin import ForwardOrigin
+from ..objects.newchatmembers import NewChatMembers
+from ..objects.utils import pythonize
+
+if TYPE_CHECKING:
+    from ..objects.user import User
+    from ..objects.chat import Chat
+    from ..objects.chatmember import ChatMember
+    from ..objects.animation import Animation
+    from ..objects.audio import Audio
+    from ..objects.document import Document
+    from ..objects.photosize import PhotoSize
+    from ..objects.sticker import Sticker
+    from ..objects.video import Video
+    from ..objects.voice import Voice
+    from ..objects.contact import Contact
+    from ..objects.location import Location
+    from ..objects.invoice import Invoice
+    from ..objects.successfulpayment import SuccessfulPayment
+    from ..objects.webappdata import WebAppData
+    from ..objects.inlinekeyboardmarkup import InlineKeyboardMarkup
+    from ..objects.replykeyboardmarkup import ReplyKeyboardMarkup
+    from ..client import Client
+
+from ..objects.chat import Chat
+from ..objects.user import User
+from ..objects.forwardorigin import ForwardOrigin
+from ..objects.inlinekeyboardmarkup import InlineKeyboardMarkup
+from .utils import smart_method
+
+
+class Message:
+    """This class represents a Message object in Telegram.
+
+    A message can contain various types of content like text, media, location, etc.
+    It also provides methods to reply, edit, delete, and forward messages.
+
+    Attributes:
+        id (int): Unique message identifier
+        user (User): Sender of the message
+        date (int): Date the message was sent in Unix time
+        chat (Chat): Conversation the message belongs to
+        text (str): Text content of the message
+        forward_origin (User): Original sender of a forwarded message
+        forward_from_chat (Chat): Original chat of a forwarded message
+        forward_from_message_id (int): Message ID in the original chat
+        forward_date (int): Date when message was forwarded
+        edite_date (int): Date when message was last edited
+        animation (Animation): Message is an animation
+        audio (Audio): Message is an audio file
+        document (Document): Message is a general file
+        photo (list[PhotoSize]): Message is a photo
+        sticker (Sticker): Message is a sticker
+        video (Video): Message is a video
+        voice (Voice): Message is a voice message
+        caption (str): Caption for media messages
+        contact (Contact): Message is a shared contact
+        location (Location): Message is a shared location
+        new_chat_members (list[User]): New members added to the chat
+        left_chat_member (User): Member removed from the chat
+        invoice (Invoice): Message is an invoice for payment
+        successful_payment (SuccessfulPayment): Message is a service message about successful payment
+        web_app_data (WebAppData): Data from a Web App
+        reply_markup (InlineKeyboardMarkup): Inline keyboard attached to the message
+        client (Client): Client instance associated with this message
+    """
+
+    def __init__(
+            self,
+            message_id: Optional[int] = None,
+            from_user: Optional["User"] = None,
+            date: Optional[int] = None,
+            chat: Optional["Chat"] = None,
+            text: Optional[str] = None,
+            forward_origin: Union["ForwardOrigin",dict, None] = None,
+            forward_from_chat: Optional["Chat"] = None,
+            forward_from_message_id: Optional[int] = None,
+            forward_date: Optional[int] = None,
+            edite_date: Optional[int] = None,
+            animation: Optional["Animation"] = None,
+            audio: Optional["Audio"] = None,
+            document: Optional["Document"] = None,
+            photo: Optional[list["PhotoSize"]] = None,
+            sticker: Optional["Sticker"] = None,
+            video: Optional["Video"] = None,
+            voice: Optional["Voice"] = None,
+            caption: Optional[str] = None,
+            contact: Optional["Contact"] = None,
+            location: Optional["Location"] = None,
+            new_chat_members: Optional[list["User"]] = None,
+            left_chat_member: Optional["User"] = None,
+            invoice: Optional["Invoice"] = None,
+            successful_payment: Optional["SuccessfulPayment"] = None,
+            web_app_data: Optional["WebAppData"] = None,
+            reply_markup: Optional["InlineKeyboardMarkup"] = None,
+            reply_to_message: Optional["Message"] = None,
+            client: Optional["Client"] = None,
+            **kwargs
+    ):
+        """Initialize a Message object with the provided attributes.
+
+        Args:
+            message_id: Unique message identifier
+            from_user: Sender of the message
+            date: Date the message was sent in Unix time
+            chat: Conversation the message belongs to
+            text: Text content of the message
+            forward_origin: Original sender of a forwarded message
+            forward_from_chat: Original chat of a forwarded message
+            forward_from_message_id: Message ID in the original chat
+            forward_date: Date when message was forwarded in Unix time
+            edite_date: Date when message was last edited in Unix time
+            animation: Animation content
+            audio: Audio content
+            document: Document content
+            photo: List of photo sizes
+            sticker: Sticker content
+            video: Video content
+            voice: Voice message content
+            caption: Caption for media messages
+            contact: Contact content
+            location: Location content
+            new_chat_members: New members added to the chat
+            left_chat_member: Member removed from the chat
+            invoice: Invoice content
+            successful_payment: Successful payment information
+            web_app_data: Web App data
+            reply_markup: Inline keyboard markup
+            reply_to_message: Reply to message object
+            client: Client instance associated with this message
+            **kwargs: Additional keyword arguments
+        """
+        self.client: Client = kwargs.get("client")
+
+        if not self.client:
+            self.client = client
+
+        if not self.client:
+            self.client = kwargs.get("kwargs", {}).get("client")
+
+        if reply_to_message is not None and isinstance(reply_to_message, dict):
+            reply_to_message['client'] = self.client
+            self.reply_to_message = Message(**pythonize(reply_to_message))
+        else:
+            self.reply_to_message = reply_to_message
+    
+        self.id = message_id
+        self.user: "User" = User(**from_user, client=self.client) if from_user else None
+        self.date = date
+
+        if isinstance(chat, Chat):
+            self.chat: Chat = chat
+        elif chat != None:
+            chat_data = chat.copy()
+            chat_data['client'] = self.client
+            self.chat: Chat = Chat(**chat_data)
+        else:
+            self.chat = None
+        if isinstance(forward_origin, dict):
+            self.forward_origin: Optional["ForwardOrigin"] = ForwardOrigin(**forward_origin, client=self.client)
+        else:
+            self.forward_origin: Optional[Union["ForwardOrigin",dict]] = None
+        self.forward_from_chat: Optional["Chat"] = forward_from_chat
+        self.forward_from_message_id: Optional[int] = forward_from_message_id
+        self.forward_date: Optional[int] = forward_date
+        self.edite_date: Optional[int] = edite_date
+        self.text: Optional[str] = text
+        self.animation: Optional["Animation"] = animation
+        self.audio: Optional["Audio"] = audio
+        self.document: Optional["Document"] = document
+        self.photo: Optional[list["PhotoSize"]] = photo
+        self.sticker: Optional["Sticker"] = sticker
+        self.video: Optional["Video"] = video
+        self.voice: Optional["Voice"] = voice
+        self.caption: Optional[str] = caption
+        self.contact: Optional["Contact"] = contact
+        self.location: Optional["Location"] = location
+        self.new_chat_members: Optional["NewChatMembers"] = new_chat_members
+        self.left_chat_member: Optional["User"] = left_chat_member
+        self.invoice: Optional["Invoice"] = invoice
+        self.successful_payment: Optional["SuccessfulPayment"] = successful_payment
+        self.web_app_data: Optional["WebAppData"] = web_app_data
+        self.reply_markup: Optional["InlineKeyboardMarkup"] = reply_markup
+
+    @property
+    async def is_admin(self):
+        """Check if the message sender is an admin in the chat.
+
+        Returns:
+            bool: True if user is admin or creator, False otherwise
+        """
+        if not self.client or not self.chat or not self.user:
+            return False
+
+        try:
+            member = await self.client.get_chat_member(self.chat.id, self.user.id)
+            return member.status in ['administrator', 'creator']
+        except Exception:
+            return False
+
+    @smart_method
+    async def reply(
+            self,
+            text: str,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply to the current message with text.
+
+        Args:
+            text: The text to send
+            reply_markup: Optional keyboard markup for the message
+
+        Returns:
+            Message: The sent message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_message(
+                self.chat.id,
+                text,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply - chat ID or client is not available")
+
+    @smart_method
+    async def get_chat_member(self) -> "ChatMember":
+        """
+        Gets ChatMember object of a user in chat.
+
+        Returns:
+            ChatMember: chat member object
+        """
+
+        chatmember = await self.chat.get_chat_member(self.user.id)
+        
+        return chatmember
+
+    @smart_method
+    async def edit(
+            self,
+            text: str,
+            reply_markup: Union["InlineKeyboardMarkup", "ReplyKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Edit the current message text.
+
+        Args:
+            text: The new text
+            reply_markup: Optional new keyboard markup
+
+        Returns:
+            Message: The edited message object
+        """
+        if self.chat and self.chat.id and self.id and self.client:
+            message = await self.client.edit_message(
+                self.chat.id, self.id, text, reply_markup=reply_markup
+            )
+            return message
+        raise ValueError("Cannot edit - chat ID, message ID or client is not available")
+
+    @smart_method
+    async def edit_reply_markup(
+            self,
+            reply_markup: "InlineKeyboardMarkup"
+    ):
+        """
+        Edits a message's reply markup without editing content.
+
+        Args:
+            reply_markup: Optional keyboard markup for the message
+        Returns:
+            Message: The edited message object
+
+        """
+
+        if self.chat and self.chat.id and self.id and self.client:
+            message = await self.client.edit_message_reply_markup(
+                self.chat.id, self.id, reply_markup=reply_markup
+            )
+            return message
+    @smart_method
+    async def delete(self) -> bool:
+        """Delete the current message.
+
+        Returns:
+            bool: True if successful
+        """
+        if self.chat and self.chat.id and self.id and self.client:
+            return await self.client.delete_message(self.chat.id, self.id)
+        raise ValueError("Cannot delete - chat ID, message ID or client is not available")
+
+    @smart_method
+    async def forward(self, chat_id: int) -> 'Message':
+        """Forward the current message to another chat.
+
+        Args:
+            chat_id: Destination chat ID
+
+        Returns:
+            Message: The forwarded message object
+        """
+        if self.chat and self.chat.id and self.id and self.client:
+            message = await self.client.forward_message(chat_id, self.chat.id, self.id)
+            return message
+        raise ValueError("Cannot forward - chat ID, message ID or client is not available")
+
+    @smart_method
+    async def reply_photo(
+            self,
+            photo: str,
+            caption: Optional[str] = None,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with a photo to the current message.
+
+        Args:
+            photo: Photo to send (file_id or URL)
+            caption: Optional caption for the photo
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent photo message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_photo(
+                self.chat.id,
+                photo=photo,
+                caption=caption,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply with photo - chat ID or client is not available")
+
+    @smart_method
+    async def reply_video(
+            self,
+            video: str,
+            caption: Optional[str] = None,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with a video to the current message.
+
+        Args:
+            video: Video to send (file_id or URL)
+            caption: Optional caption for the video
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent video message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_video(
+                self.chat.id,
+                video=video,
+                caption=caption,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply with video - chat ID or client is not available")
+
+    @smart_method
+    async def reply_audio(
+            self,
+            audio: str,
+            caption: Optional[str] = None,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with an audio file to the current message.
+
+        Args:
+            audio: Audio to send (file_id or URL)
+            caption: Optional caption for the audio
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent audio message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_audio(
+                self.chat.id,
+                audio=audio,
+                caption=caption,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply with audio - chat ID or client is not available")
+
+    @smart_method
+    async def reply_document(
+            self,
+            document: str,
+            caption: Optional[str] = None,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with a document to the current message.
+
+        Args:
+            document: Document to send (file_id or URL)
+            caption: Optional caption for the document
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent document message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_document(
+                self.chat.id,
+                document=document,
+                caption=caption,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply with document - chat ID or client is not available")
+
+    @smart_method
+    async def reply_location(
+            self,
+            latitude: float,
+            longitude: float,
+            horizontal_accuracy: Optional[float] = None,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with a location to the current message.
+
+        Args:
+            latitude: Latitude of the location
+            longitude: Longitude of the location
+            horizontal_accuracy: The radius of uncertainty for the location
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent location message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_location(
+                self.chat.id,
+                latitude=latitude,
+                longitude=longitude,
+                horizontal_accuracy=horizontal_accuracy,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply with location - chat ID or client is not available")
+
+    @smart_method
+    async def reply_contact(
+            self,
+            phone_number: str,
+            first_name: str,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with a contact to the current message.
+
+        Args:
+            phone_number: Contact's phone number
+            first_name: Contact's first name
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent contact message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_contact(
+                self.chat.id,
+                phone_number=phone_number,
+                first_name=first_name,
+                reply_to_message_id=self.id,
+                reply_markup=reply_markup,
+            )
+            return message
+        raise ValueError("Cannot reply with contact - chat ID or client is not available")
+
+    @smart_method
+    async def reply_invoice(
+            self,
+            title: str,
+            description: str,
+            payload: str,
+            provider_token: str,
+            prices: list,
+            reply_markup: Union["ReplyKeyboardMarkup", "InlineKeyboardMarkup", None] = None,
+    ) -> 'Message':
+        """Reply with an invoice to the current message.
+
+        Args:
+            title: Product name
+            description: Product description
+            payload: Bot-defined invoice payload
+            provider_token: Payment provider token
+            prices: Price breakdown (amount in smallest units)
+            reply_markup: Optional keyboard markup
+
+        Returns:
+            Message: The sent invoice message object
+        """
+        if self.chat and self.chat.id and self.client:
+            message = await self.client.send_invoice(
+                self.chat.id,
+                title=title,
+                description=description,
+                payload=payload,
+                provider_token=provider_token,
+                prices=prices,
+                reply_to_message_id=self.id,
+            )
+            return message
+        raise ValueError("Cannot reply with invoice - chat ID or client is not available")

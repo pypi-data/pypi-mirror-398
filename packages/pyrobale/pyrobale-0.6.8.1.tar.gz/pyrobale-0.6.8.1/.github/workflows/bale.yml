@@ -1,0 +1,125 @@
+name: Send Bale Notification on Commit
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  send-bale-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests tomli
+
+      - name: Get info and send to Bale
+        run: |
+          python3 << 'EOF'
+          import requests
+          import subprocess
+          import os
+          import tomli
+          
+          try:
+              result = subprocess.run(
+                  ['git', 'diff', '--name-only', os.environ['GITHUB_SHA'] + '~1', os.environ['GITHUB_SHA']],
+                  capture_output=True, text=True, check=True
+              )
+              changed_files = [f for f in result.stdout.strip().split('\n') if f]
+          except:
+              changed_files = ["خطا در دریافت تغییرات"]
+          
+          version = "نامشخص"
+          package_name = "نامشخص"
+          
+          try:
+              with open('pyproject.toml', 'rb') as f:
+                  data = tomli.load(f)
+              version = data['project']['version']
+              package_name = data['project']['name']
+          except Exception as e:
+              print(f"Error reading pyproject.toml: {e}")
+          
+          pypi_status = "در حال بررسی..."
+          try:
+              import json
+              import urllib.request
+              import urllib.error
+              
+              url = f"https://pypi.org/pypi/{package_name}/json"
+              req = urllib.request.Request(url)
+              
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      pypi_data = json.load(response)
+                      latest_version = pypi_data['info']['version']
+                      
+                      if version == latest_version:
+                          pypi_status = "این نسخه قبلاً در pypi منتشر شده است."
+                      else:
+                          pypi_status = "این نسخه جدید است و در pypi منتشر خواهد شد."
+              except urllib.error.HTTPError as e:
+                  if e.code == 404:
+                      pypi_status = "این اولین انتشار این پکیج در pypi خواهد بود."
+                  else:
+                      pypi_status = f"خطا در بررسی pypi: {e}"
+          except Exception as e:
+              pypi_status = f"خطا در بررسی وضعیت pypi: {e}"
+          
+          try:
+              commit_msg = subprocess.run(
+                  ['git', 'log', '--format=%B', '-n', '1', os.environ['GITHUB_SHA']],
+                  capture_output=True, text=True, check=True
+              ).stdout.strip()
+          except:
+              commit_msg = "خطا در دریافت پیام کامیت"
+          
+          files_text = "\n".join([f"• {file}" for file in changed_files]) if changed_files else "بدون تغییرات فایل"
+          
+          github_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/commit/{os.environ['GITHUB_SHA']}"
+          
+          message = f"""🎉 *تغییرات جدیدی در مخزن پایروبله ایجاد شد!*
+
+          ```[تغییرات در فایل‌ها]
+          {files_text}
+          ```
+          
+          ```[پیام کامیت]
+          {commit_msg}
+          ```
+
+          *نام پکیج:* {package_name}
+          *نسخه فعلی:* {version}
+          *وضعیت انتشار در pypi:* {pypi_status}
+
+          [*🔗 مشاهده در GitHub*]({github_url})
+
+          🆔 @pyrobale"""
+          
+          bot_token = os.environ['BALE_BOT_TOKEN']
+          chat_id = os.environ['BALE_CHAT_ID']
+          
+          url = f"https://tapi.bale.ai/bot{bot_token}/sendMessage"
+          payload = {
+              "chat_id": chat_id,
+              "text": message,
+          }
+          
+          response = requests.post(url, json=payload)
+          if response.status_code == 200:
+              print("✅ پیام با موفقیت ارسال شد")
+          else:
+              print(f"❌ خطا در ارسال پیام: {response.status_code}")
+              print(response.text)
+          EOF
+        env:
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+          BALE_CHAT_ID: ${{ secrets.BALE_CHAT_ID }}
