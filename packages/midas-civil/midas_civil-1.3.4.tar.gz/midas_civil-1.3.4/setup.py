@@ -1,0 +1,28 @@
+from setuptools import setup,find_packages
+
+with open('README.md','r') as f:
+    description = f.read()
+
+
+setup(name='midas_civil',
+    version="1.3.4",
+    description='Python library for MIDAS Civil NX',
+    author='Sumit Shekhar',
+    author_email='sumit.midasit@gmail.com',
+    packages=find_packages(),
+    install_requires=[
+        'numpy',
+        'polars',
+        'requests',
+        'scipy',
+        'colorama',
+        'openpyxl',
+        'tqdm',
+        'gmsh'
+    ],          
+    long_description= description,
+    long_description_content_type='text/markdown',
+    url='https://github.com/MIDASIT-Co-Ltd/midas-civil-python',
+    keywords=['midas','civil','civil nx','bridge'],
+    license='MIT',
+    )
