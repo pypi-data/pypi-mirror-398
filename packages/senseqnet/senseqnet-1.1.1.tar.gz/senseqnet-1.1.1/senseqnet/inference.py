@@ -1,0 +1,184 @@
+# senseqnet/inference.py
+
+import os
+import torch
+import numpy as np
+from Bio import SeqIO
+import esm
+
+from senseqnet.models import ImprovedLSTMClassifier
+
+MODEL_FILENAME = "SenSeqNet_model.pth"
+ESM_MODEL_NAME = "esm2_t33_650M_UR50D"
+
+def _validate_chunking_settings(max_sequences_per_batch, max_tokens_per_batch, max_residues_per_chunk):
+    if max_sequences_per_batch is not None and max_sequences_per_batch <= 0:
+        raise ValueError("max_sequences_per_batch must be a positive integer.")
+    if max_tokens_per_batch is not None and max_tokens_per_batch <= 2:
+        raise ValueError("max_tokens_per_batch must be greater than 2.")
+    if max_residues_per_chunk is not None and max_residues_per_chunk <= 0:
+        raise ValueError("max_residues_per_chunk must be a positive integer.")
+    if max_tokens_per_batch is None:
+        return max_residues_per_chunk
+    max_chunk_from_tokens = max_tokens_per_batch - 2
+    if max_chunk_from_tokens <= 0:
+        raise ValueError("max_tokens_per_batch is too small to fit BOS/EOS tokens.")
+    if max_residues_per_chunk is None:
+        return max_chunk_from_tokens
+    return min(max_residues_per_chunk, max_chunk_from_tokens)
+
+def _iter_sequence_chunks(sequences, max_residues_per_chunk):
+    for seq_idx, seq in enumerate(sequences):
+        if max_residues_per_chunk is None or len(seq) <= max_residues_per_chunk:
+            yield seq_idx, seq
+            continue
+        for start in range(0, len(seq), max_residues_per_chunk):
+            yield seq_idx, seq[start:start + max_residues_per_chunk]
+
+def _iter_batches(chunks_iter, max_sequences_per_batch, max_tokens_per_batch):
+    batch = []
+    token_budget = 0
+    for seq_idx, chunk_seq in chunks_iter:
+        length = len(chunk_seq) + 2  # BOS/EOS tokens
+        if batch:
+            hit_count_limit = (
+                max_sequences_per_batch is not None and
+                len(batch) >= max_sequences_per_batch
+            )
+            hit_token_limit = (
+                max_tokens_per_batch is not None and
+                token_budget + length > max_tokens_per_batch
+            )
+            if hit_count_limit or hit_token_limit:
+                yield batch
+                batch = []
+                token_budget = 0
+        batch.append((seq_idx, chunk_seq))
+        token_budget += length
+    if batch:
+        yield batch
+
+def load_pretrained_model(device="cuda"):
+    """
+    Initializes the ImprovedLSTMClassifier with your chosen hyperparams,
+    loads the 'SenSeqNet_model.pth' checkpoint, and returns the model in eval mode.
+    """
+
+    checkpoint_path = os.path.join(os.path.dirname(__file__), MODEL_FILENAME)
+
+    input_dim = 1280        # for ESM2_t33_650M_UR50D
+    hidden_dim = 181
+    num_layers = 4
+    dropout_rate = 0.4397133138964481
+    num_classes = 2
+
+    model = ImprovedLSTMClassifier(input_dim, hidden_dim, num_layers, num_classes, dropout_rate)
+    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    model.to(device)
+    model.eval()
+    return model
+
+def extract_esm_features(
+    sequences,
+    device="cuda",
+    max_sequences_per_batch=8,
+    max_tokens_per_batch=2000,
+    max_residues_per_chunk=1000,
+):
+    """
+    Returns an (N, 1280) mean-pooled ESM2 embedding array.
+    Uses chunking and token-budget batching for memory safety.
+    """
+    model_loader = getattr(esm.pretrained, ESM_MODEL_NAME)
+    esm_model, alphabet = model_loader()
+    esm_model = esm_model.to(device)
+    batch_converter = alphabet.get_batch_converter()
+    esm_model.eval()
+    repr_layer = esm_model.num_layers
+
+    chunk_size = _validate_chunking_settings(
+        max_sequences_per_batch,
+        max_tokens_per_batch,
+        max_residues_per_chunk,
+    )
+    embeddings = np.zeros((len(sequences), esm_model.embed_dim), dtype=np.float32)
+    chunk_counts = np.zeros(len(sequences), dtype=np.int32)
+
+    chunks_iter = _iter_sequence_chunks(sequences, chunk_size)
+    for batch in _iter_batches(chunks_iter, max_sequences_per_batch, max_tokens_per_batch):
+        batch_ids = [f"seq{seq_idx}" for seq_idx, _ in batch]
+        batch_seqs = [seq for _, seq in batch]
+        _, _, batch_tokens = batch_converter(list(zip(batch_ids, batch_seqs)))
+        batch_tokens = batch_tokens.to(device)
+
+        with torch.no_grad():
+            results = esm_model(
+                batch_tokens,
+                repr_layers=[repr_layer],
+                return_contacts=False,
+            )
+        token_reps = results["representations"][repr_layer]
+        seq_reps = token_reps[:, 1:-1].mean(dim=1).cpu().numpy()  # (B, 1280)
+
+        for (seq_idx, _), embedding in zip(batch, seq_reps):
+            embeddings[seq_idx] += embedding
+            chunk_counts[seq_idx] += 1
+
+    if not np.all(chunk_counts):
+        missing = np.where(chunk_counts == 0)[0]
+        raise RuntimeError(f"Missing embeddings for sequences: {missing[:10]} ...")
+
+    embeddings /= chunk_counts[:, None]
+    return embeddings
+
+def predict_senescence(
+    fasta_path,
+    device="cuda",
+    max_sequences_per_batch=8,
+    max_tokens_per_batch=2000,
+    max_residues_per_chunk=1000,
+):
+    """
+    1. Reads sequences from a FASTA file
+    2. Extracts ESM2 embeddings
+    3. Loads 'SenSeqNet_model.pth' model in the same folder
+    4. Predicts senescence label (0 or 1)
+    5. Returns a list of dicts
+    """
+    # Read sequences from FASTA
+    seq_records = list(SeqIO.parse(fasta_path, "fasta"))
+    seq_ids = [rec.id for rec in seq_records]
+    seq_strs = [str(rec.seq) for rec in seq_records]
+
+    # Extract embeddings
+    embeddings = extract_esm_features(
+        seq_strs,
+        device=device,
+        max_sequences_per_batch=max_sequences_per_batch,
+        max_tokens_per_batch=max_tokens_per_batch,
+        max_residues_per_chunk=max_residues_per_chunk,
+    )
+
+    # Reshape for LSTM: (N, seq_len=1, 1280)
+    embeddings = embeddings.reshape(-1, 1, embeddings.shape[1])
+    X_torch = torch.tensor(embeddings, dtype=torch.float32).to(device)
+
+    # Load your pretrained LSTM-CNN from SenSeqNet_model.pth
+    model = load_pretrained_model(device=device)
+
+    # Forward pass
+    with torch.no_grad():
+        logits = model(X_torch)  # (N, 2)
+        probs = torch.softmax(logits, dim=1).cpu().numpy()  # (N, 2)
+        preds = np.argmax(probs, axis=1)  # 0 or 1
+
+    # Format results
+    results = []
+    for sid, p, pr0, pr1 in zip(seq_ids, preds, probs[:, 0], probs[:, 1]):
+        results.append({
+            "sequence_id": sid,
+            "prediction_label": int(p),
+            "probability_negative": float(pr0),
+            "probability_positive": float(pr1),
+        })
+    return results
