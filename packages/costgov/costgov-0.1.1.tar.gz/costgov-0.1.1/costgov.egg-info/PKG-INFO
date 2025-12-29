@@ -1,0 +1,246 @@
+Metadata-Version: 2.4
+Name: costgov
+Version: 0.1.1
+Summary: Python SDK for CostGov - Track and govern billable events in your application
+Author-email: CostGov Team <hello@costgov.com>
+License: MIT
+Project-URL: Homepage, https://github.com/costgov/costgov
+Project-URL: Documentation, https://docs.costgov.com
+Project-URL: Repository, https://github.com/costgov/costgov
+Project-URL: Issues, https://github.com/costgov/costgov/issues
+Keywords: costgov,billing,tracking,events,governance,rate-limiting
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: mypy>=0.990; extra == "dev"
+Dynamic: license-file
+
+# CostGov Python SDK
+
+Drop-in cost governance for your Python applications. Track, limit, and optimize billable events in real-time.
+
+[![PyPI version](https://badge.fury.io/py/costgov.svg)](https://badge.fury.io/py/costgov)
+[![Python Versions](https://img.shields.io/pypi/pyversions/costgov.svg)](https://pypi.org/project/costgov/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+## Installation
+
+```bash
+pip install costgov
+```
+
+## Quick Start
+
+```python
+import os
+from costgov import CostGov
+
+# Initialize the client
+client = CostGov(
+    api_key=os.getenv("COSTGOV_API_KEY"),
+    project_id=os.getenv("COSTGOV_PROJECT_ID"),
+)
+
+# Track billable events
+client.track("ai.openai.gpt4", 1500)  # Track 1500 tokens
+client.track("email.send", 1)         # Track 1 email
+client.track("sms.send", 1, metadata={"provider": "twilio"})
+
+# Shutdown when done (flushes remaining events)
+client.shutdown()
+```
+
+## Features
+
+- **Simple API** - Track events with one line of code
+- **Automatic Batching** - Events are batched for efficiency
+- **Auto-flush** - Events are sent automatically at intervals
+- **Context Manager** - Use `with` statement for automatic cleanup
+- **Type Hints** - Full type hint support for better IDE experience
+- **Zero Dependencies** - Only requires `requests` library
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export COSTGOV_API_KEY="cg_prod_xxxxxxxxxxxxx"
+export COSTGOV_PROJECT_ID="proj_xxxxxxxxxxxxx"
+export COSTGOV_API_URL="https://ingest.costgov.com"  # Optional
+```
+
+### Programmatic Configuration
+
+```python
+from costgov import CostGov
+
+client = CostGov(
+    api_key="cg_prod_xxxxx",
+    project_id="proj_xxxxx",
+    api_url="https://ingest.costgov.com",  # Optional
+    batch_size=100,        # Events to batch before sending
+    flush_interval=5.0,    # Seconds between auto-flushes
+)
+```
+
+## Usage Examples
+
+### Basic Tracking
+
+```python
+from costgov import CostGov
+
+client = CostGov()
+
+# Track OpenAI API usage
+client.track("ai.openai.gpt4", token_count)
+
+# Track email sends
+client.track("email.send", 1)
+
+# Track with metadata
+client.track("storage.s3.put", 1, metadata={
+    "bucket": "my-bucket",
+    "size_bytes": 1024
+})
+```
+
+### Context Manager (Recommended)
+
+```python
+from costgov import CostGov
+
+with CostGov() as client:
+    client.track("ai.openai.gpt4", 1500)
+    client.track("email.send", 1)
+    # Automatically flushes and shuts down on exit
+```
+
+### Manual Flush
+
+```python
+client = CostGov()
+
+# Queue events
+client.track("ai.openai.gpt4", 1000)
+client.track("ai.openai.gpt4", 500)
+
+# Force immediate send
+client.flush()
+```
+
+### Error Handling
+
+```python
+from costgov import CostGov, APIError, ConfigError
+
+try:
+    client = CostGov()
+    client.track("ai.openai.gpt4", 1500)
+except ConfigError as e:
+    print(f"Configuration error: {e}")
+except APIError as e:
+    print(f"API error: {e} (status: {e.status_code})")
+```
+
+## API Reference
+
+### `CostGov(api_key, project_id, api_url, batch_size, flush_interval)`
+
+Initialize the CostGov client.
+
+**Parameters:**
+- `api_key` (str, optional): Your API key. Defaults to `COSTGOV_API_KEY` env var
+- `project_id` (str, optional): Your project ID. Defaults to `COSTGOV_PROJECT_ID` env var
+- `api_url` (str, optional): API endpoint. Defaults to `COSTGOV_API_URL` or `http://localhost:3001`
+- `batch_size` (int, optional): Max events to batch. Default: 100
+- `flush_interval` (float, optional): Seconds between flushes. Default: 5.0
+
+### `track(metric, units, metadata=None)`
+
+Track a billable event.
+
+**Parameters:**
+- `metric` (str): Event metric name (e.g., "ai.openai.gpt4")
+- `units` (float): Number of units consumed
+- `metadata` (dict, optional): Additional event metadata
+
+**Returns:** `bool` - True if event was queued successfully
+
+### `flush()`
+
+Flush all queued events immediately.
+
+**Returns:** `bool` - True if flush was successful
+
+**Raises:** `APIError` if the request fails
+
+### `shutdown()`
+
+Flush remaining events and clean up resources. Called automatically on exit.
+
+## Best Practices
+
+1. **Use Context Manager**
+   ```python
+   with CostGov() as client:
+       client.track("ai.openai.gpt4", tokens)
+   ```
+
+2. **Handle Errors Gracefully**
+   ```python
+   try:
+       client.track("ai.openai.gpt4", tokens)
+   except APIError:
+       # Log error but don't break your app
+       pass
+   ```
+
+3. **Set Environment Variables**
+   ```python
+   # Don't hardcode credentials
+   client = CostGov()  # Uses env vars
+   ```
+
+4. **Call Shutdown on Exit**
+   ```python
+   import atexit
+   
+   client = CostGov()
+   atexit.register(client.shutdown)
+   ```
+
+## Requirements
+
+- Python 3.7+
+- `requests` library
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## Support
+
+- **Documentation:** https://docs.costgov.com
+- **Issues:** https://github.com/costgov/costgov/issues
+- **Email:** hello@costgov.com
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
