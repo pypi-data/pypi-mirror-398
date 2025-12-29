@@ -1,0 +1,32 @@
+import json
+
+
+class UserManagementService:
+    def __init__(self, app):
+        """
+        :type app: metasdk.MetaApp
+        """
+        self.__app = app
+        self.__options = {}
+
+    def send_recovery_notice(self, login, app_alias, state=None):
+        """
+        Выслать письмо о восстановлении пароля
+        """
+        data = {
+            "login": login,
+            "appAlias": app_alias,
+            "state": state,
+        }
+        response = self.__app.native_api_call(
+            service="user-management",
+            method="sendRecoveryNotice",
+            data=data,
+            options=self.__options,
+            multipart_form=False,
+            multipart_form_data=None,
+            stream=False,
+            http_path="/api/meta/v1/",
+            http_method="POST",
+        )
+        return json.loads(response.text)
