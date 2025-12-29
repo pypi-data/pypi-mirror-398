@@ -1,0 +1,170 @@
+"""
+Backend implementations for local execution (direct, threading, multiprocessing).
+
+Warning: This module is intended for internal use only.
+"""
+
+import asyncio
+import inspect
+import os
+import sys
+from concurrent.futures import Future
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable
+from uuid import UUID
+
+from pluggy import PluginManager
+from typing_extensions import override
+
+from daglite.backends.base import Backend
+from daglite.backends.context import set_execution_context
+from daglite.plugins.manager import deserialize_plugin_manager
+from daglite.plugins.manager import serialize_plugin_manager
+from daglite.plugins.reporters import DirectReporter
+from daglite.plugins.reporters import EventReporter
+from daglite.plugins.reporters import ProcessReporter
+from daglite.settings import get_global_settings
+
+
+class SequentialBackend(Backend):
+    """Executes immediately in current thread/process, returns completed futures."""
+
+    @override
+    def _get_reporter(self) -> DirectReporter:
+        return DirectReporter(self._event_processor.dispatch)
+
+    @override
+    def _submit_impl(
+        self, func: Callable[[dict[str, Any]], Any], inputs: dict[str, Any], **kwargs: Any
+    ) -> Future[Any]:
+        future: Future[Any] = Future()
+
+        # Set execution context for immediate execution (runs in main thread)
+        # Context cleanup happens when backend stops, not per-task
+        set_execution_context(self._plugin_manager, self._reporter)
+
+        try:
+            result = func(inputs, **kwargs)
+            future.set_result(result)
+        except Exception as e:
+            future.set_exception(e)
+
+        return future
+
+
+class ThreadBackend(Backend):
+    """Executes in thread pool, returns pending futures."""
+
+    _executor: ThreadPoolExecutor
+
+    @override
+    def _get_reporter(self) -> DirectReporter:
+        # Threads run in same process - use DirectReporter with dispatcher
+        return DirectReporter(self._event_processor.dispatch)
+
+    @override
+    def _start(self) -> None:
+        settings = get_global_settings()
+        max_workers = settings.max_backend_threads
+
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            initializer=_thread_initializer,
+            initargs=(self._plugin_manager, self._reporter),
+        )
+
+    @override
+    def _stop(self) -> None:
+        self._executor.shutdown(wait=True)
+
+    @override
+    def _submit_impl(
+        self, func: Callable[[dict[str, Any]], Any], inputs: dict[str, Any], **kwargs: Any
+    ) -> Future[Any]:
+        if inspect.iscoroutinefunction(func):
+            return self._executor.submit(_run_coroutine_in_worker, func, inputs, **kwargs)
+        return self._executor.submit(func, inputs, **kwargs)
+
+
+class ProcessBackend(Backend):
+    """Executes in process pool, returns pending futures."""
+
+    _executor: ProcessPoolExecutor
+    _reporter_id: UUID
+    _mp_context: Any  # BaseContext, but we can't import it at class level
+
+    @override
+    def _get_reporter(self) -> ProcessReporter:
+        from multiprocessing import Queue
+        from multiprocessing import get_context
+
+        # NOTE: Coverage only runs on Linux CI runners
+        if os.name == "nt" or sys.platform == "darwin":  # pragma: no cover
+            # Use 'spawn' on Windows (required) and macOS (fork deprecated)
+            self._mp_context = get_context("spawn")
+        elif (
+            sys.version_info >= (3, 13)
+            and sys.version_info < (3, 14)
+            and not getattr(sys, "_is_gil_enabled", lambda: True)()
+        ):  # pragma: no cover
+            # Use 'spawn' for Python 3.13t (free-threaded builds with GIL disabled). Fork is
+            # incompatible with free-threading in 3.13t, causing hangs. Python 3.14 defaults to
+            # 'forkserver', so this workaround is only needed for 3.13t.
+            self._mp_context = get_context("spawn")
+        else:
+            # Use 'fork' on Linux (explicit, since Python 3.14 changed default to forkserver)
+            self._mp_context = get_context("fork")
+
+        # NOTE: We need to defer Queue creation until we know the context
+        queue: Queue[Any] = self._mp_context.Queue()
+        return ProcessReporter(queue)
+
+    @override
+    def _start(self) -> None:
+        settings = get_global_settings()
+        max_workers = settings.max_parallel_processes
+
+        # Use the mp_context that was already determined in _get_reporter
+        # Use the mp_context that was already determined in _get_reporter
+        assert isinstance(self._reporter, ProcessReporter)
+        self._reporter_id = self._event_processor.add_source(self._reporter.queue)
+        serialized_pm = serialize_plugin_manager(self._plugin_manager)
+        self._executor = ProcessPoolExecutor(
+            max_workers=max_workers,
+            mp_context=self._mp_context,
+            initializer=_process_initializer,
+            initargs=(serialized_pm, self._reporter.queue),
+        )
+
+    @override
+    def _stop(self) -> None:
+        self._executor.shutdown(wait=True)
+        self._event_processor.flush()  # Before removing source
+        self._event_processor.remove_source(self._reporter_id)
+
+        assert isinstance(self._reporter, ProcessReporter)
+        self._reporter.queue.close()
+
+    @override
+    def _submit_impl(self, func, inputs: dict[str, Any], **kwargs: Any) -> Future[Any]:
+        if inspect.iscoroutinefunction(func):
+            return self._executor.submit(_run_coroutine_in_worker, func, inputs, **kwargs)
+        return self._executor.submit(func, inputs, **kwargs)
+
+
+def _thread_initializer(plugin_manager: PluginManager, reporter: EventReporter) -> None:
+    """Initializer for thread pool workers to set execution context."""
+    set_execution_context(plugin_manager, reporter)
+
+
+def _run_coroutine_in_worker(func: Callable, inputs: dict[str, Any], **kwargs: Any) -> Any:
+    """Run an async function to completion in a worker thread/process."""
+    return asyncio.run(func(inputs, **kwargs))
+
+
+def _process_initializer(serialized_plugin_manager: dict, queue) -> None:  # pragma: no cover
+    """Initializer for process pool workers to set execution context."""
+    plugin_manager = deserialize_plugin_manager(serialized_plugin_manager)
+    reporter = ProcessReporter(queue)
+    set_execution_context(plugin_manager, reporter)
