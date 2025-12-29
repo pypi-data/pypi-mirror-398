@@ -1,0 +1,133 @@
+name: Continuous Testing and Docs Publication
+
+on: [push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-linter:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.10.13"]
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run pre-commit hooks
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
+
+  publish-py-package:
+    needs: [run-linter]
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Checkout actions repository
+        uses: actions/checkout@v4
+        with:
+          repository: Exabyte-io/actions
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          path: actions
+
+      - name: Publish python release
+        uses: ./actions/py/publish
+        with:
+          python-version: 3.10.x
+          github-token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          pypi-api-token: ${{ secrets.PYPI_API_TOKEN }}
+
+# TODO: Add back when when fixed.
+#  build-and-deploy-docs:
+#    runs-on: ubuntu-24.04
+#    strategy:
+#      matrix:
+#        python-version: ["3.8.6"]
+#    env:
+#      ACCOUNT_ID: ${{ secrets.DEMO_ACCOUNT_ID }}
+#      AUTH_TOKEN: ${{ secrets.DEMO_AUTH_TOKEN }}
+#      MATERIALS_PROJECT_API_KEY: ${{ secrets.MATERIALS_PROJECT_API_KEY }}
+#      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#      DOCS_MAT3RA_COM_CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.DOCS_MAT3RA_COM_CLOUDFRONT_DISTRIBUTION_ID }}
+#    defaults:
+#      run:
+#        shell: bash -l {0}
+#
+#    steps:
+#      - name: Checkout this repository
+#        uses: actions/checkout@v3
+#        with:
+#          lfs: true
+#
+#      - uses: actions/setup-python@v4
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#
+#      - name: Install dependencies
+#        run: |
+#          set -euo pipefail
+#
+#          python -m pip install -ve ".[localhost, docs]"
+#          python -m pip list
+#
+#      - name: Export requirements.txt
+#        run: |
+#          pip install pip-tools
+#          for extra in colab localhost dev docs; do
+#              python -m piptools compile --resolver=backtracking --extra ${extra} -o requirements-${extra}.txt pyproject.toml
+#          done
+#
+#      - name: Build documentation
+#        run : |
+#          mkdocs build -d site
+#
+#      - uses: actions/upload-artifact@v3
+#        with:
+#          name: rendered-notebooks-py${{ matrix.python-version }}
+#          path: site
+#      - uses: actions/upload-artifact@v3
+#        with:
+#          name: requirements-py${{ matrix.python-version }}
+#          path: requirements-*.txt
+#
+#      - name: Deploy documentation to Exabyte-io.github.io
+#        if: github.repository_owner == 'Exabyte-io' && github.ref_name == 'dev' && matrix.python-version == '3.8'
+#        # We pin to the SHA, not the tag, for security reasons.
+#        # https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/security-hardening-for-github-actions#using-third-party-actions
+#        uses: peaceiris/actions-gh-pages@bbdfb200618d235585ad98e965f4aafc39b4c501  # v3.7.3
+#        with:
+#          github_token: ${{ secrets.GITHUB_TOKEN }}
+#          publish_branch: dev-with-documentation
+#          publish_dir: ./site
+#          destination_dir: ./docs
+#          keep_files: true  # Keep old files.
+#          force_orphan: false  # Keep git history.
+#
+#      - name: S3 Deploy
+#        if: github.repository_owner == 'Exabyte-io' && github.ref_name == 'dev' && matrix.python-version == '3.8'
+#        uses: Exabyte-io/action-s3-deploy@v3
+#        with:
+#          folder: site
+#          bucket: docs.mat3ra.com/rest-api/api-examples/rendered-notebooks
+#          bucket-region: us-west-2
+#          dist-id: ${{ env.DOCS_MAT3RA_COM_CLOUDFRONT_DISTRIBUTION_ID }}
+#          invalidation: /*
+#          no-cache: true
+#          private: true
