@@ -1,0 +1,281 @@
+#include "svg_diagram.h"
+
+#include <format>
+#include <fstream>
+#include <unordered_set>
+using namespace std;
+using namespace svg_diagram;
+
+void SVGDiagram::enableDebug() {
+    _enabledDebug = true;
+}
+
+void SVGDiagram::clearSVGDraw() {
+    _svgDraws.clear();
+}
+
+void SVGDiagram::addSVGDraw(std::unique_ptr<SVGDraw> svgDraw) {
+    _svgDraws.emplace_back(std::move(svgDraw));
+}
+
+void SVGDiagram::addSVGDraw(std::vector<std::unique_ptr<SVGDraw>>& svgDraws) {
+    for (auto& svgDraw : svgDraws) {
+        _svgDraws.emplace_back(std::move(svgDraw));
+    }
+}
+
+void SVGDiagram::setCanvasSize(const int width, const int height) {
+    _width = width;
+    _height = height;
+}
+
+void SVGDiagram::setBackgroundColor(const std::string& backgroundColor) {
+    _backgroundColor = backgroundColor;
+}
+
+void SVGDiagram::setFixedViewBox(const double x0, const double y0, const double width, const double height) {
+    _viewBoxX = x0;
+    _viewBoxY = y0;
+    _width = width;
+    _height = height;
+    _isFixedViewBox = true;
+}
+
+void SVGDiagram::setRotation(const double angle) {
+    _rotation = angle;
+    _hasRotationCenter = false;
+}
+
+void SVGDiagram::setRotation(const double angle, const double cx, const double cy) {
+    _rotation = angle;
+    _rotationCX = cx;
+    _rotationCY = cy;
+    _hasRotationCenter = true;
+}
+
+SVGNode& SVGDiagram::defaultNodeAttributes() {
+    return _graph.defaultNodeAttributes();
+}
+
+SVGEdge& SVGDiagram::defaultEdgeAttributes() {
+    return _graph.defaultEdgeAttributes();
+}
+
+const shared_ptr<SVGNode>& SVGDiagram::addNode(const string& id) {
+    if (_nodes.contains(id)) {
+        throw runtime_error("SVGDiagram::addNode: Node ID already exists");
+    }
+    auto node = make_shared<SVGNode>();
+    node->setID(id);
+    _graph.addNode(node);
+    return _nodes[id] = node;
+}
+
+void SVGDiagram::addNode(const string& id, shared_ptr<SVGNode>& node) {
+    if (_nodes.contains(id)) {
+        throw runtime_error("SVGDiagram::addNode: Node ID already exists");
+    }
+    node->setID(id);
+    _nodes[id] = node;
+    _graph.addNode(node);
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addEdge(const string& id) {
+    if (_edges.contains(id)) {
+        throw runtime_error("SVGDiagram::addEdge: Edge ID already exists");
+    }
+    auto edge = make_shared<SVGEdge>();
+    edge->setID(id);
+    _graph.addEdge(edge);
+    return _edges[id] = edge;
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addEdge(const string& from, const string& to) {
+    const auto id = newEdgeId();
+    const auto& edge = addEdge(id);
+    edge->setConnection(from, to);
+    return edge;
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addSelfLoop(const string& nodeId, const double dir, const double height, const double angle) {
+    const auto id = newEdgeId();
+    const auto& edge = addEdge(id);
+    edge->setConnection(nodeId, nodeId);
+    edge->setSelfLoopAttributes(dir, height, angle);
+    return edge;
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addSelfLoopToTop(const string& nodeId, const double height, const double angle) {
+    return addSelfLoop(nodeId, 90, height, angle);
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addSelfLoopToBottom(const string& nodeId, const double height, const double angle) {
+    return addSelfLoop(nodeId, -90, height, angle);
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addSelfLoopToLeft(const string& nodeId, const double height, const double angle) {
+    return addSelfLoop(nodeId, 180, height, angle);
+}
+
+const shared_ptr<SVGEdge>& SVGDiagram::addSelfLoopToRight(const string& nodeId, const double height, const double angle) {
+    return addSelfLoop(nodeId, 0, height, angle);
+}
+
+void SVGDiagram::addEdge(const string& id, shared_ptr<SVGEdge>& edge) {
+    if (_edges.contains(id)) {
+        throw runtime_error("SVGDiagram::addEdge: Edge ID already exists");
+    }
+    edge->setID(id);
+    _edges[id] = edge;
+    _graph.addEdge(edge);
+}
+
+void SVGDiagram::addEdge(shared_ptr<SVGEdge>& edge) {
+    const auto id = newEdgeId();
+    addEdge(id, edge);
+}
+
+const shared_ptr<SVGGraph>& SVGDiagram::addSubgraph(const string& id) {
+    if (_subgraphs.contains(id)) {
+        throw runtime_error("SVGDiagram::addSubgraph: Subgraph ID already exists");
+    }
+    auto graph = make_shared<SVGGraph>();
+    graph->setID(id);
+    _graph.addSubgraph(graph);
+    return _subgraphs[id] = graph;
+}
+
+void SVGDiagram::addSubgraph(const string& id, shared_ptr<SVGGraph>& subgraph) {
+    if (_subgraphs.contains(id)) {
+        throw runtime_error("SVGDiagram::addSubgraph: Subgraph ID already exists");
+    }
+    subgraph->setID(id);
+    _subgraphs[id] = subgraph;
+    _graph.addSubgraph(subgraph);
+}
+
+string SVGDiagram::render() {
+    _graph.setAttributeIfNotExist(ATTR_KEY_ID, "graph0");
+    produceSVGDrawsDynamic();
+    const auto [svgElement, gElement] = generateSVGElement();
+    unordered_set<string> singletonNames;
+    for (const auto& draw : _svgDraws) {
+        gElement->addChildren(draw->generateXMLElements());
+    }
+    for (const auto& draw : _svgDrawsDynamic) {
+        gElement->addChildren(draw->generateXMLElements());
+    }
+    return svgElement->toString();
+}
+
+void SVGDiagram::render(const string &filePath) {
+    ofstream file(filePath);
+    file << render();
+    file.close();
+}
+
+string SVGDiagram::newEdgeId() {
+    string newEdgeId;
+    while (true) {
+        newEdgeId = format("edge{}", _edgeIndex++);
+        if (!_edges.contains(newEdgeId)) {
+            break;
+        }
+    }
+    return newEdgeId;
+}
+
+void SVGDiagram::produceSVGDrawsDynamic() {
+    if (_enabledDebug) {
+        _graph.enableDebug();
+    }
+    for (const auto& node : _graph.findNodes()) {
+        if (!_nodes.contains(node->id())) {
+            _nodes[node->id()] = node;
+        }
+    }
+    _svgDrawsDynamic = _graph.produceSVGDraws(_nodes);
+}
+
+pair<XMLElement::ChildType, XMLElement::ChildType> SVGDiagram::generateSVGElement() const {
+    double width = _width, height = _height;
+    double minX = 0.0, maxX = 0.0, minY = 0.0, maxY = 0.0;
+    bool firstEntity = true;
+    const auto updateMinMax = [&](const std::vector<std::unique_ptr<SVGDraw>>& svgDraws) {
+        for (const auto& draw : svgDraws) {
+            if (draw->hasEntity()) {
+                const auto boundingBox = draw->boundingBox();
+                if (firstEntity) {
+                    firstEntity = false;
+                    minX = boundingBox.x1;
+                    minY = boundingBox.y1;
+                    maxX = boundingBox.x2;
+                    maxY = boundingBox.y2;
+                } else {
+                    minX = min(minX, boundingBox.x1);
+                    minY = min(minY, boundingBox.y1);
+                    maxX = max(maxX, boundingBox.x2);
+                    maxY = max(maxY, boundingBox.y2);
+                }
+            }
+        }
+    };
+    updateMinMax(_svgDraws);
+    updateMinMax(_svgDrawsDynamic);
+    double translateX = _margin.first - minX;
+    double translateY = _margin.second - minY;
+    if (width == 0.0) {
+        width = maxX - minX + _margin.first * 2.0;
+    } else {
+        translateX = (width - maxX - minX) / 2.0;
+    }
+    if (height == 0.0) {
+        height = maxY - minY + _margin.second * 2.0;
+    } else {
+        translateY = (height - maxY - minY) / 2.0;
+    }
+    const auto svgElement = make_shared<XMLElement>("svg");
+    svgElement->addAttribute("width", width);
+    svgElement->addAttribute("height", height);
+    if (_isFixedViewBox) {
+        svgElement->addAttribute("viewBox", format("{} {} {} {}", _viewBoxX, _viewBoxY, width, height));
+    } else {
+        svgElement->addAttribute("viewBox", format("0 0 {} {}", width, height));
+    }
+    svgElement->addAttribute("xmlns", "http://www.w3.org/2000/svg");
+    svgElement->addAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    svgElement->addChild(make_shared<XMLElementComment>("Generated by: https://github.com/CyberZHG/SVGDiagram"));
+    const auto gElement = make_shared<XMLElement>("g");
+    gElement->addAttribute("id", "graph0");
+    gElement->addAttribute("class", "graph");
+    string rotation;
+    if (_rotation != 0.0) {
+        double cx = _rotationCX, cy = _rotationCY;
+        if (!_hasRotationCenter) {
+            if (_isFixedViewBox) {
+                cx = _viewBoxX + width / 2.0;
+                cy = _viewBoxY + height / 2.0;
+            } else {
+                cx = (minX + maxX) / 2.0;
+                cy = (minY + maxY) / 2.0;
+            }
+        }
+        rotation = format(" rotate({},{},{})", _rotation, cx, cy);
+    }
+    if (_isFixedViewBox) {
+        gElement->addAttribute("transform", format("scale(1.0){}", rotation));
+    } else {
+        gElement->addAttribute("transform", format("translate({},{}) scale(1.0){}", translateX, translateY, rotation));
+    }
+    if (!_backgroundColor.empty()) {
+        const auto rectElement = make_shared<XMLElement>("rect");
+        rectElement->addAttribute("x", -translateX);
+        rectElement->addAttribute("y", -translateY);
+        rectElement->addAttribute("width", width);
+        rectElement->addAttribute("height", height);
+        rectElement->addAttribute("fill", _backgroundColor);
+        gElement->addChild(rectElement);
+    }
+    svgElement->addChild(gElement);
+    return {svgElement, gElement};
+}

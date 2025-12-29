@@ -1,0 +1,37 @@
+#ifndef SVGDIAGRAM_GEOMETRY_UTILS_H
+#define SVGDIAGRAM_GEOMETRY_UTILS_H
+
+#include <optional>
+#include <utility>
+#include <vector>
+
+namespace svg_diagram {
+
+    class GeometryUtils {
+    public:
+        static constexpr double EPSILON = 1e-9;
+
+        using Point2D = std::pair<double, double>;
+
+        static double distance(double x, double y);
+        static double distance(const Point2D &p);
+        static double distance(const Point2D &p1, const Point2D &p2);
+        static double distance(double x1, double y1, double x2, double y2);
+        static Point2D normalize(double x, double y);
+
+        static double cross(double x1, double y1, double x2, double y2);
+        static bool isSameAngle(double angle, double x1, double y1);
+        static std::optional<Point2D> intersect(double angle, double x1, double y1, double x2, double y2);
+
+        static Point2D computeBezierDerivative(const Point2D& p0, const Point2D& p1, const Point2D& p2, const Point2D& p3, double t);
+        static Point2D computeBezierDerivative(const std::vector<Point2D>& points, double t);
+        static double computeBezierLength(const Point2D& p0, const Point2D& p1, const Point2D& p2, const Point2D& p3);
+        static Point2D computeBezierAt(const Point2D& p0, const Point2D& p1, const Point2D& p2, const Point2D& p3, double t);
+        static Point2D computeBezierAt(const std::vector<Point2D>& points, double t);
+        static std::pair<double, Point2D> findPointOnBezierWithL2Distance(const Point2D& p0, const Point2D& p1, const Point2D& p2, const Point2D& p3, const Point2D& target, double dist);
+        static std::pair<std::vector<Point2D>, std::vector<Point2D>> splitBezierAt(const std::vector<Point2D>& points, double t);
+    };
+
+}
+
+#endif //SVGDIAGRAM_GEOMETRY_UTILS_H
