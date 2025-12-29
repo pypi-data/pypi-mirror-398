@@ -1,0 +1,283 @@
+Metadata-Version: 2.4
+Name: axonate-esign-sdk
+Version: 1.2.1
+Summary: Python SDK for Indian eSign (Digital Signature) Integration
+Home-page: https://axonatetech.com/
+Author: Axonate Tech
+Author-email: Axonate Tech <info@axonatetech.com>
+License: MIT
+Project-URL: Homepage, https://axonatetech.com/
+Keywords: esign,digital-signature,india,aadhaar,pdf-signing,cryptography,axonate
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Security :: Cryptography
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: PyPDF2>=3.0.0
+Requires-Dist: reportlab>=4.0.0
+Requires-Dist: lxml>=4.9.0
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: requests>=2.31.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Provides-Extra: xml-signing
+Requires-Dist: managex-xml-sdk>=1.0.0; extra == "xml-signing"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Axonate eSign SDK
+
+**Python SDK for Indian eSign (Digital Signature) Integration**
+
+A comprehensive, production-ready Python SDK for integrating Indian Government's eSign service (Digital Signature) into your applications. Supports eSign API v2.1 and v3.3.
+
+## Features
+
+✅ **PDF Signing** - Create placeholder signatures and embed PKCS7 signatures
+✅ **XML Request Builder** - Generate eSign-compliant XML requests
+✅ **Easy Integration** - Simple API, minimal configuration
+✅ **Type Hints** - Full type annotations for better IDE support
+✅ **Production Ready** - Used in production by multiple applications
+
+## Installation
+
+```bash
+pip install axonate-esign-sdk
+```
+
+For XML signing support:
+```bash
+pip install axonate-esign-sdk[xml-signing]
+```
+
+## Quick Start
+
+### 1. Create Placeholder PDF with Signature Field
+
+```python
+from esign_sdk import ESignSDK
+
+# Initialize SDK
+sdk = ESignSDK()
+
+# Create placeholder PDF with signature field
+hash_value = sdk.create_placeholder(
+    input_pdf="document.pdf",
+    output_pdf="placeholder.pdf",
+    signer_name="John Doe",
+    reason="Document Approval",
+    location="New Delhi",
+    page_number=1,
+    coordinates=(100, 700, 300, 750)  # (llx, lly, urx, ury)
+)
+
+print(f"Document Hash: {hash_value}")
+```
+
+### 2. Build eSign XML Request
+
+```python
+# Build XML request for eSign gateway
+xml_request = sdk.build_xml_request(
+    asp_id="your_asp_id",
+    transaction_id="unique_txn_id",
+    document_hash=hash_value,
+    document_info="Important Document",
+    callback_url="https://your-server.com/callback",
+    auth_mode="1"  # OTP-based authentication
+)
+
+print(xml_request)
+```
+
+### 3. Embed Signature After eSign Response
+
+```python
+# After receiving eSign gateway response with PKCS7 signature
+sdk.embed_signature(
+    placeholder_pdf="placeholder.pdf",
+    output_pdf="signed.pdf",
+    pkcs7_signature="<base64_encoded_pkcs7>",
+    field_name="signature_field_1"
+)
+
+print("PDF signed successfully!")
+```
+
+## Complete Workflow Example
+
+```python
+from esign_sdk import ESignSDK
+import requests
+
+# Initialize SDK
+sdk = ESignSDK()
+
+# Step 1: Create placeholder
+hash_value = sdk.create_placeholder(
+    input_pdf="contract.pdf",
+    output_pdf="contract_placeholder.pdf",
+    signer_name="Alice Johnson",
+    reason="Contract Signing",
+    location="Mumbai"
+)
+
+# Step 2: Build XML request
+xml_request = sdk.build_xml_request(
+    asp_id="mycompany_asp",
+    transaction_id="TXN123456",
+    document_hash=hash_value,
+    document_info="Employment Contract",
+    callback_url="https://myapp.com/esign/callback"
+)
+
+# Step 3: Post to eSign gateway
+response = requests.post(
+    "https://demo.esign.digital/esign/2.1/signdoc/",
+    data={'esigndoc': xml_request}
+)
+
+# Step 4: User completes OTP on eSign portal
+# Step 5: Receive callback with PKCS7 signature
+
+# Step 6: Embed signature (in callback handler)
+def handle_callback(request_data):
+    pkcs7_sig = extract_signature_from_response(request_data)
+
+    sdk.embed_signature(
+        placeholder_pdf="contract_placeholder.pdf",
+        output_pdf="contract_signed.pdf",
+        pkcs7_signature=pkcs7_sig
+    )
+
+    return "Signature embedded successfully"
+```
+
+## Configuration
+
+### ASP Configuration
+
+```python
+from esign_sdk import ESignSDK, Config
+
+config = Config(
+    asp_id="your_asp_id",
+    auth_mode="1",  # 1=OTP, 2=Biometric, 3=Both
+    response_sig_type="PKCS7",
+    gateway_url="https://demo.esign.digital/esign/2.1/signdoc/"
+)
+
+sdk = ESignSDK(config)
+```
+
+### PDF Signature Appearance
+
+```python
+# Customize signature appearance
+hash_value = sdk.create_placeholder(
+    input_pdf="document.pdf",
+    output_pdf="placeholder.pdf",
+    signer_name="Jane Smith",
+    reason="Approval",
+    location="Delhi",
+    page_number=1,
+    coordinates=(50, 50, 250, 150),  # Position and size
+    lock_pdf=True,  # Lock PDF after signing
+    visible=True    # Make signature visible
+)
+```
+
+## API Reference
+
+### ESignSDK Class
+
+Main SDK class for eSign operations.
+
+#### `create_placeholder()`
+Creates PDF with empty signature field and returns document hash.
+
+**Parameters:**
+- `input_pdf` (str): Path to input PDF
+- `output_pdf` (str): Path for output PDF
+- `signer_name` (str): Name of signer
+- `reason` (str): Reason for signing
+- `location` (str): Location of signing
+- `page_number` (int, optional): Page number (default: 1)
+- `coordinates` (tuple, optional): (llx, lly, urx, ury)
+- `lock_pdf` (bool, optional): Lock PDF after signing
+- `visible` (bool, optional): Make signature visible
+
+**Returns:** Document hash (str)
+
+#### `build_xml_request()`
+Builds eSign-compliant XML request.
+
+**Parameters:**
+- `asp_id` (str): ASP ID from eSign provider
+- `transaction_id` (str): Unique transaction ID
+- `document_hash` (str): Document hash from create_placeholder()
+- `document_info` (str): Document description
+- `callback_url` (str): Webhook URL for response
+- `auth_mode` (str, optional): Authentication mode (default: "1")
+- `ekyc_id` (str, optional): Aadhaar number (if required)
+
+**Returns:** XML request string
+
+#### `embed_signature()`
+Embeds PKCS7 signature in placeholder PDF.
+
+**Parameters:**
+- `placeholder_pdf` (str): Path to placeholder PDF
+- `output_pdf` (str): Path for signed PDF
+- `pkcs7_signature` (str): Base64-encoded PKCS7 signature
+- `field_name` (str, optional): Signature field name
+
+**Returns:** None
+
+## Requirements
+
+- Python 3.8+
+- PyPDF2 >= 3.0.0
+- reportlab >= 4.0.0
+- lxml >= 4.9.0
+- cryptography >= 41.0.0
+- requests >= 2.31.0
+
+## License
+
+MIT License
+
+Copyright (c) 2025 Axonate Tech
+
+## Support
+
+For support and queries:
+- Email: info@axonatetech.com
+- Website: https://axonatetech.com/
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests.
+
+## Changelog
+
+### v1.0.0 (2025-01-01)
+- Initial release
+- Support for eSign API v2.1 and v3.3
+- Pure Python implementation
+- PDF placeholder creation
+- XML request building
+- PKCS7 signature embedding
