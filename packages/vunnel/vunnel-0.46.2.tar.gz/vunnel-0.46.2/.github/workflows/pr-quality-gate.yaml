@@ -1,0 +1,187 @@
+name: "PR Quality Gate"
+on:
+  pull_request:
+    types:
+      # default types...
+      - opened
+      - synchronize
+      - reopened
+      # custom types...
+      - labeled
+
+permissions:
+  contents: read
+
+jobs:
+  select-providers:
+    runs-on: runs-on=${{ github.run_id }}/runner=small
+    outputs:
+      providers: ${{ steps.determine-providers.outputs.providers }}
+      multicore-providers: ${{ steps.split-providers.outputs.multicore-providers }}
+      other-providers: ${{ steps.split-providers.outputs.other-providers }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          # in order to properly resolve the version from git
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bootstrap environment
+        uses: ./.github/actions/bootstrap
+        with:
+          tools: false
+
+      - name: Determine providers
+        id: determine-providers
+        run: |
+          # be nice to folks troubleshooting in CI...
+          cd tests/quality
+          make show-changes
+
+          # determine which providers to run (to later populate the matrix)
+          content=`make select-providers`
+          echo $content
+          echo "providers=$content" >> $GITHUB_OUTPUT
+
+      - name: Split providers by concurrency needs
+        id: split-providers
+        run: |
+          cd tests/quality
+          # use vunnel's tag system to split providers by concurrency needs
+          multicore_providers=$(make select-providers TAG=multicore)
+          other_providers=$(make select-providers TAG='!multicore')
+          echo "multicore-providers=$multicore_providers" >> $GITHUB_OUTPUT
+          echo "other-providers=$other_providers" >> $GITHUB_OUTPUT
+
+  validate-provider-multicore:
+    runs-on: runs-on=${{ github.run_id }}-multicore-${{ strategy.job-index }}/cpu=32/volume=80gb:gp3/family=r8+m8+r7+r6i+r6a+m7+m6i+m6a
+    timeout-minutes: 480
+    needs: select-providers
+    if: contains(github.event.pull_request.labels.*.name, 'run-pr-quality-gate') && needs.select-providers.outputs.multicore-providers != '[]'
+
+    strategy:
+      matrix:
+        provider: ${{fromJson(needs.select-providers.outputs.multicore-providers)}}
+      fail-fast: false
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          # in order to properly resolve the version from git
+          fetch-depth: 0
+          # we need submodules for the quality gate to work (requires vulnerability-match-labels repo)
+          submodules: true
+          persist-credentials: false
+
+      - name: Bootstrap environment
+        uses: ./.github/actions/bootstrap
+        with:
+          go: true
+
+      - name: Run quality gate
+        uses: ./.github/actions/quality-gate
+        with:
+          provider: ${{ matrix.provider }}
+        env:
+          # needed as a secret for the github provider
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  validate-provider:
+    runs-on: runs-on=${{ github.run_id }}-provider-${{ strategy.job-index }}/runner=quality-gate
+    timeout-minutes: 480
+    needs: select-providers
+    if: contains(github.event.pull_request.labels.*.name, 'run-pr-quality-gate') && needs.select-providers.outputs.other-providers != '[]'
+
+    strategy:
+      matrix:
+        provider: ${{fromJson(needs.select-providers.outputs.other-providers)}}
+      fail-fast: false
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          # in order to properly resolve the version from git
+          fetch-depth: 0
+          # we need submodules for the quality gate to work (requires vulnerability-match-labels repo)
+          submodules: true
+          persist-credentials: false
+
+      - name: Bootstrap environment
+        uses: ./.github/actions/bootstrap
+        with:
+          go: true
+
+      - name: Run quality gate
+        uses: ./.github/actions/quality-gate
+        with:
+          provider: ${{ matrix.provider }}
+        env:
+          # needed as a secret for the github provider
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  evaluate-quality-gate:
+    runs-on: runs-on=${{ github.run_id }}/runner=small
+    needs:
+      - validate-provider
+      - validate-provider-multicore
+      - select-providers
+    if: ${{ always() }}
+    steps:
+      - env:
+          VALIDATION_STATUS: ${{ needs.validate-provider.result }}
+          VALIDATION_MULTICORE_STATUS: ${{ needs.validate-provider-multicore.result }}
+          PROVIDERS_TO_TEST: ${{ needs.select-providers.outputs.providers }}
+          MULTICORE_PROVIDERS: ${{ needs.select-providers.outputs.multicore-providers }}
+          OTHER_PROVIDERS: ${{ needs.select-providers.outputs.other-providers }}
+        run: |
+          echo "Validations Status: $VALIDATION_STATUS"
+          echo "Validations Multicore Status: $VALIDATION_MULTICORE_STATUS"
+          echo "Providers that require testing: $PROVIDERS_TO_TEST"
+          echo "  - Multicore providers: $MULTICORE_PROVIDERS"
+          echo "  - Other providers: $OTHER_PROVIDERS"
+          echo
+          if [ "$PROVIDERS_TO_TEST" == '[]' ]; then
+            echo "🟢 Quality gate passed! (no providers changed)"
+            exit 0
+          fi
+          # Check other-providers validation
+          # "skipped" is only OK if the provider list is empty (nothing to test)
+          # "skipped" with providers in the list means the label is missing
+          case "$VALIDATION_STATUS" in
+            success) ;;
+            skipped)
+              if [ "$OTHER_PROVIDERS" != '[]' ]; then
+                echo "❌ Other providers need testing but job was skipped (missing label?)"
+                fail=1
+              fi
+              ;;
+            *) fail=1 ;;
+          esac
+          # Check multicore-providers validation
+          case "$VALIDATION_MULTICORE_STATUS" in
+            success) ;;
+            skipped)
+              if [ "$MULTICORE_PROVIDERS" != '[]' ]; then
+                echo "❌ Multicore providers need testing but job was skipped (missing label?)"
+                fail=1
+              fi
+              ;;
+            *) fail=1 ;;
+          esac
+          if [ "$fail" = 1 ]; then
+            echo "🔴 Quality gate FAILED! 😭"
+            echo
+            echo "This could happen for a couple of reasons:"
+            echo "  - A provider test failed, in which case see the logs in previous jobs for more details"
+            echo "  - A required provider test was skipped. You might need to add the 'run-pr-quality-gate' label to your PR to prevent skipping the test."
+            exit 1
+          fi
+          echo "🟢 Quality gate passed! (all tests passed)"
