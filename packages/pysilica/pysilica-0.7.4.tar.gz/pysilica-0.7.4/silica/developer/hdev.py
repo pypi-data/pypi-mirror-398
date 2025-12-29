@@ -1,0 +1,1478 @@
+import argparse
+import asyncio
+import io
+import os
+import re
+from pathlib import Path
+from typing import Dict, Any, Annotated, Optional
+
+import cyclopts
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.box import HORIZONTALS
+
+from prompt_toolkit import PromptSession, ANSI
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.document import Document
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.application import Application
+from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+from prompt_toolkit.layout import Layout
+from prompt_toolkit.layout.containers import HSplit, Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.formatted_text import FormattedText
+
+from silica.developer import personas
+from silica.developer.agent_loop import run
+from silica.developer.context import AgentContext
+from silica.developer.models import model_names, get_model
+from silica.developer.sandbox import SandboxMode, Sandbox
+from silica.developer.tools.sessions import (
+    print_session_list,
+    list_sessions,
+    resume_session,
+)
+from silica.developer.user_interface import UserInterface
+from silica.developer.toolbox import Toolbox
+from prompt_toolkit.completion import Completer, WordCompleter, Completion
+
+
+SANDBOX_MODE_MAP = {mode.name.lower(): mode for mode in SandboxMode}
+SANDBOX_MODE_MAP["dwr"] = SandboxMode.ALLOW_ALL
+
+
+def parse_sandbox_mode(value: str) -> SandboxMode:
+    canonicalized = value.lower().replace("-", "_")
+    if canonicalized in SANDBOX_MODE_MAP:
+        return SANDBOX_MODE_MAP[canonicalized]
+    raise argparse.ArgumentTypeError(f"Invalid sandbox mode: {value}")
+
+
+def _find_git_root() -> Optional[Path]:
+    """Find the git repository root, if in a git repository."""
+    try:
+        current_dir = Path.cwd().resolve()
+
+        # Walk up directories looking for .git folder
+        while current_dir != current_dir.parent:
+            if (current_dir / ".git").is_dir():
+                return current_dir
+            current_dir = current_dir.parent
+
+        return None
+    except Exception:
+        return None
+
+
+def _get_persona_file_location() -> Path:
+    """Get the location where .persona file should be stored.
+
+    If in a git repository, use the git root. Otherwise, use the current directory.
+    """
+    git_root = _find_git_root()
+    if git_root:
+        return git_root / ".persona"
+    else:
+        return Path.cwd() / ".persona"
+
+
+def _read_persona_file() -> Optional[str]:
+    """Read the persona name from .persona file if it exists.
+
+    Returns:
+        Persona name from file, or None if file doesn't exist or is invalid
+    """
+    persona_file = _get_persona_file_location()
+
+    if not persona_file.exists():
+        return None
+
+    try:
+        persona_name = persona_file.read_text().strip()
+        if persona_name:
+            return persona_name
+        return None
+    except Exception:
+        return None
+
+
+def _write_persona_file(persona_name: str) -> None:
+    """Write the persona name to .persona file.
+
+    Args:
+        persona_name: Name of the persona to save
+    """
+    persona_file = _get_persona_file_location()
+
+    try:
+        persona_file.write_text(persona_name + "\n")
+    except Exception as e:
+        # Don't fail if we can't write the file, just log it
+        console = Console()
+        console.print(f"[yellow]Warning: Could not write .persona file: {e}[/yellow]")
+
+
+def _ensure_persona_in_gitignore() -> None:
+    """Ensure .persona is in .gitignore if in a git repository."""
+    git_root = _find_git_root()
+
+    if not git_root:
+        return  # Not in a git repository
+
+    gitignore_file = git_root / ".gitignore"
+
+    try:
+        # Read existing .gitignore
+        if gitignore_file.exists():
+            gitignore_content = gitignore_file.read_text()
+        else:
+            gitignore_content = ""
+
+        # Check if .persona is already in .gitignore
+        lines = gitignore_content.splitlines()
+        for line in lines:
+            if line.strip() == ".persona":
+                return  # Already present
+
+        # Add .persona to .gitignore
+        if gitignore_content and not gitignore_content.endswith("\n"):
+            gitignore_content += "\n"
+        gitignore_content += ".persona\n"
+
+        gitignore_file.write_text(gitignore_content)
+    except Exception:
+        # Don't fail if we can't update .gitignore, just skip it
+        pass
+
+
+# Use the pre-defined HORIZONTALS box which has only top and bottom borders
+# This makes it easier to copy-paste content from the terminal
+HORIZONTAL_ONLY_BOX = HORIZONTALS
+
+
+def create_clean_panel(content, title=None, style=""):
+    """Create a panel with only horizontal borders to make copy/paste easier"""
+    return Panel(
+        content,
+        title=title,
+        expand=False,
+        box=HORIZONTAL_ONLY_BOX,
+        border_style=style,
+        padding=(1, 0),  # Vertical padding but no horizontal padding
+    )
+
+
+def rich_to_prompt_toolkit(rich_text):
+    """Convert Rich formatted text to prompt_toolkit compatible format"""
+    # Capture Rich output as ANSI
+    string_io = io.StringIO()
+    # Force terminal colors to ensure ANSI codes are generated
+    console = Console(file=string_io, force_terminal=True, color_system="standard")
+    console.print(rich_text, end="")  # end="" prevents extra newline
+
+    # Get the ANSI string
+    ansi_string = string_io.getvalue()
+
+    # Convert to prompt_toolkit format
+    prompt_toolkit_formatted = ANSI(ansi_string)
+
+    return prompt_toolkit_formatted
+
+
+class CLIUserInterface(UserInterface):
+    def __init__(self, console: Console, sandbox_mode: SandboxMode, agent_context=None):
+        self.console = console
+        self.sandbox_mode = sandbox_mode
+        self.toolbox = None  # Will be set after Sandbox is created
+        self.agent_context = (
+            agent_context  # Reference to agent context for thinking mode
+        )
+
+        # Initialize the session with the history file
+        history_file_path = self._get_history_file_path()
+        history = FileHistory(history_file_path)
+
+        # Set up key bindings
+        kb = KeyBindings()
+
+        # Store a reference to track mode switches and preserve user input
+        self._mode_switch_pending = False
+        self._preserved_input = None
+
+        @kb.add("c-t")
+        def _(event):
+            """Cycle through thinking modes: off -> normal -> ultra -> off
+
+            This handler cycles the thinking mode and preserves the current input.
+            The prompt will be re-rendered with the new mode icon.
+
+            Note: Even if agent_context is None (during early initialization), we must
+            handle this event to prevent the default Ctrl+T behavior (transpose characters).
+            """
+            if not self.agent_context:
+                # Agent context not yet initialized - do nothing but prevent default behavior
+                # by explicitly handling the event (don't let it fall through to defaults)
+                pass
+            else:
+                current_mode = self.agent_context.thinking_mode
+                if current_mode == "off":
+                    self.agent_context.thinking_mode = "normal"
+                elif current_mode == "normal":
+                    self.agent_context.thinking_mode = "ultra"
+                else:  # ultra
+                    self.agent_context.thinking_mode = "off"
+
+                # Mark that we have a pending mode switch
+                self._mode_switch_pending = True
+
+                # Preserve the current input text
+                self._preserved_input = event.app.current_buffer.text
+
+                # Abort the current prompt to trigger re-prompt with new mode
+                event.app.exit(result="")
+
+        self.session = PromptSession(
+            history=history,
+            auto_suggest=AutoSuggestFromHistory(),
+            enable_history_search=True,
+            complete_while_typing=True,
+            key_bindings=kb,
+        )
+
+    def _get_history_file_path(self) -> str:
+        """
+        Create a directory for chat history based on the SHA256 hash of the current working directory.
+        Returns the path to the chat history file.
+
+        If a chat_history.txt file exists in the current directory, migrate it to the new location.
+        """
+        import hashlib
+        import shutil
+
+        # Get current working directory and compute its SHA256
+        cwd = os.getcwd()
+        cwd_hash = hashlib.sha256(cwd.encode()).hexdigest()
+
+        # Create the directory structure
+        history_dir = os.path.expanduser(f"~/.cache/hdev/{cwd_hash}")
+        os.makedirs(history_dir, exist_ok=True)
+
+        # Store the current working directory in the cwd file
+        cwd_file_path = os.path.join(history_dir, "cwd")
+        with open(cwd_file_path, "w") as f:
+            f.write(cwd)
+
+        # Path to the new history file
+        new_history_file_path = os.path.join(history_dir, "chat_history.txt")
+
+        # Check if a chat_history.txt exists in the current directory and migrate it
+        old_history_file_path = os.path.join(cwd, "chat_history.txt")
+        if os.path.exists(old_history_file_path) and os.path.isfile(
+            old_history_file_path
+        ):
+            # Only migrate if the destination file doesn't exist or is empty
+            if (
+                not os.path.exists(new_history_file_path)
+                or os.path.getsize(new_history_file_path) == 0
+            ):
+                try:
+                    shutil.copy2(old_history_file_path, new_history_file_path)
+                    # Optionally remove the old file after successful migration
+                    os.remove(old_history_file_path)
+                    print(
+                        f"Migrated chat history from {old_history_file_path} to {new_history_file_path}"
+                    )
+                except (shutil.Error, OSError) as e:
+                    print(f"Error migrating chat history: {e}")
+
+        # Return the path to the chat history file
+        return new_history_file_path
+
+    def set_toolbox(self, toolbox: Toolbox):
+        """Set the toolbox and initialize the completer with its commands"""
+        self.toolbox = toolbox
+
+        commands = {
+            "/quit": "Quit the chat",
+            "/exit": "Quit the chat",
+            "/restart": "Clear chat history and start over",
+            "/new": "Clear chat history and start over",
+            "/clear": "Clear chat history and start over",
+            "/reset": "Clear chat history and start over",
+        }
+        for tool_name, spec in toolbox.local.items():
+            commands[f"!{tool_name}"] = spec["docstring"]
+
+        self.session.completer = CustomCompleter(commands, self.session.history)
+
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
+        from rich.markdown import Markdown
+
+        if not message:
+            return
+
+        if markdown:
+            # For system messages, use yellow styling but still treat as markdown
+            content = Markdown(message)
+        else:
+            content = message
+
+        panel = create_clean_panel(
+            content,
+            title="System Message",
+            style="bold yellow",
+        )
+
+        if live:
+            live.update(panel)
+        else:
+            self.console.print(panel)
+
+    def handle_assistant_message(self, message: str, markdown=True) -> None:
+        from rich.markdown import Markdown
+
+        if markdown:
+            content = Markdown(message)
+        else:
+            content = message
+
+        self.console.print(
+            create_clean_panel(
+                content,
+                title="AI Assistant",
+                style="bold green",
+            )
+        )
+
+    def permission_callback(
+        self,
+        action: str,
+        resource: str,
+        sandbox_mode: SandboxMode,
+        action_arguments: Dict | None,
+        group: Optional[str] = None,
+    ):
+        """Permission callback with enhanced options for always-allow.
+
+        Returns:
+            bool: True/False for allow/deny this time
+            str: "always_tool" or "always_group" for permanent allow
+            tuple: ("always_commands", set) for shell commands
+        """
+        # Build prompt based on action type
+        if action == "shell":
+            return self._shell_permission_prompt(resource, group, action_arguments)
+        else:
+            return self._tool_permission_prompt(
+                action, resource, group, action_arguments
+            )
+
+    def _tool_permission_prompt(
+        self,
+        action: str,
+        resource: str,
+        group: Optional[str],
+        action_arguments: Dict | None,
+    ):
+        """Permission prompt for non-shell tools."""
+        from silica.developer.sandbox import DoSomethingElseError
+
+        self.console.print(f"\n[bold cyan]Allow {action} on '{resource}'?[/bold cyan]")
+        self.console.print("  [Y] Yes, this time")
+        self.console.print("  [N] No")
+        self.console.print(f"  [A] Always allow {action}")
+        if group:
+            self.console.print(f"  [G] Always allow group ({group})")
+        self.console.print("  [D] Do something else")
+
+        response = (
+            str(self.console.input("[bold yellow]Choice: [/bold yellow]"))
+            .strip()
+            .upper()
+        )
+
+        if response == "D":
+            raise DoSomethingElseError()
+        elif response == "A":
+            return "always_tool"
+        elif response == "G" and group:
+            return "always_group"
+        elif response == "Y":
+            return True
+        else:
+            return False
+
+    def _shell_permission_prompt(
+        self, command: str, group: Optional[str], action_arguments: Dict | None
+    ):
+        """Permission prompt for shell commands with parser integration."""
+        from silica.developer.sandbox import DoSomethingElseError
+        from silica.developer.tools.shell_parser import parse_shell_command
+
+        parsed = action_arguments.get("parsed") if action_arguments else None
+        if parsed is None:
+            parsed = parse_shell_command(command)
+
+        denied = action_arguments.get("denied") if action_arguments else None
+
+        self.console.print(f"\n[bold cyan]Allow shell: '{command}'?[/bold cyan]")
+
+        # Show detected commands for compound commands
+        if parsed.commands and len(parsed.commands) > 1:
+            self.console.print(
+                f"  [dim]Detected commands: {', '.join(parsed.commands)}[/dim]"
+            )
+
+        # Show denied warning if any
+        if denied:
+            self.console.print(f"  [bold red]⛔ Denied: {', '.join(denied)}[/bold red]")
+
+        self.console.print("  [Y] Yes, this time")
+        self.console.print("  [N] No")
+
+        # Offer prefix option based on parse result
+        if not parsed.parse_error and parsed.commands:
+            if parsed.is_simple:
+                cmd = parsed.commands[0]
+                self.console.print(f"  [P] Always allow '{cmd}' commands")
+            else:
+                self.console.print(f"  [P] Always allow: {', '.join(parsed.commands)}")
+
+        if group:
+            self.console.print(f"  [G] Always allow group ({group})")
+        self.console.print("  [D] Do something else")
+
+        response = (
+            str(self.console.input("[bold yellow]Choice: [/bold yellow]"))
+            .strip()
+            .upper()
+        )
+
+        if response == "D":
+            raise DoSomethingElseError()
+        elif response == "P" and parsed.commands and not parsed.parse_error:
+            return ("always_commands", set(parsed.commands))
+        elif response == "G" and group:
+            return "always_group"
+        elif response == "Y":
+            return True
+        else:
+            return False
+
+    def permission_rendering_callback(
+        self,
+        action: str,
+        resource: str,
+        action_arguments: Dict | None,
+    ) -> None:
+        from rich.console import Group
+        from rich.text import Text
+
+        if not action_arguments:
+            action_arguments = {}
+
+        # Create formatted arguments display
+        formatted_params = "\n".join(
+            [f"  {key}: {value}" for key, value in action_arguments.items()]
+        )
+
+        # Create a group with nicely formatted sections
+        permission_group = Group(
+            Text("Action:", style="bold blue"),
+            Text(f"  {action}"),
+            Text("Resource:", style="bold cyan"),
+            Text(f"  {resource}"),
+            Text("Arguments:", style="bold green"),
+            Text(f"{formatted_params}"),
+        )
+
+        self.console.print(
+            create_clean_panel(
+                permission_group,
+                title="Permission Check",
+                style="bold yellow",
+            )
+        )
+
+    def handle_tool_use(
+        self,
+        tool_name: str,
+        tool_params: Dict[str, Any],
+    ):
+        pass
+
+    def handle_tool_result(
+        self, name: str, result: Dict[str, Any], markdown=False, live=None
+    ) -> None:
+        from rich.markdown import Markdown
+        from rich.console import Group
+        from rich.text import Text
+
+        # Get the content based on tool type
+        content = (
+            result["content"]
+            if name not in ["read_file", "write_file", "edit_file"]
+            else "File operation completed"
+        )
+
+        # Format parameters if they exist (removing this could cause compatibility issues)
+
+        # Create the header section with command name only (parameters section removed)
+        header = Group(Text("Command:", style="bold blue"), Text(f"  {name}"))
+
+        # Create the result section - handle content blocks or plain text
+        result_header = Text("Result:", style="bold green")
+
+        # Check if content is a list of content blocks (new format with images)
+        if isinstance(content, list):
+            result_parts = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    # Text block - render as markdown
+                    text_content = block.get("text", "")
+                    if markdown and text_content:
+                        result_parts.append(Markdown(text_content))
+                    else:
+                        result_parts.append(Text(text_content))
+                elif isinstance(block, dict) and block.get("type") == "image":
+                    # Image block - show summary instead of raw base64
+                    source = block.get("source", {})
+                    if source.get("type") == "base64":
+                        data = source.get("data", "")
+                        media_type = source.get("media_type", "image/unknown")
+
+                        # Calculate approximate size in KB
+                        # Base64 encoding increases size by ~33%, so decode size is roughly size * 0.75
+                        base64_size_kb = len(data) * 0.75 / 1024
+
+                        # Create a nice summary
+                        image_summary = Text.assemble(
+                            ("📷 ", "cyan"),
+                            ("Image ", "bold cyan"),
+                            (f"({media_type}, ~{base64_size_kb:.1f} KB)", "dim"),
+                        )
+                        result_parts.append(image_summary)
+                    else:
+                        result_parts.append(
+                            Text(
+                                f"[Image: {source.get('type', 'unknown')}]",
+                                style="cyan",
+                            )
+                        )
+                else:
+                    # Unknown block type - show as text
+                    result_parts.append(Text(str(block)))
+
+            result_content = Group(*result_parts) if result_parts else Text("")
+        else:
+            # Legacy string content
+            result_content = (
+                Markdown(content)
+                if isinstance(content, str) and markdown
+                else Text(str(content))
+            )
+
+        # Group all components together
+        display_group = Group(header, Text(""), result_header, result_content)
+
+        panel = create_clean_panel(
+            display_group,
+            title="Tool Result",
+            style="bold magenta",
+        )
+
+        if live:
+            live.update(panel)
+        else:
+            self.console.print(panel)
+
+    async def get_user_input(self, prompt: str = "") -> str:
+        _console = Console(file=None)
+
+        # If we have preserved input from a mode switch, restore it
+        default_text = ""
+        if self._mode_switch_pending and self._preserved_input is not None:
+            default_text = self._preserved_input
+            self._preserved_input = None
+            self._mode_switch_pending = False
+
+        user_input = await self.session.prompt_async(
+            rich_to_prompt_toolkit(prompt), default=default_text
+        )
+
+        # Handle empty input (should not happen with mode switch anymore)
+        if not user_input.strip() and default_text:
+            # This means user cleared the preserved text and hit enter
+            return ""
+
+        # Handle multi-line input
+        if user_input.strip() == "{":
+            multi_line_input = []
+            while True:
+                line = await self.session.prompt_async("... ")
+                if line.strip() == "}":
+                    break
+                multi_line_input.append(line)
+            user_input = "\n".join(multi_line_input)
+
+        return user_input
+
+    def handle_user_input(self, user_input: str):
+        """
+        Get input from the user.
+
+        :param user_input: the input from the user
+        """
+        # in the CLI, we don't have a good mechanism to remove the input box.
+        # instead, we just won't re-render the user's input
+
+    def display_token_count(
+        self,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        total_cost: float,
+        cached_tokens: int | None = None,
+        conversation_size: int | None = None,
+        context_window: int | None = None,
+        thinking_tokens: int | None = None,
+        thinking_cost: float | None = None,
+    ) -> None:
+        token_components = [
+            ("Token Count:\n", "bold"),
+            (
+                f"Prompt: {prompt_tokens}{f' (cached: {cached_tokens})' if cached_tokens else ''}\n",
+                "cyan",
+            ),
+            (f"Completion: {completion_tokens}\n", "green"),
+        ]
+
+        # Add thinking tokens if present
+        if thinking_tokens and thinking_tokens > 0:
+            token_components.append(
+                (f"Thinking: {thinking_tokens} (${thinking_cost:.4f})\n", "magenta")
+            )
+
+        token_components.append((f"Total: {total_tokens}\n", "yellow"))
+
+        # Add conversation size and context window information if available
+        if conversation_size is not None and context_window is not None:
+            # Calculate percentage of context window used
+            usage_percentage = (conversation_size / context_window) * 100
+
+            # Calculate tokens remaining before compaction threshold (85% by default)
+            compaction_threshold = int(context_window * 0.85)
+            tokens_remaining = max(0, compaction_threshold - conversation_size)
+
+            # Choose color based on how full the context window is
+            color = "green"
+            if usage_percentage > 70:
+                color = "yellow"
+            if usage_percentage > 80:
+                color = "orange"
+            if usage_percentage > 90:
+                color = "red"
+
+            token_components.extend(
+                [
+                    (f"Conversation size: {conversation_size:,} tokens ", color),
+                    (f"({usage_percentage:.1f}% of {context_window:,})\n", color),
+                    (
+                        f"Remaining before compaction: {tokens_remaining:,} tokens\n",
+                        color,
+                    ),
+                ]
+            )
+
+        # Add cost information
+        token_components.append((f"Cost: ${round(total_cost, 6)}", "orange"))
+
+        token_count = Text.assemble(*token_components)
+        self.console.print(token_count)
+
+    def display_welcome_message(self) -> None:
+        welcome_text = "welcome to silica. /help for commands, /tips to get started."
+
+        self.console.print(
+            create_clean_panel(
+                welcome_text,
+                style="bold cyan",
+            )
+        )
+
+    def status(self, message, spinner=None):
+        return self.console.status(message, spinner=spinner or "dots")
+
+    def bare(self, message: str | Any, live=None) -> None:
+        if live:
+            live.update(message)
+        else:
+            self.console.print(message)
+
+    def handle_thinking_content(
+        self, content: str, tokens: int, cost: float, collapsed: bool = True
+    ) -> None:
+        """Display thinking content in a collapsible panel."""
+        from rich.markdown import Markdown
+        from rich.text import Text
+        from rich.console import Group
+
+        # Prepare the header with token count and cost
+        header = Text.assemble(
+            ("Thinking Process ", "bold magenta"),
+            (f"({tokens} tokens, ${cost:.4f})", "dim"),
+        )
+
+        # If collapsed, show only first 150 characters
+        if collapsed and len(content) > 150:
+            preview = content[:150] + "..."
+            display_content = Text(preview, style="dim")
+            footer = Text(
+                "\n[Use /dump to see full thinking content]", style="dim italic"
+            )
+            content_group = Group(display_content, footer)
+        else:
+            # Show full content with markdown rendering
+            content_group = Markdown(content)
+
+        panel = create_clean_panel(
+            content_group,
+            title=str(header),
+            style="magenta",
+        )
+
+        self.console.print(panel)
+
+    def update_thinking_status(self, tokens: int, budget: int, cost: float) -> None:
+        """Update the status display with thinking progress (not implemented in CLI yet)."""
+        # This would require live status updates during streaming
+        # For now, we'll just track the final thinking content
+
+    async def get_user_choice(self, question: str, options: list[str]) -> str:
+        """Present an interactive selector for multiple options.
+
+        Renders a keyboard-navigable list of options. Use arrow keys or j/k to move,
+        Enter to select. The last option is always "Say something else..." which
+        allows free-form text input.
+
+        Args:
+            question: The question or prompt to display
+            options: List of option strings to choose from
+
+        Returns:
+            The selected option or custom text input
+        """
+        # Add "Say something else..." as the final option
+        all_options = list(options) + ["Say something else..."]
+        selected_index = 0
+
+        def get_formatted_options() -> FormattedText:
+            """Generate the formatted text for the option list."""
+            result = []
+            # Add the question with styling
+            result.append(("class:question", f"\n{question}\n\n"))
+            result.append(
+                ("class:hint", "  Use ↑/↓ or j/k to navigate, Enter to select\n\n")
+            )
+
+            for i, option in enumerate(all_options):
+                if i == selected_index:
+                    # Selected item: highlighted with arrow indicator
+                    result.append(("class:selected", f"  ❯ {option}\n"))
+                else:
+                    # Unselected item
+                    result.append(("class:option", f"    {option}\n"))
+
+            return FormattedText(result)
+
+        # Create key bindings for navigation
+        kb = KeyBindings()
+
+        @kb.add("up")
+        @kb.add("k")
+        def move_up(event: KeyPressEvent):
+            nonlocal selected_index
+            selected_index = (selected_index - 1) % len(all_options)
+
+        @kb.add("down")
+        @kb.add("j")
+        def move_down(event: KeyPressEvent):
+            nonlocal selected_index
+            selected_index = (selected_index + 1) % len(all_options)
+
+        @kb.add("enter")
+        def select_option(event: KeyPressEvent):
+            event.app.exit(result=selected_index)
+
+        @kb.add("c-c")
+        def cancel(event: KeyPressEvent):
+            event.app.exit(result=None)
+
+        # Also allow number keys for quick selection
+        for i in range(min(9, len(all_options))):
+
+            @kb.add(str(i + 1))
+            def select_by_number(event: KeyPressEvent, index=i):
+                nonlocal selected_index
+                selected_index = index
+                event.app.exit(result=index)
+
+        # Create the layout
+        layout = Layout(
+            HSplit(
+                [
+                    Window(
+                        content=FormattedTextControl(get_formatted_options),
+                        wrap_lines=True,
+                    )
+                ]
+            )
+        )
+
+        # Define style
+        from prompt_toolkit.styles import Style
+
+        style = Style.from_dict(
+            {
+                "question": "bold cyan",
+                "hint": "italic #888888",
+                "selected": "bold reverse",
+                "option": "",
+            }
+        )
+
+        # Create and run the application
+        app: Application[int | None] = Application(
+            layout=layout,
+            key_bindings=kb,
+            style=style,
+            full_screen=False,
+            mouse_support=False,
+        )
+
+        result = await app.run_async()
+
+        # Handle result
+        if result is None:
+            # User cancelled with Ctrl+C
+            return "cancelled"
+
+        selected_option = all_options[result]
+
+        if selected_option == "Say something else...":
+            # Get free-form text input
+            self.console.print()  # Add spacing
+            custom_input = await self.session.prompt_async(
+                rich_to_prompt_toolkit(Text("Enter your response: ", style="bold cyan"))
+            )
+            return custom_input
+
+        return selected_option
+
+    async def get_session_choice(self, sessions: list[dict]) -> str | None:
+        """Present an interactive selector for session resumption.
+
+        Uses Rich formatting to adapt to terminal width and displays sessions
+        with their metadata. No "Say something else..." option - just direct
+        session selection.
+
+        Args:
+            sessions: List of session dictionaries with metadata
+
+        Returns:
+            Selected session ID, or None if cancelled
+        """
+        from silica.developer.tools.sessions import (
+            parse_iso_date,
+            _truncate_message,
+        )
+
+        if not sessions:
+            return None
+
+        selected_index = 0
+        terminal_width = self.console.width or 80
+
+        def get_formatted_options() -> FormattedText:
+            """Generate the formatted text for the session list."""
+            result = []
+            # Add the question with styling
+            result.append(("class:question", "\nSelect a session to resume:\n\n"))
+            result.append(
+                (
+                    "class:hint",
+                    "  Use ↑/↓ or j/k to navigate, Enter to select, Ctrl+C to cancel\n\n",
+                )
+            )
+
+            for i, session in enumerate(sessions):
+                # Format each session line with Rich-aware width
+                short_id = session.get("session_id", "")[:8]
+                updated = parse_iso_date(session.get("last_updated", ""))
+                msg_count = session.get("message_count", 0)
+
+                # Build the fixed-width prefix
+                prefix = f"[{short_id}] {updated} ({msg_count} msgs)"
+
+                # Calculate available space for the message
+                # Account for: selector prefix "  ❯ " (4 chars), quotes (2), space (1)
+                overhead = 4 + len(prefix) + 3
+                available_width = max(20, terminal_width - overhead)
+
+                first_message = _truncate_message(
+                    session.get("first_message"), max_length=available_width
+                )
+
+                if i == selected_index:
+                    # Selected item: highlighted with arrow indicator
+                    result.append(("class:selected-id", f"  ❯ [{short_id}] "))
+                    result.append(("class:selected", f"{updated} "))
+                    result.append(("class:selected-dim", f"({msg_count} msgs) "))
+                    if first_message:
+                        result.append(("class:selected-msg", f'"{first_message}"'))
+                    result.append(("", "\n"))
+                else:
+                    # Unselected item
+                    result.append(("class:id", f"    [{short_id}] "))
+                    result.append(("class:date", f"{updated} "))
+                    result.append(("class:count", f"({msg_count} msgs) "))
+                    if first_message:
+                        result.append(("class:msg", f'"{first_message}"'))
+                    result.append(("", "\n"))
+
+            return FormattedText(result)
+
+        # Create key bindings for navigation
+        kb = KeyBindings()
+
+        @kb.add("up")
+        @kb.add("k")
+        def move_up(event: KeyPressEvent):
+            nonlocal selected_index
+            selected_index = (selected_index - 1) % len(sessions)
+
+        @kb.add("down")
+        @kb.add("j")
+        def move_down(event: KeyPressEvent):
+            nonlocal selected_index
+            selected_index = (selected_index + 1) % len(sessions)
+
+        @kb.add("enter")
+        def select_option(event: KeyPressEvent):
+            event.app.exit(result=selected_index)
+
+        @kb.add("c-c")
+        def cancel(event: KeyPressEvent):
+            event.app.exit(result=None)
+
+        # Also allow number keys for quick selection (1-9)
+        for i in range(min(9, len(sessions))):
+
+            @kb.add(str(i + 1))
+            def select_by_number(event: KeyPressEvent, index=i):
+                nonlocal selected_index
+                selected_index = index
+                event.app.exit(result=index)
+
+        # Create the layout
+        layout = Layout(
+            HSplit(
+                [
+                    Window(
+                        content=FormattedTextControl(get_formatted_options),
+                        wrap_lines=False,  # Don't wrap - we handle width ourselves
+                    )
+                ]
+            )
+        )
+
+        # Define style with colors matching the table output
+        from prompt_toolkit.styles import Style
+
+        style = Style.from_dict(
+            {
+                "question": "bold cyan",
+                "hint": "italic #888888",
+                # Selected row
+                "selected-id": "bold reverse cyan",
+                "selected": "bold reverse",
+                "selected-dim": "bold reverse #888888",
+                "selected-msg": "bold reverse",
+                # Unselected rows
+                "id": "cyan",
+                "date": "blue",
+                "count": "magenta",
+                "msg": "",
+            }
+        )
+
+        # Create and run the application
+        app: Application[int | None] = Application(
+            layout=layout,
+            key_bindings=kb,
+            style=style,
+            full_screen=False,
+            mouse_support=False,
+        )
+
+        result = await app.run_async()
+
+        # Handle result
+        if result is None:
+            # User cancelled with Ctrl+C
+            return None
+
+        return sessions[result]["session_id"]
+
+
+class CustomCompleter(Completer):
+    def __init__(self, commands, history):
+        self.commands = commands
+        self.history = history
+        self.word_completer = WordCompleter(
+            list(commands.keys()), ignore_case=True, sentence=True, meta_dict=commands
+        )
+        self.path_pattern = re.compile(r"[^\s@]+|@[^\s]*")
+
+        # Import model names for model command completion
+        try:
+            from silica.developer.models import model_names, MODEL_MAP
+
+            self.model_names = model_names()
+            self.short_model_names = list(MODEL_MAP.keys())
+        except ImportError:
+            self.model_names = []
+            self.short_model_names = []
+
+    def get_word_under_cursor(self, document: Document) -> tuple[str, int]:
+        """Get the word under the cursor and its start position."""
+        # Get the text before cursor
+        text_before_cursor = document.text_before_cursor
+
+        # Find the last space before cursor
+        last_space = text_before_cursor.rindex(" ") if " " in text_before_cursor else -1
+        current_word = text_before_cursor[last_space + 1 :]
+
+        # If we have a word starting with @, that's our target
+        if "@" in current_word:
+            return current_word, -(len(current_word))
+
+        return current_word, -(len(current_word))
+
+    def get_completions(self, document, complete_event):
+        word, start_position = self.get_word_under_cursor(document)
+
+        # Handle command completions
+        if word.startswith("/"):
+            # Check if this is a model command with arguments
+            text_before_cursor = document.text_before_cursor
+            if text_before_cursor.startswith("/model "):
+                # Extract the partial model name after "/model "
+                model_partial = text_before_cursor[7:]  # Remove "/model "
+
+                # Provide completions for model names
+                for model_name in self.short_model_names + [
+                    m for m in self.model_names if m not in self.short_model_names
+                ]:
+                    if model_name.lower().startswith(model_partial.lower()):
+                        completion_text = "/model " + model_name
+                        yield Completion(
+                            completion_text,
+                            start_position=-(len(text_before_cursor)),
+                            display=model_name,
+                        )
+            else:
+                yield from self.word_completer.get_completions(document, complete_event)
+
+        # Handle file system completions
+        elif "@" in word:
+            # Get the path after @
+            at_index = word.index("@")
+            path = word[at_index + 1 :]
+            dirname = os.path.dirname(path) if path else "."
+            basename = os.path.basename(path)
+
+            try:
+                # If dirname is empty, use current directory
+                if not dirname or dirname == "":
+                    dirname = "."
+
+                # List directory contents
+                for entry in os.listdir(dirname):
+                    entry_path = os.path.join(dirname, entry)
+
+                    # Only show entries that match the current basename
+                    if entry.lower().startswith(basename.lower()):
+                        # Add trailing slash for directories
+                        display = entry + "/" if os.path.isdir(entry_path) else entry
+                        full_path = os.path.join(dirname, display)
+
+                        # Remove './' from the beginning if present
+                        if full_path.startswith("./"):
+                            full_path = full_path[2:]
+
+                        # Preserve any text before the @ in the completion
+                        prefix = word[:at_index]
+                        completion = prefix + "@" + full_path
+
+                        yield Completion(
+                            completion, start_position=start_position, display=display
+                        )
+            except OSError:
+                pass  # Handle any filesystem errors gracefully
+
+        # Handle history completions
+        else:
+            for history_item in reversed(self.history.get_strings()):
+                if history_item.startswith(word):
+                    yield Completion(history_item, start_position=start_position)
+
+
+def _run_agent_loop(
+    context: AgentContext,
+    initial_prompt: str | None,
+    system_prompt: dict[str, Any] | None,
+    single_response: bool,
+    enable_compaction: bool,
+    log_file_path: str | None,
+) -> None:
+    """Run the agent loop with graceful shutdown handling.
+
+    This wrapper ensures that the asyncio event loop is properly cleaned up
+    when interrupted by Ctrl+C, preventing the "Task was destroyed but it is pending!"
+    warning message.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        loop.run_until_complete(
+            run(
+                agent_context=context,
+                initial_prompt=initial_prompt,
+                system_prompt=system_prompt,
+                single_response=single_response,
+                enable_compaction=enable_compaction,
+                log_file_path=log_file_path,
+            )
+        )
+    except KeyboardInterrupt:
+        # Gracefully handle Ctrl+C by cancelling pending tasks
+        pass
+    finally:
+        # Cancel all pending tasks
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            task.cancel()
+
+        # Allow cancelled tasks to complete (with a timeout)
+        if pending:
+            # Suppress CancelledError exceptions during cleanup
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+        # Shut down async generators
+        loop.run_until_complete(loop.shutdown_asyncgens())
+
+        # Close the loop
+        loop.close()
+
+
+def sessions(
+    workdir: Annotated[Optional[str], cyclopts.Parameter("workdir")] = None,
+    *,
+    persona: Annotated[
+        Optional[str], cyclopts.Parameter(help="Persona to list sessions for")
+    ] = None,
+):
+    """List available developer sessions with metadata.
+
+    Args:
+        workdir: Optional working directory to filter sessions by
+        persona: Optional persona name to list sessions for (defaults to 'default')
+    """
+    # Get persona base directory if specified
+    history_base_dir = None
+    if persona:
+        persona_obj = personas.get_or_create(persona, interactive=False)
+        history_base_dir = persona_obj.base_directory
+
+    s = list_sessions(workdir=workdir, history_base_dir=history_base_dir)
+    print_session_list(s)
+
+
+def resume(
+    session_id: Annotated[str, cyclopts.Parameter("session_id")],
+    *,
+    persona: Annotated[
+        Optional[str], cyclopts.Parameter(help="Persona that owns the session")
+    ] = None,
+):
+    """Resume a previous developer session.
+
+    Args:
+        session_id: Session ID or prefix to resume
+        persona: Optional persona name that owns the session (defaults to 'default')
+    """
+    # Get persona base directory if specified
+    history_base_dir = None
+    if persona:
+        persona_obj = personas.get_or_create(persona, interactive=False)
+        history_base_dir = persona_obj.base_directory
+
+    resume_session(session_id, history_base_dir=history_base_dir)
+
+
+def attach_tools(app):
+    console = Console()
+    sandbox = Sandbox(".", SandboxMode.ALLOW_ALL)
+    context = AgentContext.create(
+        model_spec={},
+        sandbox_mode=SandboxMode.ALLOW_ALL,
+        sandbox_contents=[],
+        user_interface=CLIUserInterface(console, sandbox.mode),
+        persona_base_directory=Path("~/.silica/personas/default").expanduser(),
+    )
+    # Set dwr_mode for permissions bypass in attach_tools mode
+    context.dwr_mode = True
+    # Skip user tool auth check during CLI registration to avoid auth warnings
+    toolbox = Toolbox(context, skip_user_tool_auth=True)
+
+    commands = set(toolbox.local.keys())
+    for command in commands:
+
+        def make_command_func(cmd_name: str):
+            def f(*args: str):
+                tool_args = " ".join(args)  # TODO(2025-03-19): do something with shlex
+                asyncio.run(
+                    toolbox.invoke_cli_tool(
+                        cmd_name, arg_str=tool_args, confirm_to_add=False
+                    )
+                )
+
+            return f
+
+        app.command(make_command_func(command), name=command)
+
+
+def cyclopts_main(
+    sandbox: Annotated[list[str], cyclopts.Parameter(help="Sandbox contents")] = [],
+    *,
+    model: Annotated[str, cyclopts.Parameter(help="AI model to use")] = "opus",
+    summary_cache: Annotated[
+        str, cyclopts.Parameter(help="Path to summary cache file")
+    ] = os.path.join(os.path.expanduser("~"), ".cache/silica.summary_cache"),
+    sandbox_mode: Annotated[
+        str, cyclopts.Parameter(help="Set the sandbox mode for file operations")
+    ] = "remember_per_resource",
+    dwr: Annotated[
+        bool, cyclopts.Parameter(help="Shorthand for --sandbox-mode dwr")
+    ] = False,
+    prompt: Annotated[
+        Optional[str],
+        cyclopts.Parameter(
+            help="Initial prompt for the assistant. If starts with @, will read from file"
+        ),
+    ] = None,
+    disable_compaction: Annotated[
+        bool, cyclopts.Parameter(help="Disable automatic conversation compaction")
+    ] = False,
+    session_id: Annotated[
+        Optional[str],
+        cyclopts.Parameter(
+            help="Session ID to resume. This will load the session's conversation history."
+        ),
+    ] = None,
+    persona: Annotated[
+        Optional[str], cyclopts.Parameter(help="Persona to use for the assistant")
+    ] = None,
+    log_requests: Annotated[
+        Optional[str],
+        cyclopts.Parameter(
+            help="Path to log file for JSON request/response logging. If not specified, logging is disabled."
+        ),
+    ] = None,
+):
+    """
+    Cyclopts-based reimplementation of the main method for the AI-powered developer assistant.
+
+    This function can be attached to an existing cyclopts app as a command or default handler.
+    It preserves all functionality from the original main() method while providing
+    better help text, validation, and a more modern CLI experience.
+
+    Args:
+        sandbox: Sandbox contents (positional arguments)
+        model: AI model to use
+        summary_cache: Path to summary cache file
+        sandbox_mode: Set the sandbox mode for file operations
+        dwr: Shorthand for --sandbox-mode dwr
+        prompt: Initial prompt for the assistant. If starts with @, will read from file
+        disable_compaction: Disable automatic conversation compaction
+        session_id: Session ID to resume. This will load the session's conversation history.
+        persona: Persona to use for the assistant
+    """
+
+    # Cache available options for validation
+    model_names()
+
+    # Store original args for session metadata (simulate sys.argv for compatibility)
+    original_args = ["hdev"]
+    if model != "opus":
+        original_args.extend(["--model", model])
+    if summary_cache != os.path.join(
+        os.path.expanduser("~"), ".cache/silica.summary_cache"
+    ):
+        original_args.extend(["--summary-cache", summary_cache])
+    if sandbox_mode != "remember_per_resource":
+        original_args.extend(["--sandbox-mode", sandbox_mode])
+    if dwr:
+        original_args.append("--dwr")
+    if prompt:
+        original_args.extend(["--prompt", prompt])
+    if disable_compaction:
+        original_args.append("--disable-compaction")
+    if session_id:
+        original_args.extend(["--session-id", session_id])
+    if persona:
+        original_args.extend(["--persona", persona])
+    if log_requests:
+        original_args.extend(["--log-requests", log_requests])
+    if sandbox:
+        original_args.extend(sandbox)
+
+    # Note: We no longer validate model choice here.
+    # If the model is not in available_models, get_model() will use Opus ModelSpec
+    # as a fallback, allowing custom model names while maintaining pricing/limits.
+
+    # Parse sandbox mode with error handling
+    try:
+        parsed_sandbox_mode = parse_sandbox_mode(sandbox_mode)
+    except argparse.ArgumentTypeError as e:
+        console = Console()
+        console.print(f"[red]Error: {str(e)}[/red]")
+        return
+
+    # Handle dwr shorthand (overrides sandbox_mode)
+    if dwr:
+        parsed_sandbox_mode = SandboxMode.ALLOW_ALL
+
+    # Initialize console early for validation messages
+    console = Console()
+
+    # Handle .persona file logic
+    # The .persona file allows setting a project-specific default persona
+    # while the CLI --persona argument provides temporary overrides without
+    # modifying the file. This enables both convenience and flexibility.
+    #
+    # Behavior:
+    # - CLI argument (--persona): Temporarily uses specified persona, file unchanged
+    # - No CLI argument + .persona file exists: Uses persona from file
+    # - No CLI argument + no file: Uses "default" persona, creates .persona file
+    #
+    # 1. Read existing .persona file if it exists
+    file_persona = _read_persona_file()
+
+    # 2. Determine which persona to use
+    # Priority: CLI argument > .persona file > "default"
+    if persona:
+        # CLI argument takes precedence (temporary override)
+        persona_name = persona
+    elif file_persona:
+        # Use persona from file if no CLI argument
+        persona_name = file_persona
+    else:
+        # Default to "default" persona
+        persona_name = "default"
+
+    # Get or create persona (prompts user if needed)
+    try:
+        persona_obj = personas.get_or_create(persona_name, interactive=True)
+    except KeyboardInterrupt:
+        # User cancelled persona creation
+        console.print("\n[yellow]Persona creation cancelled. Exiting.[/yellow]")
+        return
+
+    # 3. Write the chosen persona to .persona file ONLY if no CLI argument was provided
+    # This allows CLI arguments to temporarily override without changing the file
+    if not persona:
+        _write_persona_file(persona_name)
+
+    # 4. Ensure .persona is in .gitignore
+    _ensure_persona_in_gitignore()
+
+    # Check for session ID in environment variable if not specified in args
+    if not session_id and "SILICA_DEVELOPER_SESSION_ID" in os.environ:
+        session_id = os.environ.get("SILICA_DEVELOPER_SESSION_ID")
+
+    # Initialize user interface
+    user_interface = CLIUserInterface(console, parsed_sandbox_mode)
+
+    # Handle prompt loading from file or direct input (identical to original)
+    initial_prompt = None
+    if prompt:
+        if prompt.startswith("@"):
+            filename = prompt[1:]
+            try:
+                console.print(f"Reading prompt from file: {filename}")
+                with open(filename, "r") as f:
+                    initial_prompt = f.read().strip()
+
+                    # Replace environment variables that start with silica_DEVELOPER_
+                    # and are contained in double curly braces
+                    def replace_env_var(match):
+                        var_name = match.group(1)
+                        if var_name.startswith("silica_DEVELOPER_"):
+                            return os.environ.get(var_name, "")
+                        return match.group(
+                            0
+                        )  # Return original if not silica_DEVELOPER_
+
+                    # Pattern to match {{silica_DEVELOPER_*}} but not other {{*}} patterns
+                    pattern = r"\{\{(silica_DEVELOPER_[A-Za-z0-9_]+)\}\}"
+                    initial_prompt = re.sub(pattern, replace_env_var, initial_prompt)
+
+                    console.print(
+                        f"File content loaded: {len(initial_prompt)} characters"
+                    )
+            except FileNotFoundError:
+                console.print(f"[red]Error: Could not find file {filename}[/red]")
+                return
+            except Exception as e:
+                console.print(f"[red]Error reading file {filename}: {str(e)}[/red]")
+                return
+        else:
+            initial_prompt = prompt
+
+    # Show welcome message if no initial prompt or session (identical to original)
+    if not initial_prompt and not session_id:
+        user_interface.display_welcome_message()
+
+    # Create agent context (identical to original)
+    context = AgentContext.create(
+        model_spec=get_model(model),
+        sandbox_mode=parsed_sandbox_mode,
+        sandbox_contents=sandbox or [],
+        user_interface=user_interface,
+        session_id=session_id,
+        cli_args=original_args,
+        persona_base_directory=persona_obj.base_directory,
+    )
+
+    # Set dwr_mode on context for permissions system bypass
+    context.dwr_mode = dwr
+
+    # Set the agent context reference in the UI for keyboard shortcuts
+    user_interface.agent_context = context
+
+    # Run the agent loop
+    # Pass the persona system_block - it will be used as fallback if persona.md doesn't exist
+    _run_agent_loop(
+        context=context,
+        initial_prompt=initial_prompt,
+        system_prompt=persona_obj.system_block,
+        single_response=bool(initial_prompt),
+        enable_compaction=not disable_compaction,
+        log_file_path=log_requests,
+    )

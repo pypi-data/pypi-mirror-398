@@ -1,0 +1,308 @@
+"""FastAPI application for Memory Proxy service."""
+
+import logging
+from typing import Dict
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
+
+from .auth import verify_token
+from .config import Settings
+from .models import (
+    ErrorResponse,
+    HealthResponse,
+    PreconditionFailedResponse,
+    SyncIndexResponse,
+)
+from .storage import (
+    FileNotFoundError,
+    PreconditionFailedError,
+    S3Storage,
+    StorageError,
+)
+
+# Import version from silica package (set by setuptools-scm during build)
+try:
+    from silica._version import __version__
+except ImportError:
+    __version__ = "unknown"
+
+# Configure logging (basic setup)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Create FastAPI app
+app = FastAPI(
+    title="Memory Proxy Service",
+    description="Remote KV proxy for blob storage with sync support and namespaces",
+    version=__version__,
+)
+
+# Storage will be initialized on startup or can be set externally (for tests)
+# Module-level variable for backwards compatibility
+storage = None
+
+
+def get_storage():
+    """Get storage instance from app state or module level."""
+    if hasattr(app.state, "storage") and app.state.storage is not None:
+        return app.state.storage
+    global storage
+    if storage is None:
+        # Initialize on first use
+        settings = Settings()
+        storage = S3Storage(settings)
+        app.state.storage = storage
+    return storage
+
+
+@app.get("/health", response_model=HealthResponse, tags=["health"])
+async def health_check():
+    """
+    Health check endpoint (no authentication required).
+
+    Returns service health, storage connectivity status, and API version.
+    """
+    storage_ok = get_storage().health_check()
+
+    if storage_ok:
+        return HealthResponse(status="ok", storage="connected", version=__version__)
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "error",
+                "storage": "disconnected",
+                "version": __version__,
+            },
+        )
+
+
+@app.get("/{namespace:path}/blob/{path:path}", tags=["blob"])
+async def read_blob(
+    namespace: str,
+    path: str,
+    user_info: Dict = Depends(verify_token),
+):
+    """
+    Read a file from blob storage within a namespace.
+
+    Args:
+        namespace: Persona/namespace identifier (can include slashes, e.g., "default/memory")
+        path: File path within namespace
+
+    Returns file contents with ETag, Last-Modified, X-Version, and Content-Type headers.
+    Returns 404 if file doesn't exist or is tombstoned.
+    """
+    try:
+        content, md5, last_modified, content_type, version = get_storage().read_file(
+            namespace, path
+        )
+
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "ETag": f'"{md5}"',
+                "Last-Modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT"),
+                "X-Version": str(version),
+            },
+        )
+
+    except FileNotFoundError as e:
+        logger.warning(f"File not found: {namespace}/{path}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    except StorageError as e:
+        logger.error(f"Storage error reading {namespace}/{path}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Storage error",
+        )
+
+
+@app.put("/{namespace:path}/blob/{path:path}", tags=["blob"])
+async def write_blob(
+    namespace: str,
+    path: str,
+    request: Request,
+    user_info: Dict = Depends(verify_token),
+    if_match_version: int = Header(..., alias="If-Match-Version"),
+    content_md5: str | None = Header(default=None, alias="Content-MD5"),
+    content_type: str | None = Header(default="application/octet-stream"),
+):
+    """
+    Write or update a file in blob storage within a namespace.
+
+    Args:
+        namespace: Persona/namespace identifier (can include slashes)
+        path: File path within namespace
+
+    Headers (required):
+    - If-Match-Version: Expected version number
+      - 0 means file must not exist (new file)
+      - >0 means file must have this version (update)
+
+    Headers (optional):
+    - Content-MD5: MD5 hash of payload for integrity validation
+    - Content-Type: File content type
+
+    Returns 201 for new files, 200 for updates, 412 for precondition failures.
+    Returns ETag and X-Version headers.
+    """
+    try:
+        # Read request body
+        content = await request.body()
+
+        # Perform write with conditional check
+        is_new, new_md5, version, sync_index = get_storage().write_file(
+            namespace=namespace,
+            path=path,
+            content=content,
+            content_type=content_type,
+            expected_version=if_match_version,
+            content_md5=content_md5,
+        )
+
+        status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
+
+        return JSONResponse(
+            status_code=status_code,
+            headers={"ETag": f'"{new_md5}"', "X-Version": str(version)},
+            content=sync_index.model_dump(mode="json"),
+        )
+
+    except PreconditionFailedError as e:
+        logger.warning(f"Precondition failed for {namespace}/{path}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail=PreconditionFailedResponse(
+                detail=str(e),
+                context={
+                    "current_version": e.current_version,
+                    "provided_version": e.provided_version,
+                },
+            ).model_dump(),
+        )
+
+    except StorageError as e:
+        logger.error(f"Storage error writing {namespace}/{path}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Storage error",
+        )
+
+
+@app.delete(
+    "/{namespace:path}/blob/{path:path}",
+    tags=["blob"],
+    response_model=SyncIndexResponse,
+)
+async def delete_blob(
+    namespace: str,
+    path: str,
+    user_info: Dict = Depends(verify_token),
+    if_match_version: int | None = Header(default=None, alias="If-Match-Version"),
+):
+    """
+    Delete a file by creating a tombstone within a namespace.
+
+    Args:
+        namespace: Persona/namespace identifier (can include slashes)
+        path: File path within namespace
+
+    Supports conditional delete via If-Match-Version header.
+    Returns 200 with sync index on success, 404 if file doesn't exist, 412 on precondition failure.
+    """
+    try:
+        version, sync_index = get_storage().delete_file(
+            namespace=namespace, path=path, expected_version=if_match_version
+        )
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            headers={"X-Version": str(version)},
+            content=sync_index.model_dump(mode="json"),
+        )
+
+    except FileNotFoundError as e:
+        logger.warning(f"File not found for delete: {namespace}/{path}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    except PreconditionFailedError as e:
+        logger.warning(f"Precondition failed for delete {namespace}/{path}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail=PreconditionFailedResponse(
+                detail=str(e),
+                context={
+                    "current_version": e.current_version,
+                    "provided_version": e.provided_version,
+                },
+            ).model_dump(),
+        )
+
+    except StorageError as e:
+        logger.error(f"Storage error deleting {namespace}/{path}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Storage error",
+        )
+
+
+@app.get("/sync/{namespace:path}", response_model=SyncIndexResponse, tags=["sync"])
+async def get_sync_index(namespace: str, user_info: Dict = Depends(verify_token)):
+    """
+    Get the sync index with metadata for all files within a namespace.
+
+    Args:
+        namespace: Persona/namespace identifier (can include slashes for hierarchy)
+
+    Returns a map of file paths to metadata (MD5, last modified, size, version, deleted flag).
+    Clients use this to determine which files need syncing.
+    """
+    try:
+        sync_index = get_storage().get_sync_index(namespace)
+        return sync_index
+
+    except StorageError as e:
+        logger.error(f"Storage error getting sync index for {namespace}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Storage error",
+        )
+
+
+# Exception handlers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions with consistent error format."""
+    # If detail is already a dict (from PreconditionFailedResponse), use it directly
+    if isinstance(exc.detail, dict):
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(detail=str(exc.detail)).model_dump(),
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle unexpected exceptions."""
+    logger.error(f"Unexpected error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=ErrorResponse(
+            detail="Internal server error", error_code="INTERNAL_ERROR"
+        ).model_dump(),
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
