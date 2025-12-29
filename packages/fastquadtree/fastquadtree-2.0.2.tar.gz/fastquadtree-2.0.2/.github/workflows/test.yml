@@ -1,0 +1,65 @@
+# .github/workflows/test.yml
+name: Test
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  test:
+    name: Test build (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+          cache: "pip"
+        
+      - name: Create venv for maturin develop
+        run: python -m venv .venv
+
+      - name: Build with maturin into this Python
+        uses: PyO3/maturin-action@v1
+        with:
+          command: develop
+          args: --release
+          manylinux: manylinux2014
+
+      - name: Install Python test deps into .venv
+        run: |
+          . .venv/bin/activate
+          pip install -e '.[dev]'
+
+      - name: Run Python tests
+        run: |
+          . .venv/bin/activate
+          pytest
+
+      - name: Run Python tests
+        run: |
+          . .venv/bin/activate
+          pytest
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Rust tests
+        run: cargo test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

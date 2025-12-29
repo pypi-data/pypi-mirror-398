@@ -1,0 +1,149 @@
+[build-system]
+requires = ["maturin>=1.5"]
+build-backend = "maturin"
+
+[project]
+name = "fastquadtree"
+# Version comes from Cargo.toml
+dynamic = ["version"]
+description = "Rust-accelerated quadtree for Python with fast inserts, range queries, and k-NN search."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.9"
+dependencies = [] # No runtime dependencies
+license = { file = "LICENSE" }
+authors = [{ name = "Ethan Anderson" }]
+keywords = ["quadtree", "spatial-index", "geometry", "rust", "pyo3", "nearest-neighbor", "k-nn"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+  "License :: OSI Approved :: MIT License"
+]
+
+[project.urls]
+Homepage = "https://github.com/Elan456/fastquadtree"
+Repository = "https://github.com/Elan456/fastquadtree"
+Documentation = "https://elan456.github.io/fastquadtree/"
+Issues = "https://github.com/Elan456/fastquadtree/issues"
+
+[tool.maturin]
+# Use PyO3 bindings
+bindings = "pyo3"
+strip = true
+python-source = "pysrc"
+module-name = "fastquadtree._native"
+# Choose a wide wheel tag for Linux. Adjust if your build images are newer.
+# Options include: manylinux2014, manylinux_2_28, musllinux_1_2, or "off".
+compatibility = "manylinux2014"
+
+[tool.pytest.ini_options]
+addopts = [
+  "--cov=fastquadtree",
+  "--cov-branch",
+  "--cov-report=term-missing",
+  "--cov-report=xml:coverage.xml",
+  "--cov-fail-under=100",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["fastquadtree"]
+omit = [
+  "tests/*",
+]
+
+[tool.coverage.report]
+omit = [
+  "tests/*",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.6.0",
+  "pytest>=8.4.2",
+  "pytest-cov>=7.0.0",
+  "coverage>=7.5",
+  "mypy>=1.10",        # optional static checks
+  "build>=1.2.1",      # python -m build
+  "mkdocs>=1.6",
+  "mkdocs-material",
+  "mkdocstrings[python]",
+  "mkdocs-autorefs",
+  "mkdocs-git-revision-date-localized-plugin",
+  "mkdocs-minify-plugin",
+  "maturin>=1.5",  # build Rust wheels
+  "pyqtree==1.0.0", # for comparison in tests
+  "numpy",
+  "pre-commit",
+]
+
+[tool.ruff]
+# Keep line length consistent with your prior Black setting
+line-length = 88
+target-version = "py38"
+src = ["pysrc", "fastquadtree", "tests"]
+extend-exclude = [
+  "**/.venv/**",
+  "build/**",
+  "dist/**",
+]
+
+[tool.ruff.lint]
+# A solid ruleset that catches correctness, modernizations, style, and performance,
+# while avoiding very opinionated docstring or annotation rules by default.
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "W",   # pycodestyle warnings
+  "I",   # isort
+  "N",   # pep8-naming
+  "UP",  # pyupgrade
+  "B",   # bugbear
+  "BLE", # blind except
+  "A",   # builtins
+  "C4",  # comprehensions
+  "PIE", # flake8-pie
+  "PT",  # flake8-pytest-style
+  "RET", # returns
+  "SIM", # simplify
+  "PTH", # pathlib
+  "PERF",# performance
+  "PL",  # pylint (subset implemented by Ruff)
+  "RUF", # Ruff-specific rules
+]
+# Common ignores to keep noise low in mixed Py/Rust projects.
+ignore = [
+  "E203",  # whitespace before ':' (Black compatibility)
+  "E266",  # too many leading '#' for block comment
+  "E501",  # line length is handled by formatter
+  "PLR2004", # magic value comparisons (allows simple test literals)
+  "PT011", # allow use of 'pytest.raises' context manager
+  "PLW0603",
+  "PLR0915",
+  "PLR0913",
+  "PLR0912",
+  "PLC0415",
+]
+
+# Make pytest files less strict where asserts and fixtures are common.
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "S101",     # use of assert
+  "PLR2004",  # magic numbers in tests
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fastquadtree"]
+combine-as-imports = true
+
+[tool.ruff.format]
+# Mirror Black-like formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
