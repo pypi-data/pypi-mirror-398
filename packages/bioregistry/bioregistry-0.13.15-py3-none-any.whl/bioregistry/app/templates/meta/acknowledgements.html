@@ -1,0 +1,52 @@
+{% extends "prose.html" %}
+
+{% block title %}{{ config.METAREGISTRY_TITLE }} Attribution{% endblock %}
+
+{% block styles %}
+    {{ super() }}
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.23.0/themes/prism.css" rel="stylesheet"/>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.23.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.23.0/plugins/autoloader/prism-autoloader.min.js"></script>
+{% endblock %}
+
+{% block content %}
+    {{ config.METAREGISTRY_CITATION | safe }}
+    {% if config.METAREGISTRY_FIRST_PARTY %}
+    {{ config.METAREGISTRY_BADGE_BLOCK | safe }}
+    {% endif %}
+    <h2>External Resource Acknowledgements</h2>
+    <p>
+        This contains special notes for some external registries used as data sources in the {{ config.METAREGISTRY_TITLE }}, when
+        applicable. The remaining information about each data source ingested in the {{ config.METAREGISTRY_TITLE }} can be found directly
+        on the <a href="{{ url_for("metaregistry_ui.metaresources") }}">registry pages</a>.
+    </p>
+    {% for registry in registries %}
+        {% set code_link = registry.get_code_link() %}
+        {% if registry.prefix != "bioregistry" and (code_link or registry.license) %}
+            <h5><a href="{{ url_for("metaregistry_ui.metaresource", metaprefix=registry.prefix) }}">{{ registry.name }}</a></h5>
+            <p>
+                {% if registry.logo_url %}
+                    <img alt="{{ registry.name }} logo" style="max-height: 2em;" align="right"
+                         src="{{ registry.logo_url }}"/>
+                {% endif %}
+                {% if code_link %}
+                    This resource was ingested with the following <a href="{{ code_link }}">code</a> available on
+                    GitHub.
+                {% endif %}
+                {% if registry.license and registry.license == "missing" %}
+                    Licensing information could not be located for this resource.
+                {% elif registry.license %}
+                    {% if registry.license.startswith("See https://github.com/biopragmatics/bioregistry/") %}
+                        ⚠️ Data from this resource does not have an explicit license. {{ registry.license }}.
+                    {% else %}
+                        Data from this resource is redistributed under the {{ registry.license }} license.
+                    {% endif %}
+                {% endif %}
+            </p>
+        {% endif %}
+    {% endfor %}
+{% endblock %}
