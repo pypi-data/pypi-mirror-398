@@ -1,0 +1,122 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+# Note: setup.py provides custom build commands to build UI before packaging
+
+[project]
+name = "pycharter"
+version = "0.0.11"
+description = "A Python package for data contract management with five core services: contract parsing, metadata storage, Pydantic generation, JSON Schema conversion, and runtime validation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "pydantic>=2.0.0",
+    "jsonschema>=4.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+]
+authors = [
+    {name = "semantic developers", email = "na@example.com"},
+]
+keywords = ["semantic", "python", "pydantic", "contract", "validation", "schema"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/auscheng/pycharter"
+Documentation = "https://github.com/auscheng/pycharter#readme"
+Repository = "https://github.com/auscheng/pycharter"
+Issues = "https://github.com/auscheng/pycharter/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+    "jupyterlab>=4.0.0",
+    "ipykernel>=6.0.0",
+    "psycopg2-binary>=2.9.0",
+    "pymongo>=4.0.0",
+    "boto3>=1.26.0",
+]
+api = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic-settings>=2.0.0",
+    "python-multipart>=0.0.6",
+]
+ui = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "httpx>=0.24.0",
+    "aiofiles>=23.0.0",
+]
+worker = [
+    "pyspark>=3.5.0",
+    "redis>=5.0.0",
+]
+etl = [
+    "sshtunnel>=0.4.0",  # For SSH tunnel support in ETL load operations
+]
+
+[tool.setuptools]
+packages = ["pycharter", "api", "ui", "worker"]
+# Custom commands are defined in setup.py
+# The build system will import setup.py and look for cmdclass
+
+[tool.setuptools.package-data]
+pycharter = [
+    "py.typed",
+    # Include all migration files and templates
+    "db/migrations/versions/*.py",
+    "db/migrations/env.py",
+    "db/migrations/script.py.mako",
+    "db/migrations/README",
+]
+# Include UI static files in package (like Airflow's www/static)
+# Note: ui/static/ must be built before packaging (run: pycharter ui build)
+
+[project.scripts]
+pycharter = "pycharter.cli:main"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+]
+
