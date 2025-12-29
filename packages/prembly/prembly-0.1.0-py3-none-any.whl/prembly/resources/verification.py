@@ -1,0 +1,173 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from __future__ import annotations
+
+import httpx
+
+from ..types import verification_verify_nin_params
+from .._types import Body, Query, Headers, NotGiven, not_given
+from .._utils import maybe_transform, async_maybe_transform
+from .._compat import cached_property
+from .._resource import SyncAPIResource, AsyncAPIResource
+from .._response import (
+    to_raw_response_wrapper,
+    to_streamed_response_wrapper,
+    async_to_raw_response_wrapper,
+    async_to_streamed_response_wrapper,
+)
+from .._base_client import make_request_options
+from ..types.verification_verify_nin_response import VerificationVerifyNinResponse
+
+__all__ = ["VerificationResource", "AsyncVerificationResource"]
+
+
+class VerificationResource(SyncAPIResource):
+    @cached_property
+    def with_raw_response(self) -> VerificationResourceWithRawResponse:
+        """
+        This property can be used as a prefix for any HTTP method call to return
+        the raw response object instead of the parsed content.
+
+        For more information, see https://www.github.com/adetuyiTolu/prembly-python#accessing-raw-response-data-eg-headers
+        """
+        return VerificationResourceWithRawResponse(self)
+
+    @cached_property
+    def with_streaming_response(self) -> VerificationResourceWithStreamingResponse:
+        """
+        An alternative to `.with_raw_response` that doesn't eagerly read the response body.
+
+        For more information, see https://www.github.com/adetuyiTolu/prembly-python#with_streaming_response
+        """
+        return VerificationResourceWithStreamingResponse(self)
+
+    def verify_nin(
+        self,
+        *,
+        number_nin: str,
+        # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
+        # The extra values given here take precedence over values defined on the client or passed to this method.
+        extra_headers: Headers | None = None,
+        extra_query: Query | None = None,
+        extra_body: Body | None = None,
+        timeout: float | httpx.Timeout | None | NotGiven = not_given,
+    ) -> VerificationVerifyNinResponse:
+        """
+        Verify a Nigerian National Identification Number (NIN) and return verification
+        status.
+
+        Args:
+          number_nin: The 11-digit Nigerian National Identification Number
+
+          extra_headers: Send extra headers
+
+          extra_query: Add additional query parameters to the request
+
+          extra_body: Add additional JSON properties to the request
+
+          timeout: Override the client-level default timeout for this request, in seconds
+        """
+        return self._post(
+            "/verification/vnin",
+            body=maybe_transform(
+                {"number_nin": number_nin}, verification_verify_nin_params.VerificationVerifyNinParams
+            ),
+            options=make_request_options(
+                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
+            ),
+            cast_to=VerificationVerifyNinResponse,
+        )
+
+
+class AsyncVerificationResource(AsyncAPIResource):
+    @cached_property
+    def with_raw_response(self) -> AsyncVerificationResourceWithRawResponse:
+        """
+        This property can be used as a prefix for any HTTP method call to return
+        the raw response object instead of the parsed content.
+
+        For more information, see https://www.github.com/adetuyiTolu/prembly-python#accessing-raw-response-data-eg-headers
+        """
+        return AsyncVerificationResourceWithRawResponse(self)
+
+    @cached_property
+    def with_streaming_response(self) -> AsyncVerificationResourceWithStreamingResponse:
+        """
+        An alternative to `.with_raw_response` that doesn't eagerly read the response body.
+
+        For more information, see https://www.github.com/adetuyiTolu/prembly-python#with_streaming_response
+        """
+        return AsyncVerificationResourceWithStreamingResponse(self)
+
+    async def verify_nin(
+        self,
+        *,
+        number_nin: str,
+        # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
+        # The extra values given here take precedence over values defined on the client or passed to this method.
+        extra_headers: Headers | None = None,
+        extra_query: Query | None = None,
+        extra_body: Body | None = None,
+        timeout: float | httpx.Timeout | None | NotGiven = not_given,
+    ) -> VerificationVerifyNinResponse:
+        """
+        Verify a Nigerian National Identification Number (NIN) and return verification
+        status.
+
+        Args:
+          number_nin: The 11-digit Nigerian National Identification Number
+
+          extra_headers: Send extra headers
+
+          extra_query: Add additional query parameters to the request
+
+          extra_body: Add additional JSON properties to the request
+
+          timeout: Override the client-level default timeout for this request, in seconds
+        """
+        return await self._post(
+            "/verification/vnin",
+            body=await async_maybe_transform(
+                {"number_nin": number_nin}, verification_verify_nin_params.VerificationVerifyNinParams
+            ),
+            options=make_request_options(
+                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
+            ),
+            cast_to=VerificationVerifyNinResponse,
+        )
+
+
+class VerificationResourceWithRawResponse:
+    def __init__(self, verification: VerificationResource) -> None:
+        self._verification = verification
+
+        self.verify_nin = to_raw_response_wrapper(
+            verification.verify_nin,
+        )
+
+
+class AsyncVerificationResourceWithRawResponse:
+    def __init__(self, verification: AsyncVerificationResource) -> None:
+        self._verification = verification
+
+        self.verify_nin = async_to_raw_response_wrapper(
+            verification.verify_nin,
+        )
+
+
+class VerificationResourceWithStreamingResponse:
+    def __init__(self, verification: VerificationResource) -> None:
+        self._verification = verification
+
+        self.verify_nin = to_streamed_response_wrapper(
+            verification.verify_nin,
+        )
+
+
+class AsyncVerificationResourceWithStreamingResponse:
+    def __init__(self, verification: AsyncVerificationResource) -> None:
+        self._verification = verification
+
+        self.verify_nin = async_to_streamed_response_wrapper(
+            verification.verify_nin,
+        )
