@@ -1,0 +1,65 @@
+Metadata-Version: 2.4
+Name: druta
+Version: 0.0.2
+Summary: druta (द्रुत) - A fast video dataset format for PyTorch (for when storage isn't a problem)
+Home-page: https://github.com/mayukhdeb/druta
+Author: mayukhdeb
+Author-email: mayukhmainak2000@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Description-Content-Type: text/markdown
+Requires-Dist: decord2
+Requires-Dist: torch
+Requires-Dist: tqdm
+Requires-Dist: torchtyping
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary
+
+# druta (द्रुत)
+
+A fast video dataset format for PyTorch (for when storage is cheap, but time is not)
+
+```
+pip install druta
+```
+
+```python
+import druta
+
+druta.prep_dataset(
+    video="video.mp4",
+    save_as="video.druta",
+    num_threads=4,
+)
+
+dataset = druta.Dataset(
+    filename="video.druta",
+)
+
+for i in range(len(dataset)):
+    frame = dataset[i]
+    ## (height, width, 3)
+    print(f"Frame {i} shape: {frame.shape}")
+```
+
+## Why druta?
+<p align="center">
+    <img src="images/explainer.png" width="45%" style="display:inline-block;">
+    <img src="images/decord_vs_druta_benchmark.png" width="45%" style="display:inline-block;">
+</p>
+
+When training a model on video data using something like decord, we end up performing the video decoding gymnastics thousands of times redundantly. Druta skips this redundancy by decoding the video once and storing it as a memory mapped file with raw `uint8` tensor data.
+
+But there's no free lunch. The speedup comes at a cost of a massive disk-size, but this trade-off is well worth it for some folks. (The speed-tests were run on an M3 Max macbook pro on 2048 frames)
+
+## Running tests
+
+```
+pytest -vvx --capture=no tests/
+```
