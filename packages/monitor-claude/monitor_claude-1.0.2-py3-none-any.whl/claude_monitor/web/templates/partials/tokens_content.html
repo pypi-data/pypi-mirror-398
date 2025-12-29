@@ -1,0 +1,137 @@
+{% from "components/card.html" import stat_card %}
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    {{ stat_card(
+        label="Input Tokens",
+        value=(tokens.input_tokens|default(0)|format_compact),
+        icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path></svg>'
+    ) }}
+
+    {{ stat_card(
+        label="Output Tokens",
+        value=(tokens.output_tokens|default(0)|format_compact),
+        icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"></path></svg>'
+    ) }}
+
+    {{ stat_card(
+        label="Cache Reads",
+        value=(tokens.cache_read_tokens|default(0)|format_compact),
+        icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+    ) }}
+
+    {{ stat_card(
+        label="Total Cost",
+        value="$" + (tokens.total_cost|default(0.0)|float|round(2)|string),
+        icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+    ) }}
+</div>
+
+<!-- Pricing Disclaimer -->
+<div class="mt-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+    <div class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="text-sm text-blue-700">
+            <strong>Pricing note:</strong> Costs are calculated using each model's official API pricing. Unrecognized model IDs default to Claude Sonnet 4.5 rates.
+        </p>
+    </div>
+</div>
+
+<!-- Usage by Model -->
+{% if models and models.models %}
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-8">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Usage by Model</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Input</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Output</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Tokens</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">% of Total</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for model in models.models %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">{{ model.model_name }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{{ model.input_tokens|default(0)|int }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{{ model.output_tokens|default(0)|int }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{{ model.total_tokens|default(0)|int }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-[#0770E3]">${{ model.cost|default(0.0)|float|round(2) }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                <div class="bg-[#0770E3] h-2 rounded-full" style="width: {{ model.cost_percentage|default(0) }}%"></div>
+                            </div>
+                            <span class="text-gray-600 w-12">{{ model.cost_percentage|default(0)|float|round(1) }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Cost Breakdown -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Cost Breakdown</h3>
+        <div class="space-y-4">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Input Cost</span>
+                <span class="font-medium text-gray-900">${{ tokens.input_cost|default(0.0)|float|round(4) }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Output Cost</span>
+                <span class="font-medium text-gray-900">${{ tokens.output_cost|default(0.0)|float|round(4) }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Cache Creation Cost</span>
+                <span class="font-medium text-gray-900">${{ tokens.cache_creation_cost|default(0.0)|float|round(4) }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Cache Read Cost</span>
+                <span class="font-medium text-gray-900">${{ tokens.cache_read_cost|default(0.0)|float|round(4) }}</span>
+            </div>
+            <div class="border-t pt-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-lg font-semibold text-gray-900">Total Cost</span>
+                    <span class="text-lg font-bold text-[#0770E3]">${{ tokens.total_cost|default(0.0)|float|round(2) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Token Details</h3>
+        <div class="space-y-4">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Cache Creation</span>
+                <span class="font-medium text-gray-900">{{ tokens.cache_creation_tokens|default(0)|int }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Cache Reads</span>
+                <span class="font-medium text-gray-900">{{ tokens.cache_read_tokens|default(0)|int }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Cache Hit Rate</span>
+                <span class="font-medium text-green-600">{{ tokens.cache_hit_rate|default(0)|float|round(1) }}%</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Cache Savings</span>
+                <span class="font-medium text-green-600">${{ tokens.cache_savings|default(0.0)|float|round(2) }}</span>
+            </div>
+        </div>
+    </div>
+</div>
