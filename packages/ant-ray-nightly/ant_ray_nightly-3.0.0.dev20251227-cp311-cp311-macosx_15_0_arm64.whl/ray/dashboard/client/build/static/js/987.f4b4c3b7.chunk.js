@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkray_dashboard_client=self.webpackChunkray_dashboard_client||[]).push([[987],{90987:(e,a,r)=>{r.d(a,{createArchitectureServices:()=>c.S});var c=r(21438);r(91584)}}]);
