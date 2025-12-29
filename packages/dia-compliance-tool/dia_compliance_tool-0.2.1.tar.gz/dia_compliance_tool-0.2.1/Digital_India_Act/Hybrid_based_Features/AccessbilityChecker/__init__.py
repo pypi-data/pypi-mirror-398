@@ -1,0 +1,1 @@
+from .accessibility_checker import run_accessbility_check
