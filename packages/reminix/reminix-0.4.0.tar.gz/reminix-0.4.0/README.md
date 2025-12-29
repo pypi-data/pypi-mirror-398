@@ -1,0 +1,171 @@
+# Reminix Python SDK
+
+Python SDK for Reminix API.
+
+## Installation
+
+```bash
+pip install reminix
+```
+
+## Quick Start
+
+```python
+import asyncio
+from reminix import Client
+
+async def main():
+    async with Client(api_key="your-api-key") as client:
+        project = await client.project.get()
+        print(f"Project: {project.name} ({project.id})")
+
+asyncio.run(main())
+```
+
+## Usage
+
+### Basic Client Usage
+
+The SDK uses async/await and should be used with an async context manager:
+
+```python
+import asyncio
+from reminix import Client
+
+async def main():
+    async with Client(api_key="your-api-key") as client:
+        # Use the client here
+        pass
+
+asyncio.run(main())
+```
+
+### Project Operations
+
+```python
+import asyncio
+from reminix import Client
+
+async def main():
+    async with Client(api_key="your-api-key") as client:
+        # Get current project
+        project = await client.project.get()
+        
+        print(f"Project ID: {project.id}")
+        print(f"Project Name: {project.name}")
+        print(f"Organization ID: {project.organizationId}")
+        print(f"Slug: {project.slug}")
+        print(f"Created: {project.createdAt}")
+        print(f"Updated: {project.updatedAt}")
+
+asyncio.run(main())
+```
+
+### Pagination
+
+For endpoints that return paginated data, use the pagination utilities:
+
+```python
+import asyncio
+from reminix import Client, PaginatedResponse, paginate_all, collect_all
+
+async def fetch_events(client, cursor=None):
+    """Helper function to fetch a page of events"""
+    response = await client.request(
+        "GET", 
+        "/events", 
+        params={"cursor": cursor} if cursor else None
+    )
+    return PaginatedResponse(
+        data=response["data"],
+        next_cursor=response.get("nextCursor"),
+        has_more=response.get("hasMore", False),
+    )
+
+async def main():
+    async with Client(api_key="your-api-key") as client:
+        # Option 1: Iterate through all pages (async generator)
+        async for event in paginate_all(lambda c: fetch_events(client, c)):
+            print(f"Event: {event.id}")
+        
+        # Option 2: Collect all items into a list
+        all_events = await collect_all(lambda c: fetch_events(client, c))
+        print(f"Total events: {len(all_events)}")
+
+asyncio.run(main())
+```
+
+### Error Handling
+
+```python
+import asyncio
+from reminix import Client, AuthenticationError, APIError, NetworkError
+
+async def main():
+    try:
+        async with Client(api_key="invalid-key") as client:
+            project = await client.project.get()
+    except AuthenticationError as e:
+        print(f"Authentication failed: {e}")
+        print(f"Status code: {e.status}")
+    except APIError as e:
+        print(f"API error: {e}")
+        print(f"Status: {e.status} {e.reason}")
+    except NetworkError as e:
+        print(f"Network error: {e}")
+
+asyncio.run(main())
+```
+
+### Configuration
+
+```python
+from reminix import Client
+
+# Custom base URL
+client = Client(
+    api_key="your-api-key",
+    base_url="https://custom-api.example.com/v1"
+)
+
+# Custom timeout
+client = Client(
+    api_key="your-api-key",
+    timeout=60  # 60 seconds
+)
+
+# Custom headers
+client = Client(
+    api_key="your-api-key",
+    headers={"X-Custom-Header": "value"}
+)
+```
+
+## 🧪 Testing Examples
+
+Run the example handlers locally:
+
+```bash
+# Basic handler example
+poetry run python -m reminix.http_adapter serve examples/basic_handler.py
+
+# Multi-handler example
+poetry run python -m reminix.http_adapter serve examples/multi_handler
+```
+
+Then test with:
+```bash
+# Health check
+curl http://localhost:3000/health
+
+# Invoke chatbot
+curl -X POST http://localhost:3000/agents/chatbot/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+See [examples](./examples/README.md) for more details.
+
+## License
+
+MIT
