@@ -1,0 +1,130 @@
+Metadata-Version: 2.4
+Name: ark-sdk
+Version: 0.1.49
+Summary: Python SDK for ARK - Agentic Runtime for Kubernetes
+Project-URL: Homepage, https://github.com/mckinsey/agents-at-scale-ark
+Project-URL: Repository, https://github.com/mckinsey/agents-at-scale-ark
+Project-URL: Documentation, https://mckinsey.github.io/agents-at-scale-ark
+Project-URL: Bug Tracker, https://github.com/mckinsey/agents-at-scale-ark/issues
+Author-email: McKinsey & Company <dave.kerr@quantumblack.com>
+Keywords: agentic-ai,agents,ai,ark,automation,kubernetes,llm,mckinsey
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Clustering
+Requires-Python: >=3.9
+Requires-Dist: build>=1.0.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: kubernetes-asyncio>=24.2.0
+Requires-Dist: kubernetes>=32.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: pydantic>=2
+Requires-Dist: pytest>=8.0.0
+Requires-Dist: python-dateutil>=2.8.2
+Requires-Dist: python-jose[cryptography]==3.5.0
+Requires-Dist: typing-extensions>=4.7.1
+Requires-Dist: urllib3<3.0.0,>=2.1.0
+Requires-Dist: uvicorn[standard]>=0.24.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.5; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.2.1; extra == 'dev'
+Requires-Dist: types-python-dateutil>=2.8.19.14; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# ARK Python SDK
+
+Python SDK for ARK - Agentic Runtime for Kubernetes. This SDK is part of the open source [Agents at Scale ARK](https://github.com/mckinsey/agents-at-scale-ark) project.
+
+This package provides Python bindings for managing ARK agents, models, queries, and other resources in Kubernetes. It is partly generated from the ARK Custom Resource Definitions (CRDs), with additional capabilities layered on top.
+
+## Installation
+
+```bash
+pip install ark-sdk
+```
+
+## Usage
+
+### Kubernetes Resource Management
+
+```python
+from ark_sdk import ARKClientV1alpha1
+from ark_sdk.models.agent_v1alpha1 import AgentV1alpha1, AgentV1alpha1Spec
+
+# Initialize client
+client = ARKClientV1alpha1(namespace="default")
+
+# Create agent
+agent = AgentV1alpha1(
+    metadata={"name": "my-agent"},
+    spec=AgentV1alpha1Spec(prompt="Hello", modelRef={"name": "gpt-4"})
+)
+created = client.agents.create(agent)
+
+# Get, update, delete
+agent = client.agents.get("my-agent")
+agent.spec.prompt = "Updated"
+client.agents.update(agent)
+client.agents.delete("my-agent")
+```
+
+### Execution Engine Development
+
+The SDK now includes utilities for building execution engines:
+
+```python
+from ark_sdk import BaseExecutor, ExecutorApp, ExecutionEngineRequest, Message
+
+class MyExecutor(BaseExecutor):
+    def __init__(self):
+        super().__init__("MyEngine")
+    
+    async def execute_agent(self, request: ExecutionEngineRequest) -> List[Message]:
+        # Your execution logic here
+        return [Message(role="assistant", content="Hello from my engine!")]
+
+# Create and run the executor
+executor = MyExecutor()
+app = ExecutorApp(executor, "MyEngine")
+app.run(host="0.0.0.0", port=8000)
+```
+
+### Async Operations
+
+```python
+# List agents asynchronously
+agents = await client.agents.a_list()
+
+# Create query asynchronously
+query = await client.queries.a_create(QueryV1alpha1(...))
+```
+
+## Execution Engine Types
+
+The SDK provides common types for execution engines:
+
+- `ExecutionEngineRequest` - Request format for agent execution
+- `ExecutionEngineResponse` - Response format from execution engines
+- `AgentConfig` - Agent configuration structure
+- `Message` - Chat message format
+- `BaseExecutor` - Abstract base class for execution engines
+- `ExecutorApp` - FastAPI application setup for execution engines
+
+## Documentation
+
+For full documentation and examples, visit the [ARK project repository](https://github.com/mckinsey/agents-at-scale-ark).
+
+## Requirements
+
+- Python 3.9+
+- Kubernetes cluster with ARK installed
+- FastAPI and uvicorn (for execution engine development)
