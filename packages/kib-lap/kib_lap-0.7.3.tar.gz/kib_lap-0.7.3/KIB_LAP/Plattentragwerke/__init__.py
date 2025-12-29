@@ -1,0 +1,1 @@
+from .PlateBendingKirchhoff import PlateBendingKirchhoffClass
