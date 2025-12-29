@@ -1,0 +1,635 @@
+"""AG-Grid component for the dashboard with dark theme support."""
+
+from typing import Any
+
+import dash_ag_grid as dag  # type: ignore[import-untyped]
+
+from src.dashboard.ag_grid.column_presets import (
+    duration_like_last_col,
+    duration_ms_col,
+    last_col,
+    numeric_col,
+    qualified_model_col,
+    resolved_model_col,
+)
+from src.dashboard.ag_grid.factories import build_ag_grid
+from src.dashboard.ag_grid.grid_presets import grid_css_compact, metrics_common_grid_options
+from src.dashboard.ag_grid.scripts import (
+    get_ag_grid_clientside_callback as _get_ag_grid_clientside_callback,
+)
+from src.dashboard.ag_grid.transformers import (
+    logs_errors_row_data,
+    logs_traces_row_data,
+    metrics_active_requests_row_data,
+    metrics_models_row_data,
+    metrics_providers_row_data,
+    models_row_data,
+    top_models_row_data,
+)
+
+# --- Metrics grids ---
+
+
+def metrics_active_requests_ag_grid(
+    active_requests_payload: dict[str, Any],
+    *,
+    grid_id: str = "vdm-metrics-active-requests-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for in-flight requests."""
+
+    active_requests = active_requests_payload.get("active_requests")
+    if not isinstance(active_requests, list):
+        active_requests = []
+
+    active_requests = metrics_active_requests_row_data(active_requests)
+
+    # Keep columns consistent with the model breakdown grid.
+    column_defs = [
+        duration_like_last_col(
+            duration_field="duration_ms",
+            duration_epoch_field="start_time",
+            sort="desc",
+        ),
+        qualified_model_col(sort=None),
+        resolved_model_col(),
+        {
+            "headerName": "Streaming",
+            "field": "is_streaming",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+        },
+        numeric_col(header="In", field="input_tokens", width=110),
+        numeric_col(header="Out", field="output_tokens", width=110),
+        numeric_col(header="Tools", field="tool_calls", width=90),
+        {
+            "headerName": "Req id",
+            "field": "request_id",
+            "sortable": False,
+            "filter": True,
+            "resizable": True,
+            "width": 170,
+            "suppressSizeToFit": True,
+            "cellStyle": {
+                "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas",
+                "opacity": 0.8,
+            },
+        },
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=active_requests,
+        no_rows_message="No active requests",
+        dash_grid_options_overrides={
+            "pagination": False,
+            # Ensure SSE transactions (add/update/remove) can match rows deterministically.
+            "getRowId": {"function": "params.data.request_id"},
+            **metrics_common_grid_options(),
+        },
+        custom_css=grid_css_compact(height_px=260),
+    )
+
+
+def _coerce_bool(x: object) -> bool:
+    return bool(x)
+
+
+def metrics_active_requests_component(active_requests_payload: dict[str, Any]) -> Any:
+    if active_requests_payload.get("disabled"):
+        return "Active request metrics are disabled. Set LOG_REQUEST_METRICS=true."
+    return metrics_active_requests_ag_grid(active_requests_payload)
+
+
+def top_models_ag_grid(
+    models: list[dict[str, Any]],
+    *,
+    grid_id: str = "vdm-top-models-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for Top Models.
+
+    Expects rows shaped like the `/top-models` API output items.
+    """
+    column_defs = [
+        {
+            "headerName": "Provider",
+            "field": "provider",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 130,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Sub-provider",
+            "field": "sub_provider",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 160,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Model ID",
+            "field": "id",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 2,
+            "minWidth": 260,
+            "cellStyle": {"cursor": "copy"},
+        },
+        {
+            "headerName": "Name",
+            "field": "name",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 1,
+            "minWidth": 160,
+        },
+        {
+            "headerName": "Context",
+            "field": "context_window",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 120,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Avg $/M",
+            "field": "avg_per_million",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 120,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Caps",
+            "field": "capabilities",
+            "sortable": False,
+            "filter": True,
+            "resizable": True,
+            "flex": 1,
+            "minWidth": 220,
+        },
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=top_models_row_data(models),
+        no_rows_message="No models found",
+    )
+
+
+# --- Models AG Grid ---
+
+
+def models_ag_grid(
+    models: list[dict[str, Any]],
+    grid_id: str = "vdm-models-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for models with dark theme and advanced features.
+
+    Args:
+        models: List of model dictionaries
+        grid_id: Unique ID for the grid component
+
+    Returns:
+        AG-Grid component with models data
+    """
+    row_data = models_row_data(models)
+
+    # Define column definitions with new order: Created → Actions → Model ID → metadata
+    column_defs = [
+        {
+            "headerName": "Created",
+            "field": "created_iso",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 120,  # Fixed width for yyyy-mm-dd format (plus padding)
+            "suppressSizeToFit": True,
+            "suppressMovable": False,
+            "sort": "desc",  # Default sort by creation date (newest first)
+            "tooltipField": "created_relative",
+            "comparator": {"function": "vdmDateComparator"},
+        },
+        {
+            "headerName": "Actions",
+            "field": "actions",
+            "sortable": False,
+            "filter": False,
+            "resizable": False,
+            "width": 80,  # Fixed width for emoji icon with padding
+            "suppressSizeToFit": True,
+            "suppressMovable": True,
+            "cellRenderer": "vdmModelPageLinkRenderer",
+        },
+        {
+            "headerName": "Sub-Provider",
+            "field": "owned_by",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 1,
+            "minWidth": 140,
+        },
+        {
+            "headerName": "Model ID",
+            "field": "id",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 2,
+            "minWidth": 220,
+            "suppressMovable": False,
+            "cellStyle": {"cursor": "copy"},
+            "tooltipField": "description_full",
+            # Render as: icon + id (cell click-to-copy is attached by JS listener)
+            "cellRenderer": "vdmModelIdWithIconRenderer",
+        },
+        {
+            "headerName": "Modality",
+            "field": "architecture_modality",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 1,
+            "minWidth": 170,
+        },
+        {
+            "headerName": "Context",
+            "field": "context_length",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Max out",
+            "field": "max_output_tokens",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "$/M in",
+            "field": "pricing_prompt_per_million",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 100,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "$/M out",
+            "field": "pricing_completion_per_million",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 100,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Description",
+            "field": "description_preview",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 3,
+            "minWidth": 360,
+            "tooltipField": "description_full",
+        },
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=row_data,
+        no_rows_message="No models found",
+        dash_grid_options_overrides={
+            "rowSelection": {"enableClickSelection": True},
+        },
+    )
+
+
+def logs_errors_ag_grid(
+    errors: list[dict[str, Any]],
+    grid_id: str = "vdm-logs-errors-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for error logs with dark theme and provider badges.
+
+    Args:
+        errors: List of error log dictionaries
+        grid_id: Unique ID for the grid component
+
+    Returns:
+        AG-Grid component with error logs data
+    """
+    row_data = logs_errors_row_data(errors)
+
+    # Define column definitions for errors
+    column_defs = [
+        {
+            "headerName": "Time",
+            "field": "time_formatted",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 100,
+            "suppressSizeToFit": True,
+            "tooltipField": "time_relative",
+            "sort": "desc",  # Default sort by time (newest first)
+        },
+        {
+            "headerName": "Provider",
+            "field": "provider",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 130,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmProviderBadgeRenderer",
+        },
+        {
+            "headerName": "Model",
+            "field": "model",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 1,
+            "minWidth": 200,
+            "cellStyle": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas"},
+        },
+        {
+            "headerName": "Error Type",
+            "field": "error_type",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 160,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Error Message",
+            "field": "error",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 3,
+            "minWidth": 300,
+            "cellStyle": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas"},
+            "tooltipField": "error",
+        },
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=row_data,
+        no_rows_message="No errors found",
+    )
+
+
+def logs_traces_ag_grid(
+    traces: list[dict[str, Any]],
+    grid_id: str = "vdm-logs-traces-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for trace logs with dark theme and provider badges.
+
+    Args:
+        traces: List of trace log dictionaries
+        grid_id: Unique ID for the grid component
+
+    Returns:
+        AG-Grid component with trace logs data
+    """
+    row_data = logs_traces_row_data(traces)
+
+    # Define column definitions for traces
+    column_defs = [
+        {
+            "headerName": "Time",
+            "field": "time_formatted",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 100,
+            "suppressSizeToFit": True,
+            "tooltipField": "time_relative",
+            "sort": "desc",  # Default sort by time (newest first)
+        },
+        {
+            "headerName": "Provider",
+            "field": "provider",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 130,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmProviderBadgeRenderer",
+        },
+        {
+            "headerName": "Model",
+            "field": "model",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "flex": 1,
+            "minWidth": 200,
+            "cellStyle": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas"},
+        },
+        {
+            "headerName": "Status",
+            "field": "status",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 100,
+            "suppressSizeToFit": True,
+        },
+        {
+            "headerName": "Duration",
+            "field": "duration_formatted",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 100,
+            "suppressSizeToFit": True,
+            "tooltipField": "duration_ms",
+            "comparator": {"function": "vdmNumericComparator"},
+        },
+        {
+            "headerName": "In Tokens",
+            "field": "input_tokens_raw",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmFormattedNumberRenderer",
+        },
+        {
+            "headerName": "Out Tokens",
+            "field": "output_tokens_raw",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmFormattedNumberRenderer",
+        },
+        {
+            "headerName": "Cache Read",
+            "field": "cache_read_tokens_raw",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmFormattedNumberRenderer",
+        },
+        {
+            "headerName": "Cache Create",
+            "field": "cache_creation_tokens_raw",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmFormattedNumberRenderer",
+        },
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=row_data,
+        no_rows_message="No traces found",
+    )
+
+
+def metrics_providers_ag_grid(
+    running_totals: dict[str, Any],
+    *,
+    grid_id: str = "vdm-metrics-providers-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for Metrics provider rollups."""
+
+    column_defs = [
+        last_col(),
+        {
+            "headerName": "Provider",
+            "field": "provider",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 160,
+            "suppressSizeToFit": True,
+            "cellRenderer": "vdmProviderBadgeRenderer",
+            "sort": "asc",
+        },
+        {
+            "headerName": "Avg",
+            "field": "average_duration_ms",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 90,
+            "suppressSizeToFit": True,
+            "valueGetter": {"function": "params.data.average_duration"},
+            "tooltipValueGetter": {"function": "params.data.average_duration"},
+        },
+        duration_ms_col(header="Total\ntime", field="total_duration_ms_raw", width=120),
+        numeric_col(header="Tools", field="tool_calls_raw", width=90),
+        numeric_col(header="Requests", field="requests", width=110),
+        numeric_col(header="In\ntokens", field="input_tokens_raw", width=120),
+        numeric_col(header="Out\ntokens", field="output_tokens_raw", width=120),
+        numeric_col(header="Cache\nread", field="cache_read_tokens_raw", width=120),
+        numeric_col(header="Cache\ncreate", field="cache_creation_tokens_raw", width=120),
+        numeric_col(header="Errors", field="errors", width=100),
+        {
+            "headerName": "Error rate",
+            "field": "error_rate_pct",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 110,
+            "suppressSizeToFit": True,
+            "tooltipField": "error_rate",
+        },
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=metrics_providers_row_data(running_totals),
+        no_rows_message="No provider metrics yet",
+        dash_grid_options_overrides={
+            "paginationPageSize": 5,
+            "paginationPageSizeSelector": [5, 15, 50],
+            **metrics_common_grid_options(),
+        },
+        custom_css=grid_css_compact(height_px=286),
+    )
+
+
+def metrics_models_ag_grid(
+    running_totals: dict[str, Any],
+    *,
+    grid_id: str = "vdm-metrics-models-grid",
+) -> dag.AgGrid:
+    """Create an AG-Grid table for Metrics model rollups across providers."""
+
+    column_defs = [
+        last_col(),
+        qualified_model_col(sort="asc"),
+        {
+            "headerName": "Avg",
+            "field": "average_duration_ms",
+            "sortable": True,
+            "filter": True,
+            "resizable": True,
+            "width": 90,
+            "suppressSizeToFit": True,
+            "valueGetter": {"function": "params.data.average_duration"},
+            "tooltipValueGetter": {"function": "params.data.average_duration"},
+        },
+        duration_ms_col(header="Total\ntime", field="total_duration_ms_raw", width=120),
+        numeric_col(header="Tools", field="tool_calls_raw", width=90),
+        numeric_col(header="Requests", field="requests", width=110),
+        numeric_col(header="In\ntokens", field="input_tokens_raw", width=120),
+        numeric_col(header="Out\ntokens", field="output_tokens_raw", width=120),
+    ]
+
+    return build_ag_grid(
+        grid_id=grid_id,
+        column_defs=column_defs,
+        row_data=metrics_models_row_data(running_totals),
+        no_rows_message="No model metrics yet",
+        dash_grid_options_overrides={
+            "paginationPageSize": 15,
+            "paginationPageSizeSelector": [5, 15, 50, 100],
+            **metrics_common_grid_options(),
+        },
+        custom_css=grid_css_compact(height_px=420),
+    )
+
+
+def get_ag_grid_clientside_callback() -> dict[str, dict[str, str]]:
+    """Return the clientside callback for AG-Grid cell renderers.
+
+    Note: the keys must match the Dash component id(s) of the AgGrid instances.
+    Delegates to the scripts module.
+    """
+    return _get_ag_grid_clientside_callback()
