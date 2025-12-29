@@ -1,0 +1,1 @@
+"""Input sinks package."""
