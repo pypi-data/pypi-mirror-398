@@ -1,0 +1,97 @@
+# MCP Image Zoom-In Tool
+
+A Model Context Protocol (MCP) server that provides image zoom-in capabilities for AI models.
+
+## Features
+
+- **Image Cropping**: Crop specific regions from images using bounding box coordinates
+- **Smart Resizing**: Automatically resize cropped images for Vision Transformer compatibility
+- **Multiple Input Sources**: Support for URLs, local files, and base64 encoded images
+- **Relative Coordinates**: Use normalized [0, 1000] coordinate system
+
+## Installation
+
+```bash
+# Using uvx (recommended for MCP)
+uvx mcp-image-zoom
+
+# Using pip
+pip install mcp-image-zoom
+```
+
+## Usage
+
+### As MCP Server
+
+Run the server directly:
+
+```bash
+mcp-image-zoom
+```
+
+### MCP Configuration
+
+Add to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "image-zoom": {
+      "command": "uvx",
+      "args": ["mcp-image-zoom"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+#### `image_zoom_in`
+
+Zoom in on a specific region of an image.
+
+**Parameters:**
+- `image_source` (string): Image URL, file path, or base64 string
+- `bbox_x1` (number): Left edge (0-1000)
+- `bbox_y1` (number): Top edge (0-1000)
+- `bbox_x2` (number): Right edge (0-1000)
+- `bbox_y2` (number): Bottom edge (0-1000)
+- `label` (string, optional): Region label
+
+**Returns:**
+- `cropped_image`: Base64 encoded cropped image
+- `original_size`: [width, height]
+- `crop_region`: [x1, y1, x2, y2] in pixels
+- `output_size`: [width, height] of output
+
+#### `get_image_info`
+
+Get basic information about an image.
+
+**Parameters:**
+- `image_source` (string): Image URL, file path, or base64 string
+
+**Returns:**
+- `width`, `height`: Image dimensions
+- `format`: Image format
+- `mode`: Color mode
+
+## Coordinate System
+
+The tool uses relative coordinates [0, 1000]:
+- `(0, 0)` = top-left corner
+- `(1000, 1000)` = bottom-right corner
+
+Example: To crop the center-right region:
+```json
+{
+  "bbox_x1": 500,
+  "bbox_y1": 250,
+  "bbox_x2": 1000,
+  "bbox_y2": 750
+}
+```
+
+## License
+
+Apache-2.0
