@@ -1,0 +1,241 @@
+# InvoiceAI Python SDK
+
+Official Python SDK for the InvoiceAI API. Manage invoices, clients, products, quotes, and more.
+
+## Installation
+
+```bash
+pip install invoiceai
+```
+
+## Quick Start
+
+```python
+from invoiceai import InvoiceAI
+
+# Initialize with your API key
+client = InvoiceAI(api_key="your_api_key_here")
+
+# Or with JWT token
+client = InvoiceAI(access_token="your_jwt_token")
+
+# List all invoices
+invoices = client.invoices.list()
+print(invoices["invoices"])
+
+# Create a client
+new_client = client.clients.create(
+    name="John Doe",
+    email="john@example.com",
+    company="Acme Inc",
+    address="123 Main St, Johannesburg"
+)
+```
+
+## Configuration
+
+```python
+client = InvoiceAI(
+    # Authentication (choose one)
+    api_key="your_api_key",        # API key authentication
+    access_token="jwt_token",       # JWT token authentication
+    
+    # Optional settings
+    base_url="https://urcvstsuqtlqhjgqudtn.supabase.co/functions/v1/api",
+    timeout=30,                     # Request timeout in seconds
+)
+```
+
+## API Reference
+
+### Invoices
+
+```python
+# List all invoices
+invoices = client.invoices.list(
+    limit=50,       # Default: 50
+    offset=0,       # For pagination
+    status="paid"   # Filter by status
+)
+
+# Get single invoice
+invoice = client.invoices.get("invoice-uuid")
+
+# Create invoice
+new_invoice = client.invoices.create(
+    client_id="client-uuid",
+    invoice_number="INV-2024-001",
+    issue_date="2024-01-15",
+    due_date="2024-02-15",
+    subtotal_cents=100000,
+    vat_cents=15000,
+    total_cents=115000,
+    status="draft",
+    notes="Payment due within 30 days"
+)
+
+# Update invoice
+updated = client.invoices.update("invoice-uuid", status="paid")
+
+# Delete invoice
+client.invoices.delete("invoice-uuid")
+```
+
+### Clients
+
+```python
+# List all clients
+clients = client.clients.list(limit=50, offset=0)
+
+# Get single client
+client_data = client.clients.get("client-uuid")
+
+# Create client
+new_client = client.clients.create(
+    name="John Doe",
+    email="john@example.com",
+    company="Acme Inc",
+    address="123 Main St, Johannesburg",
+    phone="+27 11 123 4567"
+)
+
+# Update client
+updated = client.clients.update("client-uuid", phone="+27 11 987 6543")
+
+# Delete client
+client.clients.delete("client-uuid")
+```
+
+### Products
+
+```python
+# List all products
+products = client.products.list(limit=50, offset=0)
+
+# Get single product
+product = client.products.get("product-uuid")
+
+# Create product
+new_product = client.products.create(
+    name="Web Development Service",
+    description="Custom website development",
+    price_cents=500000,
+    vat_rate=15,
+    unit="hour"
+)
+
+# Update product
+updated = client.products.update("product-uuid", price_cents=550000)
+
+# Delete product
+client.products.delete("product-uuid")
+```
+
+### Quotes
+
+```python
+# List all quotes
+quotes = client.quotes.list(limit=50, offset=0, status="draft")
+
+# Get single quote
+quote = client.quotes.get("quote-uuid")
+
+# Create quote
+new_quote = client.quotes.create(
+    client_id="client-uuid",
+    quote_number="QT-2024-001",
+    issue_date="2024-01-15",
+    expiry_date="2024-02-15",
+    subtotal_cents=100000,
+    vat_cents=15000,
+    total_cents=115000,
+    status="draft",
+    notes="Quote valid for 30 days"
+)
+
+# Update quote
+updated = client.quotes.update("quote-uuid", status="accepted")
+
+# Delete quote
+client.quotes.delete("quote-uuid")
+```
+
+### Profile
+
+```python
+# Get business profile
+profile = client.profile.get()
+
+# Update profile
+updated = client.profile.update(
+    business_name="My Business",
+    business_address="123 Main St, Johannesburg",
+    business_phone="+27 11 123 4567",
+    business_email="info@mybusiness.co.za",
+    vat_number="4123456789",
+    bank_name="FNB",
+    bank_account_number="62000000000",
+    bank_branch_code="250655"
+)
+```
+
+### Stats
+
+```python
+# Get dashboard statistics
+stats = client.stats.get()
+# Returns: total_invoices, total_clients, total_products,
+#          revenue_this_month, pending_invoices, overdue_invoices
+```
+
+## Error Handling
+
+```python
+from invoiceai import InvoiceAI, InvoiceAIError
+
+try:
+    invoice = client.invoices.get("invalid-uuid")
+except InvoiceAIError as e:
+    print(f"API Error: {e.message}")
+    print(f"Status: {e.status}")
+    print(f"Code: {e.code}")
+```
+
+## Async Support
+
+```python
+from invoiceai import AsyncInvoiceAI
+import asyncio
+
+async def main():
+    client = AsyncInvoiceAI(api_key="your_api_key")
+    
+    # All methods support async/await
+    invoices = await client.invoices.list()
+    print(invoices)
+
+asyncio.run(main())
+```
+
+## Type Hints
+
+The SDK includes full type hints for all methods and responses.
+
+```python
+from invoiceai.types import Invoice, Client, Product, Quote, Profile, Stats
+```
+
+## Requirements
+
+- Python 3.8+
+- requests >= 2.28.0
+- aiohttp >= 3.8.0 (for async support)
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Support
+
+- Documentation: https://invoiceai.co.za/api-docs
+- Email: support@invoiceai.co.za
