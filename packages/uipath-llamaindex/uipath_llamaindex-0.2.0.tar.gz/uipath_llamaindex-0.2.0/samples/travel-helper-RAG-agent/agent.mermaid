@@ -1,0 +1,19 @@
+flowchart TB
+  __start__(__start__)
+  _done(_done)
+  add_data_to_index(add_data_to_index)
+  combine_and_interpret_answers(combine_and_interpret_answers)
+  create_sub_questions_plan(create_sub_questions_plan)
+  handle_sub_question(handle_sub_question)
+  wait_for_index_ingestion(wait_for_index_ingestion)
+  workflow_entrypoint(workflow_entrypoint)
+  __end__(__end__)
+  add_data_to_index --> |WaitForIndexIngestion|wait_for_index_ingestion
+  combine_and_interpret_answers --> |OutputEvent|__end__
+  create_sub_questions_plan --> |SubQuestionEvent|handle_sub_question
+  handle_sub_question --> |AnswerEvent|combine_and_interpret_answers
+  wait_for_index_ingestion --> |QueryEvent|create_sub_questions_plan
+  wait_for_index_ingestion --> |OutputEvent|__end__
+  __start__ --> |CustomStartEvent|workflow_entrypoint
+  workflow_entrypoint --> |QueryEvent|create_sub_questions_plan
+  workflow_entrypoint --> |AddDataToIndexEvent|add_data_to_index
