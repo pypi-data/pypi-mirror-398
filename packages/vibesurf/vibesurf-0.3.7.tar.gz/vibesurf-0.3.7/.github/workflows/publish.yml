@@ -1,0 +1,520 @@
+name: Build and Publish
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for setuptools-scm
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Free disk space
+      run: |
+        echo "=== Initial disk usage ==="
+        df -h
+        echo "=== Cleaning up space ==="
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo docker image prune -af
+        echo "=== Disk usage after cleanup ==="
+        df -h
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install --no-cache-dir build pytest
+        pip install --no-cache-dir -e .
+    
+    - name: Test CLI import
+      run: |
+        python -c "import vibe_surf; print(f'VibeSurf version: {vibe_surf.__version__}')"
+        python -c "from vibe_surf.cli import main; print('CLI import successful')"
+
+  build-wheels:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for setuptools-scm
+        ref: ${{ github.event.release.tag_name }}  # Ensure we checkout the exact tag
+    
+    - name: Debug git state
+      run: |
+        echo "=== Git branch and tag info ==="
+        git branch -a
+        git describe --tags --always --dirty
+        git log -1 --oneline
+        git tag --points-at HEAD
+        echo "=== GitHub event context ==="
+        echo "Event name: ${{ github.event_name }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "Ref name: ${{ github.ref_name }}"
+        echo "Release tag: ${{ github.event.release.tag_name }}"
+        
+        # Verify we're on the correct tag
+        CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "no-tag")
+        echo "Current exact tag: $CURRENT_TAG"
+        if [ "$CURRENT_TAG" != "${{ github.event.release.tag_name }}" ]; then
+          echo "WARNING: Current tag ($CURRENT_TAG) doesn't match release tag (${{ github.event.release.tag_name }})"
+        fi
+    
+    - name: Free disk space before build
+      run: |
+        echo "=== Initial disk usage ==="
+        df -h
+        echo "=== Cleaning up space ==="
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo docker image prune -af
+        sudo apt-get clean
+        echo "=== Disk usage after cleanup ==="
+        df -h
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: 'vibe_surf/frontend/package-lock.json'
+    
+    - name: Build frontend
+      run: |
+        echo "=== Starting frontend build ==="
+        df -h
+        cd vibe_surf/frontend
+        
+        # Use npm ci with cache optimization
+        npm ci --prefer-offline --no-audit --progress=false
+        npm run build
+        
+        echo "=== After frontend build ==="
+        df -h
+        
+        # Copy build folder to backend directory as frontend
+        mkdir -p ../backend/frontend
+        cp -r build/* ../backend/frontend/
+        
+        # Clean up node_modules to save space
+        rm -rf node_modules
+        rm -rf build
+        
+        echo "=== Frontend build completed and cleaned up ==="
+        ls -la ../backend/frontend/
+        df -h
+    
+    - name: Install build dependencies
+      run: |
+        echo "=== Installing build dependencies ==="
+        df -h
+        python -m pip install --upgrade pip --no-cache-dir
+        pip install --no-cache-dir build setuptools-scm[toml]
+        echo "=== After installing build dependencies ==="
+        df -h
+    
+    - name: Update Extension Version
+      run: |
+        echo "=== Updating Extension Version ==="
+        
+        # Get release tag from GitHub context (if available)
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
+        
+        if [ -n "$RELEASE_TAG" ]; then
+          # Extract version from release tag (remove 'v' prefix if present)
+          VERSION=$(echo "$RELEASE_TAG" | sed 's/^v//')
+          echo "Using release tag version: $VERSION"
+        else
+          # Fallback to setuptools-scm for non-release builds
+          VERSION=$(python -m setuptools_scm)
+          echo "Using setuptools-scm version: $VERSION"
+        fi
+        
+        # Extract Chrome-compatible version (only numbers and dots)
+        # Remove .devN suffix, git hash (after +), and any non-numeric/non-dot characters
+        TEMP_VERSION=$(echo $VERSION | sed 's/\.dev[0-9]*//' | sed 's/+.*//')
+        CLEAN_VERSION=$(echo $TEMP_VERSION | sed 's/[^0-9.]//g')
+        echo "Clean version for extension: $CLEAN_VERSION"
+        
+        # Update manifest.json version
+        cd vibe_surf/chrome_extension
+        python -c "import json; import sys; version = sys.argv[1]; manifest = json.load(open('manifest.json', 'r')); manifest['version'] = version; json.dump(manifest, open('manifest.json', 'w'), indent=2); print(f'Updated manifest.json version to {version}')" "$CLEAN_VERSION"
+        
+        # Create version.js file
+        echo "// Extension version - auto-generated during build" > scripts/version.js
+        echo "window.VIBESURF_EXTENSION_VERSION = '$CLEAN_VERSION';" >> scripts/version.js
+        echo "console.log('[VibeSurf] Extension version:', '$CLEAN_VERSION');" >> scripts/version.js
+        
+        echo "=== Version files updated ==="
+        echo "manifest.json version:"
+        grep -A1 -B1 '"version"' manifest.json
+        echo "version.js content:"
+        cat scripts/version.js
+        
+        # This version will also be used by setuptools-scm for wheel package
+        echo "Version $VERSION will be used for wheel package"
+    
+    - name: Build package
+      env:
+        # Force setuptools-scm to use the release tag version
+        SETUPTOOLS_SCM_PRETEND_VERSION: ${{ github.event.release.tag_name != '' && github.event.release.tag_name || '' }}
+      run: |
+        echo "=== Building package ==="
+        df -h
+        
+        # Extract clean version from tag (remove 'v' prefix if present)
+        if [ -n "${{ github.event.release.tag_name }}" ]; then
+          RELEASE_VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+          echo "Building release version: $RELEASE_VERSION"
+          export SETUPTOOLS_SCM_PRETEND_VERSION="$RELEASE_VERSION"
+        else
+          echo "Building development version (no release tag)"
+        fi
+        
+        python -m build
+        echo "=== Package built ==="
+        df -h
+    
+    - name: Check built package
+      run: |
+        echo "=== Installing twine and checking package ==="
+        df -h
+        pip install --no-cache-dir twine
+        twine check dist/*
+        
+        # Show package contents
+        echo "=== Built packages ==="
+        ls -la dist/
+        
+        echo "=== Package info ==="
+        python -m pip install --no-cache-dir dist/*.whl
+        python -c "import vibe_surf; print(f'Installed version: {vibe_surf.__version__}')"
+        
+        echo "=== Final disk usage ==="
+        df -h
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+        retention-days: 30  # Consistent retention policy
+
+  build-extension:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for setuptools-scm
+    
+    - name: Free disk space
+      run: |
+        echo "=== Initial disk usage ==="
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo docker image prune -af
+        echo "=== Disk usage after cleanup ==="
+        df -h
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies for version extraction
+      run: |
+        python -m pip install --upgrade pip --no-cache-dir
+        pip install --no-cache-dir setuptools-scm[toml]
+    
+    - name: Update Extension Version
+      run: |
+        echo "=== Updating Extension Version ==="
+        
+        # Get release tag from GitHub context (if available)
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
+        
+        if [ -n "$RELEASE_TAG" ]; then
+          # Extract version from release tag (remove 'v' prefix if present)
+          VERSION=$(echo "$RELEASE_TAG" | sed 's/^v//')
+          echo "Using release tag version: $VERSION"
+        else
+          # Fallback to setuptools-scm for non-release builds
+          VERSION=$(python -m setuptools_scm)
+          echo "Using setuptools-scm version: $VERSION"
+        fi
+        
+        # Extract Chrome-compatible version (only numbers and dots)
+        # Remove .devN suffix, git hash (after +), and any non-numeric/non-dot characters
+        TEMP_VERSION=$(echo $VERSION | sed 's/\.dev[0-9]*//' | sed 's/+.*//')
+        CLEAN_VERSION=$(echo $TEMP_VERSION | sed 's/[^0-9.]//g')
+        echo "Clean version for extension: $CLEAN_VERSION"
+        
+        # Update manifest.json version
+        cd vibe_surf/chrome_extension
+        python -c "import json; import sys; version = sys.argv[1]; manifest = json.load(open('manifest.json', 'r')); manifest['version'] = version; json.dump(manifest, open('manifest.json', 'w'), indent=2); print(f'Updated manifest.json version to {version}')" "$CLEAN_VERSION"
+        
+        # Create version.js file
+        echo "// Extension version - auto-generated during build" > scripts/version.js
+        echo "window.VIBESURF_EXTENSION_VERSION = '$CLEAN_VERSION';" >> scripts/version.js
+        echo "console.log('[VibeSurf] Extension version:', '$CLEAN_VERSION');" >> scripts/version.js
+        
+        echo "=== Version files updated ==="
+        echo "manifest.json version:"
+        grep -A1 -B1 '"version"' manifest.json
+        echo "version.js content:"
+        cat scripts/version.js
+    
+    - name: Upload extension artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vibesurf-extension
+        path: vibe_surf/chrome_extension/
+        retention-days: 30  # Reduced from 90 days to save storage
+
+  build-installer:
+    needs: test
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Free disk space
+      run: |
+        echo "=== Initial disk usage ==="
+        Get-WmiObject -Class Win32_LogicalDisk | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
+        echo "=== Cleaning up space ==="
+        # Clean Windows temp files and caches
+        Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$env:LOCALAPPDATA\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+        # Clean Visual Studio temp files
+        if (Test-Path "$env:LOCALAPPDATA\Microsoft\VisualStudio") {
+            Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\VisualStudio\*" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        echo "=== Disk usage after cleanup ==="
+        Get-WmiObject -Class Win32_LogicalDisk | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
+
+    # Update Extension Version for consistency
+    - name: Update Extension Version
+      shell: bash
+      run: |
+        echo "=== Updating Extension Version ==="
+        
+        # Install setuptools-scm for version extraction
+        python -m pip install --upgrade pip --no-cache-dir setuptools-scm[toml]
+        
+        # Get release tag from GitHub context (if available)
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
+        
+        if [ -n "$RELEASE_TAG" ]; then
+          # Extract version from release tag (remove 'v' prefix if present)
+          VERSION=$(echo "$RELEASE_TAG" | sed 's/^v//')
+          echo "Using release tag version: $VERSION"
+        else
+          # Fallback to setuptools-scm for non-release builds
+          VERSION=$(python -m setuptools_scm)
+          echo "Using setuptools-scm version: $VERSION"
+        fi
+        
+        # Extract Chrome-compatible version (only numbers and dots)
+        # Remove .devN suffix, git hash (after +), and any non-numeric/non-dot characters
+        TEMP_VERSION=$(echo $VERSION | sed 's/\.dev[0-9]*//' | sed 's/+.*//')
+        CLEAN_VERSION=$(echo $TEMP_VERSION | sed 's/[^0-9.]//g')
+        echo "Clean version for extension: $CLEAN_VERSION"
+        
+        # Update manifest.json version
+        cd vibe_surf/chrome_extension
+        python -c "import json; import sys; version = sys.argv[1]; manifest = json.load(open('manifest.json', 'r')); manifest['version'] = version; json.dump(manifest, open('manifest.json', 'w'), indent=2); print(f'Updated manifest.json version to {version}')" "$CLEAN_VERSION"
+        
+        # Create version.js file
+        echo "// Extension version - auto-generated during build" > scripts/version.js
+        echo "window.VIBESURF_EXTENSION_VERSION = '$CLEAN_VERSION';" >> scripts/version.js
+        echo "console.log('[VibeSurf] Extension version:', '$CLEAN_VERSION');" >> scripts/version.js
+        
+        echo "=== Version files updated ==="
+        echo "manifest.json version:"
+        grep -A1 -B1 '"version"' manifest.json
+
+    # Create dist directory for installer build
+    - name: Prepare build directory
+      shell: bash
+      run: |
+        echo "=== Preparing build directory ==="
+        mkdir -p dist
+        echo "Build directory created for installer"
+
+    # Install NSIS for creating Windows installer
+    - name: Install NSIS
+      run: |
+        echo "=== Installing NSIS ==="
+        choco install nsis -y
+        
+        # Verify NSIS installation
+        & "C:\Program Files (x86)\NSIS\makensis.exe" /VERSION
+
+    # Build installer using NSIS
+    - name: Build Windows Installer
+      shell: cmd
+      run: |
+        echo === Building VibeSurf Installer ===
+        
+        REM Copy LICENSE file to dist directory for NSIS
+        copy LICENSE dist\LICENSE
+        
+        REM Build installer using NSIS
+        "C:\Program Files (x86)\NSIS\makensis.exe" scripts\vibesurf-installer.nsi
+        
+        echo === Installer build completed ===
+        dir dist\VibeSurf-Installer.exe
+
+    # Test installer (quick validation)
+    - name: Test installer
+      shell: cmd
+      run: |
+        echo === Testing installer ===
+        
+        REM Check if installer was created
+        if exist "dist\VibeSurf-Installer.exe" (
+            echo [SUCCESS] Installer created successfully
+            dir dist\VibeSurf-Installer.exe
+        ) else (
+            echo [ERROR] Installer not found
+            exit /b 1
+        )
+
+    # Prepare installer for upload
+    - name: Prepare installer artifact
+      shell: bash
+      run: |
+        echo "=== Preparing installer for upload ==="
+        
+        echo "=== Final installer ==="
+        ls -lh dist/VibeSurf-Installer.exe
+
+    # Upload installer
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: vibesurf-installer
+        path: dist/VibeSurf-Installer.exe
+        retention-days: 30  # Reduced from 90 days to save storage
+
+  publish-pypi:
+    needs: [test, build-wheels]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'  # Only publish to PyPI on releases
+    environment: release
+    permissions:
+      id-token: write  # Required for trusted publishing
+    
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+    
+    - name: Verify release tag
+      run: |
+        echo "=== Verifying release build ==="
+        echo "Event: ${{ github.event_name }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "Tag: ${{ github.event.release.tag_name }}"
+        
+        # Verify we have a proper release tag
+        if [ -z "${{ github.event.release.tag_name }}" ]; then
+          echo "ERROR: No release tag found. Cannot publish to PyPI."
+          exit 1
+        fi
+        
+        echo "✓ Release tag verified: ${{ github.event.release.tag_name }}"
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        skip-existing: true  # Skip if version already exists on PyPI
+        # Use the following line if you want to use trusted publishing instead
+        # trusted-publishing: true
+
+  publish-installer:
+    needs: [test, build-installer]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    permissions:
+      contents: write  # Required for uploading to GitHub releases
+      actions: read    # Required for downloading artifacts
+    
+    steps:
+    - name: Download installer artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: vibesurf-installer
+        path: ./
+
+    - name: Upload installer to release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: VibeSurf-Installer.exe
+
+  publish-extension:
+    needs: [test, build-extension]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    permissions:
+      contents: write  # Required for uploading to GitHub releases
+      actions: read    # Required for downloading artifacts
+    
+    steps:
+    - name: Download extension artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: vibesurf-extension
+        path: extension/
+    
+    - name: Create extension zip for release
+      run: |
+        echo "=== Creating extension zip for release ==="
+        cd extension
+        zip -r ../vibesurf-extension.zip . -x "*.git*" "*.DS_Store*"
+        cd ..
+        
+        echo "=== Extension zip created ==="
+        ls -la vibesurf-extension.zip
+        
+        # Show package contents for verification
+        echo "=== Extension contents ==="
+        unzip -l vibesurf-extension.zip | head -20
+
+    - name: Upload extension to release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: vibesurf-extension.zip
