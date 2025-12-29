@@ -1,0 +1,96 @@
+# AWS Lambda Layer CLI Tool
+
+A command-line tool for creating and publishing AWS Lambda layers for Node.js and Python.
+
+## Features
+
+- Create and publish Lambda layers for Node.js (npm) and Python (uv/pip)
+- Automatic version management and smart naming
+- Direct publishing to AWS with IAM credentials and region support
+- Support for multiple packages in a single layer
+
+## Installation
+
+### Package Managers (Recommended)
+
+#### npm (Node.js)
+```bash
+npm i -g aws-lambda-layer-cli
+```
+
+#### uv (Python)
+```bash
+uv tool install aws-lambda-layer-cli
+```
+
+### Requirements
+- **System**: Linux, macOS, or Windows (WSL recommended)
+- **Tools**: `zip`, `aws-cli` (for publishing), `node` (for Node.js layers), `python` (for Python layers)
+
+## Usage
+
+```bash
+aws-lambda-layer-cli <command> [options]
+```
+
+### Commands
+- `zip`: Create a local zip file
+- `publish`: Create and publish a layer to AWS
+- `completion`: Generate shell completion scripts
+- `uninstall`: Uninstall the tool
+- `help`: Show help message
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--nodejs, -n <pkgs>` | Create Node.js layer (comma-separated packages) |
+| `--python, -p <pkgs>` | Create Python layer (comma-separated packages) |
+| `--name` | Custom layer name |
+| `--description` | Layer description (publish only) |
+| `--profile` | AWS CLI profile (publish only) |
+| `--region` | AWS region (publish only) |
+| `--node-version` | Node.js version (default: 24) |
+| `--python-version` | Python version (default: 3.14) |
+| `--no-uv` | Use pip/venv instead of uv |
+| `-v, --version` | Show version |
+
+## Examples
+
+### Node.js
+```bash
+# Create local zip with multiple packages
+aws-lambda-layer-cli zip --nodejs express@4.18.2,axios --name my-layer
+
+# Publish to AWS with specific profile and region
+aws-lambda-layer-cli publish --nodejs lodash --profile prod --region us-east-1 --description "Utils"
+```
+
+### Python
+```bash
+# Create local zip with specific python version
+aws-lambda-layer-cli zip --python numpy==1.26.0,pandas --python-version 3.12
+
+# Publish to AWS
+aws-lambda-layer-cli publish --python requests --name web-layer
+```
+
+## Shell Completion
+
+Add to your shell config (`~/.bashrc` or `~/.zshrc`):
+
+```bash
+# Bash
+source <(aws-lambda-layer-cli completion --bash)
+
+# Zsh
+source <(aws-lambda-layer-cli completion --zsh)
+```
+
+## License
+
+MIT License
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
