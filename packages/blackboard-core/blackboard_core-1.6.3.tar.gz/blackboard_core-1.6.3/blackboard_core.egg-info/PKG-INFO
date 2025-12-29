@@ -1,0 +1,355 @@
+Metadata-Version: 2.4
+Name: blackboard-core
+Version: 1.6.3
+Summary: A Python SDK implementing the Blackboard Pattern for LLM-powered multi-agent systems
+Author: Hemant Singh
+License: MIT License
+        
+        Copyright (c) 2025 Hemant Singh
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/hemantsingh443/blackboard-core
+Project-URL: Documentation, https://github.com/hemantsingh443/blackboard-core#readme
+Project-URL: Repository, https://github.com/hemantsingh443/blackboard-core
+Keywords: agents,multi-agent,blackboard,orchestration,llm,ai
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: typing-extensions>=4.0.0
+Requires-Dist: litellm>=1.40.0
+Requires-Dist: structlog>=24.0.0
+Requires-Dist: jinja2>=3.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Provides-Extra: redis
+Requires-Dist: redis>=5.0.0; extra == "redis"
+Provides-Extra: chroma
+Requires-Dist: chromadb>=0.4.0; extra == "chroma"
+Provides-Extra: hybrid
+Requires-Dist: rank-bm25>=0.2.2; extra == "hybrid"
+Provides-Extra: sqlite
+Requires-Dist: aiosqlite>=0.19.0; extra == "sqlite"
+Provides-Extra: postgres
+Requires-Dist: asyncpg>=0.29.0; extra == "postgres"
+Provides-Extra: tui
+Requires-Dist: rich>=13.0.0; extra == "tui"
+Provides-Extra: mcp
+Requires-Dist: mcp[cli]>=1.0.0; extra == "mcp"
+Provides-Extra: telemetry
+Requires-Dist: opentelemetry-api>=1.20.0; extra == "telemetry"
+Requires-Dist: opentelemetry-sdk>=1.20.0; extra == "telemetry"
+Requires-Dist: opentelemetry-exporter-otlp>=1.20.0; extra == "telemetry"
+Provides-Extra: all
+Requires-Dist: redis>=5.0.0; extra == "all"
+Requires-Dist: chromadb>=0.4.0; extra == "all"
+Requires-Dist: rank-bm25>=0.2.2; extra == "all"
+Requires-Dist: aiosqlite>=0.19.0; extra == "all"
+Requires-Dist: asyncpg>=0.29.0; extra == "all"
+Requires-Dist: rich>=13.0.0; extra == "all"
+Requires-Dist: mcp[cli]>=1.0.0; extra == "all"
+Requires-Dist: networkx>=3.0.0; extra == "all"
+Requires-Dist: opentelemetry-api>=1.20.0; extra == "all"
+Requires-Dist: opentelemetry-sdk>=1.20.0; extra == "all"
+Requires-Dist: opentelemetry-exporter-otlp>=1.20.0; extra == "all"
+Provides-Extra: serve
+Requires-Dist: fastapi>=0.104.0; extra == "serve"
+Requires-Dist: uvicorn[standard]>=0.24.0; extra == "serve"
+Requires-Dist: sse-starlette>=1.8.0; extra == "serve"
+Provides-Extra: browser
+Requires-Dist: playwright>=1.40.0; extra == "browser"
+Provides-Extra: stdlib
+Requires-Dist: httpx>=0.25.0; extra == "stdlib"
+Provides-Extra: graph
+Requires-Dist: networkx>=3.0.0; extra == "graph"
+Provides-Extra: ui
+Requires-Dist: streamlit>=1.28.0; extra == "ui"
+Requires-Dist: httpx>=0.25.0; extra == "ui"
+Dynamic: license-file
+
+# Blackboard-Core
+
+A Python SDK for building **LLM-powered multi-agent systems** using the Blackboard Pattern.
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/blackboard-core.svg)](https://pypi.org/project/blackboard-core/)
+
+![Blackboard TUI Demo](public/demo.gif)
+
+## What is Blackboard-Core?
+
+Blackboard-Core provides a **centralized state architecture** for multi-agent AI systems. Instead of agents messaging each other directly, all agents read from and write to a shared **Blackboard** (state), while a **Supervisor LLM** orchestrates which agent runs next.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       ORCHESTRATOR                          │
+│  ┌─────────────┐    ┌──────────────────────────────────┐    │
+│  │  Supervisor │──▶│          BLACKBOARD              │    │
+│  │    (LLM)    │    │  • Goal      • Artifacts         │    │
+│  └─────────────┘    │  • Status    • Feedback          │    │
+│         │           │  • History   • Metadata          │    │
+│         ▼           └──────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                       WORKERS                       │    │
+│  │  [Writer]  [Critic]  [Refiner]  [Researcher]  ...   │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Features
+
+- **Centralized State** - All agents share a typed Pydantic state model
+- **LLM Orchestration** - A supervisor LLM decides which worker runs next
+- **Magic Decorators** - Define workers with simple typed functions (auto-generated schemas)
+- **Async-First** - Built for high-performance async/await patterns
+- **Chain-of-Thought** - Pluggable reasoning strategies for smarter decisions
+- **State Idempotence** - Save, load, and resume sessions reliably
+- **Fractal Agents (v1.6)** - Nest agents as workers with recursion limits and trace linking
+- **Squad Patterns (v1.6)** - Pre-configured agent factories for common tasks
+- **SQLite Persistence (v1.6)** - Production-grade storage with parent-child sessions
+- **Runtime Security (v1.6)** - Explicit acknowledgment for unsafe code execution
+- **Structured Logging (v1.6.2)** - JSON logs with session/trace correlation via structlog
+- **Cost Control (v1.6.2)** - LiteLLM pricing integration and budget circuit breakers
+- **Testing Harness (v1.6.2)** - MockLLMClient and OrchestratorTestFixture
+- **Time-Travel Debugging (v1.6.3)** - Fork sessions at any checkpoint, replay with different prompts
+- **Prompt Registry (v1.6.3)** - Externalized prompts with Jinja2 templates and JSON config
+- **Instruction Optimizer (v1.6.3)** - Auto-analyze failures and generate improved prompts
+- **CLI Scaffolding (v1.6.3)** - `blackboard init` to bootstrap projects
+- **LiteLLM Integration** - 100+ LLM providers via `LiteLLMClient`
+- **Model Context Protocol** - Connect to MCP servers for external tools
+- **OpenTelemetry** - Distributed tracing with span hierarchy
+- **Live TUI** - Real-time terminal visualization
+
+## Installation
+
+```bash
+pip install blackboard-core
+
+# Optional extras
+pip install blackboard-core[mcp]        # Model Context Protocol
+pip install blackboard-core[telemetry]  # OpenTelemetry
+pip install blackboard-core[chroma]     # ChromaDB for memory
+pip install blackboard-core[serve]      # FastAPI server
+pip install blackboard-core[all]        # Everything
+```
+
+## Quick Start
+
+```python
+from blackboard import Orchestrator, worker
+from blackboard.llm import LiteLLMClient
+
+# Define workers with simple type hints - schemas are auto-generated!
+@worker
+def write(topic: str) -> str:
+    """Writes content about a topic."""
+    return f"Article about {topic}..."
+
+@worker
+def critique(content: str) -> str:
+    """Reviews content for quality."""
+    return "Approved!" if len(content) > 50 else "Needs more detail"
+
+# Create orchestrator
+llm = LiteLLMClient(model="gpt-4o")
+orchestrator = Orchestrator(llm=llm, workers=[write, critique])
+
+# Run
+result = orchestrator.run_sync(goal="Write about AI safety")
+print(result.artifacts[-1].content)
+```
+
+## Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Blackboard** | Shared state containing goal, artifacts, feedback, and metadata |
+| **Worker** | An agent that reads state and produces artifacts or feedback |
+| **Orchestrator** | Manages the control loop and calls the supervisor LLM |
+| **Supervisor** | The LLM that decides which worker to call next |
+| **Artifact** | Versioned output produced by a worker |
+| **Feedback** | Review/critique of an artifact |
+
+## The Magic Decorator
+
+Define workers with just type hints - no boilerplate:
+
+```python
+from blackboard import worker
+from blackboard.state import Blackboard
+
+# Simple function - schema auto-generated
+@worker
+def calculate(a: int, b: int, operation: str = "add") -> str:
+    """Performs math operations."""
+    if operation == "add":
+        return str(a + b)
+    return str(a - b)
+
+# With state access
+@worker
+def summarize(state: Blackboard) -> str:
+    """Summarizes current progress."""
+    return f"Goal: {state.goal}, Artifacts: {len(state.artifacts)}"
+
+# Async support
+@worker
+async def research(topic: str) -> str:
+    """Researches a topic online."""
+    # ... async HTTP calls
+    return f"Research on {topic}"
+```
+
+## Chain-of-Thought Reasoning
+
+Enable smarter decision-making with CoT:
+
+```python
+from blackboard import Orchestrator, BlackboardConfig
+from blackboard.reasoning import ChainOfThoughtStrategy
+
+# Enable Chain-of-Thought via config
+config = BlackboardConfig(reasoning_strategy="cot")
+orchestrator = Orchestrator(llm=llm, workers=workers, config=config)
+
+# Or use the strategy directly
+from blackboard.reasoning import ChainOfThoughtStrategy
+
+strategy = ChainOfThoughtStrategy()
+# The LLM will now output <thinking>...</thinking> before deciding
+```
+
+## State Persistence
+
+Save and resume sessions reliably:
+
+```python
+# Save session
+result.save_to_json("session.json")
+
+# Resume later - state is preserved exactly
+state = Blackboard.load_from_json("session.json")
+result = await orchestrator.run(state=state)
+```
+
+## Advanced Features
+
+### Middleware
+
+```python
+from blackboard.middleware import BudgetMiddleware, HumanApprovalMiddleware
+
+orchestrator = Orchestrator(
+    llm=my_llm,
+    workers=[...],
+    middleware=[
+        BudgetMiddleware(max_tokens=100000),
+        HumanApprovalMiddleware(require_approval_for=["Deployer"])
+    ]
+)
+```
+
+### Memory System
+
+```python
+from blackboard.memory import SimpleVectorMemory, MemoryWorker
+from blackboard.embeddings import OpenAIEmbedder
+
+memory = SimpleVectorMemory(embedder=OpenAIEmbedder())
+worker = MemoryWorker(memory=memory)
+```
+
+### Model Context Protocol
+
+```python
+from blackboard.mcp import MCPServerWorker
+
+# Local via stdio
+fs_server = await MCPServerWorker.create(
+    name="Filesystem",
+    command="npx",
+    args=["-y", "@modelcontextprotocol/server-fs", "/tmp"]
+)
+
+# Remote via SSE
+remote = await MCPServerWorker.create(
+    name="RemoteAPI",
+    url="http://mcp-server:8080/sse"
+)
+
+# Each MCP tool becomes a worker
+workers = fs_server.expand_to_workers()
+```
+
+### Blueprints (Workflow Patterns)
+
+```python
+from blackboard.flow import SequentialPipeline, Router
+
+# Force A → B → C execution
+pipeline = SequentialPipeline([Searcher(), Writer(), Critic()])
+
+# Let supervisor choose best worker
+router = Router([MathAgent(), CodeAgent(), ResearchAgent()])
+
+result = await orchestrator.run(goal="...", blueprint=pipeline)
+```
+
+## Configuration
+
+Use environment variables or direct config:
+
+```bash
+export BLACKBOARD_MAX_STEPS=50
+export BLACKBOARD_REASONING_STRATEGY=cot
+export BLACKBOARD_VERBOSE=true
+```
+
+```python
+from blackboard import BlackboardConfig
+
+config = BlackboardConfig.from_env()
+# Or direct:
+config = BlackboardConfig(
+    max_steps=50,
+    reasoning_strategy="cot",
+    enable_parallel=True
+)
+```
+
+## Documentation
+
+See [DOCS.md](DOCS.md) for the complete API reference and advanced usage guide.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
