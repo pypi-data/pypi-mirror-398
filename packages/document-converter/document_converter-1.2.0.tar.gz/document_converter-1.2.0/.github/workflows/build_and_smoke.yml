@@ -1,0 +1,90 @@
+name: Build and Smoke Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11"]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install System Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y poppler-utils tesseract-ocr
+
+    - name: Install System Dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install poppler tesseract --no-progress
+        # Add to PATH manually if needed, usually choco handles it but sometimes requires refresh
+        echo "C:\Program Files\Poppler\bin" >> $env:GITHUB_PATH
+        echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
+
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run Unit Tests
+      run: |
+        pytest tests/unit -v
+
+    # Skipping Integration tests in CI if they require complex setup, 
+    # but strictly requested "tests unitarios/integración" so running both unless they fail.
+    - name: Run Integration Tests
+      run: |
+        pytest tests/integration -v
+
+  build-exe:
+    name: Build Windows Executable
+    needs: test
+    runs-on: windows-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build Executable (PyInstaller)
+      run: |
+        python -m PyInstaller --clean document-converter.spec
+
+    - name: Smoke Test - Verify Startup
+      run: |
+        ./dist/document-converter.exe --help
+        ./dist/document-converter.exe --version
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: document-converter-exe
+        path: dist/document-converter.exe

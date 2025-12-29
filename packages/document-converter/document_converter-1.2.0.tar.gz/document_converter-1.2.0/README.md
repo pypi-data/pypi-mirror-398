@@ -1,0 +1,312 @@
+# Document Converter
+
+<p align="center">
+  <img src="assets/icon.ico" alt="Document Converter Logo" width="128">
+</p>
+
+<p align="center">
+  <strong>A comprehensive Python library for document conversion with batch processing, intelligent caching, and template rendering.</strong>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#documentation">Documentation</a> •
+  <a href="#contributing">Contributing</a>
+</p>
+
+---
+
+## ✨ Features
+
+### 🔄 Multi-Format Conversion
+Convert between popular document formats:
+- **PDF** ↔ TXT, DOCX (with OCR support for scanned documents)
+- **DOCX** ↔ PDF, HTML, Markdown, TXT
+- **HTML** ↔ PDF, DOCX
+- **Markdown** ↔ HTML, PDF
+- **ODT** ↔ Multiple formats
+- **TXT** ↔ HTML, PDF
+
+### ⚡ High Performance
+- **Two-tier caching**: In-memory LRU + persistent disk cache
+- **Up to 138x speedup** on repeated conversions
+- **Parallel batch processing**: 50-200 files/second
+- **Streaming template rendering** for memory efficiency
+
+### 🛠️ Developer Friendly
+- Clean, extensible API
+- Comprehensive error handling with actionable suggestions
+- Transaction safety with automatic rollback
+- Full CLI with progress bars
+- **79% test coverage** with 274+ tests
+
+### 📦 Standalone Executable
+- **Interactive mode**: Double-click and use menu-driven interface
+- **CLI mode**: Full command-line support
+- **Drag & Drop**: Drop multiple files onto the .exe to convert them all at once
+- No Python installation required for end users
+
+---
+
+## 📋 Requirements
+
+- Python 3.9+
+- See `requirements.txt` for dependencies
+
+---
+
+## 🚀 Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/MikeAMSDev/document-converter
+cd document-converter
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Verify Installation
+
+```bash
+python -c "from converter.engine import ConversionEngine; print('✓ Installation successful!')"
+```
+
+---
+
+## 🎯 Quick Start
+
+### Basic Conversion
+
+```python
+from converter.engine import ConversionEngine
+from converter.formats.pdf_converter import PDFConverter
+
+# Setup
+engine = ConversionEngine()
+engine.register_converter('pdf', PDFConverter)
+
+# Convert
+engine.convert('document.pdf', 'document.txt')
+```
+
+### Batch Processing
+
+```python
+from converter.batch_processor import BatchProcessor
+
+processor = BatchProcessor(max_workers=8)
+processor.scan_directory('./documents', './output', from_format='docx', to_format='pdf')
+report = processor.process_queue()
+
+print(f"Converted {report.success} files")
+```
+
+### With Caching (138x Faster!)
+
+```python
+from converter.engine import ConversionEngine
+from core.cache_manager import CacheManager
+
+cache = CacheManager(cache_dir=".cache")
+engine = ConversionEngine(cache_manager=cache)
+
+# First conversion: normal speed
+engine.convert('large.pdf', 'large.txt')
+
+# Second conversion: instant (from cache)
+engine.convert('large.pdf', 'large_copy.txt')
+```
+
+### Template Rendering
+
+```python
+from converter.template_engine import TemplateEngine
+
+engine = TemplateEngine()
+template = "Hello {{ name }}! {% for item in items %}{{ item }} {% endfor %}"
+result = engine.render(template, {"name": "World", "items": ["A", "B", "C"]})
+```
+
+---
+
+## 💻 CLI Usage
+
+### Single File Conversion
+
+```bash
+# Standard conversion
+python -m cli.main convert input.pdf output.txt
+
+# With options
+python -m cli.main convert input.pdf --output output.txt --ocr
+```
+
+### Drag & Drop Multiple Files (Windows)
+
+```bash
+# Drop files onto document-converter.exe, or run:
+document-converter.exe file1.docx file2.pdf file3.txt --format pdf
+
+# Result: Converts all to PDF in the same directory
+```
+
+### Batch Processing
+
+```bash
+python -m cli.main batch ./documents ./output --from-format docx --to-format pdf --workers 8
+```
+
+### Cache Management
+
+```bash
+# View cache stats
+python -m cli.main cache-stats
+
+# Clear cache
+python -m cli.main cache-clear
+```
+
+### Standalone Executable
+
+Download `document-converter.exe` from the `dist/` folder:
+
+```bash
+# Interactive mode (double-click or run without arguments)
+document-converter.exe
+
+# CLI mode
+document-converter.exe convert input.pdf output.txt
+```
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [User Guide](docs/user_guide.md) | Step-by-step tutorials and common use cases |
+| [API Reference](docs/api_reference.md) | Complete API documentation |
+| [Developer Guide](docs/development.md) | Contributing and extending the library |
+| [Examples](examples/) | Ready-to-run example scripts |
+| [Changelog](CHANGELOG.md) | Version history and changes |
+
+---
+
+## 📁 Project Structure
+
+```
+document-converter/
+├── converter/          # Core conversion logic
+│   ├── engine.py       # Main conversion engine
+│   ├── batch_processor.py
+│   ├── template_engine.py
+│   ├── formats/        # Format-specific converters
+│   └── processors/     # OCR, images, styles
+├── core/               # Core utilities
+│   ├── cache_manager.py
+│   ├── error_handler.py
+│   ├── transaction.py
+│   └── worker_pool.py
+├── cli/                # Command-line interface
+├── utils/              # Helper utilities
+├── docs/               # Documentation
+├── examples/           # Example scripts
+├── tests/              # Test suite
+└── dist/               # Standalone executable
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest
+
+# With coverage
+pytest --cov=converter --cov=core --cov-report=html
+
+# Run specific test types
+pytest -m unit
+pytest -m integration
+```
+
+**Current Coverage**: 79% (274+ tests)
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our [Developer Guide](docs/development.md) for:
+
+- Development setup
+- Code style guidelines
+- Testing requirements
+- How to add new format converters
+
+### Quick Start for Contributors
+
+```bash
+# Fork and clone
+git clone https://github.com/MikeAMSDev/document-converter
+cd document-converter
+
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Create feature branch
+git checkout -b feat/my-feature
+
+# Make changes and test
+pytest
+
+# Submit pull request
+```
+
+---
+
+## 📊 Performance Benchmarks
+
+| Operation | Performance |
+|-----------|-------------|
+| Cache Speedup | Up to 138x faster |
+| Batch Throughput | 50-200 files/sec |
+| Memory Cache Lookup | <1ms |
+| Disk Cache Lookup | <100ms |
+| Template Rendering (100K items) | <5 seconds |
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- Built with Python 3.13
+- PDF processing: PyPDF2, ReportLab
+- DOCX handling: python-docx
+- OCR: Tesseract via pytesseract
+- CLI: Click
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/MikeAMSDev">MikeAMSDev</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/MikeAMSDev/document-converter">⭐ Star this repo if you find it useful!</a>
+</p>
