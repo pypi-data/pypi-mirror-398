@@ -1,0 +1,69 @@
+[project]
+name = "pagefind"
+version = "1.5.0a3"
+# note this^^^^^^^ version will be replaced by scripts/build/api_package.py
+description = "Python API for Pagefind"
+authors = [{ name = "Pagefind" }]
+license = "MIT"
+requires-python = ">=3.9"
+readme = "README.md"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Text Processing :: Indexing",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+# Note: we *aren't* including an `entry-points` section here to avoid clobbering
+# the user's natively-installed `pagefind` binary. Using `python3 -m pagefind`
+# is an informatively-namespaced alternative that doesn't add too many keystrokes.
+# See https://packaging.python.org/en/latest/specifications/entry-points/
+
+[project.optional-dependencies]
+bin = ["pagefind_bin>=1,<2"]
+extended = ["pagefind_bin_extended>=1,<2"]
+
+# during the building of the `pagefind` python package, the pagefind binary packages
+# may not yet be published. Thus, `uv lock` will fail if we bump up the minimum
+# required version to >=2. This is a problem for later, and a good incentive to publish a
+# transitional package that works with 1.x and 2.0 codebases.
+
+
+[dependency-groups]
+dev = [
+    "ruff==0.12.11",
+    "mypy>=1.10.1,<2",
+    "wheel>=0.43.0,<0.44",
+    "cogapp>=3.4.1,<4",
+    "twine>=5.1.1,<6",
+    "docutils>=0.21.2,<0.22",
+    "hatchling>=1.27.0",
+    "uv>=0.8.15",
+]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "dist",
+    "output",
+    "vendor", # binary tarballs downloaded during CI for building pagefind_bin wheels
+    "*.whl",
+    "*.egg-info",
+    "*.log",
+    ".venv",
+    "pagefind_python_bin", # uv has a *.pth file in its .venv that causes
+    # directories in src/ to be preferentially imported. To allow testing
+    # `import pagefind_bin`, we use ./src/pagefind_python_bin as a workaround.
+]
+
+[tool.hatch.build.targets.wheel]
+exclude = [
+    "dist",
+    "output",
+    "*.whl",
+    "*.egg-info",
+    "*.log",
+    ".venv",
+    "pagefind_python_bin",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
