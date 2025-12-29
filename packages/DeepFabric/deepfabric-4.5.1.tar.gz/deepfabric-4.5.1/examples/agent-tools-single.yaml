@@ -1,0 +1,110 @@
+#####################################################################
+# Agent Tools Dataset Configuration (Single-Turn)
+#####################################################################
+# This configuration file sets up a dataset generation process using
+# topic generation and data generation engines.
+# The dataset focuses on Python programming fundamentals.
+# Advanced features like Tool Use with agent reasoning style.
+# A single-turn agent mode of tool usage occurs.
+#####################################################################
+
+# Topic generation - creates a tree of related topics
+topics:
+  prompt: "Python programming fundamentals"
+  mode: graph
+  system_prompt: ""
+  depth: 2
+  degree: 2
+  save_as: "python-topics.jsonl"
+
+  # LLM configuration for topic generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    temperature: 0.8
+
+# Data generation - creates the actual training examples
+generation:
+  system_prompt: |
+    Generate examples of tool usage with clear reasoning.
+    Show why tools are chosen and how results are interpreted.
+    The tools available are defined in the tool registry.
+
+  instructions: "Create realistic scenarios requiring tool usage to complete python programming tasks."
+
+  # Chain of thought with agent mode
+  conversation:
+    type: chain_of_thought
+    reasoning_style: agent
+    # Single-turn: one-shot tool use in a single assistant response
+    agent_mode: single_turn
+
+  # Tool configuration - requires Spin service running
+  # Start with: cd tools-sdk && spin build && spin up
+  tools:
+    spin_endpoint: "http://localhost:3000"  # Spin service URL
+    # Component-based tool configuration
+    # 'builtin' routes to /vfs/execute, other components route to /{component}/execute
+    components:
+      builtin:  # Built-in VFS tools
+        - read_file
+        - write_file
+        - list_files
+    max_per_query: 3       # Maximum tools per example
+    max_agent_steps: 5     # Max ReAct iterations
+
+  max_retries: 3  # Retry on API failures
+
+  # Optional: Seed initial files into the VFS before generation
+  scenario_seed:
+    files:
+      "Dockerfile": |
+        FROM python:3.13
+        WORKDIR /usr/local/app
+
+        # Install the application dependencies
+        COPY requirements.txt ./
+        RUN pip install --no-cache-dir -r requirements.txt
+
+        # Copy in the source code
+        COPY src ./src
+        EXPOSE 8080
+
+        # Setup an app user so the container doesn't run as the root user
+        RUN useradd app
+        USER app
+
+        CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+      "main.py": |
+        def greet(name):
+            return f"Hello, {name}!"
+
+        if __name__ == "__main__":
+            print(greet("World"))
+      "config.json": |
+        {
+          "version": "1.0.0",
+          "debug": true,
+          "max_retries": 3
+        }
+
+  # LLM configuration for generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    temperature: 0.7
+
+# Output configuration
+output:
+  # System prompt that goes INTO the training data
+  system_prompt: |
+    You are an AI assistant with access to various tools and functions.
+    When given a task:
+    1. Analyze what tools are needed
+    2. Execute tools with proper parameters
+    3. Interpret results and provide a clear answer
+
+  include_system_message: false
+  num_samples: 2
+  batch_size: 1
+  save_as: "agent-tools-single-dataset.jsonl"

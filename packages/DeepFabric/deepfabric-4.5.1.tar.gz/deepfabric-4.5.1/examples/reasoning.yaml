@@ -1,0 +1,57 @@
+#####################################################################
+# Reasoning Dataset Configuration
+#####################################################################
+# This configuration file sets up a dataset generation process using
+# topic generation and data generation engines.
+# The dataset focuses on Python programming fundamentals.
+# Advanced features like Chain of Thought reasoning with freetext
+# explanations are enabled to enhance the quality of generated data.
+####################################################################
+
+# Topic generation - creates a tree of related topics
+topics:
+  prompt: "Quantum computing fundamentals"
+  mode: graph
+  system_prompt: ""
+  depth: 2
+  degree: 2
+  save_as: "quantum-reasoning-topics.jsonl"
+
+  # LLM configuration for topic generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    temperature: 0.8
+
+# Data generation - creates the actual training examples
+generation:
+  system_prompt: "Generate clear, educational Q&A pairs with step-by-step reasoning."
+  instructions: "Create realistic scenarios requiring detailed reasoning to solve problems in quantum computing."
+
+  # Chain of thought with freetext reasoning style
+  conversation:
+    type: chain_of_thought
+    reasoning_style: freetext
+
+  max_retries: 3  # Retry on API failures
+
+  # LLM configuration for generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    temperature: 0.7
+
+  # Use extended token limit for long reasoning chains
+  max_tokens: 4500
+
+# Output configuration
+output:
+  # System prompt that goes INTO the training data
+  system_prompt: |
+    You are an AI assistant that shows clear reasoning before answering questions.
+    Think through problems step-by-step and explain your thought process.
+
+  include_system_message: true
+  num_samples: 1       # Number of examples to generate
+  batch_size: 1        # Parallel generation batch size
+  save_as: "quantum-reasoning-dataset.jsonl"
