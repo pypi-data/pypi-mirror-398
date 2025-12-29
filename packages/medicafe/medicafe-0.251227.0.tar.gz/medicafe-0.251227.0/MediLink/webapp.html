@@ -1,0 +1,3132 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+        <meta http-equiv="Pragma" content="no-cache">
+        <meta http-equiv="Expires" content="0">
+        <title>Select an Email</title>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+        <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/7.12.1/polyfill.min.js"></script> -->
+        <style>
+
+            :root {
+                --espresso-dark: #3B2323; /* Darkened color */
+                --espresso-medium: #4E3B3B; /* Adjusted for a more coffee-like tone */
+                --espresso-light: #7A4B4B; /* Darkened color */
+                --cream: #EDE0D4; /* Darkened color */
+                --background: #dcd6c9; /* Darkened color */
+                --accent: #C65D1E; /* Darkened color */
+                --error-red: #D9534F;
+                --loading-orange: #F0AD4E;
+                --text-color: #222222; /* Darkened color */
+                --button-hover: #4B2E2E; /* Darkened color */
+                --drawer-width: min(360px, 32vw);
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Montserrat', sans-serif;
+                margin: 0;
+                padding: 30px 20px 120px;
+                background-color: var(--background);
+                color: var(--text-color);
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                min-height: 100vh;
+                transition: padding-right 0.3s ease;
+            }
+
+            body.drawer-open {
+                padding-right: calc(var(--drawer-width) + 60px);
+            }
+
+            main {
+                width: 90%;
+                max-width: 800px; /* Reduced max-width */
+                margin: 20px auto; /* Reduced margin */
+                padding: 20px; /* Reduced padding */
+                background: var(--cream);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Reduced shadow */
+                border-radius: 8px; /* Reduced border-radius */
+                display: flex;
+                flex-direction: column;
+                gap: 20px; /* Reduced gap */
+            }
+
+            h1 {
+                text-align: center;
+                font-family: 'Roboto', sans-serif;
+                font-weight: 600; /* Reduced font weight */
+                color: var(--espresso-dark);
+                margin-bottom: 15px; /* Reduced margin */
+                font-size: 1.8em; /* Reduced font size */
+                position: relative;
+            }
+
+            h1::after {
+                content: '';
+                display: block;
+                width: 50px; /* Reduced width */
+                height: 3px; /* Reduced height */
+                background-color: var(--espresso-medium);
+                margin: 8px auto 0; /* Reduced margin */
+                border-radius: 2px;
+            }
+
+            ul {
+                list-style-type: none;
+                padding: 0;
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 10px; /* Reduced gap */
+            }
+
+            li {
+                background-color: var(--espresso-light);
+                padding: 8px; /* Reduced padding */
+                border-radius: 6px; /* Reduced border-radius */
+                font-size: 1.1em; /* Reduced font size */
+            }
+
+            /* New styling for docxEmailList */
+            #docxEmailList li {
+                background-color: transparent; /* Plain background */
+                padding: 8px; /* Keep padding */
+                border: none; /* No border */
+                box-shadow: none; /* No shadow */
+                transition: none; /* No transition */
+            }
+
+            /* Styling for clickable links in docxEmailList */
+            #docxEmailList li a {
+                color: inherit;
+                text-decoration: none;
+                font-size: inherit;
+                cursor: pointer;
+                display: inline-block;
+                width: 100%;
+            }
+
+            #docxEmailList li a:hover {
+                text-decoration: underline;
+                color: var(--espresso-dark);
+            }
+
+            button {
+                width: 100%;
+                padding: 4px 8px; /* Reduced padding */
+                background-color: var(--espresso-medium);
+                color: #ffffff;
+                border: none;
+                border-radius: 6px; /* Reduced border-radius */
+                cursor: pointer;
+                font-size: 1.1em; /* Reduced font size */
+                font-weight: 500; /* Reduced font weight */
+                transition: background-color 0.3s, transform 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 8px; /* Reduced margin */
+            }
+
+            button:hover {
+                background-color: var(--espresso-dark);
+                transform: scale(1.01); /* Reduced scale effect */
+            }
+
+            .error-message {
+                color: var(--error-red);
+                text-align: center;
+                font-weight: bold;
+                margin-top: 15px; /* Reduced margin */
+                padding: 8px; /* Reduced padding */
+                border: 1px solid var(--error-red);
+                border-radius: 6px;
+                background-color: #fdecea;
+            }
+
+            .loading-message {
+                color: var(--loading-orange);
+                text-align: center;
+                font-weight: bold;
+                margin-top: 15px; /* Reduced margin */
+                padding: 8px; /* Reduced padding */
+                border: 1px solid var(--loading-orange);
+                border-radius: 6px;
+                background-color: #fff4e6;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px; /* Reduced gap */
+            }
+
+            @media (max-width: 1024px) {
+                body,
+                body.drawer-open {
+                    padding: 20px 12px 120px;
+                }
+            }
+
+            /* Responsive Design */
+            @media (max-width: 600px) {
+                main {
+                    padding: 15px; /* Reduced padding */
+                }
+
+                h1 {
+                    font-size: 1.1em; /* Reduced font size */
+                }
+
+                button {
+                    font-size: 1em; /* Reduced font size */
+                    padding: 4px 6px; /* Reduced padding */
+                }
+            }
+            /* Status banner and details panel */
+            .status-banner {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                margin: 0 auto;
+                max-width: 800px;
+                background: #fff4e6;
+                color: var(--espresso-medium);
+                border: 1px solid var(--loading-orange);
+                border-radius: 8px 8px 0 0;
+                box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.08);
+                padding: 10px 14px;
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+            }
+            .status-banner.status-safe {
+                background: #e8f7ee;
+                color: #1f5132;
+                border-color: #30a46c;
+            }
+            .status-banner .icon { font-size: 1.2em; }
+            .status-toggle {
+                margin-left: auto;
+                background: transparent;
+                border: none;
+                color: inherit;
+                text-decoration: underline;
+                cursor: pointer;
+                font-size: 0.95em;
+            }
+            .status-banner .connection-toggle {
+                margin-left: 8px;
+                background: transparent;
+                border: none;
+                color: inherit;
+                text-decoration: underline;
+                cursor: pointer;
+                font-size: 0.9em;
+                opacity: 0.8;
+            }
+            .status-banner .connection-toggle:hover {
+                opacity: 1;
+            }
+            .status-details {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 56px;
+                margin: 0 auto;
+                max-width: 800px;
+                background: #faf7f2;
+                color: var(--espresso-dark);
+                border: 1px solid #e2d3c4;
+                border-radius: 8px;
+                box-shadow: 0 -4px 12px rgba(0,0,0,.06);
+                padding: 10px 14px;
+                z-index: 9998;
+            }
+            .status-details ul {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 6px 14px;
+            }
+
+            .connectivity-drawer {
+                position: fixed;
+                top: 90px;
+                right: 24px;
+                bottom: 110px;
+                width: var(--drawer-width);
+                margin: 0;
+                background: #faf8f5;
+                border: 1px solid #d9cbbd;
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0,0,0,.08);
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                z-index: 9997;
+                max-height: calc(100vh - 150px);
+                overflow-y: auto;
+                transform: translateX(calc(100% + 24px));
+                opacity: 0;
+                pointer-events: none;
+                transition: transform 0.3s ease, opacity 0.3s ease;
+                background-clip: padding-box;
+            }
+            .connectivity-drawer.is-open {
+                transform: translateX(0);
+                opacity: 1;
+                pointer-events: auto;
+            }
+            @media (max-width: 1024px) {
+                .connectivity-drawer {
+                    left: 0;
+                    right: 0;
+                    top: auto;
+                    bottom: 56px;
+                    width: calc(100% - 24px);
+                    max-width: 800px;
+                    margin: 0 auto;
+                    border-radius: 8px 8px 0 0;
+                    box-shadow: 0 -4px 12px rgba(0,0,0,.06);
+                    transform: translateY(110%);
+                }
+                .connectivity-drawer.is-open {
+                    transform: translateY(0);
+                }
+            }
+            .connectivity-header {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 8px;
+                margin-bottom: 12px;
+                color: var(--espresso-dark);
+                flex-wrap: wrap;
+            }
+            .connectivity-header h3 {
+                margin: 0;
+                font-size: 1.1em;
+                font-weight: 600;
+            }
+            .connectivity-title {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .connectivity-collapse {
+                background: transparent;
+                border: none;
+                color: var(--espresso-medium);
+                font-size: 0.85em;
+                cursor: pointer;
+                padding: 4px 8px;
+                border-radius: 4px;
+                transition: background 0.2s ease;
+            }
+            .connectivity-collapse:hover,
+            .connectivity-collapse:focus-visible {
+                background: rgba(0, 0, 0, 0.05);
+                outline: none;
+            }
+            .connectivity-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 0.85em;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .connectivity-badge.ok {
+                background: #e8f7ee;
+                color: #1f5132;
+                border: 1px solid #30a46c;
+            }
+            .connectivity-badge.error {
+                background: #fdecea;
+                color: var(--error-red);
+                border: 1px solid var(--error-red);
+            }
+            .connectivity-badge.working {
+                background: #fff4e6;
+                color: var(--espresso-medium);
+                border: 1px solid var(--loading-orange);
+            }
+            .connectivity-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .connectivity-btn {
+                width: auto;
+                padding: 6px 12px;
+                font-size: 0.9em;
+                margin: 0;
+                border-radius: 6px;
+            }
+            .connectivity-btn.secondary {
+                background: #ffffff;
+                color: var(--espresso-medium);
+                border: 1px solid #c9bfb3;
+            }
+            .connectivity-btn.secondary:hover {
+                background: #f8f7f5;
+            }
+            .connectivity-btn.tertiary {
+                background: transparent;
+                color: var(--espresso-medium);
+                border: 1px solid transparent;
+                text-decoration: underline;
+            }
+            .connectivity-status {
+                font-size: 0.9em;
+                line-height: 1.4;
+                border-radius: 6px;
+                padding: 12px;
+                background: #f1f0ed;
+                color: var(--espresso-medium);
+                margin-bottom: 12px;
+            }
+            .connectivity-status.status-ok {
+                border: 1px solid #30a46c;
+                background: #e8f7ee;
+                color: #1f5132;
+            }
+            .connectivity-status.status-error {
+                border: 1px solid var(--error-red);
+                background: #fdecea;
+                color: var(--error-red);
+            }
+            .connectivity-help {
+                font-size: 0.9em;
+                border-top: 1px solid #e2d3c4;
+                padding-top: 12px;
+            }
+            .connectivity-help summary {
+                cursor: pointer;
+                font-weight: 600;
+                color: var(--espresso-dark);
+                margin-bottom: 8px;
+            }
+            .connectivity-help ol {
+                margin: 0;
+                padding-left: 18px;
+            }
+            .connectivity-help li {
+                margin-bottom: 6px;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <!-- <h1>Please Select the Correct Email</h1> -->
+            <!-- <ul id="emailList"></ul> -->
+
+            <h1>New Secure Messages</h1>
+            <ul id="otpList" style="color: var(--text-color);"></ul>
+            <div id="otpEmptyMessage" style="display:none; text-align:center; font-size: 0.9em; color: var(--espresso-dark); margin-top: 6px;">No new secure messages.</div>
+            <div id="otpLoadingMessage" class="loading-message" style="display:none;">
+                <span>⏳</span> Loading secure messages...
+            </div>
+
+            <h1>New Surgery Schedules</h1>
+            <ul id="docxEmailList" style="color: var(--text-color);"></ul> <!-- Static list with black text -->
+            <div style="text-align: center; margin-top: 15px;">
+                <button id="downloadAllBtn" type="button" style="display: none; width: auto; min-width: 200px; padding: 10px 20px;">Download All</button>
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display:none;"></div>
+            <div id="loadingMessage" class="loading-message" style="display:none;">
+                <span>⏳</span> Loading DOCX results...
+            </div>
+
+            <div style="text-align:center; margin-top: 10px;">
+                <a id="diagLink" href="#" target="_blank" style="font-size: 0.9em; color: var(--espresso-dark); text-decoration: underline;">Open diagnostics</a>
+            </div>
+            <section id="connectivityDrawer" class="connectivity-drawer" aria-live="polite" aria-hidden="true">
+                <div class="connectivity-header">
+                    <div class="connectivity-title">
+                        <h3>Connection Status</h3>
+                        <span id="connectivityBadge" class="connectivity-badge working">Checking...</span>
+                    </div>
+                    <button id="collapseConnectivityBtn" type="button" class="connectivity-collapse" aria-label="Hide connection status panel">Hide</button>
+                </div>
+                <div class="connectivity-actions">
+                    <button id="fixConnectionBtn" type="button" class="connectivity-btn" style="display:none; background-color: var(--accent); color: white;">Fix secure connection</button>
+                    <button id="runConnectivityTestBtn" type="button" class="connectivity-btn">Run connectivity test</button>
+                    <button id="trustCertBtn" type="button" class="connectivity-btn secondary">View certificate</button>
+                    <button id="resetConnectivityBtn" type="button" class="connectivity-btn tertiary">Reset</button>
+                </div>
+                <div id="connectivityStatus" class="connectivity-status" style="display:none;"></div>
+                <div class="connectivity-help">
+                    <details>
+                        <summary>Troubleshoot HTTPS connection</summary>
+                        <ol>
+                            <li>Click "View certificate" to see the local server certificate details.</li>
+                            <li>Accept the security warning for <em>https://127.0.0.1:8000</em> in your browser.</li>
+                            <li>Return here and run the connectivity test again.</li>
+                            <li>If issues persist, ensure the Python tool is running and your firewall allows 127.0.0.1:8000.</li>
+                        </ol>
+                    </details>
+                </div>
+            </section>
+            
+        </main>
+        <div id="closeStatusBanner" class="status-banner status-working" aria-live="polite">
+            <span class="icon" aria-hidden="true">⏳</span>
+            <span class="text">Please keep this tab open while we process your files…</span>
+            <button id="connectionHelpToggle" class="connection-toggle" type="button" aria-expanded="false">Connection help</button>
+            <button id="statusDetailsToggle" class="status-toggle" type="button" aria-expanded="false">Details</button>
+        </div>
+        <div id="statusDetails" class="status-details" hidden>
+            <ul>
+                <li><strong>Phase:</strong> <span id="stPhase">working</span></li>
+                <li><strong>Links:</strong> <span id="stLinks">0</span></li>
+                <li><strong>Downloaded:</strong> <span id="stDownloaded">0</span></li>
+                <li><strong>To delete:</strong> <span id="stToDelete">0</span></li>
+                <li><strong>Deleted (confirmed):</strong> <span id="stDeleted">0</span></li>
+                <li id="stErrorRow" style="display:none;"><strong>Error:</strong> <span id="stError"></span></li>
+            </ul>
+        </div>
+    <script>
+        // Wait for HTTP mode detection before initializing
+        (async function initializeApp() {
+            // Wait for HTTP mode detection to complete (with timeout)
+            try {
+                await Promise.race([
+                    httpModeDetectionPromise,
+                    new Promise(resolve => setTimeout(resolve, 1500)) // Max wait 1.5 seconds
+                ]);
+                console.log('HTTP mode detection complete, URL:', LOCAL_SERVER_BASE_URL);
+            } catch (e) {
+                console.log('HTTP mode detection error:', e);
+                // Continue even if detection fails
+            }
+            
+            // Now initialize the app
+            document.addEventListener("DOMContentLoaded", () => {
+                try {
+                    var params = new URLSearchParams(window.location.search || '');
+                    var actionParam = params.get('action');
+                    console.log("Document ready, initializing flows... action=", actionParam);
+                } catch (e) {
+                    console.log("Document ready, initializing flows...");
+                }
+                try {
+                    var base = window.location.origin + window.location.pathname;
+                    var diagUrl = base + '?diag=1';
+                    var a = document.getElementById('diagLink');
+                    if (a) { a.href = diagUrl; }
+                } catch (e) {}
+                const connectivityBtn = document.getElementById('runConnectivityTestBtn');
+                if (connectivityBtn) {
+                    const restoreBtn = function () {
+                        connectivityBtn.disabled = false;
+                        connectivityBtn.textContent = 'Run connectivity test';
+                    };
+                    connectivityBtn.addEventListener('click', function () {
+                        connectivityBtn.disabled = true;
+                        connectivityBtn.textContent = 'Testing...';
+                        runConnectivityDiagnostics({ manual: true, silent: false })
+                            .then(restoreBtn)
+                            .catch(function (err) {
+                                console.warn('Connectivity diagnostics error:', err);
+                                restoreBtn();
+                            });
+                    });
+                }
+                const trustBtn = document.getElementById('trustCertBtn');
+                if (trustBtn) {
+                    trustBtn.addEventListener('click', function () {
+                        openLocalTrustWindow();
+                        setTimeout(function () {
+                            runConnectivityDiagnostics({ context: 'post-trust', silent: false });
+                        }, 1500);
+                    });
+                }
+                const resetBtn = document.getElementById('resetConnectivityBtn');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', function () {
+                        resetConnectivityStatus();
+                    });
+                }
+                const fixBtn = document.getElementById('fixConnectionBtn');
+                if (fixBtn) {
+                    fixBtn.addEventListener('click', function () {
+                        fixBtn.disabled = true;
+                        fixBtn.textContent = 'Opening certificate...';
+                        // Step 1: Open trust window
+                        openLocalTrustWindow();
+                        // Step 2: Wait a bit for user to accept, then re-test
+                        setTimeout(function () {
+                            fixBtn.textContent = 'Testing connection...';
+                            runConnectivityDiagnostics({ manual: true, silent: false })
+                                .then(function(result) {
+                                    fixBtn.disabled = false;
+                                    fixBtn.textContent = 'Fix secure connection';
+                                    // Hide button if successful
+                                    if (result && result.success) {
+                                        fixBtn.style.display = 'none';
+                                    }
+                                })
+                                .catch(function() {
+                                    fixBtn.disabled = false;
+                                    fixBtn.textContent = 'Fix secure connection';
+                                });
+                        }, 2000);
+                    });
+                }
+                const connectionToggle = document.getElementById('connectionHelpToggle');
+                if (connectionToggle) {
+                    connectionToggle.addEventListener('click', function () {
+                        const drawer = document.getElementById('connectivityDrawer');
+                        const isOpen = drawer ? drawer.classList.contains('is-open') : false;
+                        setConnectivityDrawerVisibility(!isOpen);
+                        if (!isOpen) {
+                            // Auto-run diagnostics when opening the drawer
+                            runConnectivityDiagnostics({ manual: true, silent: false });
+                        }
+                    });
+                }
+                const collapseDrawerBtn = document.getElementById('collapseConnectivityBtn');
+                if (collapseDrawerBtn) {
+                    collapseDrawerBtn.addEventListener('click', function () {
+                        setConnectivityDrawerVisibility(false);
+                        if (connectionToggle) {
+                            connectionToggle.focus();
+                        }
+                    });
+                }
+                initializeOtpFlow();
+                setBannerWorking();
+                
+                // Initialize server-dependent functions (detection should be complete by now)
+                initializeDocxEmailListFlow();
+                startStatusPollingOnce();
+                startConnectionLossDetector();
+                // Auto-run connectivity diagnostics on load (skip in HTTP mode)
+                if (!USE_HTTP_MODE) {
+                    runConnectivityDiagnostics({ silent: true, context: 'page-load', timeoutMs: 5000 });
+                }
+            });
+        })();
+
+        /**
+         * Initializes the Email List Flow.
+         * Fetches email subjects and builds the email list.
+         */
+        async function initializeEmailListFlow() {
+            try {
+                console.log("Initializing Email List Flow...");
+                const subjectsResponse = await fetchEmailSubjects();
+                console.log("Email subjects fetched:", subjectsResponse);
+                buildEmailList(subjectsResponse);
+            } catch (error) {
+                console.error("Error initializing Email List Flow:", error);
+                displayErrorMessage("Failed to load email subjects.");
+            }
+        }
+
+        /**
+         * Initializes the DOCX Email List Flow.
+         * Initiates DOCX processing and fetches results upon completion.
+         */
+        async function initializeDocxEmailListFlow() {
+            try {
+                console.log("Initializing DOCX Email List Flow...");
+                showLoadingMessage();
+                // Start server-side processing (skip list already posted by Python)
+                const processResponse = await startProcessingDocxAsync();
+                console.log("DOCX processing initiated:", processResponse);
+        
+                if (processResponse.status === "success") {
+                    const docxResultsResponse = await fetchDocxResults();
+                    console.log("DOCX results fetched:", docxResultsResponse);
+                    // Check if response indicates an error before calling buildDocxList
+                    if (docxResultsResponse && docxResultsResponse.status === "error") {
+                        console.error("DOCX results fetch returned error:", docxResultsResponse);
+                        // handleAuthorizationError will be called by buildDocxList, but we could call it here too for clarity
+                        // However, buildDocxList already handles errors, so we let it handle it to avoid duplication
+                    }
+                    buildDocxList(docxResultsResponse);
+                } else {
+                    console.error("DOCX processing failed:", processResponse);
+                    handleAuthorizationError(processResponse, "Failed to process DOCX attachments");
+                }
+                hideLoadingMessage();
+            } catch (error) {
+                console.error("Error initializing DOCX Email List Flow:", error);
+                displayErrorMessage("Failed to process DOCX attachments.");
+                hideLoadingMessage();
+            }
+        }
+
+        // OTP FLOW
+        async function initializeOtpFlow() {
+            try {
+                console.log("Initializing OTP Flow...");
+                showOtpLoadingMessage();
+                hideOtpEmptyMessage();
+                const otpResponse = await fetchOtpCandidates();
+                if (otpResponse && otpResponse.status === 'success' && otpResponse.data && Array.isArray(otpResponse.data.candidates) && otpResponse.data.candidates.length) {
+                    buildOtpList(otpResponse.data.candidates);
+                    hideOtpEmptyMessage();
+                } else {
+                    console.log('No new OTP candidates to display.');
+                    const ul = document.getElementById('otpList');
+                    if (ul) { ul.innerHTML = ''; }
+                    showOtpEmptyMessage();
+                }
+                hideOtpLoadingMessage();
+            } catch (e) {
+                console.error('OTP flow failed:', e);
+                hideOtpLoadingMessage();
+            }
+        }
+
+        async function fetchOtpCandidates() {
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => resolve(res))
+                    .withFailureHandler(err => reject(err))
+                    .get_otp_candidates();
+            });
+        }
+
+        function buildOtpList(candidates) {
+            const ul = document.getElementById('otpList');
+            if (!ul) return;
+            ul.innerHTML = '';
+            hideOtpEmptyMessage();
+            candidates.forEach(item => {
+                const li = document.createElement('li');
+                const button = document.createElement('button');
+                button.textContent = item.subject;
+                button.addEventListener('click', () => openOtpLink(item.threadId));
+                li.appendChild(button);
+                ul.appendChild(li);
+            });
+        }
+
+        async function openOtpLink(threadId) {
+            try {
+                const res = await new Promise((resolve, reject) => {
+                    google.script.run
+                        .withSuccessHandler(r => resolve(r))
+                        .withFailureHandler(e => reject(e))
+                        .get_link_by_threadId(threadId);
+                });
+                if (res && res.status === 'success' && res.data) {
+                    window.open(res.data, '_blank');
+                } else {
+                    displayErrorMessage('Unable to extract link from the selected message.');
+                }
+            } catch (e) {
+                console.error('Open OTP link failed:', e);
+                displayErrorMessage('Failed to open the OTP link.');
+            }
+        }
+
+        async function fetchDownloadedEmailsFromLocal() {
+            const url = LOCAL_SERVER_BASE_URL + '/downloaded-emails';
+            try {
+                const resp = await fetch(url, getFetchOptionsForConnection('GET', false, false));
+                if (!resp.ok) {
+                    throw new Error('downloaded-emails fetch failed: ' + resp.status);
+                }
+                const result = await resp.json();
+                // Mark certificate as trusted if this was an HTTPS connection
+                if (url.indexOf('https://') === 0 && !__certificateTrustEstablished) {
+                    __certificateTrustEstablished = true;
+                    console.log('Certificate trust established - subsequent requests will use CORS preflight');
+                }
+                return result;
+            } catch (error) {
+                // Check for certificate errors and provide helpful message
+                const errorMsg = (error && error.message) ? String(error.message).toLowerCase() : String(error).toLowerCase();
+                if (errorMsg.includes('certificate') || errorMsg.includes('ssl') || errorMsg.includes('tls') || 
+                    errorMsg.includes('networkerror') || errorMsg.includes('failed to fetch') ||
+                    errorMsg.includes('net::err_cert') || errorMsg.includes('certificate verify failed')) {
+                    console.error('Certificate trust issue when fetching downloaded emails:', error);
+                    if (USE_HTTP_MODE) {
+                        throw new Error('Unable to connect to local server. Please ensure the server is running.');
+                    } else {
+                        throw new Error('Certificate trust required. Please open ' + LOCAL_SERVER_BASE_URL + ' in a new tab to accept the security certificate first.');
+                    }
+                }
+                throw error; // Re-throw other errors
+            }
+        }
+
+        async function setDownloadedEmailsOnServer(downloadedEmails) {
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => {
+                        console.log('setDownloadedEmails result:', res);
+                        resolve(res);
+                    })
+                    .withFailureHandler(err => {
+                        console.error('setDownloadedEmails failed:', err);
+                        reject(err);
+                    })
+                    .setDownloadedEmails(downloadedEmails);
+            });
+        }
+
+        /**
+         * Fetches email subjects from the server.
+         * @returns {Object} The email subjects response.
+         */
+        async function fetchEmailSubjects() {
+            console.log("Fetching email subjects...");
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(response => {
+                        console.log("Received email subjects response:", response);
+                        resolve(response);
+                    })
+                    .withFailureHandler(error => {
+                        console.error("Failed to fetch email subjects:", error);
+                        reject(error);
+                    })
+                    .get_subjects();
+            });
+        }
+
+        /**
+         * Builds the email list UI based on fetched subjects.
+         * @param {Object} subjectsResponse The email subjects response.
+         */
+        function buildEmailList(subjectsResponse) {
+            console.log("Building email list...");
+            if (subjectsResponse.status === "success") {
+                const subjects = subjectsResponse.data;
+                const emailList = document.getElementById('emailList');
+                emailList.innerHTML = ''; // Clear existing list
+
+                subjects.forEach(subject => {
+                    const li = document.createElement('li');
+                    const button = document.createElement('button');
+                    button.textContent = subject.subject;
+                    button.addEventListener('click', () => selectEmail(subject.index));
+                    li.appendChild(button);
+                    emailList.appendChild(li);
+                });
+
+                console.log("Email list built successfully.");
+            } else {
+                console.error("Failed to retrieve email subjects:", subjectsResponse.message);
+                displayErrorMessage("Failed to load email subjects: " + subjectsResponse.message);
+            }
+        }
+
+        /**
+         * Handles email selection by the user.
+         * Extracts the link from the selected email and redirects the user.
+         * @param {number} index The index of the selected email.
+         */
+        async function selectEmail(index) {
+            try {
+                console.log("User selected email with index:", index);
+                const response = await extractLinkFromEmail(index);
+                console.log("Link extraction response:", response);
+
+                if (response.status === "success") {
+                    console.log("Redirecting to link:", response.data);
+                    window.open(response.data, '_blank'); // polyfill not necessary because can't inject into the Office 365.
+                    // window.location.href = response.data; // Open link in the same tab.
+                } else {
+                    alert('Error: ' + response.message);
+                }
+            } catch (error) {
+                console.error("Error selecting email:", error);
+                alert('Failed to extract email link.');
+            }
+        }
+
+        /**
+         * Extracts a link from the selected email.
+         * @param {number} index The index of the email to extract the link from.
+         * @returns {Object} The link extraction response.
+         */
+        async function extractLinkFromEmail(index) {
+            console.log("Extracting link from email with index:", index);
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(response => {
+                        console.log("Received link extraction response:", response);
+                        resolve(response);
+                    })
+                    .withFailureHandler(error => {
+                        console.error("Failed to extract link from email:", error);
+                        reject(error);
+                    })
+                    .get_link(index);
+            });
+        }
+
+        /**
+        * Initiates DOCX processing synchronously on the server.
+        * @returns {Object} The processing initiation response.
+        */
+        async function startProcessingDocxAsync() {
+            console.log("Starting DOCX processing...");
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(response => {
+                        console.log("DOCX processing initiation response:", response);
+                        // Check if response indicates an error (even in success handler)
+                        if (response && response.status === 'error' && 
+                            (response.errorType === 'authorization' || response.errorCode)) {
+                            handleAuthorizationError(response, "Failed to process DOCX attachments");
+                        }
+                        resolve(response);
+                    })
+                    .withFailureHandler(error => {
+                        console.error("Failed to initiate DOCX processing:", error);
+                        // Try to parse error for authorization issues
+                        const errorStr = String(error || '').toLowerCase();
+                        if (errorStr.includes('authorization') || errorStr.includes('permission') || 
+                            errorStr.includes('access denied') || errorStr.includes('unauthorized')) {
+                            handleAuthorizationError({
+                                message: 'Authorization error while processing DOCX: ' + String(error),
+                                errorType: 'authorization',
+                                errorCode: 'AUTH_ERROR',
+                                actionRequired: 'Please ensure all requested permissions are granted. Click "Review Permissions" if visible, or refresh this page to re-authorize.'
+                            }, "Failed to process DOCX attachments");
+                        }
+                        reject(error);
+                    })
+                    .process_docx();
+            });
+        }
+
+        /**
+         * Fetches the DOCX processing results from the server.
+         * @returns {Object} The DOCX results response.
+         */
+        async function fetchDocxResults() {
+            console.log("Fetching DOCX processing results...");
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(response => {
+                        console.log("Received DOCX results response:", response);
+                        // Note: Even if response has status='error', we resolve it so buildDocxList can handle it properly
+                        // buildDocxList will check the status and call handleAuthorizationError if needed
+                        resolve(response);
+                    })
+                    .withFailureHandler(error => {
+                        console.error("Failed to fetch DOCX results:", error);
+                        // Try to parse error for authorization issues
+                        const errorStr = String(error || '').toLowerCase();
+                        if (errorStr.includes('authorization') || errorStr.includes('permission') || 
+                            errorStr.includes('access denied') || errorStr.includes('unauthorized')) {
+                            handleAuthorizationError({
+                                message: 'Authorization error while fetching DOCX results: ' + String(error),
+                                errorType: 'authorization',
+                                errorCode: 'AUTH_ERROR',
+                                actionRequired: 'Please ensure all requested permissions are granted. Click "Review Permissions" if visible, or refresh this page to re-authorize.'
+                            }, "Failed to fetch DOCX results");
+                        }
+                        reject(error);
+                    })
+                    .get_docx_results();
+            });
+        }
+
+        /**
+         * Debounce utility function to prevent rapid repeated calls.
+         * @param {Function} func The function to debounce
+         * @param {number} wait The delay in milliseconds
+         * @returns {Function} The debounced function
+         */
+        function debounce(func, wait) {
+            let timeoutId = null;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(function() {
+                    func.apply(context, args);
+                }, wait);
+            };
+        }
+
+        /**
+         * Builds the DOCX email list UI based on fetched results.
+         * @param {Object} docxResultsResponse The DOCX results response.
+         */
+        function buildDocxList(docxResultsResponse) {
+            console.log("Building DOCX email list...");
+            // Validate response exists
+            if (!docxResultsResponse) {
+                console.error("buildDocxList received null/undefined response");
+                displayErrorMessage("Failed to load DOCX results: Invalid response from server.");
+                return;
+            }
+            
+            // Check for error status first
+            if (docxResultsResponse.status !== "success") {
+                console.error("Failed to retrieve DOCX results:", docxResultsResponse);
+                handleAuthorizationError(docxResultsResponse, "Failed to load DOCX results");
+                return;
+            }
+            
+            // Validate data structure
+            if (!docxResultsResponse.data) {
+                console.error("buildDocxList: success response missing data property:", docxResultsResponse);
+                displayErrorMessage("Failed to load DOCX results: Response data is missing.");
+                return;
+            }
+            
+            const { subjects, downloadLinks } = docxResultsResponse.data;
+            
+            // Validate subjects array
+            if (!Array.isArray(subjects)) {
+                console.error("buildDocxList: subjects is not an array:", subjects);
+                displayErrorMessage("Failed to load DOCX results: Invalid data format (subjects).");
+                return;
+            }
+            
+            // Validate downloadLinks array
+            if (!Array.isArray(downloadLinks)) {
+                console.error("buildDocxList: downloadLinks is not an array:", downloadLinks);
+                displayErrorMessage("Failed to load DOCX results: Invalid data format (downloadLinks).");
+                return;
+            }
+            
+            const docxList = document.getElementById('docxEmailList');
+            if (!docxList) {
+                console.error("buildDocxList: docxEmailList element not found");
+                return;
+            }
+            
+            docxList.innerHTML = ''; // Clear existing list
+
+            // Store downloadLinks for "Download All" functionality
+            // Create a map of filename to downloadLink for easy lookup
+            const downloadLinksMap = {};
+            downloadLinks.forEach(downloadLink => {
+                if (downloadLink && downloadLink.filename) {
+                    downloadLinksMap[downloadLink.filename] = downloadLink;
+                }
+            });
+
+            // Store downloadLinks array in closure for "Download All" functionality
+            // Capture at function start to prevent race conditions if buildDocxList is called again
+            const capturedDownloadLinks = downloadLinks.slice(); // Create a copy to prevent mutation
+            // Update module-level variable for event handler access
+            currentDownloadLinks = capturedDownloadLinks;
+
+            subjects.forEach(subject => {
+                const li = document.createElement('li');
+                const filename = (subject && subject.subject) ? subject.subject : 'Unknown';
+                
+                // Find matching downloadLink by filename
+                const matchingLink = downloadLinksMap[filename];
+                
+                if (matchingLink && matchingLink.url) {
+                    // Create clickable link
+                    const anchorElement = document.createElement('a');
+                    anchorElement.href = matchingLink.url;
+                    anchorElement.textContent = filename;
+                    anchorElement.target = '_blank';
+                    anchorElement.title = 'Click to download (alternative to Python server)';
+                    // Prevent rapid repeated clicks on the same link
+                    // Store timeout ID on the element to allow cleanup
+                    anchorElement.addEventListener('click', function(e) {
+                        const clickedAnchor = e.currentTarget;
+                        // Check if this link was recently clicked (within 1 second)
+                        if (clickedAnchor.dataset.clicked === 'true') {
+                            e.preventDefault();
+                            return false;
+                        }
+                        // Clear any existing reset timeout
+                        if (clickedAnchor._resetTimeoutId) {
+                            clearTimeout(clickedAnchor._resetTimeoutId);
+                        }
+                        // Mark as clicked to prevent rapid repeated clicks
+                        clickedAnchor.dataset.clicked = 'true';
+                        // Re-enable after 1 second
+                        clickedAnchor._resetTimeoutId = setTimeout(() => {
+                            clickedAnchor.dataset.clicked = 'false';
+                            clickedAnchor._resetTimeoutId = null;
+                        }, 1000);
+                        // Allow default behavior (opening link in new tab) to proceed normally
+                    });
+                    li.appendChild(anchorElement);
+                } else {
+                    // Fallback to plain text if no matching link found
+                    li.textContent = filename;
+                }
+                
+                docxList.appendChild(li);
+            });
+
+            // Show "Download All" button if there are files available and wire up click handler
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            if (downloadAllBtn && downloadLinks.length > 0) {
+                downloadAllBtn.style.display = 'inline-block';
+                // Add event listener only once (similar to OTP link buttons pattern)
+                if (!downloadAllDebouncedHandler) {
+                    downloadAllDebouncedHandler = debounce(function() {
+                        const btn = document.getElementById('downloadAllBtn');
+                        if (btn && btn.style.display !== 'none') {
+                            // Use current download links from module-level variable
+                            const linksToDownload = currentDownloadLinks.slice();
+                            downloadAllFiles(linksToDownload);
+                        }
+                    }, 500);
+                    downloadAllBtn.addEventListener('click', downloadAllDebouncedHandler);
+                }
+            } else if (downloadAllBtn) {
+                downloadAllBtn.style.display = 'none';
+            }
+
+            console.log("DOCX email list built successfully.");
+            // Send download links to the Python server; the Python server will handle cleanup upon success
+            (async () => {
+                try {
+                    await sendDownloadLinksToPythonServer(downloadLinks);
+                } catch (e) {
+                    console.error('Download flow failed:', e);
+                }
+            })();
+        }
+
+        // Store timeout IDs for cleanup
+        let downloadAllTimeouts = [];
+        let downloadAllButtonResetTimeout = null;
+        // Store debounced handler reference to prevent duplicate listeners
+        let downloadAllDebouncedHandler = null;
+        // Flag to prevent concurrent downloads
+        let isDownloading = false;
+        // Store current download links for the event handler
+        let currentDownloadLinks = [];
+
+        /**
+         * Downloads all files via browser (alternative to Python server download).
+         * Opens each download URL in a new tab/window. Useful when Python server fails.
+         * @param {Array} downloadLinks The download links array (passed to prevent race conditions)
+         */
+        function downloadAllFiles(downloadLinks) {
+            // Prevent concurrent downloads
+            if (isDownloading) {
+                console.log('Download already in progress, ignoring duplicate request');
+                return;
+            }
+
+            // Get fresh button reference
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            
+            try {
+                // Clear any existing timeouts from previous calls
+                downloadAllTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+                downloadAllTimeouts = [];
+                if (downloadAllButtonResetTimeout !== null) {
+                    clearTimeout(downloadAllButtonResetTimeout);
+                    downloadAllButtonResetTimeout = null;
+                }
+                
+                // Validate input
+                if (!downloadLinks || !Array.isArray(downloadLinks) || downloadLinks.length === 0) {
+                    console.warn('No download links available for "Download All"');
+                    displayErrorMessage('No files available to download.');
+                    return;
+                }
+
+                // Count valid links
+                const validLinks = downloadLinks.filter(dl => dl && dl.url);
+                
+                // Handle edge case: no valid links
+                if (validLinks.length === 0) {
+                    console.warn('No valid download links found (all links missing URLs)');
+                    displayErrorMessage('No valid download links available. All links are missing URLs.');
+                    return;
+                }
+
+                // Set downloading flag
+                isDownloading = true;
+                console.log('Starting browser-based download for', validLinks.length, 'file(s)');
+                
+                // Track popup blocker issues - use object to ensure closure works correctly
+                const popupStats = {
+                    blockedCount: 0,
+                    totalAttempts: validLinks.length,
+                    completedAttempts: 0
+                };
+                
+                // Store original button text for restoration
+                const originalText = downloadAllBtn ? downloadAllBtn.textContent : 'Download All';
+                
+                // Update button state (get fresh reference)
+                const btn = document.getElementById('downloadAllBtn');
+                if (btn) {
+                    btn.textContent = `Opening ${validLinks.length} file(s)...`;
+                    btn.disabled = true;
+                }
+                
+                // Open each URL in a new tab
+                // Note: Browsers may block multiple popups, so we add small delays between opens
+                validLinks.forEach((downloadLink, index) => {
+                    const timeoutId = setTimeout(() => {
+                        try {
+                            const popup = window.open(downloadLink.url, '_blank');
+                            if (popup === null || typeof popup === 'undefined') {
+                                // Popup was blocked
+                                popupStats.blockedCount++;
+                                console.warn('Popup blocked for:', downloadLink.filename || 'unknown');
+                            } else {
+                                console.log('Opened download link for:', downloadLink.filename || 'unknown');
+                            }
+                        } catch (error) {
+                            popupStats.blockedCount++;
+                            console.error('Failed to open download link for', downloadLink.filename, ':', error);
+                        } finally {
+                            // Track completion
+                            popupStats.completedAttempts++;
+                            
+                            // Check if all attempts completed and show warning if needed
+                            if (popupStats.completedAttempts === popupStats.totalAttempts) {
+                                // Get fresh button reference
+                                const resetBtn = document.getElementById('downloadAllBtn');
+                                if (resetBtn && popupStats.blockedCount > 0) {
+                                    displayErrorMessage(`${popupStats.blockedCount} of ${popupStats.totalAttempts} file(s) could not be opened. Your browser may have blocked popups. Please allow popups for this site or download files individually.`);
+                                }
+                                // Reset state
+                                resetDownloadState(originalText);
+                            }
+                        }
+                    }, index * 200); // 200ms delay between each open to reduce popup blocking
+                    downloadAllTimeouts.push(timeoutId);
+                });
+
+                // Reset button after a delay (enough time for all popups to attempt)
+                // This is a fallback in case the completion check doesn't fire
+                const resetDelay = validLinks.length * 200 + 1000;
+                downloadAllButtonResetTimeout = setTimeout(() => {
+                    resetDownloadState(originalText);
+                }, resetDelay);
+                
+            } catch (error) {
+                console.error('Error in downloadAllFiles:', error);
+                displayErrorMessage('An error occurred while downloading files. Please try again.');
+                resetDownloadState('Download All');
+            }
+        }
+
+        /**
+         * Resets the download state and button appearance
+         * @param {string} buttonText The text to restore on the button
+         */
+        function resetDownloadState(buttonText) {
+            // Clear downloading flag
+            isDownloading = false;
+            
+            // Clear all timeouts
+            downloadAllTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+            downloadAllTimeouts = [];
+            if (downloadAllButtonResetTimeout !== null) {
+                clearTimeout(downloadAllButtonResetTimeout);
+                downloadAllButtonResetTimeout = null;
+            }
+            
+            // Reset button state (get fresh reference)
+            const btn = document.getElementById('downloadAllBtn');
+            if (btn) {
+                btn.textContent = buttonText || 'Download All';
+                btn.disabled = false;
+            }
+        }
+
+        /**
+         * Sends download links to the Python server for further processing.
+         * @param {Array} downloadLinks The list of download links.
+         */
+        async function sendDownloadLinksToPythonServer(downloadLinks) {
+            // Normalize links and notify Python server even when there is no work,
+            // so it can conclude and signal safe shutdown.
+            const normalizedLinks = Array.isArray(downloadLinks) ? downloadLinks : [];
+            if (normalizedLinks.length === 0) {
+                console.log("No download links to send; notifying Python server to conclude session.");
+            }
+
+            const baseUrl = LOCAL_SERVER_BASE_URL;
+            console.log("Python server URL:", baseUrl);
+            console.log("Sending download links to Python server:", normalizedLinks);
+            try {
+                setBannerWorking();
+                startStatusPollingOnce();
+                // Run a silent connectivity probe before attempting the download handoff.
+                try {
+                    const connectivityProbe = await runConnectivityDiagnostics({ silent: true, context: 'pre-download', timeoutMs: 6000 });
+                    if (!connectivityProbe.success) {
+                        renderConnectivityStatus(connectivityProbe);
+                    }
+                } catch (probeError) {
+                    console.warn('Connectivity diagnostics failed before download attempt:', probeError);
+                }
+                const fetchOptions = getFetchOptionsForConnection('POST', true, false);
+                fetchOptions.body = JSON.stringify({
+                    links: normalizedLinks.map(downloadLink => ({
+                        url: downloadLink.url,
+                        filename: downloadLink.filename,
+                        fileId: downloadLink.fileId,
+                    }))
+                });
+                const response = await fetch(baseUrl + '/download', fetchOptions);
+
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => '');
+                    throw new Error(`Network response was not ok: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json().catch(() => ({}));
+                console.log("Python server response:", data);
+                if (data.status === 'success') {
+                    console.log('Python server handshake complete. Accepted ' + normalizedLinks.length + ' link(s).');
+                    // Mark certificate as trusted if this was an HTTPS connection
+                    if (baseUrl.indexOf('https://') === 0 && !__certificateTrustEstablished) {
+                        __certificateTrustEstablished = true;
+                        console.log('Certificate trust established - subsequent requests will use CORS preflight');
+                    }
+                    if (data.safeToClose) { setBannerSafe(); }
+                    // Run diagnostics again (non-blocking) to capture final state and surface to the UI.
+                    runConnectivityDiagnostics({ silent: true, context: 'post-download', timeoutMs: 4000 })
+                        .then(function (diagResult) {
+                            renderConnectivityStatus(diagResult);
+                        })
+                        .catch(function (diagErr) {
+                            console.warn('Post-download diagnostics failed:', diagErr);
+                        });
+                    return data;
+                } else {
+                    console.error("Error from Python server:", data.message);
+                    displayErrorMessage('Error: ' + (data.message || 'Unexpected server response'));
+                    // Auto-run diagnostics after download failure
+                    runConnectivityDiagnostics({ silent: true, context: 'download-error', timeoutMs: 4000 });
+                }
+            } catch (error) {
+                console.error('Error sending download links to Python server:', error);
+                // Non-blocking: Let existing diagnoseAfterFailure handle the error
+                // It will show errors in the connectivity drawer (progressive disclosure)
+                await diagnoseAfterFailure(baseUrl, error);
+                // Non-blocking: Run diagnostics in background and update connectivity drawer
+                runConnectivityDiagnostics({ silent: true, context: 'download-error', timeoutMs: 4000 })
+                    .then(function (finalProbe) {
+                        renderConnectivityStatus(finalProbe);
+                        // Auto-show connectivity drawer if certificate issue detected (progressive disclosure)
+                        if (finalProbe && !finalProbe.success && finalProbe.hint === 'trust_cert') {
+                            setConnectivityDrawerVisibility(true);
+                        }
+                    })
+                    .catch(function (diagError) {
+                        console.warn('Connectivity diagnostics after failure failed:', diagError);
+                    });
+                throw error; // Propagate so callers can abort cleanup flow
+            }
+        }
+
+        // Status banner helpers and polling
+        var SAFE_TO_CLOSE = false;
+        function setBannerSafe(){
+            SAFE_TO_CLOSE = true;
+            try { window.onbeforeunload = null; } catch (e) {}
+            var b = document.getElementById('closeStatusBanner');
+            if(!b) return;
+            b.classList.remove('status-working');
+            b.classList.add('status-safe');
+            var ic = b.querySelector('.icon'); if (ic) ic.textContent = '✅';
+            var tx = b.querySelector('.text'); if (tx) tx.textContent = 'All set — you can close this tab now. Cleanup will continue in the background.';
+        }
+        function setBannerWorking(){
+            SAFE_TO_CLOSE = false;
+            try { window.onbeforeunload = function(){ return 'Work is still in progress. Are you sure you want to leave?'; }; } catch (e) {}
+            var b = document.getElementById('closeStatusBanner');
+            if(!b) return;
+            b.classList.remove('status-safe');
+            b.classList.add('status-working');
+            var ic = b.querySelector('.icon'); if (ic) ic.textContent = '⏳';
+            var tx = b.querySelector('.text'); if (tx) tx.textContent = 'Please keep this tab open while we process your files…';
+        }
+        function updateStatusDetails(data){
+            try{
+                var d = data||{}; var c = (d.counts||{});
+                try {
+                    LAST_SAFE_STATUS_PAYLOAD = JSON.parse(JSON.stringify(d));
+                } catch (cloneErr) {
+                    LAST_SAFE_STATUS_PAYLOAD = d;
+                }
+                var S = function(id,v){ var el=document.getElementById(id); if(el){ el.textContent = String(v==null? '': v); } };
+                S('stPhase', d.phase||'working');
+                S('stLinks', c.linksReceived||0);
+                S('stDownloaded', c.filesDownloaded||0);
+                S('stToDelete', c.filesToDelete||0);
+                S('stDeleted', c.filesDeleted||0);
+                var er = document.getElementById('stErrorRow');
+                var et = document.getElementById('stError');
+                if(er && et){ if(d.lastError){ er.style.display='list-item'; et.textContent=String(d.lastError);} else { er.style.display='none'; et.textContent=''; } }
+            }catch(e){}
+        }
+        var __statusPollStarted = false;
+        var __certificateErrorShown = false;
+        var __connectionLossDetectorStarted = false;
+        function startStatusPollingOnce(){ if (__statusPollStarted) return; __statusPollStarted = true; pollSafeStatus(); }
+        async function pollSafeStatus(){
+            try{
+                const res = await fetch(LOCAL_SERVER_BASE_URL + '/status', getFetchOptionsForConnection('GET', false, false));
+                if(res && res.ok){
+                    try {
+                        const data = await res.json();
+                        updateStatusDetails(data);
+                        noteSuccessfulStatusPoll();
+                        if(data && data.safeToClose){ setBannerSafe(); return; }
+                        // Only reset certificate error flag after successful JSON parse
+                        __certificateErrorShown = false;
+                        // Mark certificate as trusted if this was an HTTPS connection
+                        if (LOCAL_SERVER_BASE_URL.indexOf('https://') === 0 && !__certificateTrustEstablished) {
+                            __certificateTrustEstablished = true;
+                            console.log('Certificate trust established - subsequent requests will use CORS preflight');
+                        }
+                    } catch (jsonError) {
+                        // JSON parse failed, but connection succeeded - don't reset flag yet
+                        console.warn('Status response parse error:', jsonError);
+                    }
+                }
+            }catch(e){
+                // Check for certificate errors and show message once
+                const errorMsg = (e && e.message) ? String(e.message).toLowerCase() : String(e).toLowerCase();
+                if (!__certificateErrorShown && (errorMsg.includes('certificate') || errorMsg.includes('ssl') ||
+                    errorMsg.includes('tls') || errorMsg.includes('networkerror') || errorMsg.includes('failed to fetch') ||
+                    errorMsg.includes('net::err_cert') || errorMsg.includes('certificate verify failed'))) {
+                    __certificateErrorShown = true;
+                    if (USE_HTTP_MODE) {
+                        displayErrorMessage('Unable to connect to local server. Please ensure the server is running at ' + LOCAL_SERVER_BASE_URL);
+                    } else {
+                        displayErrorMessage('Certificate trust required: Please open ' + LOCAL_SERVER_BASE_URL + ' in a new tab to accept the security certificate, then return here.');
+                        showCertificateTrustLink(LOCAL_SERVER_BASE_URL);
+                    }
+                    showConnectivityCard();
+                }
+                // ignore other transient errors
+            }
+            if(!SAFE_TO_CLOSE){
+                setTimeout(pollSafeStatus, 2000);
+            }
+        }
+
+        function noteSuccessfulStatusPoll(){
+            successfulStatusPolls += 1;
+        }
+
+        function triggerConnectionLossReport(){
+            if (connectionLossReported) { return; }
+            connectionLossReported = true;
+            var timeSincePageLoad = Date.now() - PAGE_LOAD_TIME;
+            
+            // Run enhanced diagnostics before reporting
+            runEnhancedConnectivityDiagnostics({ 
+                context: 'connection-loss', 
+                timeoutMs: 8000 
+            }).then(function(enhancedDiag) {
+                var payload = {
+                    timestamp: new Date().toISOString(),
+                    userAgent: (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : 'unknown',
+                    browserInfo: detectBrowser(),
+                    diagnostics: CONNECTIVITY_STATE.lastResult || null,
+                    enhancedDiagnostics: enhancedDiag || null,
+                    lastStatus: LAST_SAFE_STATUS_PAYLOAD,
+                    safeToClose: SAFE_TO_CLOSE,
+                    successfulStatusPolls: successfulStatusPolls,
+                    timeSincePageLoad: Math.round(timeSincePageLoad / 1000),
+                    networkInfo: {
+                        onLine: typeof navigator !== 'undefined' ? navigator.onLine : null
+                    }
+                };
+                
+                if (typeof google !== 'undefined' && google.script && google.script.run){
+                    google.script.run
+                        .withSuccessHandler(function(){
+                            console.log('Connection loss report sent to Apps Script owner.');
+                        })
+                        .withFailureHandler(function(err){
+                            console.error('Failed to notify Apps Script owner about connection loss:', err);
+                            console.error('Connection loss report payload:', JSON.stringify(payload, null, 2));
+                        })
+                        .reportConnectionLoss(payload);
+                } else {
+                    console.warn('Apps Script context unavailable; cannot report connection loss automatically.');
+                    console.error('Connection loss report payload (would have been sent):', JSON.stringify(payload, null, 2));
+                }
+            }).catch(function(err) {
+                console.error('Enhanced diagnostics failed during connection loss report:', err);
+                // Fall back to basic report
+                var basicPayload = {
+                    timestamp: new Date().toISOString(),
+                    userAgent: (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : 'unknown',
+                    diagnostics: CONNECTIVITY_STATE.lastResult || null,
+                    lastStatus: LAST_SAFE_STATUS_PAYLOAD,
+                    safeToClose: SAFE_TO_CLOSE,
+                    successfulStatusPolls: successfulStatusPolls,
+                    timeSincePageLoad: Math.round(timeSincePageLoad / 1000),
+                    enhancedDiagnosticsError: String(err)
+                };
+                if (typeof google !== 'undefined' && google.script && google.script.run){
+                    google.script.run.reportConnectionLoss(basicPayload);
+                }
+            });
+        }
+
+        /**
+         * Independent connection loss detector that runs on a timer.
+         * Checks for connection loss based on elapsed time, regardless of polling success.
+         */
+        function startConnectionLossDetector(){
+            if (__connectionLossDetectorStarted) return;
+            __connectionLossDetectorStarted = true;
+            checkConnectionLoss();
+        }
+
+        function checkConnectionLoss(){
+            if (SAFE_TO_CLOSE || connectionLossReported) {
+                return;
+            }
+            var timeSincePageLoad = Date.now() - PAGE_LOAD_TIME;
+            if (timeSincePageLoad >= CONNECTION_LOSS_THRESHOLD_MS) {
+                // Only report connection loss if we ever had a successful connection
+                if (successfulStatusPolls > 0) {
+                    console.warn('Connection loss detected: ' + Math.round(timeSincePageLoad / 1000) + ' seconds since page load, ' + successfulStatusPolls + ' successful status polls');
+                    triggerConnectionLossReport();
+                    return;
+                } else {
+                    console.warn('No successful connections established yet (' + Math.round(timeSincePageLoad / 1000) + ' seconds since page load), skipping connection loss report');
+                }
+            }
+            // Check again in 5 seconds
+            setTimeout(checkConnectionLoss, 5000);
+        }
+        (function(){
+            var btn = document.getElementById('statusDetailsToggle');
+            var panel = document.getElementById('statusDetails');
+            if(btn && panel){
+                btn.addEventListener('click', function(){
+                    var expanded = btn.getAttribute('aria-expanded') === 'true';
+                    btn.setAttribute('aria-expanded', String(!expanded));
+                    panel.hidden = expanded;
+                });
+            }
+        })();
+
+        // Authorization state management
+        var AUTH_STATE = {
+            status: 'idle', // idle | checking | authorizing | authorized | error
+            inProgress: false, // Prevents multiple simultaneous attempts
+            lastError: null,
+            errorDetails: null,
+            service: null // Which service needs authorization (Gmail, Drive, or both)
+        };
+        // TODO: allow GAS/main.js to supply host/port so custom deployments aren't hard-coded.
+        // Detect HTTP mode - check URL parameter first (synchronous, immediate)
+        var USE_HTTP_MODE = false;
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('http_mode') === '1' || urlParams.get('use_http') === '1') {
+                USE_HTTP_MODE = true;
+            }
+        } catch (e) {
+            // Ignore URL param parsing errors
+        }
+        
+        // Helper function for fetch with timeout (defined inline since it's needed early)
+        function fetchWithTimeoutHelper(url, options, timeoutMs) {
+            options = options || {};
+            const supportsAbort = typeof AbortController === 'function';
+            let controller = null;
+            if (supportsAbort) {
+                controller = new AbortController();
+                options = Object.assign({}, options, { signal: controller.signal });
+            }
+            let timer = null;
+            return new Promise((resolve, reject) => {
+                timer = setTimeout(() => {
+                    const timeoutError = new Error('Connectivity timeout');
+                    timeoutError.code = 'FETCH_TIMEOUT';
+                    if (controller) {
+                        try { controller.abort(); } catch (e) {}
+                    }
+                    reject(timeoutError);
+                }, timeoutMs);
+                fetch(url, options)
+                    .then(response => {
+                        clearTimeout(timer);
+                        resolve(response);
+                    })
+                    .catch(error => {
+                        clearTimeout(timer);
+                        reject(error);
+                    });
+            });
+        }
+        
+        // Set LOCAL_SERVER_BASE_URL - default to HTTP to prevent TLS handshake errors
+        // Use 'localhost' instead of '127.0.0.1' for Chrome Private Network Access compatibility
+        // Chrome treats localhost differently than 127.0.0.1 for PNA purposes
+        // 
+        // IMPORTANT LIMITATION: HTTP Mode and Chrome Private Network Access (PNA)
+        // ========================================================================
+        // HTTP mode does NOT work when this webapp is served from HTTPS pages (e.g., Google Apps Script).
+        // Chrome's Private Network Access (PNA) security feature blocks HTTPS-to-HTTP localhost requests
+        // at the browser level, BEFORE they reach the server. This is a browser security policy that
+        // cannot be bypassed from JavaScript.
+        //
+        // Why this happens:
+        // - Chrome PNA blocks requests from HTTPS origins to HTTP localhost/private network addresses
+        // - The browser blocks the request before sending any network traffic (including preflight OPTIONS)
+        // - Server-side CORS headers are irrelevant because the request never reaches the server
+        //
+        // Workarounds:
+        // 1. Use HTTPS mode (recommended): Avoids PNA blocking but requires certificate trust
+        // 2. Serve webapp over HTTP: HTTP mode works when webapp is served from HTTP (not GAS)
+        // 3. Disable Chrome PNA (development only): Launch Chrome with flag:
+        //    --disable-features=BlockInsecurePrivateNetworkRequests
+        //    Example: chrome.exe --disable-features=BlockInsecurePrivateNetworkRequests
+        //    Note: This flag may be removed in future Chrome versions
+        //
+        // Recommendation: Use HTTPS mode for production. HTTP mode is only suitable for:
+        // - Development when webapp is served over HTTP (not from Google Apps Script)
+        // - Testing with PNA disabled via browser flag
+        // ========================================================================
+        var LOCAL_SERVER_BASE_URL = 'http://localhost:8000'; // Always default to HTTP first
+        
+        // Promise that resolves when HTTP mode detection completes
+        var httpModeDetectionPromise = (async function detectHttpMode() {
+            try {
+                // Try HTTP first (for HTTP mode) with very short timeout
+                // Use localhost for Chrome PNA compatibility
+                // Use simple request without custom headers for initial detection (mode detection happens before trust)
+                // Mark as local network request for Chrome PNA (required for HTTPS-to-localhost requests)
+                const httpModeResponse = await fetchWithTimeoutHelper('http://localhost:8000/mode', { 
+                    method: 'GET', 
+                    mode: 'cors', 
+                    cache: 'no-store',
+                    targetAddressSpace: 'local'  // Required for Chrome PNA to allow localhost requests
+                }, 500); // Very short timeout for fast detection
+                if (httpModeResponse.ok) {
+                    const modeData = await httpModeResponse.json();
+                    USE_HTTP_MODE = modeData.use_http_mode === true;
+                    LOCAL_SERVER_BASE_URL = USE_HTTP_MODE ? 'http://localhost:8000' : 'https://localhost:8000';
+                    console.log('HTTP mode detected:', USE_HTTP_MODE, 'URL:', LOCAL_SERVER_BASE_URL);
+                    return; // Success, exit early
+                }
+            } catch (e) {
+                // HTTP failed, try HTTPS (server might be in HTTPS mode)
+                // Use simple request without custom headers for initial detection (allows Firefox 52 certificate dialog)
+                // Mark as local network request for Chrome PNA (required for HTTPS-to-localhost requests)
+                try {
+                    const httpsModeResponse = await fetchWithTimeoutHelper('https://localhost:8000/mode', {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-store',
+                        credentials: 'omit',
+                        targetAddressSpace: 'local'  // Required for Chrome PNA to allow localhost requests
+                    }, 500); // Very short timeout
+                    if (httpsModeResponse.ok) {
+                        const modeData = await httpsModeResponse.json();
+                        USE_HTTP_MODE = modeData.use_http_mode === true;
+                        LOCAL_SERVER_BASE_URL = USE_HTTP_MODE ? 'http://localhost:8000' : 'https://localhost:8000';
+                        console.log('HTTPS mode detected:', USE_HTTP_MODE, 'URL:', LOCAL_SERVER_BASE_URL);
+                        return; // Success
+                    }
+                } catch (e2) {
+                    // Both failed - default to HTTPS (not HTTP) because:
+                    // 1. If webapp is served from HTTPS (GAS), HTTP will always fail due to Chrome PNA
+                    // 2. HTTPS might fail due to certificate, but that's fixable (certificate dialog will appear)
+                    // 3. Server is likely in HTTPS mode anyway
+                    USE_HTTP_MODE = false;
+                    LOCAL_SERVER_BASE_URL = 'https://localhost:8000';
+                    console.log('Mode detection failed, defaulting to HTTPS (HTTP blocked by PNA or server in HTTPS mode)');
+                }
+            }
+        })();
+        const CONNECTION_LOSS_THRESHOLD_MS = 20000; // Report connection loss after 20 seconds of no secure activity (matches Python threshold)
+        var CONNECTIVITY_STATE = {
+            lastResult: null,
+            lastRunAt: null
+        };
+        var CONNECTIVITY_DEFAULT_TIMEOUT_MS = 7000;
+        var LAST_CONNECTIVITY_RUN = 0;
+        var CONNECTIVITY_DEBOUNCE_MS = 2000; // Minimum 2 seconds between automated runs
+        var connectionLossReported = false;
+        var LAST_SAFE_STATUS_PAYLOAD = null;
+        var successfulStatusPolls = 0;
+        var PAGE_LOAD_TIME = Date.now(); // Track when page loaded for connection loss detection
+        var CERT_PAGE_OPENED = false; // Track if certificate page has been auto-opened this session
+        var FIREFOX_CERT_DIAG_AVAILABLE = true; // Assume available, will be set based on endpoint response
+        var __certificateTrustEstablished = false; // Track if certificate trust has been established (for Firefox 52 compatibility)
+
+        /**
+         * Sets the authorization state atomically.
+         * @param {string} status The new status.
+         * @param {Object} errorDetails Error details object (optional).
+         * @param {string} service Service name that needs authorization (optional).
+         */
+        function setAuthState(status, errorDetails, service) {
+            AUTH_STATE.status = status;
+            AUTH_STATE.lastError = errorDetails ? errorDetails.message : null;
+            AUTH_STATE.errorDetails = errorDetails;
+            AUTH_STATE.service = service;
+            AUTH_STATE.inProgress = (status === 'checking' || status === 'authorizing');
+            console.log('Auth state updated:', AUTH_STATE.status, AUTH_STATE.inProgress);
+        }
+
+        /**
+         * Gets the current authorization state.
+         * @returns {Object} Current authorization state object.
+         */
+        function getAuthState() {
+            return {
+                status: AUTH_STATE.status,
+                inProgress: AUTH_STATE.inProgress,
+                lastError: AUTH_STATE.lastError,
+                errorDetails: AUTH_STATE.errorDetails,
+                service: AUTH_STATE.service
+            };
+        }
+
+        function fetchWithTimeout(url, options, timeoutMs) {
+            options = options || {};
+            const supportsAbort = typeof AbortController === 'function';
+            let controller = null;
+            if (supportsAbort) {
+                controller = new AbortController();
+                options = Object.assign({}, options, { signal: controller.signal });
+            }
+            let timer = null;
+            return new Promise((resolve, reject) => {
+                timer = setTimeout(() => {
+                    const timeoutError = new Error('Connectivity timeout');
+                    timeoutError.code = 'FETCH_TIMEOUT';
+                    if (controller) {
+                        try { controller.abort(); } catch (e) {}
+                    }
+                    reject(timeoutError);
+                }, timeoutMs);
+                fetch(url, options)
+                    .then(response => {
+                        clearTimeout(timer);
+                        resolve(response);
+                    })
+                    .catch(error => {
+                        clearTimeout(timer);
+                        reject(error);
+                    });
+            });
+        }
+
+        /**
+         * Returns appropriate fetch options based on certificate trust status.
+         * For Firefox 52 compatibility: first request without preflight triggers to allow certificate dialog.
+         * After trust is established, uses full CORS with custom headers for Chrome PNA compatibility.
+         * @param {string} method HTTP method ('GET', 'POST', etc.)
+         * @param {boolean} includeBody Whether to include body in options (for POST requests)
+         * @param {boolean} forcePreflight Force preflight even if trust not established (for Chrome PNA after trust)
+         * @returns {Object} Fetch options object
+         */
+        function getFetchOptionsForConnection(method, includeBody, forcePreflight) {
+            method = method || 'GET';
+            includeBody = includeBody || false;
+            forcePreflight = forcePreflight || false;
+            
+            const baseOptions = {
+                method: method,
+                mode: 'cors',
+                cache: 'no-store',
+                credentials: 'omit'
+            };
+            
+            // Mark requests as local network requests for Chrome Private Network Access (PNA)
+            // This allows HTTPS-to-localhost requests from Google Apps Script
+            // Chrome will still require certificate acceptance, but won't block at PNA level
+            if (LOCAL_SERVER_BASE_URL.indexOf('localhost') !== -1 || LOCAL_SERVER_BASE_URL.indexOf('127.0.0.1') !== -1) {
+                baseOptions.targetAddressSpace = 'local';
+            }
+            
+            // If trust is established OR forcePreflight is true, include custom headers for Chrome PNA
+            // Otherwise, omit custom headers to avoid preflight (allows Firefox 52 certificate dialog)
+            if (__certificateTrustEstablished || forcePreflight) {
+                if (!baseOptions.headers) {
+                    baseOptions.headers = {};
+                }
+                baseOptions.headers['X-Requested-With'] = 'XMLHttpRequest';  // Force preflight for Chrome PNA
+            }
+            
+            // For POST requests, always include Content-Type if body is present
+            if (includeBody && method === 'POST') {
+                if (!baseOptions.headers) {
+                    baseOptions.headers = {};
+                }
+                baseOptions.headers['Content-Type'] = 'application/json';
+            }
+            
+            return baseOptions;
+        }
+
+        /**
+         * Enhanced connectivity diagnostics with detailed error capture.
+         * Tests multiple endpoints and strategies to diagnose connection issues.
+         * @param {Object} options Options for controlling behavior.
+         * @returns {Promise<Object>} Enhanced diagnostics result.
+         */
+        async function runEnhancedConnectivityDiagnostics(options) {
+            options = options || {};
+            const baseResult = {
+                success: false,
+                stage: options.context || (options.manual ? 'manual' : 'auto'),
+                timestamp: new Date().toISOString(),
+                browser: detectBrowser(),
+                attempts: [],
+                errorDetails: null,
+                serverReachable: false,
+                certificateBlocked: false,
+                networkError: false
+            };
+            
+            // Test 1: Simple health endpoint with minimal options
+            try {
+                const healthUrl = LOCAL_SERVER_BASE_URL + '/_health';
+                const startTime = Date.now();
+                const attempt = {
+                    endpoint: '/_health',
+                    url: healthUrl,
+                    startTime: new Date().toISOString(),
+                    strategy: 'minimal_fetch'
+                };
+                
+                try {
+                    const response = await fetchWithTimeout(healthUrl, getFetchOptionsForConnection('GET', false, false), options.timeoutMs || 5000);
+                    
+                    attempt.duration = Date.now() - startTime;
+                    attempt.status = response.status;
+                    attempt.success = response.ok;
+                    
+                    if (response.ok) {
+                        baseResult.success = true;
+                        baseResult.serverReachable = true;
+                        // Mark certificate as trusted if this was an HTTPS connection
+                        if (healthUrl.indexOf('https://') === 0 && !__certificateTrustEstablished) {
+                            __certificateTrustEstablished = true;
+                            console.log('Certificate trust established - subsequent requests will use CORS preflight');
+                        }
+                    }
+                } catch (err) {
+                    attempt.duration = Date.now() - startTime;
+                    attempt.error = {
+                        name: err.name || 'Unknown',
+                        message: String(err.message || err),
+                        code: err.code || null,
+                        stack: err.stack || null
+                    };
+                    
+                    // Always define errorStr for error detection (used in both HTTP and HTTPS modes)
+                    const errorStr = String(err.message || err).toLowerCase();
+                    const errorName = String(err.name || '').toLowerCase();
+                    
+                    // Detect specific error types (skip certificate detection in HTTP mode)
+                    if (!USE_HTTP_MODE) {
+                        // NOTE: Firefox 52 on Windows XP has a quirk where certificate trust issues
+                        // manifest as generic "TypeError: NetworkError when attempting to fetch resource"
+                        // rather than explicit certificate error messages. We need special detection logic.
+                        const browser = detectBrowser();
+                        
+                        // Direct certificate/SSL error detection (standard case)
+                        if (errorStr.indexOf('certificate') !== -1 || errorStr.indexOf('ssl') !== -1 || 
+                            errorStr.indexOf('tls') !== -1 || errorStr.indexOf('sec_error') !== -1 ||
+                            errorStr.indexOf('pkix') !== -1) {
+                            baseResult.certificateBlocked = true;
+                            // Reset trust flag if certificate error detected after trust was established
+                            if (__certificateTrustEstablished) {
+                                __certificateTrustEstablished = false;
+                                console.log('Certificate trust lost - will retry with simple request');
+                            }
+                        }
+                        // Firefox 52 on XP: Generic NetworkError on HTTPS endpoints is often a certificate issue
+                        // The Fetch API doesn't expose Firefox's specific certificate error codes in older versions
+                        else if (browser.name === 'Firefox' && browser.isWindowsXP && 
+                                 errorName === 'typeerror' && errorStr.indexOf('networkerror') !== -1 &&
+                                 healthUrl.indexOf('https://') === 0) {
+                            baseResult.certificateBlocked = true;
+                        }
+                        // HTTPS timeout pattern: If we timeout, it often means Firefox is showing 
+                        // a certificate warning dialog that blocks the fetch until user interacts.
+                        // This will be checked again on subsequent attempts to confirm the pattern.
+                        if (err.code === 'FETCH_TIMEOUT' && healthUrl.indexOf('https://') === 0) {
+                            // Timeout on HTTPS suggests certificate dialog is blocking
+                            baseResult.certificateBlocked = true;
+                        }
+                    }
+                    
+                    // Network errors (only if not a certificate issue)
+                    if (!baseResult.certificateBlocked) {
+                        if (errorStr.indexOf('network') !== -1 || errorStr.indexOf('failed to fetch') !== -1 ||
+                            errorStr.indexOf('refused') !== -1 || errorStr.indexOf('connection reset') !== -1 ||
+                            errorStr.indexOf('cors') !== -1 || errorStr.indexOf('private network') !== -1 ||
+                            errorStr.indexOf('unknown address space') !== -1) {
+                            baseResult.networkError = true;
+                        }
+                    }
+                }
+                
+                baseResult.attempts.push(attempt);
+            } catch (testErr) {
+                baseResult.attempts.push({
+                    endpoint: '/_health',
+                    error: {
+                        name: testErr.name || 'Unknown',
+                        message: String(testErr.message || testErr)
+                    }
+                });
+            }
+            
+            // Test 2: Try status endpoint (if health failed)
+            if (!baseResult.success) {
+                try {
+                    const statusUrl = LOCAL_SERVER_BASE_URL + '/status';
+                    const startTime = Date.now();
+                    const attempt = {
+                        endpoint: '/status',
+                        url: statusUrl,
+                        startTime: new Date().toISOString(),
+                        strategy: 'status_fetch'
+                    };
+                    
+                    try {
+                        const response = await fetchWithTimeout(statusUrl, getFetchOptionsForConnection('GET', false, false), options.timeoutMs || 5000);
+                        
+                        attempt.duration = Date.now() - startTime;
+                        attempt.status = response.status;
+                        attempt.success = response.ok;
+                        
+                        if (response.ok) {
+                            baseResult.success = true;
+                            baseResult.serverReachable = true;
+                            // Mark certificate as trusted if this was an HTTPS connection
+                            if (statusUrl.indexOf('https://') === 0 && !__certificateTrustEstablished) {
+                                __certificateTrustEstablished = true;
+                                console.log('Certificate trust established - subsequent requests will use CORS preflight');
+                            }
+                        }
+                    } catch (err) {
+                        attempt.duration = Date.now() - startTime;
+                        attempt.error = {
+                            name: err.name || 'Unknown',
+                            message: String(err.message || err),
+                            code: err.code || null
+                        };
+                        
+                        // Check for certificate issues on status endpoint too (skip in HTTP mode)
+                        if (!USE_HTTP_MODE && !baseResult.certificateBlocked) {
+                            const errorStr = String(err.message || err).toLowerCase();
+                            const errorName = String(err.name || '').toLowerCase();
+                            const browser = detectBrowser();
+                            
+                            // Standard certificate error detection
+                            if (errorStr.indexOf('certificate') !== -1 || errorStr.indexOf('ssl') !== -1 || 
+                                errorStr.indexOf('tls') !== -1 || errorStr.indexOf('sec_error') !== -1 ||
+                                errorStr.indexOf('pkix') !== -1 || errorStr.indexOf('err_cert') !== -1 ||
+                                errorStr.indexOf('cert_authority_invalid') !== -1) {
+                                baseResult.certificateBlocked = true;
+                                // Reset trust flag if certificate error detected after trust was established
+                                if (__certificateTrustEstablished) {
+                                    __certificateTrustEstablished = false;
+                                    console.log('Certificate trust lost - will retry with simple request');
+                                }
+                            }
+                            // Firefox 52 on XP: Generic NetworkError on HTTPS = certificate issue
+                            else if (browser.name === 'Firefox' && browser.isWindowsXP && 
+                                      errorName === 'typeerror' && errorStr.indexOf('networkerror') !== -1 &&
+                                      statusUrl.indexOf('https://') === 0) {
+                                baseResult.certificateBlocked = true;
+                            }
+                            // Pattern: First attempt timed out, second attempt got NetworkError = certificate dialog
+                            else if (baseResult.attempts.length > 0 &&
+                                     baseResult.attempts[0].error &&
+                                     baseResult.attempts[0].error.code === 'FETCH_TIMEOUT' &&
+                                     errorStr.indexOf('networkerror') !== -1 &&
+                                     statusUrl.indexOf('https://') === 0) {
+                                baseResult.certificateBlocked = true;
+                            }
+                        }
+                    }
+                    
+                    baseResult.attempts.push(attempt);
+                } catch (testErr) {
+                    // Ignore secondary test failures
+                }
+            }
+            
+            // Test 3: Try HTTP (non-HTTPS) to verify server is reachable at all
+            // (This helps distinguish certificate issues from server not running)
+            if (!baseResult.serverReachable) {
+                try {
+                    const httpUrl = 'http://localhost:8000/_health';
+                    const startTime = Date.now();
+                    const attempt = {
+                        endpoint: '/_health',
+                        url: httpUrl,
+                        startTime: new Date().toISOString(),
+                        strategy: 'http_fallback',
+                        protocol: 'http'
+                    };
+                    
+                    try {
+                        const response = await fetchWithTimeout(httpUrl, {
+                            method: 'GET',
+                            mode: 'no-cors', // No-CORS for HTTP
+                            cache: 'no-store',
+                            credentials: 'omit',
+                            targetAddressSpace: 'local'  // Required for Chrome PNA (even for HTTP)
+                        }, 3000); // Shorter timeout for HTTP test
+                        
+                        attempt.duration = Date.now() - startTime;
+                        attempt.status = response.status || 'unknown';
+                        attempt.success = true; // If we get here, server is reachable
+                        baseResult.serverReachable = true;
+                    } catch (err) {
+                        attempt.duration = Date.now() - startTime;
+                        attempt.error = {
+                            name: err.name || 'Unknown',
+                            message: String(err.message || err)
+                        };
+                    }
+                    
+                    baseResult.attempts.push(attempt);
+                } catch (testErr) {
+                    // Ignore HTTP test failures
+                }
+            }
+            
+            // Compile error summary
+            if (!baseResult.success && baseResult.attempts.length > 0) {
+                const allErrors = [];
+                for (var i = 0; i < baseResult.attempts.length; i++) {
+                    if (baseResult.attempts[i].error) {
+                        var errMsg = baseResult.attempts[i].error.message || String(baseResult.attempts[i].error);
+                        allErrors.push(errMsg);
+                    }
+                }
+                
+                if (allErrors.length > 0) {
+                    baseResult.errorDetails = {
+                        primaryError: allErrors[0],
+                        allErrors: allErrors,
+                        errorCount: allErrors.length
+                    };
+                }
+            }
+            
+            // If certificate is blocked, try to get Firefox-specific diagnosis (skip in HTTP mode)
+            if (!USE_HTTP_MODE && baseResult.certificateBlocked && !baseResult.serverReachable && FIREFOX_CERT_DIAG_AVAILABLE) {
+                try {
+                    const firefoxDiagUrl = LOCAL_SERVER_BASE_URL + '/_cert_diagnose_firefox';
+                    const firefoxDiagResponse = await fetchWithTimeout(firefoxDiagUrl, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-store',
+                        credentials: 'omit',
+                        targetAddressSpace: 'local'  // Required for Chrome PNA
+                    }, 5000);
+                    
+                    if (firefoxDiagResponse.ok) {
+                        const firefoxDiag = await firefoxDiagResponse.json();
+                        baseResult.firefoxCertDiagnosis = firefoxDiag;
+                    }
+                } catch (firefoxDiagErr) {
+                    // Fail gracefully - Firefox diagnosis is optional
+                    console.debug('Firefox certificate diagnosis failed:', firefoxDiagErr);
+                    baseResult.firefoxCertDiagnosis = { error: 'Could not retrieve Firefox diagnosis' };
+                }
+            }
+            
+            // Store in global state
+            CONNECTIVITY_STATE.lastResult = baseResult;
+            CONNECTIVITY_STATE.lastRunAt = baseResult.timestamp;
+            
+            // Auto-navigate to certificate page if certificate issue detected with high confidence (skip in HTTP mode)
+            // Also trigger on HTTPS failures even if certificateBlocked isn't explicitly set (Chrome doesn't expose ERR_CERT in JS errors)
+            if (!USE_HTTP_MODE) {
+                // Check if we have HTTPS failures that are likely certificate issues
+                var hasHttpsFailures = baseResult.attempts && baseResult.attempts.some(function(attempt) {
+                    return attempt.url && attempt.url.indexOf('https://') === 0 && attempt.error;
+                });
+                
+                // Also check for PNA blocking errors (Chrome blocks localhost requests from HTTPS origins)
+                // These show up as "Failed to fetch" but are actually PNA blocking
+                var hasPnaBlocking = baseResult.attempts && baseResult.attempts.some(function(attempt) {
+                    if (!attempt.error) return false;
+                    var errorMsg = String(attempt.error.message || attempt.error).toLowerCase();
+                    // PNA blocking or localhost access denied
+                    return errorMsg.indexOf('permission was denied') !== -1 || 
+                           errorMsg.indexOf('address space') !== -1 ||
+                           (attempt.url && (attempt.url.indexOf('localhost') !== -1 || attempt.url.indexOf('127.0.0.1') !== -1) && 
+                            !baseResult.serverReachable);
+                });
+                
+                // If we have HTTPS failures OR PNA blocking, and we're using HTTPS, it's likely a certificate/PNA issue
+                // Also trigger if we're using HTTPS and have any failures (even if serverReachable might be true from navigation)
+                if ((hasHttpsFailures || hasPnaBlocking) && LOCAL_SERVER_BASE_URL.indexOf('https://') === 0) {
+                    // Set certificateBlocked to trigger the auto-open logic
+                    // Note: We check this even if serverReachable is true, because navigation success doesn't mean fetch() will work
+                    if (!baseResult.certificateBlocked) {
+                        baseResult.certificateBlocked = true;
+                        console.log('Detected HTTPS/PNA failures - likely certificate or network access issue, will attempt to open certificate dialog');
+                        console.log('HTTPS failures:', baseResult.attempts.filter(function(a) { return a.url && a.url.indexOf('https://') === 0 && a.error; }).length);
+                        console.log('PNA blocking detected:', hasPnaBlocking);
+                    }
+                }
+                
+                openCertificatePageIfNeeded(baseResult);
+            }
+            
+            // Log detailed diagnostics
+            console.log('Enhanced connectivity diagnostics:', JSON.stringify(baseResult, null, 2));
+            
+            return baseResult;
+        }
+        
+        /**
+         * Automatically opens the certificate page in a new tab when certificate issues
+         * are detected with high confidence. Only opens once per session.
+         * @param {Object} diagnosticsResult Result object from runEnhancedConnectivityDiagnostics
+         */
+        function openCertificatePageIfNeeded(diagnosticsResult) {
+            // High-confidence criteria: certificate blocked, not already opened
+            // Note: certificateBlocked may be set by the caller if HTTPS failures are detected
+            // We don't check serverReachable here because navigation success doesn't guarantee fetch() will work
+            if (!diagnosticsResult || !diagnosticsResult.certificateBlocked || CERT_PAGE_OPENED) {
+                if (diagnosticsResult && diagnosticsResult.certificateBlocked && CERT_PAGE_OPENED) {
+                    console.debug('Certificate page already opened this session, skipping');
+                } else if (diagnosticsResult && !diagnosticsResult.certificateBlocked) {
+                    console.debug('Certificate not blocked, skipping auto-open');
+                }
+                return;
+            }
+            
+            console.log('Opening certificate dialog page automatically...');
+            
+            CERT_PAGE_OPENED = true;
+            // Open root URL to trigger certificate dialog (not /_cert which is just info page)
+            var certUrl = LOCAL_SERVER_BASE_URL + '/';
+            var opened = false;
+            
+            // Method 1: window.open() - primary method
+            try {
+                var newWindow = window.open(certUrl, '_blank');
+                if (newWindow && !newWindow.closed) {
+                    opened = true;
+                    console.log('Certificate page opened in new tab via window.open()');
+                } else if (newWindow === null) {
+                    console.debug('window.open() returned null - popup likely blocked');
+                }
+            } catch (e) {
+                console.debug('window.open() failed:', e);
+            }
+            
+            // Method 2: Link element fallback - sometimes bypasses popup blockers
+            if (!opened) {
+                try {
+                    var link = document.createElement('a');
+                    link.href = certUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    // Remove element after brief delay
+                    setTimeout(function() {
+                        try {
+                            if (link.parentNode) {
+                                document.body.removeChild(link);
+                            }
+                        } catch (removeErr) {
+                            // Ignore removal errors
+                        }
+                    }, 100);
+                    opened = true;
+                    console.log('Certificate page opened via link element fallback');
+                } catch (e) {
+                    console.debug('Link element method failed:', e);
+                }
+            }
+            
+            // Graceful failure: log warning if both methods failed
+            if (!opened) {
+                console.warn('Popup blocked: Unable to open certificate page automatically. Please manually navigate to ' + certUrl + ' to view certificate information and trust instructions.');
+            }
+        }
+        
+        /**
+         * Detects the browser type and version for diagnostic purposes.
+         */
+        function detectBrowser() {
+            var ua = navigator.userAgent || '';
+            var browser = { name: 'Unknown', version: 'Unknown', isOldFirefox: false, isWindowsXP: false };
+            
+            // Detect Windows XP
+            if (ua.indexOf('Windows NT 5.') !== -1) {
+                browser.isWindowsXP = true;
+            }
+            
+            // Detect browser
+            if (ua.indexOf('Firefox/') !== -1) {
+                browser.name = 'Firefox';
+                var match = ua.match(/Firefox\/(\d+)/);
+                if (match) {
+                    browser.version = match[1];
+                    browser.isOldFirefox = parseInt(match[1], 10) < 60;
+                }
+            } else if (ua.indexOf('Chrome/') !== -1) {
+                browser.name = 'Chrome';
+                var match = ua.match(/Chrome\/(\d+)/);
+                if (match) browser.version = match[1];
+            } else if (ua.indexOf('MSIE') !== -1 || ua.indexOf('Trident/') !== -1) {
+                browser.name = 'Internet Explorer';
+                var match = ua.match(/(?:MSIE |rv:)(\d+)/);
+                if (match) browser.version = match[1];
+            } else if (ua.indexOf('Edge/') !== -1) {
+                browser.name = 'Edge';
+                var match = ua.match(/Edge\/(\d+)/);
+                if (match) browser.version = match[1];
+            }
+            
+            return browser;
+        }
+        
+        /**
+         * Gets browser-specific troubleshooting advice.
+         */
+        function getBrowserSpecificAdvice(errorText) {
+            var browser = detectBrowser();
+            var advice = {
+                browser: browser,
+                steps: [],
+                additionalInfo: ''
+            };
+            
+            var errorLower = (errorText || '').toLowerCase();
+            
+            // Detect specific Firefox errors
+            if (errorLower.indexOf('sec_error_unknown_issuer') !== -1) {
+                advice.steps = [
+                    'Click "Advanced" on the Firefox warning page',
+                    'Click "Add Exception..."',
+                    'Check "Permanently store this exception"',
+                    'Click "Confirm Security Exception"'
+                ];
+            } else if (errorLower.indexOf('ssl_error_rx_record_too_long') !== -1) {
+                advice.steps = [
+                    'The server may be misconfigured',
+                    'Try restarting the MediLink application',
+                    'Check if another application is using port 8000'
+                ];
+            } else if (errorLower.indexOf('pr_connect_reset') !== -1 || errorLower.indexOf('connection reset') !== -1) {
+                advice.steps = [
+                    'The server connection was reset',
+                    'Check if the Python server is still running',
+                    'Restart the MediLink application'
+                ];
+            } else if (errorLower.indexOf('certificate') !== -1 || errorLower.indexOf('ssl') !== -1 || 
+                       errorLower.indexOf('tls') !== -1 || errorLower.indexOf('failed to fetch') !== -1) {
+                // Generic certificate/SSL error
+                advice.steps = [
+                    'Open ' + LOCAL_SERVER_BASE_URL + ' directly in a new tab',
+                    'Accept the security warning / Add exception',
+                    'Return here and click "Run connectivity test"'
+                ];
+            } else {
+                // Generic network error
+                advice.steps = [
+                    'Check if the MediLink Python server is running',
+                    'Check your firewall settings',
+                    'Try restarting the application'
+                ];
+            }
+            
+            // Add browser-specific notes
+            if (browser.name === 'Firefox' && browser.isWindowsXP) {
+                advice.additionalInfo = 'Note: Firefox on Windows XP may require additional steps. ' +
+                    'After adding the certificate exception, you may need to close and reopen Firefox.';
+            }
+            
+            if (browser.isOldFirefox) {
+                advice.additionalInfo += (advice.additionalInfo ? ' ' : '') +
+                    'You are using an older version of Firefox. Consider updating if possible.';
+            }
+            
+            return advice;
+        }
+        
+        function openLocalTrustWindow() {
+            try {
+                // Try opening the troubleshooting page which has more guidance
+                var url = LOCAL_SERVER_BASE_URL + '/_troubleshoot';
+                var win = window.open(url, '_blank', 'width=700,height=600,scrollbars=yes');
+                if (!win) {
+                    // Fallback to cert page if popup is blocked
+                    alert('Please allow pop-ups for this site, then try again. Or manually open ' + LOCAL_SERVER_BASE_URL + ' in a new tab.');
+                }
+            } catch (e) {
+                console.error('Unable to open trust window:', e);
+                // Show browser-specific advice
+                var advice = getBrowserSpecificAdvice('');
+                var msg = 'Unable to open the troubleshooting window.\n\n';
+                msg += 'Please manually:\n';
+                for (var i = 0; i < advice.steps.length; i++) {
+                    msg += (i + 1) + '. ' + advice.steps[i] + '\n';
+                }
+                if (advice.additionalInfo) {
+                    msg += '\n' + advice.additionalInfo;
+                }
+                alert(msg);
+            }
+        }
+
+        function resetConnectivityStatus() {
+            CONNECTIVITY_STATE.lastResult = null;
+            CONNECTIVITY_STATE.lastRunAt = null;
+            renderConnectivityStatus(null);
+        }
+
+        function setConnectivityDrawerVisibility(shouldOpen) {
+            try {
+                const drawer = document.getElementById('connectivityDrawer');
+                if (!drawer) return;
+                const toggle = document.getElementById('connectionHelpToggle');
+                if (shouldOpen) {
+                    drawer.classList.add('is-open');
+                    drawer.setAttribute('aria-hidden', 'false');
+                    if (toggle) {
+                        toggle.setAttribute('aria-expanded', 'true');
+                    }
+                    if (document.body) {
+                        document.body.classList.add('drawer-open');
+                    }
+                } else {
+                    drawer.classList.remove('is-open');
+                    drawer.setAttribute('aria-hidden', 'true');
+                    if (toggle) {
+                        toggle.setAttribute('aria-expanded', 'false');
+                    }
+                    if (document.body) {
+                        document.body.classList.remove('drawer-open');
+                    }
+                }
+            } catch (e) {
+                console.warn('Unable to toggle connectivity drawer:', e);
+            }
+        }
+
+        function showConnectivityCard() {
+            setConnectivityDrawerVisibility(true);
+        }
+
+        /**
+         * Formats an ISO timestamp for display, falling back to local time string.
+         */
+        function formatConnectivityTime(isoTimestamp) {
+            try {
+                if (!isoTimestamp) return '';
+                var dateObj = new Date(isoTimestamp);
+                if (isNaN(dateObj.getTime())) {
+                    return isoTimestamp;
+                }
+                return dateObj.toLocaleTimeString();
+            } catch (e) {
+                return isoTimestamp || '';
+            }
+        }
+
+        /**
+         * Updates the connectivity status panel with the provided result.
+         * @param {Object} result Diagnostics result object.
+         * @param {Object} options Additional render options.
+         */
+        function renderConnectivityStatus(result, options) {
+            options = options || {};
+            const statusEl = document.getElementById('connectivityStatus');
+            const badgeEl = document.getElementById('connectivityBadge');
+            if (!statusEl || !badgeEl) return;
+            if (!result) {
+                statusEl.style.display = 'none';
+                statusEl.textContent = '';
+                badgeEl.className = 'connectivity-badge working';
+                badgeEl.textContent = 'Checking...';
+                return;
+            }
+            statusEl.style.display = 'block';
+            const isSuccess = !!result.success;
+            statusEl.className = 'connectivity-status ' + (isSuccess ? 'status-ok' : 'status-error');
+
+            // Update badge
+            badgeEl.className = 'connectivity-badge ' + (isSuccess ? 'ok' : 'error');
+            badgeEl.innerHTML = (isSuccess ? '✅ Connected' : '⚠️ Action needed');
+
+            // Show/hide fix button for certificate issues
+            const fixBtn = document.getElementById('fixConnectionBtn');
+            if (fixBtn) {
+                const needsTrust = !isSuccess && result.hint === 'trust_cert';
+                fixBtn.style.display = needsTrust ? 'inline-block' : 'none';
+            }
+
+            // Build status content
+            statusEl.innerHTML = ''; // Clear previous content
+            
+            if (isSuccess) {
+                var successLines = [];
+                successLines.push('Local server reachable at ' + formatConnectivityTime(result.timestamp) + '.');
+                if (result.data && result.data.certificate && result.data.certificate.present) {
+                    var cert = result.data.certificate;
+                    if (cert.notAfter) {
+                        successLines.push('Certificate expires: ' + cert.notAfter + '.');
+                    }
+                } else {
+                    successLines.push('Certificate details unavailable, but TLS handshake succeeded.');
+                }
+                if (result.data && result.data.recentRequests && result.data.recentRequests.length) {
+                    var latest = result.data.recentRequests[0];
+                    successLines.push('Server recently saw ' + latest.method + ' ' + latest.path + ' from ' + (latest.client || 'client') + '.');
+                }
+                if (result.data && result.data.safeStatus) {
+                    successLines.push('Server phase: ' + (result.data.safeStatus.phase || 'unknown') + '.');
+                }
+                statusEl.textContent = successLines.join(' ');
+            } else {
+                // Get browser-specific advice
+                var errorText = result.error || '';
+                var advice = getBrowserSpecificAdvice(errorText);
+                var browser = advice.browser;
+                
+                // Main error message
+                var errorDiv = document.createElement('div');
+                errorDiv.style.marginBottom = '12px';
+                errorDiv.innerHTML = '<strong>Unable to reach the local HTTPS server.</strong>';
+                if (result.error) {
+                    var errorDetail = document.createElement('div');
+                    errorDetail.style.fontSize = '0.9em';
+                    errorDetail.style.color = '#666';
+                    errorDetail.style.marginTop = '4px';
+                    errorDetail.textContent = result.error;
+                    errorDiv.appendChild(errorDetail);
+                }
+                statusEl.appendChild(errorDiv);
+                
+                // Browser info
+                if (browser.name !== 'Unknown') {
+                    var browserDiv = document.createElement('div');
+                    browserDiv.style.fontSize = '0.85em';
+                    browserDiv.style.color = '#888';
+                    browserDiv.style.marginBottom = '8px';
+                    browserDiv.textContent = 'Detected: ' + browser.name + ' ' + browser.version + 
+                        (browser.isWindowsXP ? ' (Windows XP)' : '');
+                    statusEl.appendChild(browserDiv);
+                }
+                
+                // Steps to fix
+                if (advice.steps.length > 0) {
+                    var stepsDiv = document.createElement('div');
+                    stepsDiv.innerHTML = '<strong style="font-size: 0.9em;">Steps to fix:</strong>';
+                    var stepsList = document.createElement('ol');
+                    stepsList.style.margin = '8px 0';
+                    stepsList.style.paddingLeft = '20px';
+                    stepsList.style.fontSize = '0.9em';
+                    for (var i = 0; i < advice.steps.length; i++) {
+                        var li = document.createElement('li');
+                        li.textContent = advice.steps[i];
+                        li.style.marginBottom = '4px';
+                        stepsList.appendChild(li);
+                    }
+                    stepsDiv.appendChild(stepsList);
+                    statusEl.appendChild(stepsDiv);
+                }
+                
+                // Additional info for XP/old browsers
+                if (advice.additionalInfo) {
+                    var noteDiv = document.createElement('div');
+                    noteDiv.style.fontSize = '0.85em';
+                    noteDiv.style.fontStyle = 'italic';
+                    noteDiv.style.color = '#8b4513';
+                    noteDiv.style.marginTop = '8px';
+                    noteDiv.style.padding = '8px';
+                    noteDiv.style.background = '#fff4e6';
+                    noteDiv.style.borderRadius = '4px';
+                    noteDiv.textContent = advice.additionalInfo;
+                    statusEl.appendChild(noteDiv);
+                }
+            }
+        }
+
+        /**
+         * Runs a lightweight diagnostic call against the local HTTPS server.
+         * @param {Object} options Options for controlling behavior.
+         * @returns {Promise<Object>} Diagnostics result.
+         */
+        async function runConnectivityDiagnostics(options) {
+            options = options || {};
+            
+            // Use enhanced diagnostics for connection loss scenarios
+            const useEnhanced = options.enhanced || options.context === 'page-load' || 
+                               options.context === 'connection-loss';
+            
+            if (useEnhanced && typeof runEnhancedConnectivityDiagnostics === 'function') {
+                var enhancedResult = await runEnhancedConnectivityDiagnostics(options);
+                // Convert enhanced result to standard format for compatibility
+                var standardResult = {
+                    success: enhancedResult.success,
+                    stage: enhancedResult.stage,
+                    timestamp: enhancedResult.timestamp,
+                    data: enhancedResult.serverReachable ? { status: 'ok' } : null,
+                    status: null,
+                    error: enhancedResult.errorDetails ? enhancedResult.errorDetails.primaryError : null,
+                    errorCode: enhancedResult.certificateBlocked ? 'certificate' : (enhancedResult.networkError ? 'network' : 'timeout'),
+                    hint: enhancedResult.certificateBlocked ? 'trust_cert' : null
+                };
+                if (!options.silent) {
+                    renderConnectivityStatus(standardResult);
+                }
+                return standardResult;
+            }
+            
+            const result = {
+                success: false,
+                stage: options.context || (options.manual ? 'manual' : 'auto'),
+                timestamp: new Date().toISOString(),
+                data: null,
+                status: null,
+                error: null,
+                errorCode: null,
+                hint: null
+            };
+
+            // Debounce automated calls to prevent spam
+            const now = Date.now();
+            const isManual = options.manual;
+            if (!isManual && (now - LAST_CONNECTIVITY_RUN) < CONNECTIVITY_DEBOUNCE_MS) {
+                console.log('Connectivity diagnostics debounced (last run ' + (now - LAST_CONNECTIVITY_RUN) + 'ms ago)');
+                // Return the last result if available
+                if (CONNECTIVITY_STATE.lastResult) {
+                    return CONNECTIVITY_STATE.lastResult;
+                }
+            }
+            LAST_CONNECTIVITY_RUN = now;
+
+            if (typeof fetch !== 'function') {
+                result.error = 'Fetch API is not available in this browser.';
+                CONNECTIVITY_STATE.lastResult = result;
+                renderConnectivityStatus(result);
+                return result;
+            }
+            const diagUrl = LOCAL_SERVER_BASE_URL + '/_diag?ts=' + Date.now();
+            const timeoutMs = options.timeoutMs || CONNECTIVITY_DEFAULT_TIMEOUT_MS;
+            try {
+                const response = await fetchWithTimeout(diagUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    credentials: 'omit',
+                    targetAddressSpace: 'local'  // Required for Chrome PNA
+                }, timeoutMs);
+                result.status = response.status;
+                if (response.ok) {
+                    try {
+                        result.data = await response.json();
+                    } catch (jsonErr) {
+                        result.error = 'Unable to parse diagnostics payload: ' + jsonErr;
+                    }
+                    result.success = !!(result.data && result.data.status === 'ok');
+                } else {
+                    result.error = 'HTTP ' + response.status;
+                }
+            } catch (error) {
+                const errorText = String(error || 'Unknown error');
+                if (error && error.code === 'FETCH_TIMEOUT') {
+                    result.error = 'Timed out waiting for local server after ' + (timeoutMs / 1000) + ' seconds.';
+                    result.errorCode = 'timeout';
+                    result.hint = 'trust_cert';
+                } else {
+                    result.error = errorText;
+                    result.errorCode = (error && error.name) || null;
+                    // Only set certificate hint in HTTPS mode
+                    if (!USE_HTTP_MODE) {
+                        const lower = errorText.toLowerCase();
+                        if (lower.indexOf('certificate') !== -1 || lower.indexOf('ssl') !== -1 || lower.indexOf('tls') !== -1 || lower.indexOf('sec_error') !== -1) {
+                            result.hint = 'trust_cert';
+                        }
+                    }
+                }
+            }
+            CONNECTIVITY_STATE.lastResult = result;
+            CONNECTIVITY_STATE.lastRunAt = result.timestamp;
+            if (!options.silent) {
+                renderConnectivityStatus(result);
+            }
+            console.log('Connectivity diagnostics result:', result);
+            return result;
+        }
+
+        /**
+         * Resets the authorization state to idle.
+         */
+        function resetAuthState() {
+            AUTH_STATE.status = 'idle';
+            AUTH_STATE.inProgress = false;
+            AUTH_STATE.lastError = null;
+            AUTH_STATE.errorDetails = null;
+            AUTH_STATE.service = null;
+        }
+
+        /**
+         * Checks if an error response indicates an authorization error.
+         * @param {Object} errorResponse The error response object to check.
+         * @returns {boolean} True if this is an authorization error.
+         */
+        function isAuthorizationError(errorResponse) {
+            if (!errorResponse) return false;
+            return errorResponse.errorType === 'authorization' ||
+                !!errorResponse.errorCode ||
+                (errorResponse.message && (
+                    errorResponse.message.toLowerCase().includes('authorization') ||
+                    errorResponse.message.toLowerCase().includes('permission') ||
+                    errorResponse.message.toLowerCase().includes('access denied')
+                ));
+        }
+
+        async function deleteFilesInGas(fileIds) {
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => { console.log('handleDeleteFiles result:', res); resolve(res); })
+                    .withFailureHandler(err => { console.error('handleDeleteFiles failed:', err); reject(err); })
+                    .handleDeleteFiles(fileIds);
+            });
+        }
+
+        async function diagnoseAfterFailure(baseUrl, originalError) {
+            try {
+                if (!navigator.onLine) {
+                    displayErrorMessage('You appear to be offline. Please check your internet connection.');
+                    return;
+                }
+                // Probe server reachability
+                let healthOk = false;
+                let healthStatus = null;
+                let isCertificateError = false;
+                try {
+                    const res = await fetch(baseUrl + '/_health', { method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit' });
+                    healthOk = !!res && res.ok;
+                    healthStatus = res ? (res.status + ' ' + (res.statusText || '')) : null;
+                } catch (e) {
+                    // Check if this is likely a certificate trust issue (skip in HTTP mode)
+                    if (!USE_HTTP_MODE) {
+                        const errorMsg = (e && e.message) ? String(e.message).toLowerCase() : String(e).toLowerCase();
+                        if (errorMsg.includes('certificate') || errorMsg.includes('ssl') || errorMsg.includes('tls') || 
+                            errorMsg.includes('networkerror') || errorMsg.includes('failed to fetch') || 
+                            errorMsg.includes('net::err_cert') || errorMsg.includes('certificate verify failed')) {
+                            isCertificateError = true;
+                        }
+                    }
+                }
+
+                if (healthOk) {
+                    displayErrorMessage('The Python server is reachable, but the download request failed. Please try again or restart the Python tool.');
+                    showRetryAction(() => initializeDocxEmailListFlow());
+                } else if (isCertificateError && !USE_HTTP_MODE) {
+                    // Certificate trust issue - show in connectivity drawer (progressive disclosure)
+                    const certMsg = 'Your browser needs to trust the local server certificate. ' +
+                        'Click the link below to open the server URL, then accept the security warning in your browser. ' +
+                        'After accepting, return here and click "Try again".';
+                    displayErrorMessage(certMsg);
+                    showCertificateTrustLink(baseUrl);
+                    // Open connectivity drawer to show troubleshooting steps (non-blocking, progressive disclosure)
+                    setConnectivityDrawerVisibility(true);
+                    showRetryAction(() => initializeDocxEmailListFlow());
+                } else {
+                    // Generic but actionable guidance
+                    if (USE_HTTP_MODE) {
+                        displayErrorMessage('Unable to reach the local Python server at ' + LOCAL_SERVER_BASE_URL + '. ' +
+                            'Ensure it is running.');
+                    } else {
+                        displayErrorMessage('Unable to reach the local Python server at ' + LOCAL_SERVER_BASE_URL + '. ' +
+                            'Ensure it is running and trusted by your browser. ' +
+                            'If you see a certificate warning, click the link below to accept it first.');
+                        showCertificateTrustLink(baseUrl);
+                    }
+                    showRetryAction(() => initializeDocxEmailListFlow());
+                }
+            } catch (diagErr) {
+                // Fallback to original error message
+                displayErrorMessage('Unable to send download links to the server. Error: ' + (originalError && originalError.message ? originalError.message : String(originalError)));
+                showCertificateTrustLink(baseUrl);
+                showRetryAction(() => initializeDocxEmailListFlow());
+            }
+        }
+
+        function showCertificateTrustLink(baseUrl) {
+            try {
+                const errorDiv = document.getElementById('errorMessage');
+                if (!errorDiv) return;
+                // Check if link already exists
+                if (errorDiv.querySelector('.cert-trust-link')) return;
+                
+                const linkContainer = document.createElement('div');
+                linkContainer.style.marginTop = '10px';
+                linkContainer.style.textAlign = 'center';
+                
+                const link = document.createElement('a');
+                link.href = baseUrl;
+                link.target = '_blank';
+                link.textContent = 'Open ' + baseUrl + ' to trust certificate';
+                link.className = 'cert-trust-link';
+                link.style.color = 'var(--espresso-dark)';
+                link.style.textDecoration = 'underline';
+                link.style.fontWeight = 'bold';
+                // Note: target="_blank" handles opening in new tab, no need for click handler
+                
+                linkContainer.appendChild(link);
+                errorDiv.appendChild(linkContainer);
+            } catch (e) {
+                console.error('Error showing certificate trust link:', e);
+            }
+        }
+
+        /**
+         * Delays execution for a specified number of milliseconds.
+         * @param {number} ms The delay duration in milliseconds.
+         * @returns {Promise} A promise that resolves after the delay.
+         */
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Pure rendering function for authorization error UI.
+         * Takes error details and renders the complete UI. Idempotent - can be called multiple times safely.
+         * @param {Object} errorDetails Error details object with message, actionRequired, service, etc.
+         * @param {string} defaultMessage Default message to use if errorDetails.message is missing.
+         */
+        function renderAuthorizationErrorUI(errorDetails, defaultMessage) {
+            const errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) {
+                console.error('renderAuthorizationErrorUI: errorMessage element not found');
+                return;
+            }
+
+            // Preserve certificate trust link if it exists (save before clearing)
+            const certLink = errorDiv.querySelector('.cert-trust-link');
+            const linkContainer = certLink ? certLink.parentElement : null;
+            const savedLinkContainer = linkContainer ? linkContainer.cloneNode(true) : null;
+
+            // Clear existing content
+            errorDiv.innerHTML = '';
+
+            // Build message
+            let message = (errorDetails && errorDetails.message) ? errorDetails.message : defaultMessage;
+            if (errorDetails && errorDetails.actionRequired) {
+                message += '\n\n' + errorDetails.actionRequired;
+            }
+
+            // Add error text
+            const errorText = document.createTextNode(message);
+            errorDiv.appendChild(errorText);
+            errorDiv.appendChild(document.createElement('br'));
+
+            // Build guidance section
+            const guidance = document.createElement('div');
+            guidance.style.marginTop = '12px';
+            guidance.style.padding = '10px';
+            guidance.style.backgroundColor = '#fff4e6';
+            guidance.style.border = '1px solid var(--loading-orange)';
+            guidance.style.borderRadius = '6px';
+            guidance.style.fontSize = '0.95em';
+
+            const guidanceTitle = document.createElement('strong');
+            guidanceTitle.textContent = 'To resolve this authorization issue:';
+            guidance.appendChild(guidanceTitle);
+
+            const stepsList = document.createElement('ol');
+            stepsList.style.marginTop = '8px';
+            stepsList.style.paddingLeft = '20px';
+            stepsList.style.marginBottom = '8px';
+
+            const step1 = document.createElement('li');
+            step1.textContent = 'Look for a "Review Permissions" or authorization prompt at the bottom of this page or in a popup window.';
+            stepsList.appendChild(step1);
+
+            const step2 = document.createElement('li');
+            step2.textContent = 'Click "Review Permissions" or "Allow" to grant the required permissions.';
+            stepsList.appendChild(step2);
+
+            const step3 = document.createElement('li');
+            step3.textContent = 'If no prompt is visible, click the "Authorize Now" button below to trigger authorization.';
+            stepsList.appendChild(step3);
+
+            const step4 = document.createElement('li');
+            step4.textContent = 'Ensure all requested scopes (Gmail, Drive) are approved.';
+            stepsList.appendChild(step4);
+
+            guidance.appendChild(stepsList);
+
+            // Add "Authorize Now" button (only if not already authorizing)
+            const currentState = getAuthState();
+            if (!currentState.inProgress) {
+                const authButtonContainer = document.createElement('div');
+                authButtonContainer.style.marginTop = '12px';
+                authButtonContainer.style.textAlign = 'center';
+
+                const authButton = document.createElement('button');
+                authButton.className = 'auth-trigger-btn';
+                authButton.textContent = 'Authorize Now';
+                authButton.style.width = 'auto';
+                authButton.style.minWidth = '150px';
+                authButton.style.display = 'inline-block';
+                authButton.addEventListener('click', () => {
+                    triggerAuthorization();
+                });
+
+                authButtonContainer.appendChild(authButton);
+                guidance.appendChild(authButtonContainer);
+            } else {
+                // Show loading state instead of button
+                const loadingMsg = document.createElement('div');
+                loadingMsg.className = 'auth-loading-msg';
+                loadingMsg.style.marginTop = '12px';
+                loadingMsg.style.padding = '8px';
+                loadingMsg.style.backgroundColor = '#fff4e6';
+                loadingMsg.style.border = '1px solid var(--loading-orange)';
+                loadingMsg.style.borderRadius = '6px';
+                loadingMsg.style.fontSize = '0.9em';
+                loadingMsg.style.textAlign = 'center';
+                loadingMsg.textContent = '⏳ Authorization in progress... Please grant permissions when prompted.';
+                guidance.appendChild(loadingMsg);
+            }
+
+            const note = document.createElement('div');
+            note.style.fontSize = '0.9em';
+            note.style.color = 'var(--espresso-medium)';
+            note.style.fontStyle = 'italic';
+            note.style.marginTop = '8px';
+            if (errorDetails && errorDetails.service) {
+                note.textContent = 'Required service: ' + errorDetails.service;
+            } else {
+                note.textContent = 'This error indicates missing permissions for Google Services.';
+            }
+            guidance.appendChild(note);
+
+            errorDiv.appendChild(guidance);
+
+            // Restore certificate trust link if it existed
+            if (savedLinkContainer) {
+                errorDiv.appendChild(savedLinkContainer);
+            }
+
+            // Check if retry button already exists before adding (prevent duplicates)
+            const existingButtons = errorDiv.querySelectorAll('button');
+            let hasRetryButton = false;
+            for (let i = 0; i < existingButtons.length; i++) {
+                if (existingButtons[i].textContent === 'Try again') {
+                    hasRetryButton = true;
+                    break;
+                }
+            }
+            if (!hasRetryButton) {
+                // Add retry button (as fallback)
+                showRetryAction(() => {
+                    window.location.reload();
+                });
+            }
+
+            errorDiv.style.display = 'block';
+        }
+
+        /**
+         * Renders the authorization loading state UI.
+         */
+        function renderAuthorizationLoadingUI() {
+            const errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) return;
+
+            errorDiv.innerHTML = '';
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'auth-loading-msg';
+            loadingMsg.style.padding = '12px';
+            loadingMsg.style.backgroundColor = '#fff4e6';
+            loadingMsg.style.border = '1px solid var(--loading-orange)';
+            loadingMsg.style.borderRadius = '6px';
+            loadingMsg.style.fontSize = '1em';
+            loadingMsg.style.textAlign = 'center';
+            loadingMsg.textContent = '⏳ Triggering authorization... Please grant permissions when prompted.';
+            errorDiv.appendChild(loadingMsg);
+            errorDiv.style.display = 'block';
+        }
+
+        /**
+         * Renders the authorization success state UI and schedules page reload.
+         */
+        function renderAuthorizationSuccessUI() {
+            const errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) return;
+
+            errorDiv.innerHTML = '';
+            const successMsg = document.createElement('div');
+            successMsg.style.marginTop = '10px';
+            successMsg.style.padding = '12px';
+            successMsg.style.backgroundColor = '#e8f7ee';
+            successMsg.style.border = '1px solid #30a46c';
+            successMsg.style.borderRadius = '6px';
+            successMsg.style.fontSize = '1em';
+            successMsg.style.color = '#1f5132';
+            successMsg.style.textAlign = 'center';
+            successMsg.textContent = '✅ Authorization successful! Reloading page...';
+            errorDiv.appendChild(successMsg);
+            errorDiv.style.display = 'block';
+
+            // Reload page after short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+
+
+        /**
+         * Triggers authorization by calling the GAS force_authorization function.
+         * Uses state management to prevent race conditions and orchestrate the flow.
+         * Automatically reloads the page on successful authorization.
+         */
+        async function triggerAuthorization() {
+            console.log('triggerAuthorization: Starting authorization flow');
+            
+            // Check state to prevent race conditions
+            const currentState = getAuthState();
+            if (currentState.inProgress) {
+                console.warn('triggerAuthorization: Authorization already in progress, ignoring duplicate request');
+                return;
+            }
+            
+            // Update state to authorizing
+            setAuthState('authorizing', null, null);
+            
+            // Render loading UI
+            renderAuthorizationLoadingUI();
+            
+            try {
+                const result = await new Promise((resolve, reject) => {
+                    google.script.run
+                        .withSuccessHandler(response => {
+                            console.log('triggerAuthorization: Received response:', response);
+                            resolve(response);
+                        })
+                        .withFailureHandler(error => {
+                            console.error('triggerAuthorization: Failed to call force_authorization:', error);
+                            reject(error);
+                        })
+                        .force_authorization();
+                });
+                
+                if (result && result.status === 'success') {
+                    console.log('triggerAuthorization: Authorization successful');
+                    // Update state to authorized
+                    setAuthState('authorized', null, null);
+                    
+                    // Render success UI (will reload page automatically)
+                    renderAuthorizationSuccessUI();
+                    
+                    // Note: State will be reset to 'idle' on page reload, so no explicit reset needed here
+                } else {
+                    // Authorization failed or incomplete
+                    console.error('triggerAuthorization: Authorization failed:', result);
+                    
+                    // Determine error details
+                    let errorDetails = null;
+                    if (result && result.errorType === 'authorization') {
+                        errorDetails = result;
+                    } else {
+                        errorDetails = {
+                            message: result ? result.message : 'Unknown authorization error',
+                            errorType: 'authorization',
+                            errorCode: result ? result.errorCode : 'AUTH_ERROR'
+                        };
+                    }
+                    
+                    // Update state to error with safe property access
+                    const service = (errorDetails && errorDetails.service) ? errorDetails.service : null;
+                    setAuthState('error', errorDetails, service);
+                    
+                    // Render error UI
+                    renderAuthorizationErrorUI(errorDetails, 'Authorization failed');
+                }
+            } catch (error) {
+                console.error('triggerAuthorization: Error during authorization:', error);
+                
+                // Try to parse error for authorization issues
+                const errorStr = String(error || '').toLowerCase();
+                let errorDetails = null;
+                if (errorStr.includes('authorization') || errorStr.includes('permission') || 
+                    errorStr.includes('access denied') || errorStr.includes('unauthorized')) {
+                    errorDetails = {
+                        message: 'Authorization error: ' + String(error),
+                        errorType: 'authorization',
+                        errorCode: 'AUTH_ERROR',
+                        actionRequired: 'Please try clicking "Authorize Now" again, or manually authorize through the Apps Script editor.'
+                    };
+                } else {
+                    errorDetails = {
+                        message: 'Failed to trigger authorization: ' + String(error),
+                        errorType: 'authorization',
+                        errorCode: 'AUTH_ERROR'
+                    };
+                }
+                
+                // Update state to error
+                setAuthState('error', errorDetails, null);
+                
+                // Render error UI
+                renderAuthorizationErrorUI(errorDetails, 'Authorization trigger failed');
+            }
+        }
+
+        /**
+         * Handles authorization errors by updating state and rendering UI.
+         * Simplified to just update state and trigger render - no DOM manipulation.
+         * @param {Object} errorResponse The error response object from GAS.
+         * @param {string} defaultMessage The default error message to use.
+         */
+        function handleAuthorizationError(errorResponse, defaultMessage) {
+            console.error("Authorization error detected:", errorResponse);
+            
+            // Check if this is an authorization error using helper function
+            if (isAuthorizationError(errorResponse)) {
+                // Update state with safe property access
+                const service = (errorResponse && errorResponse.service) ? errorResponse.service : null;
+                setAuthState('error', errorResponse, service);
+                
+                // Render UI (idempotent - safe to call multiple times)
+                renderAuthorizationErrorUI(errorResponse, defaultMessage);
+            } else {
+                // Regular error handling (not authorization-related)
+                const errorMsg = errorResponse ? (errorResponse.message || defaultMessage) : defaultMessage;
+                displayErrorMessage(errorMsg);
+            }
+        }
+
+        /**
+         * Displays an error message to the user.
+         * @param {string} message The error message to display.
+         */
+        function displayErrorMessage(message) {
+            console.error("Error:", message); // Log the error to the console
+            const errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) return;
+            // Preserve certificate trust link if it exists (save before clearing)
+            const certLink = errorDiv.querySelector('.cert-trust-link');
+            const linkContainer = certLink ? certLink.parentElement : null;
+            const savedLinkContainer = linkContainer ? linkContainer.cloneNode(true) : null;
+            // Clear all content
+            errorDiv.textContent = '';
+            // Add message as text node
+            errorDiv.appendChild(document.createTextNode(message));
+            // Restore certificate trust link if it existed
+            if (savedLinkContainer) {
+                errorDiv.appendChild(savedLinkContainer);
+            }
+            errorDiv.style.display = 'block';
+
+            // Auto-run diagnostics for certificate/network errors
+            const lowerMessage = String(message).toLowerCase();
+            if (lowerMessage.includes('certificate') || lowerMessage.includes('ssl') ||
+                lowerMessage.includes('tls') || lowerMessage.includes('network') ||
+                lowerMessage.includes('connection') || lowerMessage.includes('127.0.0.1')) {
+                runConnectivityDiagnostics({ silent: true, context: 'error-display', timeoutMs: 4000 })
+                    .then(function(result) {
+                        // Auto-show connectivity drawer for certificate errors
+                        if (result && !result.success && result.hint === 'trust_cert') {
+                            setConnectivityDrawerVisibility(true);
+                        }
+                    });
+            }
+        }
+
+        function showRetryAction(handler) {
+            try {
+                const errorDiv = document.getElementById('errorMessage');
+                if (!errorDiv) return;
+                const btn = document.createElement('button');
+                btn.textContent = 'Try again';
+                btn.addEventListener('click', () => {
+                    errorDiv.style.display = 'none';
+                    handler && handler();
+                });
+                errorDiv.appendChild(document.createElement('br'));
+                errorDiv.appendChild(btn);
+            } catch (e) { /* no-op */ }
+        }
+
+        function showOtpLoadingMessage() {
+            try {
+                const loadingDiv = document.getElementById('otpLoadingMessage');
+                if (loadingDiv) loadingDiv.style.display = 'block';
+            } catch (e) {}
+        }
+
+        function hideOtpLoadingMessage() {
+            try {
+                const loadingDiv = document.getElementById('otpLoadingMessage');
+                if (loadingDiv) loadingDiv.style.display = 'none';
+            } catch (e) {}
+        }
+
+        function showOtpEmptyMessage() {
+            try {
+                const emptyDiv = document.getElementById('otpEmptyMessage');
+                if (emptyDiv) emptyDiv.style.display = 'block';
+            } catch (e) {}
+        }
+
+        function hideOtpEmptyMessage() {
+            try {
+                const emptyDiv = document.getElementById('otpEmptyMessage');
+                if (emptyDiv) emptyDiv.style.display = 'none';
+            } catch (e) {}
+        }
+
+        /**
+         * Shows the loading message.
+         */
+        function showLoadingMessage() {
+            console.log("Showing loading message.");
+            const loadingDiv = document.getElementById('loadingMessage');
+            loadingDiv.style.display = 'block';
+        }
+
+        /**
+         * Hides the loading message.
+         */
+        function hideLoadingMessage() {
+            console.log("Hiding loading message.");
+            const loadingDiv = document.getElementById('loadingMessage');
+            loadingDiv.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
