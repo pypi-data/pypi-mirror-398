@@ -1,0 +1,148 @@
+[project]
+name = "tarhash"
+description = "Hashes the entries in a tarfile without extracting them"
+authors = [{ name = "Techcable" }]
+license = "MIT OR APACHE-2.0"
+keywords = ["tar", "hash", "checksum"]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+    "Environment :: Console",
+    "Topic :: System :: Archiving",
+    "Topic :: System :: Archiving :: Compression",
+    "Topic :: Security :: Cryptography",
+]
+requires-python = ">=3.9"
+dynamic = ["version"]
+default-optional-dependency-keys = ["recommended"]
+dependencies = [
+    "click~=8.0",
+]
+
+[project.scripts]
+tarhash = "tarhash:tarhash"
+
+[project.optional-dependencies]
+all = ["tarhash[recommended]"]
+recommended = ["tarhash[zstd,blake3,xxhash]"]
+zstd = ["backports.zstd; python_version<'3.14'"]
+blake3 = ["blake3"]
+xxhash = ["xxhash"]
+
+[dependency-groups]
+mypy = ["mypy~=1.0", { include-group = "typing" }]
+# keep in sync with [tool.hatch.envs] until hatch supports PEP 754
+test = [
+    "pytest~=8.3",
+    "pytest-sugar~=1.0",
+]
+typing = []
+dev = [{ include-group = "mypy" }, { include-group = "test" }]
+
+[project.urls]
+Source = "https://github.com/Techcable/tarhash"
+
+[build-system]
+requires = [
+    "hatchling",
+    "hatch-vcs",
+]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# needed to actually include the sources in the wheel
+only-include = ["src"]
+sources = ["src"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+preview = true
+extend-select = [
+    "RUF", # ruff
+    "B", # flake8-bugbear
+    # probable bugs
+    "DTZ", # flake8-datetimez - timezone issues
+    "EXE", # issues with shebang
+    "RET", # return statements
+    "SLOT", # require __slots__ for subclasses of immutable types
+    "T10", # use of breakpoint()
+    "FBT", # boolean flags should not be positional args
+    # possible bugs
+    "BLE", # prevent over-broad `catch` statements
+    "PIE", # flake8-pie - misc lints
+    "PYI", # lint pyi files
+    "PLE", # pylint[error]
+    "PLR", # pylint[refactor]
+    "LOG", # flake8-logging
+    "PT", # flake8-pytest-style
+    "ASYNC", # flake8-async
+    # lints for legacy code
+    "UP", # pyupgrade
+    "YTT", # flake8-2020
+    "C4", # flake8-comprehensions
+    "FA", # flake-future-annotations
+    "PLR", # pylint[refactor]
+    "FURB", # refurb
+    # style
+    "Q002", # avoid single-quote docstrings
+    "Q003", # change outer quotes to avoid escaping inner quotes
+    "Q004", # unecessary quote escape
+    "TD", # checks todo statements are well-formed
+    "PTH", # prefer use of pathlib.Path
+    "FLY", # prefer fstring to str.json
+    "W", # pycodestyle
+    "G", # flake8-logging-format
+    "N", # pep8-naming
+    # pedantic
+    "SIM", # flake8-simplify
+    "A", # falke8-builtins - prevent shadowing builtins
+    "T20", # flake8-print - prevent use of `print` statement
+    "TC", # flake8-type-checking - guard imports needed only for type-checking
+    "TID252", # forbid relative imports
+    "D", # pydocstyle - lint docstrings and require for all public methods
+    "PLW", # pylint[warning]
+    "PLC", # pylint[convention]
+    "F", # pyflakes
+    "TRY", # tryceratops
+    "ERA", # eradicate - forbid commented out code
+    # "FIX", # prevent use of todo comments
+    # buggy lints
+    # "SLF", # flake8-self - doesn't consider isinstance
+    # "CPY", # flake8-copyright - require copyright header - doesn't support SPDX tags
+]
+ignore = [
+    # moderately pedantic
+    # "E741", # ambiguous variable names
+    "PLW3201", # allow dunder methods with 'no special meaning'
+    # extremely pedantic
+    "PLR2004", # allow use of 'magic values' - `if x == 3` is fine
+    "PYI025", # collections.abc.Set is not confusing with `set`
+    "UP015", # allow passing redundant modes to `open()` - explicit is better than implicit
+    "TRY003", # allow long error messages 'outside of exception class'
+    "SIM105", # allow try/except/pass instead of contextlib.suppress
+    "RET505", # use of return statement in `if` does not make `else` unecessary
+    "PLR0904", # too many public methods
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    # excessively pedantic
+    "D", # pydocstyle
+    "E741", # ambigous variable names
+    "TC", # flake8-type-checking - import guards are useless here
+    # moderately pedantic
+    "CPY", # test files don't need copyright
+]
