@@ -1,0 +1,185 @@
+Metadata-Version: 2.4
+Name: sunlm
+Version: 0.1.3.post4
+Summary: A social-science-friendly toolkit for OLS regression and SPSS-like ANOVA
+Author-email: "Seonwoo (Sun) Kim" <Seonwoo.Kim@nau.edu>
+License: MIT
+Project-URL: Homepage, https://pypi.org/project/sunlm/
+Project-URL: Documentation, https://pypi.org/project/sunlm/
+Keywords: statistics,ols,anova,ancova,social science,regression,spss
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=1.3
+Requires-Dist: numpy>=1.21
+Requires-Dist: statsmodels>=0.13
+Requires-Dist: patsy>=0.5
+
+# sunlm
+
+**sunlm** is a lightweight, social-science–friendly Python package for **OLS regression** and **SPSS-like ANOVA / ANCOVA**.  
+It is designed for researchers in communication, psychology, marketing, and related social sciences who want **clear, interpretable statistical output** without complex statistical coding.
+
+sunlm emphasizes:
+- R-style formula syntax
+- SPSS-equivalent ANOVA (Type III SS, sum coding)
+- Standardized coefficients and semi-partial R²
+- Clean, APA-style tables
+- Simple, top-level API (`sunlm.reg`, `sunlm.aov`)
+
+---
+
+## Installation
+
+```bash
+pip install sunlm
+```
+
+---
+
+## Quick Start: Load Example Data
+
+sunlm includes a built-in example dataset for immediate practice.
+
+```python
+import sunlm
+
+df = sunlm.data()
+df.head()
+```
+
+```text
+| idx | personalization | involvement | price_sensitivity | brand_trust | age   | purchase_intention |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 1 | 1 | -0.740814 |  1.408369 | 51.311519 | 7.000000 |
+| 1 | 0 | 1 |  0.072907 | -0.608711 | 41.350777 | 5.122004 |
+| 2 | 0 | 0 |  0.403086 | -1.320603 | 27.877310 | 2.840572 |
+| 3 | 1 | 0 |  1.471929 | -0.669619 | 46.907773 | 3.497987 |
+| 4 | 1 | 0 |  0.307384 |  1.264625 | 35.208771 | 4.472068 |
+```
+
+---
+
+## Tutorial 1️⃣ OLS Regression
+
+```python
+import sunlm
+
+model = sunlm.reg(
+    "purchase_intention ~ personalization * involvement + age",
+    data=df
+)
+
+model.summary()
+```
+
+```text
+## 📊 OLS Regression Summary
+                            Unstd. B Std. Err. (unstd) t-value Std. β Semi-partial R²         p-value
+Intercept                      2.284             0.473   4.829                         0.000 (< .001)
+personalization                0.814             0.319   2.553  0.305           0.035   0.012 (< .05)
+involvement                    0.609             0.177   3.443  0.363           0.064  0.001 (< .001)
+personalization:involvement    0.374             0.248   1.510  0.204           0.012    0.134 (n.s.)
+age                            0.039             0.010   3.713  0.273           0.074  0.000 (< .001)
+
+## 📈 Model Fit Statistics
+N            100
+R²         0.490
+Adj. R²    0.469
+```
+
+---
+
+## Tutorial 2️⃣ ANOVA / ANCOVA (SPSS-like)
+
+```python
+import sunlm
+
+model = sunlm.aov(
+    "purchase_intention ~ C(personalization) * C(involvement) + age",
+    data=df
+)
+
+model.summary()
+```
+
+```text
+## Tests of Between-Subjects Effects
+Dependent Variable: purchase_intention
+                       Source   sum_sq  df mean_sq      F        p-value Partial Eta Squared
+              Corrected Model   91.322   6  15.220 16.409 0.000 (< .001)               0.514
+                    Intercept   64.597   1  64.597 69.640 0.000 (< .001)               0.428
+     personalization (factor)   33.449   1  33.449 36.060 0.000 (< .001)               0.279
+         involvement (factor)   40.764   2  20.382 21.973 0.000 (< .001)               0.321
+personalization × involvement    2.883   2   1.441  1.554   0.217 (n.s.)               0.032
+                          age   11.819   1  11.819 12.742 0.001 (< .001)               0.120
+                        Error   86.266  93   0.928                                          
+                        Total 2719.617 100                                                  
+              Corrected Total  177.588  99                                                  
+
+R Squared = 0.514 (Adjusted R Squared = 0.483)
+```
+
+---
+
+## Tutorial 3️⃣ Post Hoc Tests
+
+### Tukey HSD
+
+```python
+model.TukeyHSD("involvement")
+```
+
+```text
+## Tukey HSD for involvement (alpha=0.05)
+ group1  group2 meandiff Std. Error        p-value  lower upper
+      0       1    1.186      0.235 0.000 (< .001)  0.494 1.877
+      0       2    1.494      0.243 0.000 (< .001)  0.779 2.210
+      1       2    0.309      0.233   0.534 (n.s.) -0.377 0.995
+```
+
+### Bonferroni
+
+```python
+model.Bonferroni("involvement")
+```
+
+```text
+## Bonferroni Pairwise Comparisons for involvement (alpha=0.05)
+ group1  group2 meandiff Std. Error     t        p-value  lower upper
+      0       1    1.149      0.237 4.846 0.000 (< .001)  0.571 1.727
+      0       2    1.576      0.246 6.410 0.000 (< .001)  0.976 2.175
+      1       2    0.427      0.234 1.828   0.212 (n.s.) -0.142 0.996
+```
+
+---
+
+## Top-level API Summary
+
+```python
+sunlm.reg(formula, data)   # OLS regression
+sunlm.aov(formula, data)   # ANOVA / ANCOVA
+sunlm.data()               # Load example dataset
+```
+
+---
+
+## Citation
+
+If you use **sunlm** in academic research, please cite it as:
+
+> Kim, S.-W. (2025). *sunlm* (Version 0.1.3.post1) [Software]. https://pypi.org/project/sunlm/
+
+---
+
+## License
+
+MIT License
+
+---
+
+## Author
+
+**Seonwoo Kim**  
+Northern Arizona University  
+
+Designed for researchers who want **SPSS-equivalent statistics with Python clarity**.
