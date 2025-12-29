@@ -1,0 +1,641 @@
+#!/usr/bin/env python3
+# (C) Copyright 2022- ECMWF.
+#
+# This software is licensed under the terms of the Apache Licence Version 2.0
+# which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
+# In applying this licence, ECMWF does not waive the privileges and immunities
+# granted to it by virtue of its status as an intergovernmental organisation
+# nor does it submit to any jurisdiction.
+
+import datetime
+import itertools
+import logging
+from collections import defaultdict
+
+from ._compat import UTC
+from .landsea import land_sea_ratio
+from .matching import Matcher
+from .repres import repres
+from .resources import config
+from .resources import resource
+from .utils import cached_method
+from .utils import log_warning_once
+from .utils import plural
+
+LOG = logging.getLogger(__name__)
+
+wave_streams = set(config("wave_streams"))
+ml_matcher = Matcher("representations", lambda _, model_levels, **kwargs: model_levels)
+
+
+# Not in MARS or not pgen/mars language mismatch
+
+RENAME = {
+    "gh": "z",
+    "gha": "za",
+}
+
+
+def paramid(name):
+    name = RENAME.get(name, name)
+    mapping = resource("params")
+    return mapping.get(name, name)
+
+
+def to_by(d):
+    for k in ("step", "levelist", "number"):
+        if k in d and len(d[k]) > 5:
+            ok = True
+            try:
+                diff = int(d[k][1]) - int(d[k][0])
+                for i, s in enumerate(d[k][2:]):
+                    if int(d[k][i + 2]) - int(d[k][i + 1]) != diff:
+                        ok = False
+                        break
+            except ValueError:
+                ok = False
+            if ok:
+                if diff == 1 and k not in ("step",):
+                    d[k] = tuple([d[k][0], "to", d[k][-1]])
+                else:
+                    d[k] = tuple([d[k][0], "to", d[k][-1], "by", str(diff)])
+
+
+KEYWORDS = None
+ORDER = {}
+
+
+def reversed_keywords_mapping():
+    global KEYWORDS
+    if KEYWORDS is None:
+        KEYWORDS = {}
+        for i, (group, params) in enumerate(config("keywords").items()):
+            ORDER[group] = i
+            for p in params:
+                KEYWORDS[p] = group
+    return KEYWORDS
+
+
+class RequestList(list):
+    def append(self, *args, **kwargs):
+        raise ValueError("Cannot modify a RequestList")
+
+    def __setitem__(self, key, value):
+        raise ValueError("Cannot modify a RequestList")
+
+
+class Request:
+    def __init__(self, *args, attributes=None, **kwargs):
+        from .parser import parse_single_request
+
+        self._groups = defaultdict(dict)
+
+        w = set()
+        attrs = {}
+        dates = None
+        r = {}
+        for a in args:
+            if isinstance(a, Request):
+                w.update(a._warnings)
+                attrs.update(a._attributes)
+                dates = a._dates
+                a = a.as_dict()
+            if isinstance(a, str):
+                a = parse_single_request(a)
+            r.update(a)
+        r.update(kwargs)
+
+        keyword_to_group = reversed_keywords_mapping()
+
+        for k, v in r.items():
+            assert isinstance(v, tuple), (k, v)
+            v = tuple(str(x) for x in v)
+            if len(v) == 1 and v[0] in ("off",):
+                continue
+
+            self._groups[keyword_to_group[k]][k] = v
+
+        self._dates = dates
+        if "ignore" in self._groups and "date" in self._groups["ignore"]:
+            self._dates = len(self._groups["ignore"]["date"])
+
+        if "attributes" in self._groups:
+            attrs.update(self._groups["attributes"])
+            self._groups.pop("attributes", None)
+
+        self._groups.pop("ignore", None)
+        self._warnings = w
+
+        if attributes is not None:
+            attrs.update(attributes)
+        self._attributes = attrs
+
+        # Just in case
+        if self.fields.get("stream", (None,))[0] in wave_streams:
+            self.fields["levtype"] = ("sfc",)
+
+        # for k,v in list(self._groups.items()):
+        #     self._groups[k] = FrozenDict(v)
+
+    @classmethod
+    def from_dict(cls, d):
+        "To use when the dict is not made of tuples"
+        r = {}
+        for k, v in d.items():
+            if isinstance(v, (list, tuple)):
+                r[k] = tuple(str(x) for x in v)
+            else:
+                r[k] = (str(v),)
+        return cls(r)
+
+    def __repr__(self):
+        try:
+            result = []
+            for _, r in sorted(self._groups.items(), key=lambda x: ORDER[x[0]]):
+                for k, v in r.items():
+                    result.append(f"{k}={'/'.join(v)}")
+            return ",".join(result)
+        except TypeError:
+            for _, r in sorted(self._groups.items(), key=lambda x: ORDER[x[0]]):
+                for k, v in r.items():
+                    print(k, v)
+            raise
+
+    def as_dict(self):
+        result = {}
+        for g in self._groups.values():
+            result.update(g)
+        return result
+
+    @cached_method
+    def frequency(self):
+        use = tuple(sorted(self.use.get("use", [])))
+
+        if len(use) == 0:
+            return self.subset.frequency
+
+        if "bc" in use:
+            assert len(use) == 1, use
+            return self.subset.frequency
+
+        for day in use:
+            assert day in (
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+            ), use
+
+        if self.subset.deliveries_per_dow is None:
+            log_warning_once(
+                LOG,
+                f"Product set {self.subset.name} cannot be used with 'use={'/'.join(use)}'",
+                raise_exception=ValueError,
+            )
+
+        return self.subset.deliveries_per_dow * len(use)
+
+    def explain_frequency(self):
+        use = tuple(sorted(self.use.get("use", [])))
+
+        if len(use) == 0:
+            return (self.subset.frequency, None)
+
+        if "bc" in use:
+            assert len(use) == 1, use
+            return (self.subset.frequency, None)
+
+        return (self.subset.deliveries_per_dow, len(use))
+
+    @cached_method
+    def chargeable_frequency(self):
+        frequency = self.frequency()
+        if self.subset.ic_frequency is not None:
+            frequency = min(frequency, self.subset.ic_frequency)
+        return frequency
+
+    @cached_method
+    def number_of_fields(self):
+        debug = LOG.isEnabledFor(logging.DEBUG)
+        count = 1
+        counts = {}
+        for k, v in self.fields.items():
+            assert isinstance(v, (list, tuple)), v
+            if debug:
+                counts[k] = len(v)
+            count *= len(v)
+
+        if self.is_hindcast():
+            count *= config("hindcast_dates")
+
+        if debug:
+            if self.is_hindcast():
+                LOG.debug(
+                    "number_of_fields (hindcast dates=%s) %s %s",
+                    config("hindcast_dates"),
+                    count,
+                    counts,
+                )
+            else:
+                LOG.debug("number_of_fields %s %s", count, counts)
+        return count
+
+    def explain_fields(self):
+        bits = []
+        nice = dict(levelist="level")
+
+        for k, v in self.fields.items():
+            if len(v) > 1:
+                p = plural(len(v), nice.get(k, k))
+                bits.append(f"({p})")
+
+        if self.is_hindcast():
+            bits.append(f'({config("hindcast_dates")} hindcast dates)')
+
+        if bits:
+            return " * ".join(bits)
+        else:
+            return "1 field"
+
+    @cached_method
+    def number_of_chargeable_items(self):
+        return self.repres.number_of_chargeable_items(self)
+
+    def explain_items(self):
+        return self.repres.explain_items(self)
+
+    def land_sea_ratio(self, method=None):
+        return land_sea_ratio(
+            *self.repres.area.bounding_box(),
+            method=method,
+        )
+
+    @cached_method
+    def estimated_volume(self):
+        return self.repres.estimated_volume()
+
+    @cached_method
+    def data_values(self):
+        return self.repres.data_values()
+
+    @property
+    @cached_method
+    def repres(self):
+        return repres(self)
+
+    @property
+    @cached_method
+    def type(self):
+        assert len(self.fields["type"]) == 1
+        return self.fields["type"][0]
+
+    @property
+    @cached_method
+    def stream(self):
+        assert len(self.fields["stream"]) == 1
+        return self.fields["stream"][0]
+
+    @property
+    @cached_method
+    def levtype(self):
+        if "levtype" not in self.fields:
+            LOG.debug("Request with no levtype: %s", self)
+            return None
+        assert len(self.fields["levtype"]) == 1, self
+        return self.fields["levtype"][0]
+
+    @property
+    @cached_method
+    def tag(self):
+        if "target" not in self.disposition:
+            return "---:--"
+        assert len(self.disposition["target"]) == 1
+        return self.disposition["target"][0]
+
+    @property
+    @cached_method
+    def params(self):
+        return self.fields["param"]
+
+    @property
+    @cached_method
+    def fields(self):
+        return self._groups["fields"]
+
+    @property
+    @cached_method
+    def postproc(self):
+        return self._groups["postproc"]
+
+    @property
+    @cached_method
+    def disposition(self):
+        return self._groups["disposition"]
+
+    @property
+    @cached_method
+    def use(self):
+        return self._groups.get("use", {})
+
+    def copy_non_fields_values(self, s):
+        for g, r in self._groups.items():
+            if g == "fields":
+                continue
+            s.update(r)
+
+    def sample_mars_request(self):
+        date = datetime.datetime.now(UTC) - datetime.timedelta(days=2)
+        date = date.date()
+
+        # https://confluence.ecmwf.int/display/PGEN/ENS-extended+weekly+means+in+48r1#ENSextendedweeklymeansin48r1-MondaytoSunday
+
+        DOW = [
+            ("0-168", "168-336", "336-504", "504-672", "672-840", " 840-1008"),
+            ("144-312", "312-480", "480-648", "648-816", "816-984"),
+            ("120-288", "288-456", "456-624", "624-792", "792-960"),
+            ("96-264", "264-432", "432-600", "600-768", "768-936", "936-1104 "),
+            ("72-240", "240-408," "408-576", "576-744", "744-912", "912-1080"),
+            ("48-216", "216-384", "384-552", "552-720", "720-888", "888-1056"),
+            ("24-192", "192-360", "360-528", "528-696", "696-864", "864-1032"),
+        ]
+
+        MEDIUM_RANGE_HINDCAST_DAYS = list(range(1, 29 + 1, 4))
+        SUBSEASONAL_HINDCAST_DAYS = list(range(1, 31 + 1, 2))
+
+        r = {k: v[0] for k, v in self.fields.items()}
+        r.update(self.use)
+        r.setdefault("levtype", "off")
+
+        if (r["stream"], r["type"], r["levtype"]) in (
+            ("scda", "an", "pv"),
+            ("scda", "an", "pt"),
+        ):
+            # Not in MARS
+            r["stream"] = "oper"
+
+        if (r["stream"], r["type"], r["levtype"]) in (("enfo", "cs", "pl"),):
+            pass
+        elif (r["stream"], r["type"], r["levtype"]) in (
+            ("enfo", "cf", "ml"),
+            ("enfo", "pf", "ml"),
+            ("eefo", "cf", "ml"),
+            ("eefo", "pf", "ml"),
+        ):
+            # Not in MARS
+            r["param"] = "q/z"
+        else:
+            # Not all param avalailable at all levels
+            if r["levtype"] not in ("sfc", "off"):
+                if r["type"] not in ("an", "fc", "cf", "pf"):
+                    r["levelist"] = "all"
+                r["param"] = "all"
+
+        if r.get("use") == "bc":
+            del r["use"]
+
+        # eefo runs daily since 48r1, but for statistics different steps are valid per
+        # day of the week
+        if r.get("stream") == "eefo":
+            dow = None
+
+            s = r.get("step").split("/")[0]
+            for i, d in enumerate(DOW):
+                if s in d:
+                    dow = i
+                    break
+
+            if dow is not None:
+                while date.weekday() != dow:
+                    date = date - datetime.timedelta(days=1)
+
+            # Even though eefo runs daily, so no 'use' would be required, users are still
+            # allowed to use 'use' to select a specific day of the week only, which we
+            # discard here, if found, so it's not picked up by further logic handling the
+            # 'use' keyword
+            r.pop("use", None)
+
+        # Medium-range re-forecasts are produced every 4 days since 49r1, starting on the
+        # 1st of the month, where users need to provide a 'use' keyword, which we discard
+        # so it's not picked up by further logic handling the 'use' keyword.
+        if r.get("stream") in ("enfh", "efhs", "enwh", "wehs"):
+            while date.weekday() not in MEDIUM_RANGE_HINDCAST_DAYS:
+                date = date - datetime.timedelta(days=1)
+            r.pop("use", None)
+
+        # Seasonal re-forecasts are produced every 2 days since 49r1, starting on the 1st
+        # of the month, where users need to provide a 'use' keyword, which we discard so
+        # it's not picked up by further logic handling the 'use' keyword.
+        if r.get("stream") in ("eefh", "eehs", "weeh"):
+            while date.weekday() not in SUBSEASONAL_HINDCAST_DAYS:
+                date = date - datetime.timedelta(days=1)
+            r.pop("use", None)
+
+        # For any remaining cases where 'use' is provided, assume Monday / Thursday
+        if r.get("use"):
+            while date.weekday() not in (0, 3):
+                date = date - datetime.timedelta(days=1)
+
+            r.pop("use", None)
+
+        # print('========= DATE =====', date,date.weekday(), file=sys.stderr)
+
+        if r.get("system"):
+            # Seasonal run on the first
+            date = datetime.date(date.year, date.month, 1)
+
+        assert "use" not in r, r["use"]
+
+        if r["stream"] in ("enfh", "enwh", "eefh", "weeh"):  # TODO: add to config
+            hdate = datetime.date(date.year - 5, date.month, date.day)
+            r["hdate"] = hdate.isoformat()
+            r["levtype"] = "sfc"
+
+        if "step" in self.subset.mars:
+            r["step"] = "/".join(set(str(x) for x in self.subset.mars["step"]))
+            r["time"] = "0/12"
+            r["expect"] = "any"
+
+        if "param" in self.subset.mars:
+            r["param"] = "/".join(self.subset.mars["param"])
+            r["expect"] = "any"
+
+        if "param" in r:
+            r["param"] = "/".join(set(str(paramid(x)) for x in r["param"].split("/")))
+
+        # Just in case
+        r["frequency"] = r["direction"] = 1
+        r["date"] = date.isoformat()
+
+        return ",".join(f"{k}={v}" for k, v in r.items())
+
+    def factor_B(self):
+        return 0 if self._attributes.get("free") else 20
+
+    def factor_A(self):
+        return self.repres.factor_A()
+
+    def factor_R(self, reference):
+        return self.repres.factor_R(reference(self))
+
+    def explain_A(self):
+        return self.repres.explain_A()
+
+    def explain_R(self, reference):
+        return self.repres.explain_R(reference(self))
+
+    def reference_grid(self, reference):
+        return self.repres.reference_grid(reference(self))
+
+    def number_of_pl(self):
+        return self.repres.number_of_pl()
+
+    def number_of_model_levels(self):
+        try:
+            return ml_matcher.get_match(self)
+        except Exception:
+            print(self)
+            raise
+
+    def dates(self):
+        return self._dates
+
+    def summary(self):
+        d = self.as_dict()
+        for k in (
+            "class",
+            "expver",
+            "domain",
+            "target",
+            "option",
+            "priority",
+        ):
+            d.pop(k, None)
+
+        to_by(d)
+
+        for k, v in list(d.items()):
+            if len(v) > 5:
+                d[k] = tuple(list(v[:2]) + ["..."] + list(v[-2:]))
+
+        if "time" in d:
+            d["time"] = tuple(t[:2] for t in d["time"])
+
+        return repr(Request(d))
+
+    def add_warning(self, msg):
+        self._warnings.add(msg)
+
+    def warnings(self):
+        return self._warnings
+
+    def is_wave(self):
+        return self.stream in config("wave_streams")
+
+    def is_hindcast(self):
+        return self.stream in config("hindcast_streams")
+
+    def is_seasonal(self):
+        return self.stream in config("seasonal_streams")
+
+    def annotate(self, name, value, override=None, only_if=True):
+        if not only_if:
+            return self
+        if override is None:
+            assert name not in self._attributes, (name, value, self._attributes[name])
+        if override:
+            if override == "append" and name in self._attributes:
+                if not isinstance(self._attributes[name], list):
+                    self._attributes[name] = [self._attributes[name]]
+                self._attributes[name].append(value)
+            else:
+                self._attributes[name] = value
+        else:
+            self._attributes.setdefault(name, value)
+        return self
+
+    @property
+    def subset(self):
+        return self._attributes["subset"]
+
+    @property
+    def free(self):
+        return self._attributes.get("free")
+
+    @property
+    def lineno(self):
+        if "line" in self._attributes:
+            return "{}:{}".format(self._attributes["path"][0], self._attributes["line"][0])
+
+    @property
+    def group(self):
+        return self._attributes.get("group", "core")
+
+    @property
+    def category(self):
+        return self._attributes.get("category")
+
+    @property
+    def user(self):
+        return self._attributes.get("user")
+
+    @property
+    def destination(self):
+        return self._attributes.get("destination")
+
+    def dump(self, all_keys=None, **kwargs):
+        if all_keys is None:
+            all_keys = set()
+        all_keys.update(self.as_dict().keys())
+
+        s = self.as_dict()
+
+        for k in all_keys:
+            s.setdefault(k, ("off",))
+
+        to_by(s)
+
+        t = []
+        for k, v in s.items():
+            if k in ("leg", "dataset"):
+                continue
+
+            v = "/".join(str(x) for x in v)
+            t.append(f"{k}={v}")
+        print(",\n".join(t), **kwargs)
+        print(**kwargs)
+
+    def unique(self, ignore=()):
+        s = dict(self.fields)
+        s.pop("dataset", None)
+        for i in ignore:
+            s.pop(i, None)
+
+        keys, values = zip(*s.items())
+        for p in (dict(zip(keys, v)) for v in itertools.product(*values)):
+            p.update(self.postproc)
+            yield tuple(p.items())
+
+    def __eq__(self, other):
+        return self._groups == other._groups
+
+    def __hash__(self):
+        h = tuple((k, hash(tuple(v.items()))) for k, v in self._groups.items())
+        return hash(h)
+
+    def full_dump(self):
+        return f"{self._groups} @ {self._attributes}"
+
+    # Used by freebie
+    @cached_method
+    def freebie_matching(self):
+        return (tuple((k, v) for k, v in sorted(self.postproc.items())), self.user)
+
+    @cached_method
+    def freebies(self):
+        freebies = []
+        for f in self.subset.free_data:
+            freebies.append(Request(self, f))
+        return freebies
