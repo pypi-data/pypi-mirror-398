@@ -1,0 +1,139 @@
+"""
+# DBGuard 🛡️
+
+**Database resilience and retry logic made simple**
+
+DBGuard is a lightweight Python package that adds automatic retry logic, exponential backoff, and health checking to your database operations. Stop writing boilerplate retry code and let DBGuard handle transient failures gracefully.
+
+## Features
+
+- 🔄 **Automatic Retry Logic**: Exponential backoff for failed operations
+- 💊 **Health Checking**: Verify connection health before retries
+- 🎯 **Simple Decorators**: Easy-to-use API that works with any database
+- 🔧 **Configurable**: Customize retry attempts, delays, and backoff factors
+- 📦 **Zero Dependencies**: Works with Python's standard library
+- 🗄️ **Database Agnostic**: Works with SQLite, PostgreSQL, MySQL, and more
+
+## Installation
+
+```bash
+pip install dbguard
+```
+
+## Quick Start
+
+### Using the DBGuard Class
+
+```python
+import sqlite3
+from dbguard import DBGuard
+
+# Create your database connection
+conn = sqlite3.connect('mydb.db')
+
+# Wrap it with DBGuard
+guard = DBGuard(conn, max_retries=3)
+
+# Protect your database operations
+@guard.protect
+def get_users():
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users")
+    return cursor.fetchall()
+
+# Your function now has automatic retry logic!
+users = get_users()
+```
+
+### Using the Standalone Decorator
+
+```python
+from dbguard import retry_query
+
+@retry_query(max_retries=5, initial_delay=0.2)
+def fetch_important_data(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM critical_table")
+    return cursor.fetchall()
+```
+
+## Configuration Options
+
+```python
+DBGuard(
+    connection,              # Your database connection object
+    max_retries=3,          # Maximum number of retry attempts
+    initial_delay=0.1,      # Initial delay between retries (seconds)
+    backoff_factor=2.0,     # Multiplier for exponential backoff
+    max_delay=10.0,         # Maximum delay between retries (seconds)
+    health_check_query="SELECT 1"  # Custom health check query
+)
+```
+
+## Real-World Example
+
+```python
+import psycopg2
+from dbguard import DBGuard
+
+# PostgreSQL connection
+conn = psycopg2.connect(
+    host="localhost",
+    database="mydb",
+    user="user",
+    password="password"
+)
+
+# Create guard with custom settings
+guard = DBGuard(
+    conn,
+    max_retries=5,
+    initial_delay=0.5,
+    backoff_factor=2.0,
+    health_check_query="SELECT 1"
+)
+
+@guard.protect
+def process_orders():
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE orders 
+        SET status = 'processed' 
+        WHERE status = 'pending'
+    """)
+    conn.commit()
+    return cursor.rowcount
+
+# This will automatically retry on transient failures
+processed = process_orders()
+print(f"Processed {processed} orders")
+```
+
+## Why DBGuard?
+
+Database operations fail for many reasons:
+- Network hiccups
+- Database server restarts
+- Connection timeouts
+- Deadlocks and lock timeouts
+
+Instead of crashing or writing retry logic everywhere, DBGuard handles these gracefully with exponential backoff and health checking.
+
+## Roadmap
+
+- [ ] Connection pooling support
+- [ ] Metrics and monitoring hooks
+- [ ] Circuit breaker pattern
+- [ ] Support for async/await
+- [ ] Transaction retry support
+- [ ] More database-specific optimizations
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - see LICENSE file for details
+"""
+
