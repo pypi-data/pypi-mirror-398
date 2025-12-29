@@ -1,0 +1,184 @@
+from bigraph_schema import deep_merge
+from process_bigraph.composite import Step, Process
+
+
+class Grow(Process):
+    config_schema = {
+        'rate': 'float'}
+
+    def inputs(self):
+        return {
+            'mass': 'float'}
+
+    def outputs(self):
+        return {
+            'mass': 'float'}
+
+    def update(self, state, interval):
+        # this calculates a delta
+
+        return {
+            'mass': state['mass'] * self.config['rate'] * interval}
+
+
+# TODO: build composite and divide within it
+
+class Divide(Step):
+    # assume the agent_schema has the right divide methods present
+    config_schema = {
+        'agent_id': 'string',
+        'agent_schema': 'schema',
+        'threshold': 'float',
+        'divisions': {
+            '_type': 'integer',
+            '_default': 2}}
+
+
+    def __init__(self, config, core=None):
+        super().__init__(config, core)
+
+
+    def inputs(self):
+        return {
+            'trigger': 'float'}
+
+
+    def outputs(self):
+        return {
+            'environment': {
+                '_type': 'map',
+                '_value': self.config['agent_schema']}}
+
+
+    # this should be generalized to some function that depends on
+    # state from the self.config['agent_schema'] (instead of trigger > threshold)
+    def update(self, state):
+        if state['trigger'] > self.config['threshold']:
+            mother = self.config['agent_id']
+            daughters = [(
+                f'{mother}_{i}', {
+                    'grow_divide': grow_divide_agent(
+                        state={
+                            'mass': state['trigger'] / 2,
+                            'divide': {
+                                'config': {
+                                    'agent_id': f'{mother}_{i}'}}},
+                        path=[f'{mother}_{i}'])})
+                for i in range(self.config['divisions'])]
+
+                    # 'state': {
+                    #     'mass': state['trigger'] / 2,
+                    #     'divide': {
+                    #         'config': {
+                    #             'agent_id': f'{mother}_{i}'}}}})
+
+
+            print(f'dividing! {[d[0] for d in daughters]}')
+
+            # return divide reaction
+            return {
+                'environment': {
+                    '_remove': [mother],
+                    '_add': daughters}}
+                    # '_react': {
+                    #     'divide': {
+                    #         'mother': mother,
+                    #         'daughters': daughters}}}}
+        else:
+            return {
+                'environment': {}}
+
+
+def generate_bridge_wires(schema):
+    return {
+        key: [key]
+        for key in schema
+        if not key.startswith('_')}
+
+
+def generate_bridge(schema, state, interval=1.0):
+    bridge = {
+        port: generate_bridge_wires(schema[port])
+        for port in ['inputs', 'outputs']}
+
+    config = {
+        # '_type': 'node',
+        'state': state,
+        'bridge': bridge}
+
+    composite = {
+        '_type': 'process',
+        # 'address': 'parallel:Composite',
+        'address': 'local:Composite',
+        'interval': interval,
+        'config': config,
+        'inputs': generate_bridge_wires(schema['inputs']),
+        'outputs': generate_bridge_wires(schema['outputs'])}
+
+    return composite
+
+
+def grow_divide_agent(config=None, state=None, path=None):
+    agent_id = path[-1]
+
+    config = config or {}
+    state = state or {}
+    path = path or []
+
+    agent_schema = config.get(
+        'agent_schema',
+        {'mass': 'float'})
+
+    grow_config = {
+        'rate': 0.1}
+
+    grow_config = deep_merge(
+        grow_config,
+        config.get(
+            'grow'))
+
+    divide_config = {
+        'agent_id': agent_id,
+        'agent_schema': agent_schema,
+        'threshold': 2.0,
+        'divisions': 2}
+
+    divide_config = deep_merge(
+        divide_config,
+        config.get(
+            'divide'))
+
+    grow_divide_state = {
+        'grow': {
+            '_type': 'process',
+            'address': 'local:Grow',
+            'config': grow_config,
+            'inputs': {
+                'mass': ['mass']},
+            'outputs': {
+                'mass': ['mass']}},
+
+        'divide': {
+            '_type': 'process',
+            'address': 'local:Divide',
+            'config': divide_config,
+            'inputs': {
+                'trigger': ['mass']},
+            'outputs': {
+                'environment': ['environment']}}}
+
+    grow_divide_state = deep_merge(
+        grow_divide_state,
+        state)
+
+    composite = generate_bridge({
+        'inputs': {'mass': ['mass']},
+        'outputs': agent_schema},
+        grow_divide_state)
+
+    composite['config']['bridge']['outputs']['environment'] = ['environment']
+    composite['outputs']['environment'] = ['..']
+
+    return composite
+
+
