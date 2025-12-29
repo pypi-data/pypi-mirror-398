@@ -1,0 +1,9 @@
+from io import BytesIO
+from typing import Union
+
+from .dataset import PhysicalDataManage
+
+class PhysicalFieldModel:
+    def __init__(self, dm: PhysicalDataManage, lr: float): ...
+    def fit(self, epochs: int): ...
+    def export(self, fh: Union[str, BytesIO]): ...
