@@ -1,0 +1,70 @@
+Metadata-Version: 2.4
+Name: vlaamscodex
+Version: 0.1.0
+Summary: VlaamsCodex / Platskript — parody language transpiled to Python
+Author: VlaamsCodex contributors
+License-Expression: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+Requires-Dist: build>=1; extra == "dev"
+
+# VlaamsCodex / Platskript
+
+VlaamsCodex is a tiny parody toolchain for **Platskript** (`.plats`) that transpiles to Python.
+
+## Quick start
+
+1) Create a venv and install:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+```
+
+2) Run explicitly via the CLI:
+
+```bash
+plats run examples/hello.plats
+```
+
+3) Or use “magic mode” (custom source encoding):
+
+```bash
+python examples/hello.plats
+```
+
+## Contents
+
+- `docs/` — documentation
+- `examples/` — example `.plats` files
+- `src/vlaamscodex/` — reference implementation (compiler, codec, CLI)
+- `data/vlaamscodex_autoload.pth` — startup hook that registers the codec
+- `tests/` — pytest tests (unit + subprocess integration)
+
+## Start reading here
+
+1. `docs/01_overview.md`
+2. `docs/02_how_python_runs_it.md`
+3. `docs/03_packaging_and_install.md`
+
+## Quick mental model
+
+1. A `.plats` file begins with a Python encoding declaration:
+
+```text
+# coding: vlaamsplats
+```
+
+2. A `.pth` hook in site-packages runs at startup and registers a codec named `vlaamsplats`.
+3. When `python myscript.plats` starts, Python sees the encoding declaration and uses your codec to decode the file.
+4. Your codec’s `decode()` function turns Platskript text into Python text.
+5. Python executes the produced Python text.
+
+## Notes
+
+- Limitations: `python -S` and `python -I` can break magic mode because `site` / `.pth` hooks won’t run.
+- Fallback: `plats run script.plats` always works (no startup hooks required).
