@@ -1,0 +1,174 @@
+Metadata-Version: 2.4
+Name: jsoninja
+Version: 1.2.0
+Summary: Jsoninja is a library that allows you to generate JSON's from templates written with Python data types.
+Project-URL: Source, https://github.com/vlazaroes/jsoninja
+Author-email: Víctor Lázaro <vlazaro@outlook.es>
+License: MIT License
+        
+        Copyright (c) 2026 Víctor Lázaro
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Environment :: Other Environment
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Topic :: File Formats
+Classifier: Topic :: File Formats :: JSON
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+<div align="center">
+	<p>
+        <img src="https://em-content.zobj.net/thumbs/240/apple/354/ninja_1f977.png" width="100px">
+    </p>
+	<h1>Jsoninja</h1>
+    <p>
+        <em>
+            A library that allows you to generate JSON's from
+            <br/>
+            templates written with Python data types.
+        </em>
+    </p>
+    <p>
+        <img src="https://img.shields.io/pypi/v/jsoninja?label=Version" alt="Library version">
+    </p>
+</div>
+
+## Instalation
+
+```
+$ pip install jsoninja
+```
+
+## Use Case Examples
+
+You can use the main Python data types:
+
+```python
+import jsoninja
+
+template = {
+    "foo": "{{variable_name}}",
+}
+replacements = {
+    "variable_name": "bar",
+}
+result = jsoninja.replace(template, replacements)
+
+# {
+#   "foo": "bar",
+# }
+```
+
+Allows multiple replacements of the same variable:
+
+```python
+import jsoninja
+
+template = {
+    "message1": "{{message}}",
+    "message2": "{{message}}",
+    "message3": "{{message}}",
+}
+replacements = {
+    "message": "I am duplicated!",
+}
+result = jsoninja.replace(template, replacements)
+
+# {
+#   "message1": "I am duplicated!",
+#   "message2": "I am duplicated!",
+#   "message3": "I am duplicated!",
+# }
+```
+
+Use callback functions to generate the values to be replaced:
+
+```python
+import jsoninja
+
+
+def generate_password() -> str:
+    return "super_secret_password"
+
+
+template = {
+    "password": "{{password}}",
+}
+replacements = {
+    "password": generate_password,
+}
+result = jsoninja.replace(template, replacements)
+
+# {
+#   "password": "super_secret_password",
+# }
+```
+
+Support for variables in the dict keys (_replacements must be str, int, float or bool_):
+
+```python
+import jsoninja
+
+template = {
+    "{{variable_name}}": "bar",
+}
+replacements = {
+    "variable_name": "foo",
+}
+result = jsoninja.replace(template, replacements)
+
+# {
+#   "foo": "bar",
+# }
+```
+
+If you want to use a custom variable pattern, you can do that too:
+
+```python
+from jsoninja import Jsoninja
+
+# The pattern must include a capturing group for the variable name.
+pattern = r"\$\{([a-zA-Z0-9_]+)\}"
+jsoninja = Jsoninja(variable_pattern=pattern)
+
+template = {
+    "foo": "${variable_name}",
+}
+replacements = {
+    "variable_name": "bar",
+}
+result = jsoninja.replace(template, replacements)
+
+# {
+#   "foo": "bar",
+# }
+```
