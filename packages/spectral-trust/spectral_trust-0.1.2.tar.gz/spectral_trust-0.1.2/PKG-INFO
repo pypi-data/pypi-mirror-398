@@ -1,0 +1,124 @@
+Metadata-Version: 2.4
+Name: spectral_trust
+Version: 0.1.2
+Summary: Spectral diagnostics for trust in LLMs
+Author: Valentin Noël
+Author-email: val.noel@proton.me
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+Requires-Dist: scipy
+Requires-Dist: torch>=2.0.0
+Requires-Dist: transformers>=4.30.0
+Requires-Dist: tqdm
+Requires-Dist: accelerate
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Spectral Trust Framework
+
+**A Graph Signal Processing (GSP) framework for measuring the trustworthiness of LLM internal representations.**
+
+[`spectral_trust`](https://github.com/vcnoel/spectral-trust) constructs dynamic graphs from attention patterns and applies spectral analysis (eigenvalues, Dirichlet energy) to detect hallucinations, quantify uncertainty, and map the "smoothness" of reasoning flows.
+
+## What is it?
+By treating the transformer's attention mechanism as a **graph** and the hidden states as **signals** on that graph, we can calculate rigorous mathematical metrics:
+*   **Dirichlet Energy**: How much the signal varies across connected tokens (proxy for conflict/uncertainty).
+*   **Smoothness Index**: Normalized energy indicating how well the representation aligns with the attention structure.
+*   **Fiedler Value**: Algebraic connectivity of the attention graph.
+*   **HFER (High-Frequency Energy Ratio)**: Energy concentration in high-frequency spectral components.
+
+## Features
+- **Plug-and-Play**: Works out-of-the-box with `Llama-3`, `Mistral`, `Qwen`, `Gemma`, and `Phi`.
+- **Offline Ready**: `--offline` mode to use cached models without internet access.
+- **Spectral Metrics**: Automatically computes Energy, Entropy, Fiedler Value, HFER, and Smoothness.
+- **Robustness Tools**: Includes hooks for head ablation and residual patching.
+
+## Structure
+- `src/spectral_trust/`: Core package source code.
+- `notebooks/`: Jupyter notebooks for demonstration.
+- `examples/`: Minimal example scripts.
+- `dist/`: Wheel and source distributions.
+
+## Installation
+
+```bash
+pip install spectral_trust
+# OR install from source
+pip install -e .
+```
+
+## Usage
+
+### CLI Power Tool
+
+**Analyze a sentence** (uses `cuda` if available):
+```bash
+gsp-cli analyze --text "The capital of France is Paris." --model llama-3.1-8b
+```
+
+**Offline Mode** (no internet required):
+```bash
+gsp-cli analyze --text "Refactoring is fun." --model llama-3.2-1b --offline
+```
+
+### Python API
+
+```python
+from spectral_trust import GSPDiagnosticsFramework, GSPConfig
+
+config = GSPConfig(model_name="llama-3.2-1b", device="cuda", local_files_only=True)
+with GSPDiagnosticsFramework(config) as framework:
+    framework.instrumenter.load_model("meta-llama/Llama-3.2-1B")
+    results = framework.analyze_text("The capital of France is Paris.")
+    
+    print(f"Smoothness: {results['layer_diagnostics'][-1].smoothness_index:.4f}")
+```
+
+### Compare Two Texts
+
+Compare the spectral properties of two different inputs side-by-side:
+
+```bash
+python -m spectral_trust.cli compare \
+  --text1 "Total confidence: The capital of France is Paris." \
+  --text2 "Low confidence: I think the capital might be Paris." \
+  --model llama-3.2-1b
+```
+
+This will generate a comparison plot overlaying the metrics for both texts.
+
+### Multi-Run Analysis (Stochastic)
+
+Run the analysis multiple times (useful with sampling enabled) to see metric stability:
+
+```bash
+python -m spectral_trust.cli analyze \
+  --text "The capital of France is Paris." \
+  --runs 5 \
+  --temperature 0.7
+```
+
+### Advanced GSP Options
+
+For rigorous spectral graph analysis, you may want to exclude self-attention loops (the diagonal) to match standard spectral graph theory (where $A_{ii}=0$). 
+
+*   **Default**: Self-loops kept. Faithful to Transformer mechanics. Fiedler values $\approx 1.0$.
+*   **`--remove_self_loops`**: Self-loops removed. Faithful to Graph Signal Processing theory. Fiedler values $\approx 2.0$ (for connected graphs). Better for measuring pure token-to-token mixing.
+
+```bash
+gsp-cli analyze --text "..." --remove_self_loops
+```
+
+## License
+MIT
