@@ -1,0 +1,266 @@
+Metadata-Version: 2.4
+Name: vegabase
+Version: 0.1.0
+Summary: Full-stack React + Python with zero configuration. Build modern React apps with FastAPI, Bun, Inertia.js, and Tailwind CSS.
+Keywords: react,fastapi,bun,inertia,tailwind,ssr,full-stack
+License-Expression: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Requires-Dist: fastapi>=0.115.8
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: itsdangerous>=2.0.0
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: aiosqlite>=0.20.0 ; extra == 'async'
+Requires-Dist: asyncpg>=0.29.0 ; extra == 'async'
+Requires-Dist: greenlet>=3.0.0 ; extra == 'async'
+Requires-Dist: ruff>=0.8.0 ; extra == 'dev'
+Requires-Dist: ty>=0.0.1a6 ; extra == 'dev'
+Requires-Dist: psycopg[binary]>=3.0.0 ; extra == 'postgres'
+Requires-Dist: pytest>=8.0.0 ; extra == 'test'
+Requires-Dist: pytest-asyncio>=0.24.0 ; extra == 'test'
+Requires-Dist: aiosqlite>=0.20.0 ; extra == 'test'
+Requires-Dist: greenlet>=3.0.0 ; extra == 'test'
+Requires-Python: >=3.11
+Project-URL: Homepage, https://github.com/kjrjay/vegabase
+Project-URL: Repository, https://github.com/kjrjay/vegabase
+Provides-Extra: async
+Provides-Extra: dev
+Provides-Extra: postgres
+Provides-Extra: test
+Description-Content-Type: text/markdown
+
+# Vegabase
+
+**Full-stack React + Python with zero configuration.**
+
+Build modern React applications powered by FastAPI, Bun, Inertia.js, and Tailwind CSS — all from a single `pip install`.
+
+## Motivation
+
+When building React apps with Python, you typically have two choices:
+
+- **SPA-only**: An empty HTML shell, React takes over in the browser. No SEO, slow initial loads, and you still need to build a REST/GraphQL API.
+- **Jinja + Islands**: Server-render with templates, sprinkle React for interactivity. But you're constantly juggling two mental models.
+
+Full-stack JS frameworks like Next and TanStack have SSR, hydration, and flexible rendering modes. Vegabase brings this experience to Python — use Python for backend logic, JavaScript for rendering html.
+
+## Features
+
+- 🚀 **Zero Config**: Just install and run. Handles TS, TSX/JSX, CSS bundling with Tailwind support.
+- 🐍 **Python-First**: FastAPI backend with Python's full ecosystem.
+- ⚛️ **Modern React**: React 19 with server-side rendering out of the box.
+- ⚡ **Bun-Powered**: Lightning-fast bundling and SSR performance.
+- 🗄️ **Type-Safe Database**: Built-in database module with Pydantic validation.
+- 🎨 **Flexible Rendering**: SSR, client-only, ISR caching, or static HTML per-page.
+
+> **Requirements**:
+> - [Bun](https://bun.sh) v1.0+ must be installed
+> - Python 3.11+
+
+## Quick Start
+
+```bash
+# Create a new project with uvx (no install needed)
+uvx vegabase init my-app --example posts
+
+cd my-app
+uv sync && bun install
+
+# Terminal 1: Frontend dev server
+vegabase dev
+
+# Terminal 2: Backend
+APP_ENV=development python -m backend.main
+```
+
+Visit `http://localhost:8000` 🎉
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `vegabase init` | Create a new project |
+| `vegabase dev` | Start dev server with hot reloading |
+| `vegabase build` | Build optimized production bundles |
+| `vegabase ssr` | Start the SSR server for production |
+| `vegabase db plan` | Preview database schema changes |
+| `vegabase db apply` | Apply schema changes to database |
+
+### Init Options
+
+```bash
+vegabase init --name my-app              # Create empty project
+vegabase init --name my-app --example posts  # Start from posts example
+vegabase init --name my-app --db sqlite      # Include SQLite setup
+vegabase init --name my-app --db postgres    # Include PostgreSQL setup
+```
+
+## Rendering Modes
+
+Control how each page is rendered:
+
+```python
+from vegabase import Inertia
+
+inertia = Inertia(app)
+
+# Default: Server-side rendering
+await inertia.render("Home", props, request, mode="ssr")
+
+# Client-only: Skip SSR, render in browser
+await inertia.render("Dashboard", props, request, mode="client")
+
+# Cached (ISR): Cache for 60 seconds
+await inertia.render("Posts/Index", props, request, mode="cached", revalidate=60)
+
+# Static: Pure HTML, no JavaScript bundle
+await inertia.render("About", props, request, mode="static")
+```
+
+| Mode | SSR | Hydration | Use Case |
+|------|-----|-----------|----------|
+| `ssr` | ✅ | ✅ | Default, SEO-important pages |
+| `client` | ❌ | ✅ | Dashboards, authenticated pages |
+| `cached` | ✅ | ✅ | Blog posts, product pages (ISR) |
+| `static` | ✅ | ❌ | Landing pages, pure content |
+
+## Flash Messages
+
+Built-in flash message support:
+
+```python
+from starlette.middleware.sessions import SessionMiddleware
+
+app.add_middleware(SessionMiddleware, secret_key="...")
+inertia = Inertia(app)
+
+@app.post("/posts/create")
+async def create_post(request: Request):
+    # ... create post ...
+    inertia.flash(request, "Post created!", type="success")
+    return RedirectResponse(url="/posts", status_code=303)
+```
+
+Access in React:
+
+```tsx
+export default function Index({ flash }) {
+  return (
+    <div>
+      {flash && <Alert type={flash.type}>{flash.message}</Alert>}
+    </div>
+  );
+}
+```
+
+## Database Module
+
+Type-safe database queries with Pydantic validation:
+
+```python
+from sqlalchemy import MetaData, Table, Column, Integer, String, select
+from pydantic import BaseModel
+from vegabase.db import Database, query
+
+# Define schema
+metadata = MetaData()
+users = Table('users', metadata,
+    Column('id', Integer, primary_key=True),
+    Column('name', String),
+    Column('email', String),
+)
+
+# Define model
+class User(BaseModel):
+    id: int
+    name: str
+    email: str
+
+# Query with full type safety
+db = Database("sqlite:///app.db")
+
+with db.connection() as conn:
+    user = conn.one(query(User, select(users).where(users.c.id == 42)))
+    print(user.name)  # IDE autocomplete works!
+    
+    all_users = conn.all(query(User, select(users)))  # Returns List[User]
+```
+
+### Query Methods
+
+| Method | Returns | On Empty |
+|--------|---------|----------|
+| `one()` | Single `T` | Raises `NotFoundError` |
+| `maybe_one()` | `T \| None` | Returns `None` |
+| `many()` | `List[T]` | Raises `NotFoundError` |
+| `all()` | `List[T]` | Returns `[]` |
+
+### Async Support
+
+```python
+from vegabase.db import AsyncDatabase
+
+db = AsyncDatabase("sqlite+aiosqlite:///app.db")
+
+async with db.connection() as conn:
+    users = await conn.all(query(User, select(users)))
+```
+
+### Schema Management
+
+No migration files — just compare and apply:
+
+```bash
+vegabase db plan   # Preview changes
+vegabase db apply  # Apply changes
+```
+
+## Project Structure
+
+```
+my-app/
+├── backend/
+│   ├── main.py           # FastAPI application
+│   └── db/
+│       └── schema.py     # Database tables
+├── frontend/
+│   ├── pages/            # React pages (auto-discovered)
+│   ├── components/       # Reusable components
+│   └── styles.css        # Tailwind entry point
+├── static/dist/          # Generated assets (gitignored)
+├── .vegabase/            # Generated entry files (gitignored)
+├── package.json          # JS dependencies
+└── pyproject.toml        # Python dependencies
+```
+
+## Production
+
+```bash
+# Build optimized bundles
+vegabase build
+
+# Start the SSR server (background)
+vegabase ssr &
+
+# Start the FastAPI server
+APP_ENV=production python -m backend.main
+```
+
+## Examples
+
+See the [examples/](./examples) directory:
+
+- **[basic-app](./examples/basic-app/)** — Minimal single-page example
+- **[posts](./examples/posts/)** — CRUD app with flash messages and database
+- **[ticketing](./examples/ticketing/)** — Full app with authentication, multi-page routing
+
+## License
+
+MIT
