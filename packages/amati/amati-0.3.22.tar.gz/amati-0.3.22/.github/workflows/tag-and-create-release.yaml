@@ -1,0 +1,78 @@
+name: Version Bump and Release
+
+on:
+  workflow_dispatch: # Allow manual triggering
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - '.github/**'
+      - 'bin/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.dockerignore'
+      - '.gitignore'
+      - '.pre-commit-config.yaml'
+      - 'SECURITY.md'
+      - 'pyproject.toml'
+      - 'uv.lock'
+
+permissions:
+  contents: read
+
+jobs:
+  bump-version-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0  # Fetch all history for proper tag creation
+          token: ${{ secrets.BOT_TOKEN }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+
+      - name: Current version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(uv version | awk '{print $2}')
+          PATCH=$("$CURRENT_VERSION" | cut -d '.' -f 2)
+          echo "patch=$PATCH" >> $GITHUB_OUTPUT
+
+      # If a new minor or major version tag has been pushed then don't
+      # bump the patch version.
+      - name: Bump version
+        if: steps.current_version.outputs.patch != '0'
+        run: |
+          uv version --bump patch
+      
+      - name: New version
+        id: new_version
+        run: |
+          NEW_VERSION=$(uv version | awk '{print $2}')
+          echo "tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version change
+        run: |
+          git config --local user.email "218805929+amati-bot@users.noreply.github.com"
+          git config --local user.name "amati[bot]"
+          git commit uv.lock pyproject.toml -m "Bump version to ${{ steps.new_version.outputs.tag }}"
+          git push origin
+
+      - name: Create and push tag
+        run: |
+          git tag ${{ steps.new_version.outputs.tag }}
+          git push --tags
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          gh release create ${{ steps.new_version.outputs.tag }} \
+            --title "${{ steps.new_version.outputs.tag }}" \
+            --generate-notes \
+            --latest
