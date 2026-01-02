@@ -1,0 +1,229 @@
+Metadata-Version: 2.4
+Name: vlaamscodex
+Version: 0.1.3
+Summary: A transpiler toolchain for Platskript, a parody programming language using Flemish dialect keywords that compiles to Python
+Author: VlaamsCodex contributors
+Maintainer-email: Anubis <anubissbe@users.noreply.github.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/anubissbe/Vlaamse-Codex
+Project-URL: Documentation, https://github.com/anubissbe/Vlaamse-Codex#readme
+Project-URL: Repository, https://github.com/anubissbe/Vlaamse-Codex.git
+Project-URL: Changelog, https://github.com/anubissbe/Vlaamse-Codex/blob/main/CHANGELOG.md
+Project-URL: Bug Tracker, https://github.com/anubissbe/Vlaamse-Codex/issues
+Project-URL: Source Code, https://github.com/anubissbe/Vlaamse-Codex
+Keywords: transpiler,compiler,flemish,dutch,dialect,parody,programming-language,dsl,python,codec,platskript,vlaams,belgium,educational
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Natural Language :: Dutch
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Other
+Classifier: Topic :: Software Development :: Compilers
+Classifier: Topic :: Software Development :: Interpreters
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Topic :: Education
+Classifier: Topic :: Text Processing :: Linguistic
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+Requires-Dist: build>=1; extra == "dev"
+Dynamic: license-file
+
+# VlaamsCodex
+
+[![PyPI version](https://img.shields.io/pypi/v/vlaamscodex.svg)](https://pypi.org/project/vlaamscodex/)
+[![Python 3.10+](https://img.shields.io/pypi/pyversions/vlaamscodex.svg)](https://pypi.org/project/vlaamscodex/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/anubissbe/Vlaamse-Codex/actions/workflows/ci.yml/badge.svg)](https://github.com/anubissbe/Vlaamse-Codex/actions/workflows/ci.yml)
+
+A transpiler toolchain for **Platskript** (`.plats`), a parody programming language that uses Flemish dialect keywords. VlaamsCodex compiles Platskript source code to Python and executes it.
+
+## Key Feature
+
+After installation, you can run Platskript files directly with Python:
+
+```bash
+python examples/hello.plats
+```
+
+This "magic mode" works through Python's source encoding mechanism (PEP 263).
+
+## Installation
+
+### Option A: pipx (Recommended for End Users)
+
+```bash
+python -m pip install --user pipx
+python -m pipx ensurepath
+pipx install vlaamscodex
+```
+
+### Option B: Virtual Environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install vlaamscodex
+```
+
+### Option C: Development Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e ".[dev]"
+```
+
+## Usage
+
+### CLI Commands
+
+Run a Platskript program:
+
+```bash
+plats run path/to/script.plats
+```
+
+Display generated Python code:
+
+```bash
+plats show-python path/to/script.plats
+```
+
+Compile to a Python file:
+
+```bash
+plats build path/to/script.plats --out output.py
+```
+
+### Magic Mode
+
+Platskript files begin with a Python encoding declaration:
+
+```text
+# coding: vlaamsplats
+```
+
+After installing VlaamsCodex, execute directly with Python:
+
+```bash
+python path/to/script.plats
+```
+
+### Quick Test
+
+```bash
+plats run examples/hello.plats
+python examples/hello.plats
+```
+
+Expected output:
+
+```text
+gdag aan weeireld
+```
+
+## Example Program
+
+```text
+# coding: vlaamsplats
+plan doe
+  zet naam op tekst weeireld amen
+
+  maak funksie groet met wie doe
+    klap tekst gdag plakt spatie plakt tekst aan plakt spatie plakt da wie amen
+  gedaan
+
+  roep groet met da naam amen
+gedaan
+```
+
+## How It Works
+
+1. Python detects `# coding: vlaamsplats` (PEP 263) and requests the corresponding codec.
+2. During normal startup, Python's `site` module processes `.pth` files in site-packages.
+3. VlaamsCodex installs `vlaamscodex_autoload.pth` containing:
+   ```
+   import vlaamscodex.codec as _vc; _vc.register()
+   ```
+4. The `register()` function registers the `vlaamsplats` codec.
+5. The codec decodes UTF-8 bytes, strips the encoding declaration, transpiles Platskript to Python, and returns valid Python source.
+6. Python executes the generated code transparently.
+
+## Language Specification (v0.1)
+
+Statements terminate with `amen`. Programs are wrapped in `plan doe ... gedaan`.
+
+### Statements
+
+| Syntax | Description |
+|--------|-------------|
+| `zet <var> op <expr> amen` | Variable assignment |
+| `klap <expr> amen` | Print expression |
+| `maak funksie <name> met <params...> doe ... gedaan` | Function definition |
+| `roep <name> met <args...> amen` | Function call |
+| `geeftterug <expr> amen` | Return statement |
+
+### Expressions
+
+| Syntax | Description |
+|--------|-------------|
+| `tekst <words...>` | String literal (words joined by spaces) |
+| `getal <digits>` | Numeric literal |
+| `da <name>` | Variable reference |
+| `spatie` | Space character literal |
+| `plakt` | String concatenation operator |
+
+## Limitations
+
+- **`python -S`**: Disables `site` module, preventing `.pth` hook execution.
+- **`python -I`**: Isolated mode restricts site-packages access.
+- **Fallback**: Use `plats run script.plats` when magic mode is unavailable.
+
+### Troubleshooting
+
+If you encounter `SyntaxError: encoding problem: vlaamsplats`:
+
+1. Verify VlaamsCodex is installed in the active Python environment.
+2. Ensure you are not using `-S` or `-I` flags.
+3. Use `plats run` as an alternative.
+
+## Project Structure
+
+```
+src/vlaamscodex/     # Core implementation (compiler, codec, CLI)
+data/                # Runtime artifacts (.pth startup hook)
+examples/            # Sample Platskript programs
+tests/               # Test suite
+docs/                # Technical documentation
+```
+
+## Documentation
+
+- [Overview](docs/01_overview.md)
+- [How Python Runs It](docs/02_how_python_runs_it.md)
+- [Packaging & Installation](docs/03_packaging_and_install.md)
+- [Language Specification](docs/04_language_spec.md)
+- [Security Notes](docs/05_security_and_safety.md)
+- [User Guide](docs/06_user_guide.md)
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a pull request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
