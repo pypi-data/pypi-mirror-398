@@ -1,0 +1,128 @@
+Metadata-Version: 2.4
+Name: pdb4ambermini
+Version: 0.1.2
+Summary: Lightweight pdb4amber derivative without Amber binary dependencies
+Author: pdb4ambermini contributors
+License: MIT License
+        
+        Copyright (c) 2024 pdb4ambermini contributors
+        
+        Portions of this project are derived from the original pdb4amber
+        (BSD-3-Clause, AMBER project). That upstream license applies to the
+        original code; this repository as a whole is distributed under the MIT
+        terms below.
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy<2
+Requires-Dist: parmed>=3.0
+Dynamic: license-file
+
+# pdb4ambermini
+
+基于 pdb4amber 的精简工具（移除了对 Amber 可执行程序的依赖），用于清理/准备 PDB/CIF 结构，让其更适合 Amber 力场。支持保留输入文件中的 SEQRES 信息。
+
+## 功能
+- 读取本地文件、stdin、URL 或 PDB ID（依赖 ParmEd 下载）。
+- 自动识别并重命名组氨酸（HIS → HID/HIE/HIP），可选常 pH 模式（ASP/GLU/HIS → AS4/GL4/HIP）。
+- 检测二硫键并重命名 CYS → CYX，可选择写入/关闭 S–S CONECT 记录。
+- 识别残基缺口、非标准残基；输出重编号对照表、非标准残基列表、二硫键列表。
+- 支持删除氢、去水、按掩码 strip 原子/残基、模型选择、altloc 处理（保留/丢弃/按占据度）。
+- 支持残基突变（如 `-m "3-ALA,4-GLU"`），输出为 PDB 或 MOL2。
+- 新增：`--keep-seqres` 保留输入 PDB 中的 SEQRES 行，原样放在输出 PDB 开头。
+
+## 安装
+```bash
+pip install pdb4ambermini
+```
+
+## 命令行示例
+```bash
+# 查看帮助
+pdb4ambermini --help
+
+# 最简单用法，输出到文件
+pdb4ambermini input.pdb -o cleaned.pdb
+
+# 仅保留蛋白并去水
+pdb4ambermini input.pdb -p -d -o protein.pdb
+
+# 按掩码删除原子/残基
+pdb4ambermini input.pdb -s ':LIG,HOH' -o stripped.pdb
+
+# 处理 PDB ID，常 pH 重命名，按模型选择
+pdb4ambermini 1tsu --pdbid --constantph --model 1 -o out.pdb
+
+# 突变并保留 altloc
+pdb4ambermini input.pdb -m "10-ALA,15-GLU" --keep-altlocs -o mutated.pdb
+
+# 保留理论完整序列 SEQRES
+pdb4ambermini input.pdb --keep-seqres -o with_seqres.pdb
+```
+
+## 主要参数
+- `-i/--in` 输入文件（默认 stdin）；`-o/--out` 输出文件（默认 stdout）
+- `-y/--nohyd` 去氢；`-d/--dry` 去水；`-s/--strip` 指定掩码 strip 原子/残基
+- `-m/--mutate` 突变；`-p` 仅保留蛋白；`-a` 仅保留 Amber 支持残基
+- `--constantph` 常 pH 重命名；`--most-populous` altloc 取占据度最大；`--keep-altlocs` 保留 altloc
+- `--pdbid` 以 PDB ID 下载；`--model` 指定模型（负数保留全部）
+- `--no-conect` 不写二硫键 CONECT；`--noter` 不写 TER
+- `--keep-seqres` 保留输入 PDB 的 SEQRES 行并放在输出开头
+
+## Python 调用示例
+```python
+from pdb4ambermini.pdb4amber import run
+
+ns_names, gaps, disulfides = run(
+    arg_pdbout="cleaned.pdb",
+    arg_pdbin="input.pdb",   # 可为路径、类文件对象或 parmed.Structure
+    arg_nohyd=False,
+    arg_dry=False,
+    arg_strip_atom_mask=None,
+    arg_mutate_string=None,
+    arg_prot=False,
+    arg_amber_compatible_residues=False,
+    arg_constph=False,
+    arg_mostpop=False,
+    arg_model=0,
+    arg_keep_altlocs=False,
+    arg_logfile="pdb4ambermini.log",
+    arg_conect=True,
+    arg_noter=False,
+    arg_keep_seqres=True,
+)
+print("非标准残基:", ns_names)
+print("缺口:", gaps)
+print("二硫键:", disulfides)
+```
+
+## 许可
+MIT License。项目基于 pdb4amber（BSD-3-Clause，AMBER 项目），原始源码的版权与 BSD 条款已在 LICENSE 中注明。
