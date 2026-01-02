@@ -1,0 +1,38 @@
+image: debian:latest
+
+before_script:
+    - apt update
+    - apt --assume-yes install pkg-config
+    - apt update
+    - apt --assume-yes install libhdf5-dev
+    - apt --assume-yes install python3
+    - apt --assume-yes install python3-pip
+    - apt --assume-yes install python3-venv
+    - apt --assume-yes install python3-h5py python3-numpy python3-tqdm
+    - apt --assume-yes install git
+
+stages:
+    - build
+    - test
+
+build-pkg:
+    stage: build
+    script:
+        - python3 -m venv xdata
+        - source xdata/bin/activate; python3 -m pip install tox pytest pytest-cov build numpy h5py tqdm
+        - source xdata/bin/activate; make install
+    artifacts:
+        paths:
+            - dist
+        when: always
+        expire_in: 1 week
+
+make_tests:
+    stage: build
+    script:
+        - python3 -m venv xdata
+        - source xdata/bin/activate; python3 -m pip install tox pytest pytest-cov build numpy h5py tqdm
+        - source xdata/bin/activate; make tests
+
+after_script:
+    - echo "All CI tasks run"
