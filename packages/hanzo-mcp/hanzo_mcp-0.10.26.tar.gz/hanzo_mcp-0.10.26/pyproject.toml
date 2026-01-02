@@ -1,0 +1,181 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hanzo-mcp"
+version = "0.10.26"
+description = "The Zen of Hanzo MCP: One server to rule them all. The ultimate MCP that orchestrates all others."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Hanzo Industries Inc", email = "dev@hanzo.ai" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+keywords = ["mcp", "claude", "hanzo", "code", "agent"]
+dependencies = [
+    # Core MCP dependencies
+    "mcp>=1.25.0",
+    "fastmcp>=2.14.1",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "typing-extensions>=4.13.0",
+    "aiofiles>=23.2.1",
+    # Hanzo tool infrastructure (all tools)
+    "hanzo-tools>=0.3.0",
+    "hanzo-tools-fs>=0.1.0",
+    "hanzo-tools-shell>=0.1.0",
+    "hanzo-tools-browser>=0.1.0",
+    "hanzo-tools-memory>=0.1.0",
+    "hanzo-tools-todo>=0.1.0",
+    "hanzo-tools-reasoning>=0.1.0",
+    "hanzo-tools-lsp>=0.1.0",
+    "hanzo-tools-computer>=0.1.0",
+    "hanzo-tools-config>=0.1.0",
+    "hanzo-tools-refactor>=0.1.0",
+    "hanzo-tools-llm>=0.1.0",
+    "hanzo-tools-agent>=0.2.3",
+    "hanzo-persona>=1.0.0",
+]
+
+# For local development, install hanzo-tools-* packages from pkg/
+# pip install -e ../hanzo-tools ../hanzo-tools-fs etc.
+# Or when published, add them back as dependencies
+
+[project.urls]
+"Homepage" = "https://github.com/hanzoai/mcp"
+"Bug Tracker" = "https://github.com/hanzoai/mcp/issues"
+"Documentation" = "https://mcp.hanzo.ai"
+
+[project.optional-dependencies]
+# NOTE: hanzo-tools-* packages are installed separately from pkg/
+# Use: pip install -e ../hanzo-tools -e ../hanzo-tools-fs etc.
+# When published to PyPI, these extras will work:
+# filesystem = ["hanzo-tools-fs>=0.1.0"]
+# shell = ["hanzo-tools-shell>=0.1.0"]
+# etc.
+
+# Development
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.14.0",
+    "black>=23.3.0",
+    "mypy>=1.10.0",
+    "types-aiofiles>=23.2.0",
+    "types-psutil>=5.9.5",
+    "types-setuptools>=69.5.0",
+]
+docs = ["sphinx>=8.0.0", "sphinx-rtd-theme>=3.0.0", "myst-parser>=4.0.0", "sphinx-copybutton>=0.5.0"]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.10.0",
+    "pytest-asyncio>=0.26.0",
+]
+performance = ["ujson>=5.7.0", "orjson>=3.9.0", "uvloop>=0.21.0; sys_platform != 'win32'"]
+publish = ["twine>=4.0.2", "build>=1.0.3"]
+
+[project.scripts]
+hanzo-mcp = "hanzo_mcp.cli:main"
+hanzo-mcp-dev = "hanzo_mcp.dev_server:run_dev_server"
+hanzo-plugin = "hanzo_mcp.cli_plugin:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hanzo_mcp*"]
+
+[tool.setuptools.package-data]
+hanzo_mcp = ["py.typed"]
+
+[tool.basedpyright]
+include = ["hanzo_mcp"]
+
+[tool.pytest.ini_options]
+# Configuration for pytest
+addopts = "--no-header --no-summary"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Note: --cov-fail-under=96.3 will be added after achieving target coverage
+markers = [
+  "asyncio: mark test as using asyncio",
+  "requires_hanzo_agents: mark test as requiring hanzo-agents SDK",
+  "requires_memory_tools: mark test as requiring hanzo-memory package",
+  "slow: mark test as slow running",
+  "integration: mark test as integration test",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.pytest_asyncio]
+mode = "auto"
+default_loop_scope = "function"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+# Per-module options
+[[tool.mypy.overrides]]
+module = [
+    "bashlex.*",
+    "grep_ast.*",
+    "libtmux.*",
+    "litellm.*",
+    "nbformat.*",
+    "ffind.*",
+    "fastmcp.*",
+    "mcp.*",
+    "hanzo_agents.*",
+    "hanzo_memory.*",
+    "personalities.*",
+]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["hanzo_mcp"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/venv/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 96.3
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
