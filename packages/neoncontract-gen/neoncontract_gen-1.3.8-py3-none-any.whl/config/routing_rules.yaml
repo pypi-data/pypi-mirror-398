@@ -1,0 +1,500 @@
+version: '4.0'
+description: NeonLink routing rules (v4.0) - GENERATED from contract.yaml
+generated_at: '2025-12-05T15:03:57.072635'
+neoncontract_version: '1.0'
+routing:
+  rules:
+  - name: etl_completion_flow-routing
+    description: When ETL completes, trigger posting job and notify sync service
+    condition:
+      message_type: MESSAGE_TYPE_ETL_COMPLETION
+      source_stream: etl:complete
+    action:
+      fan_out:
+      - stream: posting:input
+        target_service: TARGET_SERVICE_POSTING_SERVICE
+        name: posting_job
+        transform:
+          message_type: MESSAGE_TYPE_POSTING_JOB
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+          add_metadata:
+            trigger_source: etl_completion
+        reliability:
+          retry:
+            max_attempts: 3
+            backoff: exponential
+          dlq:
+            stream: errors:failed
+            on_failure: route_to_dlq
+      - stream: sync:triggers
+        target_service: TARGET_SERVICE_SYNC_SERVICE
+        name: sync_data_ready
+        transform:
+          message_type: MESSAGE_TYPE_DATA_READY
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+          add_metadata:
+            trigger_source: etl_completion
+  - name: posting_completion_flow-routing
+    description: When posting completes, notify sync and trigger goal progress check
+    condition:
+      message_type: MESSAGE_TYPE_POSTING_COMPLETED
+      source_stream: posting:complete
+    action:
+      fan_out:
+      - stream: sync:triggers
+        target_service: TARGET_SERVICE_SYNC_SERVICE
+        name: sync_notification
+        transform:
+          message_type: MESSAGE_TYPE_DATA_READY
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+          add_metadata:
+            trigger_source: posting_completion
+      - stream: goals:input
+        target_service: TARGET_SERVICE_GOAL_SERVICE
+        name: goal_progress_check
+        transform:
+          message_type: MESSAGE_TYPE_GOAL_PROGRESS_CHECK
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+        condition:
+          identity_match:
+            data_type: DATA_TYPE_TRANSACTIONS
+  - name: goal_subledger_flow-routing
+    description: Broadcast goal subledger events and trigger insight processing
+    condition:
+      message_type: MESSAGE_TYPE_GOAL_SUBLEDGER_WRITTEN
+      source_stream: goals:broadcast
+    action:
+      fan_out:
+      - stream: goals:broadcast
+        name: broadcast
+        transform:
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+      - stream: insight:input
+        target_service: TARGET_SERVICE_INSIGHT_SERVICE
+        name: insight_trigger
+        transform:
+          message_type: MESSAGE_TYPE_INSIGHT_GOAL_TRIGGER
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+  - name: webhook_ingress_flow-routing
+    description: Route incoming webhooks to ETL and audit trail
+    condition:
+      message_type: MESSAGE_TYPE_WEBHOOK_INGRESS
+      source_stream: webhooks:ingress
+    action:
+      fan_out:
+      - stream: etl:input
+        target_service: TARGET_SERVICE_ETL_SERVICE
+        name: etl_processing
+        transform:
+          message_type: MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+        reliability:
+          retry:
+            max_attempts: 3
+            backoff: exponential
+          dlq:
+            stream: errors:failed
+            on_failure: route_to_dlq
+      - stream: audit:log
+        name: audit_log
+        transform:
+          message_type: MESSAGE_TYPE_AUDIT_WEBHOOK_RECEIVED
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+          add_metadata:
+            audit_type: webhook_ingress
+            retention_days: '365'
+  - name: backfill_trigger_flow-routing
+    description: Route backfill triggers to ETL processing
+    condition:
+      message_type: MESSAGE_TYPE_BACKFILL_TRIGGER
+      source_stream: backfill:trigger
+    action:
+      route_to_stream: etl:input
+      target_service: TARGET_SERVICE_ETL_SERVICE
+      transform:
+        message_type: MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+        preserve_keys: true
+        preserve_correlation_id: true
+        preserve_identity: true
+        add_metadata:
+          is_backfill: 'true'
+    reliability:
+      retry:
+        max_attempts: 5
+        backoff: exponential
+        initial_delay: 5s
+        max_delay: 5m
+      dlq:
+        stream: errors:failed
+        on_failure: route_to_dlq
+  - name: error_flow-routing
+    description: Route processing errors to DLQ and metrics collection
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_PROCESSING_ERROR
+      - MESSAGE_TYPE_ETL_FAILED
+      - MESSAGE_TYPE_POSTING_FAILED
+    action:
+      fan_out:
+      - stream: errors:failed
+        name: dead_letter_queue
+        transform:
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+          add_metadata:
+            routed_at: ${timestamp}
+      - stream: metrics:errors
+        name: error_metrics
+        transform:
+          message_type: MESSAGE_TYPE_ERROR_METRIC
+          preserve_keys: true
+          preserve_correlation_id: true
+          preserve_identity: true
+  - name: ai_analysis_flow-routing
+    description: Route AI analysis requests
+    condition:
+      message_type: MESSAGE_TYPE_AI_ANALYSIS_REQUEST
+      source_stream: ai:requests
+    action:
+      route_to_stream: ai:processing
+      target_service: TARGET_SERVICE_AI_SERVICE
+      transform:
+        preserve_keys: true
+        preserve_correlation_id: true
+        preserve_identity: true
+    reliability:
+      timeout: 30s
+      retry:
+        max_attempts: 2
+        backoff: constant
+        initial_delay: 1s
+  - name: etl-input-routing
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+      - MESSAGE_TYPE_JOB_ACCOUNTS_DATA_STAGED
+      - MESSAGE_TYPE_JOB_LIABILITIES_DATA_STAGED
+      - MESSAGE_TYPE_JOB_INVESTMENTS_DATA_STAGED
+      - MESSAGE_TYPE_JOB_IDENTITY_DATA_STAGED
+    action:
+      route_to_stream: etl:input
+      target_service: TARGET_SERVICE_ETL_SERVICE
+    reliability:
+      retry:
+        max_attempts: 3
+        initial_delay: 1s
+        max_delay: 30s
+        backoff: exponential
+        jitter: true
+      timeout: 5m
+      dlq:
+        stream: error:failed
+        on_failure: route_to_dlq
+        preserve_headers: true
+  - name: etl-complete-routing
+    condition:
+      message_type: MESSAGE_TYPE_ETL_COMPLETION
+    action:
+      route_to_stream: etl:complete
+      target_service: TARGET_SERVICE_POSTING_SERVICE
+  - name: sync-triggers-routing
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_POSTING_COMPLETED
+      - MESSAGE_TYPE_DATA_READY
+    action:
+      route_to_stream: sync:triggers
+      target_service: TARGET_SERVICE_SYNC_SERVICE
+  - name: webhooks-ingress-routing
+    condition:
+      message_type: MESSAGE_TYPE_WEBHOOK_INGRESS
+    action:
+      route_to_stream: webhooks:ingress
+      target_service: TARGET_SERVICE_ETL_SERVICE
+  - name: goals-input-routing
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_GOAL_EARMARK_REQUEST
+      - MESSAGE_TYPE_GOAL_SPEND_REQUEST
+      - MESSAGE_TYPE_GOAL_ALLOCATE_REQUEST
+      - MESSAGE_TYPE_GOAL_REFUND_REQUEST
+    action:
+      route_to_stream: goals:input
+      target_service: TARGET_SERVICE_GOAL_SERVICE
+  - name: goals-output-routing
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_GOAL_EARMARK_RESPONSE
+      - MESSAGE_TYPE_GOAL_SPEND_RESPONSE
+      - MESSAGE_TYPE_GOAL_ALLOCATE_RESPONSE
+      - MESSAGE_TYPE_GOAL_REFUND_RESPONSE
+    action:
+      route_to_stream: goals:output
+      target_service: TARGET_SERVICE_FINAPIS_SERVICE
+  - name: goals-broadcast-routing
+    condition:
+      message_type: MESSAGE_TYPE_GOAL_SUBLEDGER_WRITTEN
+    action:
+      route_to_stream: goals:broadcast
+      target_service: null
+  - name: insight-input-routing
+    condition:
+      message_type: MESSAGE_TYPE_INSIGHT_OLAP_TRIGGER
+    action:
+      route_to_stream: insight:input
+      target_service: TARGET_SERVICE_MONITORING_SERVICE
+  - name: backfill-trigger-routing
+    condition:
+      message_type: MESSAGE_TYPE_BACKFILL_TRIGGER
+    action:
+      route_to_stream: backfill:trigger
+      target_service: TARGET_SERVICE_ETL_SERVICE
+  - name: errors-failed-routing
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_PROCESSING_ERROR
+      - MESSAGE_TYPE_RETRY_REQUEST
+      - MESSAGE_TYPE_DEAD_LETTER
+      - MESSAGE_TYPE_ETL_FAILED
+      - MESSAGE_TYPE_POSTING_FAILED
+    action:
+      route_to_stream: errors:failed
+      target_service: null
+    reliability:
+      retry:
+        max_attempts: 1
+        backoff: constant
+  default:
+    stream: jobs:unrouted
+    log_level: warn
+idempotency:
+  default_ttl: 72h
+  rules:
+  - name: backfill_trigger_context-idempotency
+    action:
+      key_template: backfill:{header.identity.entity_id}:{connection_id}:{trigger_source}
+      ttl: 72h
+    condition:
+      message_type: MESSAGE_TYPE_BACKFILL_TRIGGER
+  - name: etl_job_context-idempotency
+    action:
+      key_template: etl:{header.identity.entity_id}:{header.identity.batch_id}:{header.identity.data_type}
+      ttl: 72h
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+      - MESSAGE_TYPE_JOB_ACCOUNTS_DATA_STAGED
+      - MESSAGE_TYPE_JOB_LIABILITIES_DATA_STAGED
+      - MESSAGE_TYPE_JOB_INVESTMENTS_DATA_STAGED
+      - MESSAGE_TYPE_JOB_IDENTITY_DATA_STAGED
+  - name: webhook_ingress_context-idempotency
+    action:
+      key_template: webhook:{idempotency_key}
+      ttl: 24h
+    condition:
+      message_type: MESSAGE_TYPE_WEBHOOK_INGRESS
+  - name: goal_operation_request-idempotency
+    action:
+      key_template: goal:{idempotency_key}
+      ttl: 72h
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_GOAL_EARMARK_REQUEST
+      - MESSAGE_TYPE_GOAL_SPEND_REQUEST
+      - MESSAGE_TYPE_GOAL_ALLOCATE_REQUEST
+      - MESSAGE_TYPE_GOAL_REFUND_REQUEST
+  default:
+    key_template: '{message_type}:{correlation_id}'
+    ttl: 72h
+  identity_context:
+    key_derivation: identity_context
+    algorithm: sha256
+    encoding: hex
+    description: Derive key from header.identity using canonical field ordering
+validation:
+  rules:
+  - name: require_core_headers
+    condition:
+      all_messages: true
+    action:
+      require_fields:
+      - header.correlation_id
+      - header.message_type
+      - header.source_service
+      on_failure: reject
+  - name: etl_requires_entity
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+      - MESSAGE_TYPE_JOB_ACCOUNTS_DATA_STAGED
+      - MESSAGE_TYPE_JOB_LIABILITIES_DATA_STAGED
+      - MESSAGE_TYPE_JOB_INVESTMENTS_DATA_STAGED
+      - MESSAGE_TYPE_JOB_IDENTITY_DATA_STAGED
+    action:
+      require_metadata:
+      - entity_id
+      - user_id
+      on_failure: reject
+  - name: backfill_requires_connection
+    condition:
+      message_type: MESSAGE_TYPE_BACKFILL_TRIGGER
+    action:
+      require_metadata:
+      - connection_id
+      - provider
+      on_failure: reject
+  - name: goal_requires_keys
+    condition:
+      message_type_in:
+      - MESSAGE_TYPE_GOAL_EARMARK_REQUEST
+      - MESSAGE_TYPE_GOAL_SPEND_REQUEST
+      - MESSAGE_TYPE_GOAL_ALLOCATE_REQUEST
+      - MESSAGE_TYPE_GOAL_REFUND_REQUEST
+    action:
+      require_metadata:
+      - entity_id
+      - user_id
+      - request_id
+      on_failure: reject
+handlers:
+  mappings:
+    etl_job_context:
+      handler_name: handle_etl_job
+      requires_idempotency: true
+    etl_completion_context:
+      handler_name: handle_etl_completion
+      requires_idempotency: true
+    posting_job_context:
+      handler_name: handle_posting_job
+      requires_idempotency: true
+    posting_completion_context:
+      handler_name: handle_posting_completion
+      requires_idempotency: true
+    sync_context:
+      handler_name: handle_sync
+      requires_idempotency: true
+    data_ready_context:
+      handler_name: handle_data_ready
+      requires_idempotency: true
+    ai_analysis_context:
+      handler_name: handle_ai_analysis
+      requires_idempotency: true
+    ai_analysis_response_context:
+      handler_name: handle_ai_analysis_response
+      requires_idempotency: true
+    system_metrics_context:
+      handler_name: handle_system_metrics
+      requires_idempotency: false
+    coa_update_context:
+      handler_name: handle_coa_update
+      requires_idempotency: true
+    webhook_ingress_context:
+      handler_name: handle_webhook_ingress
+      requires_idempotency: true
+      feature_flag: EnableWebhookIngressRouting
+    backfill_trigger_context:
+      handler_name: handle_backfill_trigger
+      requires_idempotency: true
+    insight_trigger_context:
+      handler_name: handle_insight_trigger
+      requires_idempotency: true
+    goal_operation_request:
+      handler_name: handle_goal_operation_request
+      requires_idempotency: true
+    goal_operation_response:
+      handler_name: handle_goal_operation_response
+      requires_idempotency: true
+    goal_subledger_event:
+      handler_name: handle_goal_subledger_event
+      requires_idempotency: true
+    suggestion_event:
+      handler_name: handle_suggestion_event
+      requires_idempotency: true
+    dead_letter_context:
+      handler_name: handle_dead_letter
+      requires_idempotency: false
+    retry_request_context:
+      handler_name: handle_retry_request
+      requires_idempotency: false
+    processing_error_context:
+      handler_name: handle_processing_error
+      requires_idempotency: false
+data_type_mappings:
+  DATA_TYPE_TRANSACTIONS: MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+  DATA_TYPE_ACCOUNTS: MESSAGE_TYPE_JOB_ACCOUNTS_DATA_STAGED
+  DATA_TYPE_LIABILITIES: MESSAGE_TYPE_JOB_LIABILITIES_DATA_STAGED
+  DATA_TYPE_INVESTMENTS: MESSAGE_TYPE_JOB_INVESTMENTS_DATA_STAGED
+  DATA_TYPE_IDENTITY: MESSAGE_TYPE_JOB_IDENTITY_DATA_STAGED
+stream_inference:
+  etl:input:
+  - MESSAGE_TYPE_JOB_TRANSACTION_DATA_STAGED
+  - MESSAGE_TYPE_JOB_ACCOUNTS_DATA_STAGED
+  - MESSAGE_TYPE_JOB_LIABILITIES_DATA_STAGED
+  - MESSAGE_TYPE_JOB_INVESTMENTS_DATA_STAGED
+  - MESSAGE_TYPE_JOB_IDENTITY_DATA_STAGED
+  etl:complete:
+  - MESSAGE_TYPE_ETL_COMPLETION
+  sync:triggers:
+  - MESSAGE_TYPE_POSTING_COMPLETED
+  - MESSAGE_TYPE_DATA_READY
+  webhooks:ingress:
+  - MESSAGE_TYPE_WEBHOOK_INGRESS
+  goals:input:
+  - MESSAGE_TYPE_GOAL_EARMARK_REQUEST
+  - MESSAGE_TYPE_GOAL_SPEND_REQUEST
+  - MESSAGE_TYPE_GOAL_ALLOCATE_REQUEST
+  - MESSAGE_TYPE_GOAL_REFUND_REQUEST
+  - MESSAGE_TYPE_GOAL_PROGRESS_CHECK
+  goals:output:
+  - MESSAGE_TYPE_GOAL_EARMARK_RESPONSE
+  - MESSAGE_TYPE_GOAL_SPEND_RESPONSE
+  - MESSAGE_TYPE_GOAL_ALLOCATE_RESPONSE
+  - MESSAGE_TYPE_GOAL_REFUND_RESPONSE
+  goals:broadcast:
+  - MESSAGE_TYPE_GOAL_SUBLEDGER_WRITTEN
+  insight:input:
+  - MESSAGE_TYPE_INSIGHT_OLAP_TRIGGER
+  - MESSAGE_TYPE_INSIGHT_GOAL_TRIGGER
+  backfill:trigger:
+  - MESSAGE_TYPE_BACKFILL_TRIGGER
+  errors:failed:
+  - MESSAGE_TYPE_PROCESSING_ERROR
+  - MESSAGE_TYPE_RETRY_REQUEST
+  - MESSAGE_TYPE_DEAD_LETTER
+  - MESSAGE_TYPE_ETL_FAILED
+  - MESSAGE_TYPE_POSTING_FAILED
+  posting:input:
+  - MESSAGE_TYPE_POSTING_JOB
+  audit:log:
+  - MESSAGE_TYPE_AUDIT_WEBHOOK_RECEIVED
+  metrics:errors:
+  - MESSAGE_TYPE_ERROR_METRIC
+  ai:processing:
+  - MESSAGE_TYPE_AI_ANALYSIS_REQUEST
+message_flows:
+  description: Fan-out flow definitions from contract.yaml
+  flows:
+  - etl_completion_flow
+  - posting_completion_flow
+  - goal_subledger_flow
+  - webhook_ingress_flow
+  - backfill_trigger_flow
+  - error_flow
+  - ai_analysis_flow
