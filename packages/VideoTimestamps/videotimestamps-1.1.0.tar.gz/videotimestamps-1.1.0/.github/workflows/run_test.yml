@@ -1,0 +1,88 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+
+jobs:
+  call-build-wheel:
+    uses: ./.github/workflows/build_wheel.yml
+
+  run-tests:
+    name: "Test (${{matrix.os}}, Python ${{ matrix.python-version }})"
+    runs-on: ${{ matrix.os }}
+    needs: call-build-wheel
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest, windows-11-arm]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - python-version: "3.10"
+            py_build: "cp310"
+          - python-version: "3.11"
+            py_build: "cp311"
+          - python-version: "3.12"
+            py_build: "cp312"
+          - python-version: "3.13"
+            py_build: "cp313"
+          - python-version: "3.14"
+            py_build: "cp314"
+        exclude:
+          - os: windows-11-arm
+            python-version: "3.10"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Download wheel artifact
+      uses: actions/download-artifact@v7
+      with:
+        name: wheel-${{ runner.os }}-${{ runner.arch }}
+        path: dist
+        merge-multiple: true
+
+    - name: Install wheel
+      run: |
+        pip install --no-index --find-links=dist videotimestamps
+        pip install videotimestamps[dev]
+
+    - name: Run tests
+      run: |
+        pytest
+
+    - name: Typecheck with mypy
+      run: |
+        mypy
+
+    - name: Check code with ruff
+      run: |
+        ruff check
+
+    - name: Delete
+      shell: bash
+      run: |
+        rm -rf video_timestamps
+
+    - name: Run coverage
+      run: |
+        coverage run --source=video_timestamps,tests -m pytest
+
+    - name: Generate coverage report
+      run: |
+        coverage xml
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        disable_file_fixes: true # temp patch for https://github.com/getsentry/prevent-cli/issues/101
+        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
