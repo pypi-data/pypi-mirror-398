@@ -1,0 +1,236 @@
+Metadata-Version: 2.4
+Name: musicxml-to-png
+Version: 0.2.3
+Summary: Convert MusicXML files into clean, analyzable PNG visualizations
+Author: Rob Mosher
+License: MIT
+Project-URL: Homepage, https://github.com/rob-mosher/musicxml-to-png
+Project-URL: Repository, https://github.com/rob-mosher/musicxml-to-png
+Project-URL: Issues, https://github.com/rob-mosher/musicxml-to-png/issues
+Keywords: musicxml,music,visualization,png,notation,orchestration,music-analysis,ai
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Multimedia :: Graphics
+Classifier: Topic :: Multimedia :: Sound/Audio
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: music21>=9.1.0
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: numpy>=1.24.0
+Dynamic: license-file
+
+# musicxml-to-png
+
+A tool for human-AI musical collaboration
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/rob-mosher/musicxml-to-png/v0.2.3/docs/images/screenshot.png" alt="Example visualization showing MusicXML converted to PNG" width="100%" style="max-width: 1200px;">
+</div>
+
+MusicXML is rich and expressive for human-facing notation software, but challenging for AI systems to "see" structurally. This tool bridges that gap by converting MusicXML files into visual representations that both humans and AI can analyze together. Designed for composers, arrangers, educators, and anyone exploring human-AI collaboration in music.
+
+## Quick Start
+
+**Requirements:** Python 3.12 or higher
+
+```bash
+# Install from PyPI
+pip install musicxml-to-png
+
+# Convert a MusicXML file
+musicxml-to-png your-score.mxl
+
+# With options
+musicxml-to-png your-score.mxl --ensemble bigband --minimal -o output.png
+```
+
+See [Installation](#installation) for development setup.
+
+## Features
+
+Convert MusicXML files into clean, analyzable PNG visualizations showing temporal flow (horizontal axis = time), pitch range (vertical axis = low to high), note duration (length of visual bars), and instrument identities (color-coded per instrument by default or by ensemble family when requested).
+
+**Use cases:** Human-AI collaboration on musical analysis, visual comparison of arrangements, AI pipeline integration for score processing, and educational visualization of orchestration principles.
+
+- Parse MusicXML files (.xml, .musicxml, .mxl)
+- Extract note events (pitch, duration, start time, instrument)
+- High-resolution 2D visualization (time × pitch) with fine-grained grid
+- Multiple ensemble types:
+  - Ungrouped (default): every part gets its own color, even if multiple of the same instrument appear
+  - Orchestra: strings, winds, brass, percussion
+  - Bigband: trumpets, trombones, saxophones, rhythm section
+  - (More ensemble types coming - jazz combo, chamber, etc.)
+- Color-coded instruments or families (per-instrument by default, ensemble palettes when requested)
+- Customizable visualization:
+  - Grid lines (enabled by default, disable with --no-grid)
+  - Minimal mode (remove all labels, legend, title, borders)
+  - Custom titles
+  - Verbose mode for debugging (-v/--verbose)
+- Export as high-resolution PNG (300 DPI)
+
+## Getting Your Music into MusicXML
+
+Most modern notation software can export to MusicXML format. Here are some popular options:
+
+**Desktop Software:**
+- **[Dorico](https://www.steinberg.net/dorico/)** - File → Export → MusicXML (or use compressed .mxl format)
+- **[Finale](https://www.finalemusic.com/)** - File → Export → MusicXML
+- **[LilyPond](https://lilypond.org/)** - Can export via `lilypond --formats=xml`
+- **[MuseScore](https://musescore.org/)** (Free, open source) - File → Export → MusicXML
+- **[Notion](https://www.presonus.com/products/Notion)** - File → Export → MusicXML
+- **[Overture](https://sonicscores.com/overture/)** - File → Export → MusicXML
+- **[Sibelius](https://www.avid.com/sibelius)** - File → Export → MusicXML
+
+**Web-Based:**
+- **[Flat.io](https://flat.io/)** - File → Export → MusicXML
+- **[Noteflight](https://www.noteflight.com/)** - File → Export → MusicXML
+
+For detailed export instructions, please refer to your notation software's documentation. Most software supports both uncompressed `.mxl` and compressed `.xml` formats - this tool handles both!
+
+## Installation
+
+### For End Users
+
+Simply install from PyPI:
+
+```bash
+pip install musicxml-to-png
+```
+
+**Note:** Requires Python 3.12 or higher. If you don't have Python 3.12, `pip` will show an error with installation instructions.
+
+### For Developers
+
+If you want to contribute or develop locally:
+
+1. **Python Version:** This project requires Python 3.12. The `.python-version` file will automatically set this if you use `pyenv`, `asdf`, or similar version managers.
+
+   Using pyenv:
+   ```bash
+   pyenv install 3.12  # If not already installed
+   python --version    # Verify it shows Python 3.12.x
+   ```
+
+2. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd musicxml-to-png
+   ```
+
+3. **Set up Python environment:**
+   ```bash
+   # Create and activate virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+   # Install dependencies
+   pip install -r requirements.txt
+
+   # Install package in development mode
+   pip install -e .
+   ```
+
+**Note:** Activate the virtual environment (`source venv/bin/activate`) each time you work on the project. You'll see `(venv)` in your prompt when active.
+
+## Usage
+
+### Command Line Interface
+
+Convert a MusicXML file to PNG:
+
+```bash
+musicxml-to-png input.xml
+```
+
+This creates `input.png` in the same directory. Supports both `.xml` and `.mxl` (compressed) MusicXML files.
+
+**Basic Options:**
+
+```bash
+# Specify custom output file
+musicxml-to-png input.xml -o output.png
+
+# Add custom title
+musicxml-to-png input.xml --title "My Composition"
+
+# Disable grid lines
+musicxml-to-png input.xml --no-grid
+
+# Minimal mode (no labels, legend, title, or borders)
+musicxml-to-png input.xml --minimal
+
+# Show music21 warnings and diagnostics
+musicxml-to-png input.xml --verbose
+# or
+musicxml-to-png input.xml -v
+```
+
+**Ensemble Types:**
+
+Select the instrument categorization scheme:
+
+```bash
+# Ungrouped (default) - every instrument gets its own color
+musicxml-to-png input.xml
+
+# Group by orchestra families
+musicxml-to-png input.xml --ensemble orchestra
+
+# Group by bigband families
+musicxml-to-png input.xml --ensemble bigband
+```
+
+**Combining Options:**
+
+```bash
+musicxml-to-png input.xml --ensemble bigband --minimal --no-grid -o output.png
+```
+
+### Python Library
+
+Use as a library in your Python code:
+
+```python
+from musicxml_to_png import convert_musicxml_to_png
+from pathlib import Path
+
+# Basic conversion
+output_path = convert_musicxml_to_png(
+    input_path=Path("input.xml"),
+    output_path=Path("output.png"),  # Optional
+    title="My Composition"  # Optional
+)
+
+# With all options
+output_path = convert_musicxml_to_png(
+    input_path=Path("input.xml"),
+    output_path=Path("output.png"),
+    title="My Composition",
+    show_grid=False,           # Disable grid lines
+    minimal=True,              # Remove all labels/borders
+    ensemble="bigband"         # Use bigband categorization
+)
+```
+
+## Contributing
+
+See [Roadmap](docs/roadmap.md) for planned features.
+
+This project emerged from human-AI collaborative exploration of musical structure. Contributions, ideas, and feedback are welcome!
+
+**Philosophy:** This tool exists to enable human-AI collaboration, not to replace human musical intuition. The goal is to create shared visual language that helps both humans and AI systems understand musical architecture more deeply.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+Built through collaborative iteration between human musical expertise and AI technical assistance. Created to bridge the gap between MusicXML (machine-readable but visually dense) and visual analysis (human-friendly and AI-parseable).
+
+**Special thanks to:** The music21 project for their excellent MusicXML parsing library.
