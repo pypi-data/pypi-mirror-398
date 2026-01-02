@@ -1,0 +1,233 @@
+# testudos
+
+A testing harness for Python packages using [uv](https://docs.astral.sh/uv/)'s isolated environments.
+
+## Overview
+
+Testudos simplifies running your Python package's test suite across multiple Python versions. It automatically determines which versions to test based on:
+
+1. **Currently supported Python versions** - Fetched from [endoflife.date](https://endoflife.date/python)
+2. **Your package's compatibility** - Parsed from `requires-python` in `pyproject.toml`
+
+Only versions that are both *still supported by Python* and *compatible with your package* are tested.
+
+## Quick Start
+
+```bash
+# Install testudos
+uv tool install testudos
+
+# Run tests on all compatible Python versions
+testudos run
+
+# Run tests in parallel for speed
+testudos run --parallel
+
+# See which versions would be tested
+testudos versions
+
+# Preview commands without running (dry-run)
+testudos run --dry-run
+```
+
+## Installation
+
+```bash
+# Using uv (recommended)
+uv tool install testudos
+
+# Using pip
+pip install testudos
+```
+
+### Requirements
+
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) - Fast Python package installer
+
+## Usage
+
+### Running Tests
+
+```bash
+# Run tests on all compatible versions (sequential)
+testudos run
+
+# Run tests in parallel
+testudos run --parallel
+testudos run -P
+
+# Limit parallel jobs
+testudos run --parallel --jobs 4
+testudos run -P -j 4
+
+# Test specific Python versions
+testudos run --python 3.11 --python 3.12
+testudos run -p 3.11 -p 3.12
+
+# Fail fast (stop on first failure) - default in sequential mode
+testudos run --fail-fast
+testudos run -f
+
+# Continue on failures
+testudos run --no-fail-fast
+testudos run -F
+
+# Verbose output
+testudos run --verbose
+testudos run -v
+
+# Dry run - show what would be executed
+testudos run --dry-run
+testudos run -n
+
+# Test a specific project directory
+testudos run ./path/to/project
+```
+
+### Test Coverage
+
+Testudos can collect and aggregate test coverage data across all Python versions:
+
+```bash
+# Run tests with coverage collection
+testudos run --coverage
+
+# Run with coverage and generate HTML report
+testudos run --coverage --coverage-report html
+
+# Run with coverage threshold (fail if below 80%)
+testudos run --coverage --coverage-fail-under 80
+
+# Multiple report formats
+testudos run --coverage --coverage-report html --coverage-report xml
+
+# Available report formats: term, term-missing, html, xml, json, lcov
+```
+
+#### Coverage Commands
+
+Manage coverage data manually:
+
+```bash
+# Combine coverage from multiple Python versions
+testudos coverage combine
+
+# Generate coverage report
+testudos coverage report
+testudos coverage report --format html
+
+# Clean coverage data
+testudos coverage clean
+```
+
+#### Installing Coverage Support
+
+Coverage collection requires the `coverage` package:
+
+```bash
+# Install testudos with coverage support
+pip install testudos[coverage]
+
+# Or add coverage to your project dependencies
+uv add coverage
+```
+
+### Viewing Versions
+
+```bash
+# Show versions that would be tested
+testudos versions
+
+# Show versions for a specific project
+testudos versions ./path/to/project
+```
+
+## Configuration
+
+Configure testudos in your `pyproject.toml`:
+
+```toml
+[project]
+requires-python = ">=3.11"
+
+[tool.testudos]
+# Optional: Override auto-detected Python versions
+python-versions = ["3.11", "3.12", "3.13"]
+
+# Test command to run (default: "pytest")
+test-command = "pytest"
+
+# Additional arguments for test command
+test-args = ["-v", "--tb=short"]
+
+# Run tests in parallel by default
+parallel = false
+
+# Maximum parallel jobs (default: number of versions)
+max-jobs = 4
+
+# Coverage options
+coverage = true                     # Enable coverage collection
+coverage-combine = true             # Combine coverage from all versions
+coverage-report = ["html", "xml"]   # Report formats to generate
+coverage-fail-under = 80            # Fail if coverage below threshold
+```
+
+### Configuration Validation
+
+Testudos validates your configuration on load and will:
+- **Error** on invalid types or values
+- **Warn** on unknown configuration keys
+
+## How It Works
+
+Testudos uses `uv run --isolated` to create ephemeral, isolated environments for each Python version. This ensures:
+
+1. **Clean test environments** - No leftover state between versions
+2. **Fast execution** - uv's caching makes environment creation nearly instant
+3. **No version conflicts** - Each version is completely isolated
+
+### Example Command
+
+For Python 3.11, testudos runs:
+```bash
+uv run --isolated --python=3.11 pytest
+```
+
+## Features
+
+- **Automatic version detection**: Fetches supported versions from endoflife.date API
+- **Smart caching**: 24-hour TTL cache for API responses with offline fallback
+- **Parallel execution**: Run tests concurrently with live progress display
+- **Coverage aggregation**: Collect and combine coverage data across all Python versions
+- **Dry-run mode**: Preview commands without execution
+- **Configuration validation**: Schema validation for `[tool.testudos]` settings
+- **Input validation**: Safe command construction with validation
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) - Detailed design and component overview
+- [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) - Development phases and tasks
+- [Future Enhancements](docs/ISSUES.md) - Planned features and issue descriptions
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/martinristovski/testudos.git
+cd testudos
+
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Run testudos on itself
+uv run testudos run
+```
+
+## License
+
+MIT
