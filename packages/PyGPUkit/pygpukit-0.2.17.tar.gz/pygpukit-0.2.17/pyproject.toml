@@ -1,0 +1,128 @@
+[build-system]
+requires = ["scikit-build-core>=0.5.0", "pybind11>=2.11.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "PyGPUkit"
+version = "0.2.17"
+description = "A lightweight GPU runtime for Python with Rust-powered scheduler, NVRTC JIT compilation, and NumPy-like API"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "m96-chan"}
+]
+keywords = ["gpu", "cuda", "nvrtc", "jit", "numpy", "array"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "psutil>=5.0.0",
+    "pre-commit>=3.0.0",
+]
+triton = [
+    "triton>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/m96-chan/PyGPUkit"
+Repository = "https://github.com/m96-chan/PyGPUkit"
+Issues = "https://github.com/m96-chan/PyGPUkit/issues"
+
+[tool.scikit-build]
+cmake.source-dir = "native"
+cmake.build-type = "Release"
+wheel.packages = ["src/pygpukit"]
+wheel.install-dir = "pygpukit"
+wheel.py-api = ""
+# Ninja generator for faster builds
+cmake.args = ["-GNinja"]
+build.targets = []
+sdist.include = ["native/*", "rust/*"]
+sdist.exclude = ["native/build/*", "rust/target/*"]
+
+# [tool.scikit-build.cmake.define]
+# SM architectures are controlled via CMAKE_CUDA_ARCHITECTURES:
+# - CMakeLists.txt default: "80;86;89;90" (CUDA 12.x compatible)
+# - Override via CMAKE_ARGS env var: CMAKE_ARGS=-DCMAKE_CUDA_ARCHITECTURES=120
+# - SM100+ (Blackwell) requires CUDA 12.8+ or 13.x
+
+[tool.cibuildwheel]
+# Skip PyPy, 32-bit builds, and musllinux
+skip = ["pp*", "*-win32", "*-manylinux_i686", "*musllinux*"]
+
+# Only build for Linux and Windows (CUDA support)
+build = ["cp39-*", "cp310-*", "cp311-*", "cp312-*"]
+
+[tool.cibuildwheel.linux]
+# Use manylinux with CUDA
+manylinux-x86_64-image = "manylinux2014"
+before-all = [
+    # Install CUDA Toolkit
+    "yum install -y wget",
+    "wget https://developer.download.nvidia.com/compute/cuda/12.4.0/local_installers/cuda-repo-rhel7-12-4-local-12.4.0_550.54.14-1.x86_64.rpm",
+    "rpm -i cuda-repo-rhel7-12-4-local-12.4.0_550.54.14-1.x86_64.rpm",
+    "yum clean all",
+    "yum install -y cuda-toolkit-12-4",
+]
+environment = { PATH = "/usr/local/cuda-12.4/bin:$PATH", CUDA_HOME = "/usr/local/cuda-12.4" }
+
+[tool.cibuildwheel.windows]
+before-build = [
+    # CUDA should be pre-installed on the runner
+    "pip install pybind11",
+]
+environment = { CUDA_PATH = "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "gpu: marks tests that require GPU hardware",
+    "slow: marks tests as slow",
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = ["E402", "B007", "F841", "F821"]
+"src/pygpukit/jit/compiler.py" = ["E402", "F841"]
+"bench*.py" = ["E402", "F841"]
+"test_*.py" = ["E402", "F841"]
+"demo_*.py" = ["E402", "F841"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
