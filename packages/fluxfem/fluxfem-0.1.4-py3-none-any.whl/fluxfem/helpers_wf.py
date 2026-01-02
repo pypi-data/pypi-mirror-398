@@ -1,0 +1,48 @@
+"""WeakForm/Expr helpers (symbolic operators)."""
+from __future__ import annotations
+
+from .core.weakform import (
+    grad,
+    sym_grad,
+    dot,
+    sdot,
+    ddot,
+    inner,
+    action,
+    gaction,
+    outer,
+    I,
+    det,
+    inv,
+    transpose,
+    transpose_last2,
+    matmul,
+    matmul_std,
+    log,
+    normal,
+    ds,
+    dOmega,
+)
+
+__all__ = [
+    "grad",
+    "sym_grad",
+    "dot",
+    "sdot",
+    "ddot",
+    "inner",
+    "action",
+    "gaction",
+    "outer",
+    "I",
+    "det",
+    "inv",
+    "transpose",
+    "transpose_last2",
+    "matmul",
+    "matmul_std",
+    "log",
+    "normal",
+    "ds",
+    "dOmega",
+]
