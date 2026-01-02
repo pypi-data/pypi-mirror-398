@@ -1,0 +1,107 @@
+Metadata-Version: 2.4
+Name: nanobot
+Version: 0.4.1
+Summary: Minimalist robot navigation framework using cascading decision nodes
+Author: NanoBot Team
+License-Expression: MIT
+Keywords: robot,navigation,nodes,jetson,nano
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: server
+Requires-Dist: requests>=2.20.0; extra == "server"
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Dynamic: license-file
+
+# NanoBot
+
+Minimalist robot navigation framework using **cascading decision nodes**.
+
+For **NVIDIA Jetson** robots (Nano, Orin, Xavier, TX2) - Python 3.6+
+
+## Principle
+
+Nodes execute in cascade by priority. First to return a decision wins.
+
+```
+SafetyNode (0)      -> Avoid collisions
+NavigationNode (10) -> Handle turns
+ExplorerNode (50)   -> Move forward
+```
+
+## Install
+
+```bash
+pip install nanobot
+```
+
+## Quick Start
+
+```python
+from nanobot import NodeEngine, SensorData
+from nanobot.nodes import SafetyNode, NavigationNode, ExplorerNode
+
+engine = NodeEngine()
+engine.add_node(SafetyNode())
+engine.add_node(NavigationNode())
+engine.add_node(ExplorerNode())
+
+while True:
+    sensors = SensorData(front=1.5, left=0.8, right=0.6)
+    decision = engine.tick(sensors)
+    if decision:
+        robot.execute(decision.action, decision.speed)
+```
+
+## CLI
+
+```bash
+python -m nanobot                    # Local simulation
+python -m nanobot -s 192.168.1.1:8777  # Connect to server
+```
+
+## Custom Node
+
+```python
+from nanobot.core import Node, Decision, Action
+
+class MyNode(Node):
+    def __init__(self):
+        super().__init__("MY_NODE", priority=25)
+
+    def evaluate(self, sensors):
+        if sensors.front < 0.5:
+            return Decision(Action.STOP, 0.0, "Too close")
+        return None  # Pass to next node
+```
+
+## Available Nodes
+
+- `SafetyNode` (0) - Collision avoidance
+- `NavigationNode` (10) - Turn handling
+- `PathfindingNode` (20) - A* navigation
+- `WallFollowerNode` (30) - Wall following with PID
+- `ExplorationNode` (40) - Frontier exploration
+- `ExplorerNode` (50) - Basic forward movement
+
+## Actions
+
+`FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `STOP`
+
+## License
+
+MIT
