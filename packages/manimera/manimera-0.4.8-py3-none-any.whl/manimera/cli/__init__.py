@@ -1,0 +1,3 @@
+"""
+Manimera CLI Package.
+"""
