@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import collapse, action_btn %}
+{% from "partials/icons.html" import play, square, rotate_cw, download, cloud_download, file_text, save, file_code, terminal, settings, external_link %}
+{% block title %}{{ name }} - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl" data-stack-name="{{ name }}" data-services="{{ services | join(',') }}" data-containers='{{ containers | tojson }}' data-website-urls='{{ website_urls | tojson }}'>
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold rainbow-hover">{{ name }}</h1>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            {% if current_host %}
+                <span class="badge badge-success">Running on {{ current_host }}</span>
+            {% else %}
+                <span class="badge badge-neutral">Not running</span>
+            {% endif %}
+            <span class="badge badge-outline">{{ hosts | join(', ') }}</span>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <!-- Lifecycle -->
+        {{ action_btn("Up", "/api/stack/" ~ name ~ "/up", "primary", "Start stack (docker compose up -d)", play()) }}
+        {{ action_btn("Down", "/api/stack/" ~ name ~ "/down", "outline", "Stop stack (docker compose down)", square()) }}
+        {{ action_btn("Restart", "/api/stack/" ~ name ~ "/restart", "secondary", "Restart stack (down + up)", rotate_cw()) }}
+        {{ action_btn("Update", "/api/stack/" ~ name ~ "/update", "accent", "Update to latest (pull + build + down + up)", download()) }}
+
+        <div class="divider divider-horizontal mx-0"></div>
+
+        <!-- Other -->
+        {{ action_btn("Pull", "/api/stack/" ~ name ~ "/pull", "outline", "Pull latest images (no restart)", cloud_download()) }}
+        {{ action_btn("Logs", "/api/stack/" ~ name ~ "/logs", "outline", "Show recent logs", file_text()) }}
+        <div class="tooltip" data-tip="Save compose and .env files"><button id="save-btn" class="btn btn-outline">{{ save() }} Save All</button></div>
+
+        {% if website_urls %}
+        <div class="divider divider-horizontal mx-0"></div>
+
+        <!-- Open Website -->
+        {% for url in website_urls %}
+        <div class="tooltip" data-tip="Open {{ url }}">
+            <a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                {{ external_link() }} {% if website_urls | length > 1 %}{{ url | replace('https://', '') | replace('http://', '') }}{% else %}Open Website{% endif %}
+            </a>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    {% call collapse("Compose File", badge=compose_path, icon=file_code()) %}
+        <div class="editor-wrapper yaml-wrapper">
+            <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/stack/{{ name }}/compose"></div>
+        </div>
+    {% endcall %}
+
+    {% call collapse(".env File", badge=env_path, icon=settings()) %}
+        <div class="editor-wrapper env-wrapper">
+            <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/stack/{{ name }}/env"></div>
+        </div>
+    {% endcall %}
+
+    {% include "partials/terminal.html" %}
+
+    <!-- Exec Terminal -->
+    {% if current_host %}
+    {% call collapse("Container Shell", id="exec-collapse", checked=True, icon=terminal()) %}
+        <div id="containers-list" class="mb-4"
+             hx-get="/api/stack/{{ name }}/containers"
+             hx-trigger="load"
+             hx-target="this"
+             hx-select="unset"
+             hx-swap="innerHTML">
+            <span class="loading loading-spinner loading-sm"></span> Loading containers...
+        </div>
+        <div id="exec-terminal-container" class="bg-[#1a1a2e] rounded-lg h-[400px] border border-white/10 hidden">
+            <div id="exec-terminal" class="h-full"></div>
+        </div>
+    {% endcall %}
+    {% endif %}
+</div>
+{% endblock %}

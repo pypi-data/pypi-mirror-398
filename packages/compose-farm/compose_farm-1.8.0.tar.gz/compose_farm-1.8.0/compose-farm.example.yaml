@@ -1,0 +1,30 @@
+# Example Compose Farm configuration
+# Copy to ~/.config/compose-farm/compose-farm.yaml or ./compose-farm.yaml
+
+compose_dir: /opt/compose
+
+# Optional: Auto-regenerate Traefik file-provider config after up/down/restart/update
+traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
+traefik_stack: traefik  # Skip stacks on same host (docker provider handles them)
+
+hosts:
+  # Full form with all options
+  server-1:
+    address: 192.168.1.10
+    user: docker
+    port: 22
+
+  # Short form (just address, user defaults to current user)
+  server-2: 192.168.1.11
+
+  # Local execution (no SSH)
+  local: localhost
+
+stacks:
+  # Map stack names to hosts
+  # Compose file expected at: {compose_dir}/{stack}/compose.yaml
+  traefik: server-1    # Traefik runs here
+  plex: server-2       # Stacks on other hosts get file-provider entries
+  jellyfin: server-2
+  grafana: server-1
+  nextcloud: local

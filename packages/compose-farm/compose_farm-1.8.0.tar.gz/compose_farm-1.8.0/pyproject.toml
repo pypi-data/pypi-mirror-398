@@ -1,0 +1,199 @@
+[project]
+name = "compose-farm"
+dynamic = ["version"]
+description = "Compose Farm - run docker compose commands across multiple hosts"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Bas Nijholt", email = "bas@nijho.lt" }
+]
+maintainers = [
+    { name = "Bas Nijholt", email = "bas@nijho.lt" }
+]
+requires-python = ">=3.11"
+keywords = [
+    "docker",
+    "docker-compose",
+    "ssh",
+    "devops",
+    "deployment",
+    "container",
+    "orchestration",
+    "multi-host",
+    "homelab",
+    "self-hosted",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = [
+    "typer>=0.9.0",
+    "pydantic>=2.0.0",
+    "asyncssh>=2.14.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+web = [
+    "fastapi[standard]>=0.109.0",
+    "jinja2>=3.1.0",
+    "websockets>=12.0",
+    "humanize>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/basnijholt/compose-farm"
+Repository = "https://github.com/basnijholt/compose-farm"
+Documentation = "https://github.com/basnijholt/compose-farm#readme"
+Issues = "https://github.com/basnijholt/compose-farm/issues"
+Changelog = "https://github.com/basnijholt/compose-farm/releases"
+
+[project.scripts]
+compose-farm = "compose_farm.cli:app"
+cf = "compose_farm.cli:app"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/compose_farm/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/compose_farm"]
+
+[tool.hatch.build.hooks.custom]
+# Vendors CDN assets (JS/CSS) into the wheel for offline use
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "T20",     # allow print-style streaming output
+    "S101",    # assertions are fine in tests
+    "S603",    # `subprocess` is constrained and intentional
+    "ANN002",  # allow args without type comments in some call sites
+    "ANN003",  # allow kwargs without type comments in some call sites
+    "ANN401",  # allow `Any` for external library hooks
+    "D401",    # short docstrings are acceptable
+    "D402",    # allow "Return" in first line
+    "PLW0603", # global statements not used here
+    "SLF001",  # internal attributes may be accessed in helpers
+    "PLR0913", # typer command signatures naturally take many params
+    "TD002",   # allow TODOs without issue links
+    "E501",    # formatter handles line length
+    "TRY300",  # nested try blocks sometimes clearer for SSH flows
+    "FBT001",  # boolean positional args in CLI are acceptable
+    "FBT002",  # boolean keyword-only args in CLI are acceptable
+    "BLE001",  # broad exceptions acceptable when surfacing remote errors
+    "COM812",  # avoid formatter conflicts
+    "ISC001",  # allow implicit string concat on single line when clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "S108", "D102", "D103", "PLC0415", "ARG001", "ARG002", "TC003"]  # relaxed for tests
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "asyncssh.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "compose_farm.web.*"
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "docs.demos.web.*"
+disallow_untyped_decorators = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--cov=compose_farm",
+    "--cov-report=term",
+    "--cov-report=xml",
+    "--cov-report=html",
+    "--no-cov-on-fail",
+    "-v",
+]
+markers = [
+    "browser: marks tests as browser tests (deselect with '-m \"not browser\"')",
+]
+
+[tool.coverage.run]
+omit = []
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    'if __name__ == "__main__":',
+]
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.src]
+exclude = [
+    "hatch_build.py",  # Build-time only, hatchling not in dev deps
+    "docs/demos/**",   # Demo scripts with local conftest imports
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.0",
+    "ty>=0.0.1a13",
+    "pre-commit>=4.5.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.14.8",
+    "types-pyyaml>=6.0.12.20250915",
+    "markdown-code-runner>=0.7.0",
+    # Web deps for type checking (these ship with inline types)
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "jinja2>=3.1.0",
+    "websockets>=12.0",
+    # For FastAPI TestClient
+    "httpx>=0.28.0",
+    # For browser tests (use system chromium via nix-shell -p chromium)
+    "pytest-playwright>=0.7.0",
+    # For parallel test execution
+    "pytest-xdist>=3.0.0",
+]
