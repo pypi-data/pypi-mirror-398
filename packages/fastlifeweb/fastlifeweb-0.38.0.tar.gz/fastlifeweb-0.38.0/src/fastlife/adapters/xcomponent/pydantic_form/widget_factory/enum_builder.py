@@ -1,0 +1,57 @@
+"""Handle Enum type."""
+
+from collections.abc import Mapping
+from enum import Enum
+from typing import Any
+
+from pydantic.fields import FieldInfo
+
+from fastlife.adapters.xcomponent.pydantic_form.widget_factory.base import (
+    BaseWidgetBuilder,
+)
+from fastlife.adapters.xcomponent.pydantic_form.widgets.base import Widget
+from fastlife.adapters.xcomponent.pydantic_form.widgets.dropdown import DropDownWidget
+
+
+class EnumBuilder(BaseWidgetBuilder[Enum]):
+    """Builder for Enum."""
+
+    def accept(self, typ: type[Any], origin: type[Any] | None) -> bool:
+        """True for Enum."""
+        return issubclass(typ, Enum)
+
+    def build(
+        self,
+        *,
+        field_name: str,
+        field_type: type[Any],  # an enum subclass
+        field: FieldInfo | None,
+        value: Enum | None,  # str | int | float,
+        form_errors: Mapping[str, Any],
+        removable: bool,
+    ) -> Widget[Enum]:
+        """Build the widget."""
+        options = [(str(item.value), item.value) for item in field_type]  # type: ignore
+        if isinstance(value, str):
+            # if the form was invalid, we rebuild the enum with a model
+            # that has not been validate, so we rebuild the type here.
+            try:
+                value = field_type(value)
+            except ValueError:
+                # we are neither supposed to failed nor responsible to report the error
+                value = None
+        return DropDownWidget(
+            name=field_name,
+            options=options,  # type: ignore
+            removable=removable,
+            title=field.title or "" if field else "",
+            hint=field.description if field else None,
+            aria_label=(
+                field.json_schema_extra.get("aria_label")  # type:ignore
+                if field and field.json_schema_extra
+                else None
+            ),
+            token=self.factory.token,
+            value=value.value if value else "",
+            error=form_errors.get(field_name),
+        )
