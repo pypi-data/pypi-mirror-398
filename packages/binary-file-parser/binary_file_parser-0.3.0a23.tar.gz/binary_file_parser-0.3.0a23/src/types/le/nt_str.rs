@@ -1,0 +1,141 @@
+use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyTuple, PyType};
+use crate::types::bfp_type::BfpType;
+use crate::types::byte_stream::ByteStream;
+use crate::types::context::Context;
+use crate::types::le::encoding::Encoding;
+use crate::types::le::size::Size;
+use crate::types::le::utils::{str_from_bytes, str_to_bytes};
+use crate::types::parseable::Parseable;
+use crate::types::version::Version;
+
+#[pyclass(module = "bfp_rs.types.le", name = "NtStr")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NtStr {
+    pub len_type: Option<Size>,
+    enc1: Encoding,
+    enc2: Option<Encoding>,
+}
+
+impl NtStr {
+    pub fn c_str() -> Self {
+        Self {
+            len_type: None,
+            enc1: Encoding::UTF8,
+            enc2: Some(Encoding::LATIN1),
+        }
+    }
+    pub fn len_size(len_type: Size) -> Self {
+        Self {
+            len_type: Some(len_type),
+            enc1: Encoding::UTF8,
+            enc2: Some(Encoding::LATIN1),
+        }
+    }
+}
+
+impl Parseable for NtStr {
+    type Type = String;
+
+    #[cfg_attr(feature = "inline_always", inline(always))]
+    fn from_stream_ctx(&self, stream: &mut ByteStream, _ver: &Version, _ctx: &mut Context) -> PyResult<Self::Type> {
+        let Some(len_size) = &self.len_type else {
+            let mut bytes = Vec::new();
+            for byte in stream {
+                let byte = byte?;
+                if byte == 0 {
+                    break;
+                }
+                bytes.push(byte);
+            }
+            return str_from_bytes(&bytes, &self.enc1, &self.enc2)
+        };
+        let len = len_size.from_stream(stream, _ver)?;
+        let bytes = stream.get(len)?;
+        
+        let len = match bytes.iter().position(|&c| c == 0) {
+            Some(len) => len,
+            None      => bytes.len(),
+        };
+        str_from_bytes(&bytes[0..len], &self.enc1, &self.enc2)
+    }
+
+    #[cfg_attr(feature = "inline_always", inline(always))]
+    fn to_bytes_in(&self, value: &Self::Type, buffer: &mut Vec<u8>) -> PyResult<()> {
+        let Some(len_size) = &self.len_type else {
+            str_to_bytes(value, &self.enc1, &self.enc2, buffer)?;
+            buffer.push(0);
+            return Ok(());
+        };
+        let num_len_bytes = len_size.num_bytes();
+        
+        let start = buffer.len();
+        buffer.resize(buffer.len() + num_len_bytes, 0);
+        
+        let content_start = buffer.len();
+        str_to_bytes(value, &self.enc1, &self.enc2, buffer)?;
+        buffer.push(0);
+        let mut len = buffer.len() - content_start;
+
+        if let Size::Fixed(fixed_len) = *len_size {
+            if len < fixed_len {
+                buffer.resize(content_start + fixed_len, 0);
+                len = fixed_len;
+            }
+        }
+        let len_bytes = len_size.to_bytes_array(len)?;
+        buffer[start..content_start].copy_from_slice(&len_bytes[..num_len_bytes]);
+
+        Ok(())
+    }
+}
+
+
+#[pymethods]
+impl NtStr {
+    #[pyo3(name = "to_bytes")]
+    fn to_bytes_py(slf: PyRef<Self>, value: <Self as Parseable>::Type) -> PyResult<Bound<PyBytes>> {
+        let bytes = slf.to_bytes(&value)?;
+        Ok(PyBytes::new(slf.py(), &bytes))
+    }
+
+    #[pyo3(name = "from_stream", signature = (stream, ver = Version::new(vec![0,])))]
+    fn from_stream_py(slf: PyRef<Self>, stream: &mut ByteStream, ver: Version) -> PyResult<<Self as Parseable>::Type> {
+        slf.from_stream(stream, &ver)
+    }
+
+    #[pyo3(name = "from_file")]
+    fn from_file_py(slf: PyRef<Self>, filepath: &str) -> PyResult<<Self as Parseable>::Type> {
+        slf.from_file(filepath)
+    }
+    #[pyo3(name = "from_bytes", signature = (bytes, ver = Version::new(vec![0,])))]
+    fn from_bytes_py(slf: PyRef<Self>, bytes: &[u8], ver: Version) -> PyResult<<Self as Parseable>::Type> {
+        slf.from_bytes(bytes, &ver)
+    }
+    #[pyo3(name = "to_file")]
+    fn to_file_py(slf: PyRef<Self>, filepath: &str, value: <Self as Parseable>::Type) -> PyResult<()> {
+        slf.to_file(filepath, &value)
+    }
+
+    pub fn __getitem__(&self, encodings: &Bound<PyAny>) -> PyResult<BfpType> {
+        if let Ok(enc1) = encodings.extract::<Encoding>() {
+            return Ok(BfpType::NTStr(NtStr { len_type: self.len_type.clone(), enc1, enc2: None }));
+        }
+        let Ok(tup) = encodings.cast::<PyTuple>() else {
+            return Err(PyTypeError::new_err("Only encodings may be specified as arguments to string types"))
+        };
+        if tup.len() != 2 {
+            return Err(PyTypeError::new_err("Only a maximum of two encodings may be provided. Help: Check for trailing commas"))
+        }
+        let (enc1, enc2) = unsafe { (tup.get_item_unchecked(0), tup.get_item_unchecked(1)) };
+        let (enc1, enc2) = (enc1.extract()?, enc2.extract()?);
+        
+        Ok(BfpType::NTStr(NtStr { len_type: self.len_type.clone(), enc1, enc2: Some(enc2) }))
+    }
+
+    #[classmethod]
+    pub fn __class_getitem__(_cls: &Bound<PyType>, len: usize) -> PyResult<BfpType> {
+        Ok(BfpType::NTStr(NtStr::len_size(Size::Fixed(len))))
+    }
+}
