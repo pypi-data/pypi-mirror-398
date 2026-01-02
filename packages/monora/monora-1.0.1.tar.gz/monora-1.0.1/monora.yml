@@ -1,0 +1,115 @@
+# Sample Monora configuration
+
+defaults:
+  data_classification: internal
+  purpose: general
+  service_name: my-app
+  environment: production
+
+sinks:
+  - type: stdout
+    format: json
+
+  - type: file
+    path: ./monora_events.jsonl
+    rotation: daily
+    max_size_mb: 100
+    batch_size: 100
+    flush_interval_sec: 5.0
+
+  - type: https
+    endpoint: https://collector.example.com/v1/events
+    headers:
+      Authorization: "Bearer ${MONORA_API_KEY}"
+    batch_size: 50
+    timeout_sec: 10.0
+    retry_attempts: 3
+
+immutability:
+  enabled: true
+  scope: per_trace
+  hash_algorithm: sha256
+
+registry:
+  version: "1.0.0"
+  history:
+    - version: "1.0.0"
+      date: "2025-01-01"
+      changes:
+        - "Initial provider registry"
+  default_provider: unknown
+  allow_unknown: true
+  providers:
+    - name: openai
+      model_patterns: ["gpt-*", "o1-*"]
+      version_range: ">=1.0.0,<2.0.0"
+      deprecated: false
+    - name: anthropic
+      model_patterns: ["claude-*"]
+      version_range: ">=1.0.0,<2.0.0"
+      deprecated: false
+    - name: deepseek
+      model_patterns: ["deepseek:*", "deepseek*"]
+      version_range: ">=0.9.0,<1.0.0"
+      deprecated: true
+      deprecation_message: "DeepSeek v0.x models are deprecated"
+
+instrumentation:
+  enabled: false
+  targets: ["openai", "anthropic"]
+  default_purpose: general
+  data_classification: null
+  reason: null
+  fail_fast: false
+
+data_handling:
+  enabled: true
+  mode: redact  # redact|block|allow
+  rules:
+    - name: email
+      pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+      replace: "[REDACTED_EMAIL]"
+      classifications: ["confidential", "secret"]
+      apply_to: ["request", "response", "tool_args", "tool_result", "agent_input", "agent_output"]
+
+policies:
+  model_allowlist:
+    - "gpt-4*"
+    - "gpt-3.5*"
+    - "claude-3-*"
+
+  model_denylist:
+    - "deepseek:*"
+    - "*alpha*"
+
+  classification_max_models:
+    secret:
+      allowed:
+        - "claude-3-opus-20240229"
+        - "gpt-4-*"
+    confidential:
+      denied:
+        - "*mini*"
+
+  enforce: true
+
+alerts:
+  violation_webhook: https://hooks.example.com/monora
+  headers:
+    Authorization: "Bearer ${MONORA_ALERTS_KEY}"
+  timeout_sec: 5.0
+  retry_attempts: 3
+  backoff_base_sec: 0.5
+  queue_size: 200
+
+error_handling:
+  sink_failure_mode: warn
+  log_user_exceptions: true
+  queue_full_mode: warn  # set to block for strict audit completeness
+  fallback_path: ./monora_fallback.jsonl
+
+buffering:
+  queue_size: 1000
+  batch_size: 50
+  flush_interval_sec: 1.0
+  queue_full_timeout_sec: null
