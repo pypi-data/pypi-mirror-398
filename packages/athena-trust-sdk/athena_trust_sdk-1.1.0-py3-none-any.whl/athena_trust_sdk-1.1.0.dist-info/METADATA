@@ -1,0 +1,349 @@
+Metadata-Version: 2.4
+Name: athena-trust-sdk
+Version: 1.1.0
+Summary: ATHENA Trust Calibration SDK - Detect automation bias, calibrate trust, ensure compliance
+Project-URL: Homepage, https://github.com/athena-ai/sdk-python
+Project-URL: Documentation, https://docs.athena.ai/sdk/python
+Project-URL: Repository, https://github.com/athena-ai/sdk-python
+Project-URL: Issues, https://github.com/athena-ai/sdk-python/issues
+Author-email: ATHENA <support@athena.ai>
+License-Expression: MIT
+Keywords: ai-safety,athena,automation-bias,bias-amplification,bias-detection,compliance,eu-ai-act,external-bias,fairness,trust-calibration,trust-score
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: async
+Requires-Dist: httpx[http2]>=0.25.0; extra == 'async'
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: respx>=0.20.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# ATHENA Python SDK
+
+> **Official Python SDK for ATHENA Trust Calibration Platform**  
+> Detect automation bias • Calibrate trust • Ensure EU AI Act compliance
+
+[![PyPI version](https://badge.fury.io/py/athena-sdk.svg)](https://badge.fury.io/py/athena-sdk)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## 🎯 5-Line Integration
+
+```python
+from athena import Athena
+
+athena = Athena(api_key="ak_xxx")
+result = athena.bias.detect(user_id="user_123", action_taken="approved", ai_recommended="approved")
+print(f"Bias: {result.bias_detected}, Risk: {result.risk_level}")
+```
+
+---
+
+## 🚀 Features
+
+- ✅ **Sync + Async** - Both `Athena` and `AsyncAthena` clients
+- ✅ **Type Safety** - Full Pydantic v2 models with validation
+- ✅ **Auto-Retry** - Exponential backoff with rate limit handling
+- ✅ **Webhook Verification** - HMAC-SHA256 signature validation
+- ✅ **Framework Support** - Flask, FastAPI, Django decorators
+- ✅ **Zero Config** - Works out of the box with sensible defaults
+- ✅ **390M Records Validated** - Battle-tested algorithms
+
+---
+
+## 📦 Installation
+
+```bash
+pip install athena-sdk
+```
+
+### Optional: Async Support with HTTP/2
+
+```bash
+pip install athena-sdk[async]
+```
+
+---
+
+## 🔑 Authentication
+
+Get your API key from the [ATHENA Dashboard](https://dashboard.athena.ai/settings/api-keys):
+
+```python
+from athena import Athena
+
+athena = Athena(api_key="ak_prod_...")
+```
+
+---
+
+## 📚 Core Features
+
+### 1. Bias Detection
+
+```python
+# Detect automation bias in a single decision
+result = athena.bias.detect(
+    user_id="doctor_456",
+    action_taken="approved",
+    ai_recommended="approved",
+    time_to_decision_ms=2000,
+    evidence_reviewed=["lab_results", "patient_history"]
+)
+
+if result.bias_detected:
+    print(f"⚠️  Bias types: {[b.type for b in result.bias_types]}")
+    print(f"Risk level: {result.risk_level}")
+    print(f"Recommendation: {result.recommendation}")
+```
+
+### 2. Trust Calibration
+
+```python
+# Analyze trust calibration for a user
+calibration = athena.calibrate.analyze(
+    user_id="user_123",
+    domain="healthcare",
+    time_window_days=30
+)
+
+print(f"Calibration: {calibration.calibration}")  # WELL_CALIBRATED, OVERTRUSTING, etc.
+print(f"AI Accuracy: {calibration.metrics.ai_accuracy:.2%}")
+print(f"Follow Rate: {calibration.metrics.follow_rate:.2%}")
+```
+
+### 3. Trust Score
+
+```python
+# Calculate organizational trust score
+score = athena.trust_score.calculate(
+    customer_id="org_123",
+    user_id="user_456",  # Optional: specific user
+    domain="finance",
+    time_window_days=30
+)
+
+print(f"Trust Score: {score.trust_score_pct:.1f}%")
+print(f"Calibration: {score.calibration}")
+print(f"Recommendations: {score.recommendations}")
+```
+
+### 4. Audit Trail
+
+```python
+# Fetch audit trail
+audit = athena.audit.list(
+    customer_id="org_123",
+    user_id="user_456",  # Optional filter
+    limit=50,
+    offset=0
+)
+
+for entry in audit.entries:
+    print(f"{entry.timestamp}: {entry.decision} (Calibration: {entry.calibration})")
+```
+
+### 5. Webhooks
+
+```python
+# Create a webhook for bias alerts
+webhook = athena.webhooks.create(
+    url="https://your-app.com/webhook",
+    events=["bias.detected", "trust.drop"]
+)
+
+# ⚠️  SAVE THIS SECRET - only shown once!
+print(f"Webhook ID: {webhook.id}")
+print(f"Secret: {webhook.secret}")
+```
+
+### 6. Compliance Exports
+
+```python
+# Generate EU AI Act Article 14 report
+pdf_bytes = athena.export.generate(
+    customer_id="org_123",
+    template="eu-ai-act",
+    format="pdf",
+    start_date="2025-01-01",
+    end_date="2025-12-31"
+)
+
+with open("eu-ai-act-report.pdf", "wb") as f:
+    f.write(pdf_bytes)
+```
+
+---
+
+## 🔄 Async Client
+
+For high-performance applications:
+
+```python
+from athena import AsyncAthena
+
+async def main():
+    async with AsyncAthena(api_key="ak_xxx") as athena:
+        result = await athena.bias.detect(
+            user_id="user_123",
+            action_taken="approved",
+            ai_recommended="approved"
+        )
+        print(f"Bias detected: {result.bias_detected}")
+
+# Run with asyncio
+import asyncio
+asyncio.run(main())
+```
+
+---
+
+## 🔐 Webhook Verification
+
+### Flask
+
+```python
+from flask import Flask, request
+from athena.utils.flask_webhook import athena_webhook
+import os
+
+app = Flask(__name__)
+
+@app.route("/webhook", methods=["POST"])
+@athena_webhook(secret=os.environ["WEBHOOK_SECRET"])
+def handle_webhook():
+    data = request.get_json()
+    print(f"Received: {data['type']}")
+    
+    if data['type'] == 'bias.detected':
+        # Alert your team
+        pass
+    elif data['type'] == 'trust.drop':
+        # Trigger retraining
+        pass
+    
+    return {"status": "ok"}
+```
+
+### FastAPI
+
+```python
+from fastapi import FastAPI, Request
+from athena.utils.fastapi_webhook import verify_athena_webhook
+import os
+
+app = FastAPI()
+WEBHOOK_SECRET = os.environ["WEBHOOK_SECRET"]
+
+@app.post("/webhook")
+async def handle_webhook(request: Request):
+    payload = await verify_athena_webhook(request, WEBHOOK_SECRET)
+    print(f"Received: {payload['type']}")
+    return {"status": "ok"}
+```
+
+### Manual Verification
+
+```python
+from athena.utils import verify_webhook_signature
+
+def handle_webhook(request):
+    try:
+        verify_webhook_signature(
+            payload=request.body.decode(),
+            signature_header=request.headers["X-Athena-Signature"],
+            secret=WEBHOOK_SECRET,
+            tolerance=300  # 5 minutes
+        )
+    except ValidationError:
+        return {"error": "Invalid signature"}, 401
+    
+    # Process webhook...
+```
+
+---
+
+## 🏢 Available Resources
+
+| Resource | Methods | Description |
+|----------|---------|-------------|
+| `athena.calibrate` | `analyze()`, `get_status()` | Trust calibration analysis |
+| `athena.bias` | `detect()`, `is_present()` | Cognitive bias detection |
+| `athena.trust_score` | `calculate()`, `trend()` | Trust score calculation |
+| `athena.audit` | `list()` | Audit trail access |
+| `athena.webhooks` | `create()`, `list()`, `update()`, `delete()` | Webhook management |
+| `athena.export` | `generate()`, `get_templates()` | Compliance reports |
+| `athena.stats` | `get()` | Aggregated metrics |
+| `athena.users` | `at_risk()` | At-risk user detection |
+| `athena.engines` | `status()`, `benchmarks()` | Engine status & benchmarks |
+
+---
+
+## 🛡️ Error Handling
+
+```python
+from athena import Athena, AuthenticationError, RateLimitError, ValidationError
+
+athena = Athena(api_key="ak_xxx")
+
+try:
+    result = athena.bias.detect(...)
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError as e:
+    print(f"Rate limited. Retry after {e.retry_after} seconds")
+except ValidationError as e:
+    print(f"Invalid request: {e.message}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+---
+
+## 📖 Documentation
+
+- 📚 [Full API Reference](https://docs.athena.ai/sdk/python)
+- 🎯 [Quickstart Guide](https://docs.athena.ai/quickstart)
+- 🔐 [Authentication](https://docs.athena.ai/authentication)
+- 🪝 [Webhooks Guide](https://docs.athena.ai/webhooks)
+- 📊 [EU AI Act Compliance](https://docs.athena.ai/compliance/eu-ai-act)
+
+---
+
+## 🤝 Support
+
+- 💬 [Discord Community](https://discord.gg/athena)
+- 📧 Email: [support@athena.ai](mailto:support@athena.ai)
+- 🐛 [GitHub Issues](https://github.com/athena-ai/sdk-python/issues)
+
+---
+
+## 📄 License
+
+MIT © ATHENA
+
+---
+
+## 🔬 Built on 390M Records
+
+ATHENA's algorithms are validated across:
+- 14 industries (healthcare, finance, legal, aviation, etc.)
+- 390+ million decision observations
+- 40+ years of behavioral economics research
+- Patent-pending counterfactual analysis (USPTO-001)
+
