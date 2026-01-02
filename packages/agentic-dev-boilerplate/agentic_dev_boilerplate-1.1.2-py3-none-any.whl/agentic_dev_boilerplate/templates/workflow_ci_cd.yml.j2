@@ -1,0 +1,89 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ {{ schema.git.default_branch }} ]
+  pull_request:
+    branches: [ {{ schema.git.default_branch }} ]
+
+jobs:
+{% if schema.validation.required_checks %}
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install{% for lang in schema.languages %}{% if lang.name == 'python' %} {{ lang.linting|join(' ') if lang.get('linting') else 'black isort flake8' }}{% endif %}{% endfor %}
+
+      - name: Run linting
+        run: |
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+          black --check .
+          isort --check-only .
+          flake8 .
+{% endif %}
+{% endfor %}
+
+      - name: Run tests
+        run: |
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+          uv run pytest{% if lang.get('testing') and 'pytest-cov' in lang.testing %} --cov=. --cov-report=xml{% endif %}
+{% endif %}
+{% endfor %}
+
+{% if schema.security.dependency_scanning %}
+      - name: Security scan
+        uses: github/super-linter/slim@v5
+        env:
+          DEFAULT_BRANCH: {{ schema.git.default_branch }}
+          GITHUB_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+{% endif %}
+{% endif %}
+
+{% if schema.ci_cd.phases %}
+{% for phase in schema.ci_cd.phases %}
+  {{ phase.name }}:
+    runs-on: ubuntu-latest
+{% if phase.trigger %}
+    if: {% for trigger in phase.trigger %}github.event_name == '{{ trigger }}'{% if not loop.last %} || {% endif %}{% endfor %}
+{% endif %}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+{% for job in phase.jobs %}
+      - name: {{ job|replace('_', ' ')|title }}
+        run: |
+{% if 'test' in job %}
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+          python -m pytest
+{% endif %}
+{% endfor %}
+{% elif 'build' in job %}
+          echo "Building application..."
+          # Add build steps here
+{% elif 'deploy' in job %}
+          echo "Deploying to {{ job.split('_')[1] }}..."
+          # Add deployment steps here
+{% else %}
+          echo "Running {{ job }}..."
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endif %}
