@@ -1,0 +1,423 @@
+# MARK: WORKFLOW ====================
+# 1. Lint (ruff), type checker (mypy) (hatch run style:fmt | hatch run types:check)
+# 2. Test in all supported version (hatch run all:test) (python 3.11 only: hatch run test)
+# 3. Bump version (hatch version <major | minor | patch>)
+# 4. Build package (hatch build)
+# 5. Generating docs (hatch run docs:build)
+# 6. Publish packge (hatch publish)
+## Run entire workflow: hatch run workflow:<major | minor | patch>
+## `hatch env show` for more information
+
+# MARK: BUILD ====================
+[build-system]
+requires = ["hatchling>=1.27.0", "hatch-vcs>=0.3.0"]
+build-backend = "hatchling.build"
+
+# MARK: PROJECT ====================
+[project]
+name = "absfuyu"
+description = "A small collection of code"
+readme = { "file" = "README.md", "content-type" = "text/markdown" }
+requires-python = ">=3.12, <4"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+keywords = ["utilities"]
+authors = [{ name = "somewhatcold (AbsoluteWinter)" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+    "Natural Language :: English",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+dependencies = ["click>=8.0.0", "colorama"]
+
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/AbsoluteWinter/absfuyu-public"
+Documentation = "https://absolutewinter.github.io/absfuyu-docs/"
+Repository = "https://github.com/AbsoluteWinter/absfuyu-public"
+Issues = "https://github.com/AbsoluteWinter/absfuyu-public/issues"
+
+[project.optional-dependencies]
+# docs = ["numpy", "pandas", "rich", "spire-pdf"]
+# dadf = ["numpy", "pandas", "openpyxl", "xlsxwriter"]
+# beautiful = ["rich"]
+# pdf = ["spire-pdf"]
+# xml = ["xmltodict"]
+# rclone = ["rclone-crypt"]
+# extra = [
+#     "absfuyu[dadf]", # numpy, pandas, openpyxl, xlsxwriter
+#     "absfuyu[pdf]",  # spire-pdf
+#     "absfuyu[xml]",  # xmltodict
+# ]
+# full = [
+#     "absfuyu[beautiful]", # rich
+#     "absfuyu[rclone]",    # rclone-crypt
+#     "absfuyu[extra]",
+#     "tqdm",
+#     "unidecode",
+#     # "jinja2"
+# ]
+full = [
+    "numpy",                             # DADF
+    "pandas",                            # DADF
+    "rich",                              # beautiful
+    "tqdm",
+    "unidecode",
+    "openpyxl",                          # DADF
+    "xlsxwriter",                        # DADF
+    "spire-pdf",                         # PDF
+    "xmltodict",                         # XML
+    "rclone-crypt",                      # rclone
+    "pillow",                            # pic
+    "pillow_heif",                       # pic
+    "defusedxml",                        # pic
+    "imagehash",                         # pic
+    "olefile",                           # pic
+    "requests",
+    "bs4",
+    "google-api-python-client>=2.187.0", # ggapi
+    "google-auth>=2.45.0",               # ggapi
+]
+docs = ["numpy", "pandas", "rich", "spire-pdf"]
+beautiful = ["rich"]
+extra = [
+    "numpy",
+    "pandas",
+    "openpyxl",
+    "xlsxwriter",
+    "spire-pdf",
+    "xmltodict",
+    "pillow",
+]
+pdf = ["spire-pdf"]
+dadf = ["numpy", "pandas", "openpyxl", "xlsxwriter"]
+xml = ["xmltodict"]
+rclone = ["rclone-crypt"]
+pic = ["pillow", "defusedxml", "imagehash"]
+ggapi = ["google-api-python-client", "google-auth", "requests"]
+
+[project.scripts]
+absfuyu = "absfuyu.__main__:main"
+fuyu = "absfuyu.__main__:main"    # alias
+
+# MARK: TOOL ====================
+# MARK: TOOL: hatch
+[tool.hatch.version] # Dynamic version
+path = "src/absfuyu/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src", "tests", "docs", "images", "dev_requirements.txt"]
+
+# Set up virtual env: use hatch env show
+[tool.hatch.envs.default]
+dependencies = ["coverage[toml]", "pytest", "pytest-cov", "pytest-mock"]
+description = """
+Default environment
+
+Main cmd:
+- test: Run test
+- cov : Show coverage report
+- cov2: More coverage report
+"""
+
+[tool.hatch.envs.default.scripts] # hatch env run <script>
+test = "pytest {args:tests}"                                        # use this
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]                                    # use this
+cov2 = "pytest --cov-report=term-missing --cov=absfuyu --cov=tests" # use this
+
+[tool.hatch.envs.all]
+dependencies = [
+    "coverage[toml]",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-xdist",
+]
+features = ["full"]
+description = """
+All python version to test:
+hatch run all:test
+
+Use `hatch run all:install` when occur "no module named" error
+"""
+
+[tool.hatch.envs.all.scripts]
+install = "pip install -e .[full]" # This command fix "no module named"
+test2 = "pytest -n auto"           # parallel test
+
+[[tool.hatch.envs.all.matrix]] # hatch env run -e all test
+python = ["3.12", "3.13", "3.14"]
+
+[tool.hatch.envs.types]
+dependencies = ["mypy>=1.0.0"]
+detached = true
+description = "Type checker"
+
+[tool.hatch.envs.types.scripts] # hatch env run -e types check
+check = "mypy --install-types --non-interactive {args:src/absfuyu}"
+# check = "mypy --install-types --non-interactive {args:src/absfuyu tests}"
+
+[tool.hatch.envs.docs]
+features = ["docs"]
+dependencies = [
+    "sphinx>=8.1.0",
+    "sphinx_rtd_theme",
+    "sphinx_copybutton",
+    "myst-parser",       # Markdown parser
+    "sphinx-autobuild",  # Live preview build
+    "watchfiles",        # sphinx-autobuild support library
+]
+description = """
+Build documentation
+
+Main cmd:
+- build: Build documentation
+- live: Live preview of documentation
+"""
+
+[tool.hatch.envs.docs.scripts]
+clean = [
+    """
+    python -c "print('Cleaning up...')"
+    """,
+    """
+    python -c "import shutil;from pathlib import Path;shutil.rmtree(Path.cwd().joinpath('docs', 'build'))"
+    """, # Delete docs/build/ folder
+    """
+    python -c "from pathlib import Path;[x.unlink() for x in Path.cwd().joinpath('docs').glob('absfuyu*.rst')]"
+    """, # Clean .rst files in docs/ folder
+    """
+    python -c "print('Cleaning up...DONE')"
+    """,
+]
+build_only = [
+    "sphinx-build docs docs/build", # Build
+]
+build_private = [
+    # -f --force
+    # -e --separate
+    # -M --module-first
+    # -P --private
+    "sphinx-apidoc -o docs/ src/absfuyu -feMP",
+    "sphinx-build docs docs/build",
+]
+build = [
+    "clean",
+    "sphinx-apidoc -o docs/ src/absfuyu -eM", # Generate
+    "build_only",                             # Build
+]
+live = [
+    "sphinx-apidoc -o docs/ src/absfuyu -feM", # Generate
+    "sphinx-autobuild docs docs/build",        # Live preview
+]
+
+[tool.hatch.envs.style]
+detached = true
+dependencies = ["black", "ruff"]
+description = "Source code styling"
+
+[tool.hatch.envs.style.scripts]
+check = [
+    "ruff check",                   # Linting
+    "- black --check --diff src",   # Source code folder
+    "- black --check --diff tests", # Test folder
+]
+fmt = [ # Format the code
+    "ruff format", # Lint fix + Code styling
+    # "black src",   # Code styling - Source code folder
+    # "black tests", # Code styling - Test folder
+    "check", #
+]
+
+[tool.hatch.envs.workflow]
+detached = true
+skip-install = true
+description = """
+Package workflow:
+hatch run workflow:<option>
+
+Options:
+- patch: release version patch
+- minor: release version minor
+- major: release version major
+"""
+
+[tool.hatch.envs.workflow.scripts]
+qa = [
+    "hatch run style:fmt",   # Code quality check
+    "hatch run types:check", # type-hint check
+]
+test = [
+    "qa",
+    "hatch run all:test", # Test
+]
+build_no_docs = [
+    # Update license year - Convert to hex due to unable to run multiple lines
+    # Source code:
+    # import re;from datetime import datetime;from pathlib import Path
+    # print("Updating license year...");p=r"([12]\d{3})(-[12]\d{3})?"
+    # n=str(datetime.now().year);l=list(Path.cwd().glob("*license*"))[0]
+    # with open(l)as f:c=f.readlines()
+    # for i,x in enumerate(c):
+    #     s=re.search(p,x);y=s.groups()[0]if s else n
+    #     if y!=n:c[i]=re.sub(p,f"{y}-{n}",x)
+    # with open(l,"w",encoding="utf-8")as f:f.writelines(c)
+    # print("License year updated")
+    # """
+    # python -c \"exec(bytes.fromhex('696d706f72742072653b66726f6d20646174657\
+    # 4696d6520696d706f7274206461746574696d653b66726f6d20706174686c696220696d\
+    # 706f727420506174680a7072696e7428225570646174696e67206c6963656e736520796\
+    # 561722e2e2e22293b703d7222285b31325d5c647b337d29282d5b31325d5c647b337d29\
+    # 3f220a6e3d737472286461746574696d652e6e6f7728292e79656172293b6c3d6c69737\
+    # 428506174682e63776428292e676c6f6228222a6c6963656e73652a2229295b305d0a77\
+    # 697468206f70656e286c29617320663a633d662e726561646c696e657328290a666f722\
+    # 0692c7820696e20656e756d65726174652863293a0a20202020733d72652e7365617263\
+    # 6828702c78293b793d732e67726f75707328295b305d6966207320656c7365206e0a202\
+    # 0202069662079213d6e3a635b695d3d72652e73756228702c66227b797d2d7b6e7d222c\
+    # 78290a77697468206f70656e286c2c2277222c656e636f64696e673d227574662d38222\
+    # 9617320663a662e77726974656c696e65732863290a7072696e7428224c6963656e7365\
+    # 207965617220757064617465642229').decode('utf-8'))\"
+    # """,
+    "hatch clean", # Clean dist/ folder
+    "hatch -v build", # Build package
+]
+build = [
+    "build_no_docs",
+    "hatch run docs:build", # Build docs
+]
+patch = [
+    "test",
+    "hatch version patch", # Bump version patch
+    "build",
+    "hatch publish",       # Publish
+]
+minor = [
+    "test",
+    "hatch version minor", # Bump version minor
+    "build",
+    "hatch publish",       # Publish
+]
+major = [
+    "test",
+    "hatch version major", # Bump version major
+    "build",
+    "hatch publish",       # Publish
+]
+
+# MARK: TOOL: pytest
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-markers",
+    "--maxfail=1",
+    # "--cov=absfuyu"
+]
+markers = [ # pytest -m <marker> -v
+    "test_this: Select desire tests to test",
+    "abs_core: Test in absfuyu.core",
+    "abs_dxt: Test in absfuyu.dxt",
+    "abs_fun: Test in absfuyu.fun",
+    "abs_shape: Test in absfuyu.general.shape",
+    "abs_tools: Test in absfuyu.tools",
+    "abs_util: Test in absfuyu.util",
+]
+
+[tool.coverage.run]
+omit = ["*tests*"]
+
+# MARK: TOOL: mypy
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+check_untyped_defs = true
+# disallow_any_generics = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+show_column_numbers = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+no_implicit_reexport = true
+# install_types = true  # type: ignore
+
+# MARK: TOOL: ruff
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py312"
+include = ["pyproject.toml", "src/**", "tests/**"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+exclude = ["config.json", "*.pkl", "sudoku.py", "tictactoe.py"]
+# docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "Q"]
+unfixable = ["B"]
+exclude = ["*.json", "*.pkl"]
+ignore = [
+    "E266", # too many leading "#" for block comment
+    "E501", # line too long
+    "W291", # trailing whitespace
+    "B905", # `zip()` without an explicit `strict=` parameter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"] # module level import not at top of file
+"core.py" = ["E402"]
+"human.py" = [
+    "E741", # Ambiguous variable name
+]
+"test_everything.py" = [
+    "F403", # unable to detect undefined names
+]
+"test_version.py" = [
+    # Within an `except` clause, raise exceptions with `raise ... from err`
+    # or `raise ... from None` to distinguish them from errors in exception handling
+    "B904",
+]
+"tests/*" = [
+    "F401", # imported but unused
+]
+"shorten_number.py" = ["B007"] # Loop control variable not used within loop body
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+# MARK: TOOL: black
+[tool.black]
+line-length = 120
+
+# MARK: TOOL: uv
+[tool.uv]
+required-version = ">=0.5.0"
+cache-dir = "./.uv_cache"
+dev-dependencies = [
+    "ruff",
+    "mypy>=1.18.0",
+    "pytest>=8.4.0",
+    "hatch>=1.14.1",
+    "python-dotenv",
+]
+
+[tool.uv.build-backend]
+source-include = ["tests/**"]

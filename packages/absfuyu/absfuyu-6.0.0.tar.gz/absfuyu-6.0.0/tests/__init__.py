@@ -1,0 +1,3 @@
+"""Package test"""
+
+import pytest
