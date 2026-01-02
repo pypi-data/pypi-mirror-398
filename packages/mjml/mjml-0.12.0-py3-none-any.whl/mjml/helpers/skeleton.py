@@ -1,0 +1,120 @@
+
+import textwrap
+
+from jinja2 import Template
+
+from .fonts import buildFontsTags
+from .media_queries import buildMediaQueriesTags
+from .preview import buildPreview
+from .py_utils import is_not_nil
+
+
+__all__ = ['skeleton_str']
+
+# js: skeleton(...)
+def skeleton_str(*,
+    inlineStyle,
+    title='', content='', backgroundColor='', breakpoint='480px', lang=None, dir_=None,
+    fonts=None, mediaQueries=None,
+    headStyle=None, componentsHeadStyle=(), style=(), headRaw=(),
+    classes=None,
+    preview = None,
+    defaultAttributes=None
+    ) -> str:
+
+    apply_breakpoints = lambda values: tuple(map(lambda v: v(breakpoint), values))
+    components_head_style_strs = apply_breakpoints(componentsHeadStyle)
+
+    if headStyle:
+        # upstream expected an "iterable" (functions) but uses JavaScript's
+        # iteration protocol: iterating over an object ("dict") iterates over
+        # values not keys like in Python.
+        assert hasattr(headStyle, 'values')
+        headStyle = tuple(headStyle.values())
+    else:
+        headStyle = ()
+    def apply_breakpoints(values):
+        def _add_breakpoint(v):
+            return v(breakpoint)
+        return tuple(map(_add_breakpoint, values))
+    _combined_head_style_attrs = (
+        *components_head_style_strs,
+        *apply_breakpoints(headStyle),
+    )
+    combined_head_style_content = '\n'.join(_combined_head_style_attrs)
+    if style:
+        extra_style_content = ''.join(style or '')
+        extra_style = f'<style type="text/css">{extra_style_content}</style>'
+    else:
+        extra_style = ''
+
+    tmpl_vars = {
+        'title'          : title,
+        'content'        : content,
+        'langAttribute'  : f'lang="{lang}" ' if lang else '',
+        'dirAttribute'   : f'dir="{dir_}" ' if dir_ else '',
+        'backgroundColor': f'background-color:{backgroundColor};' if backgroundColor else '',
+
+        'font_tags_str'  : buildFontsTags(content, inlineStyle, fonts=fonts),
+        'media_queries_str'  : buildMediaQueriesTags(breakpoint, mediaQueries),
+        'combined_head_style': combined_head_style_content.strip(),
+        'extra_style': extra_style,
+        'headRaw_str': '\n'.join(filter(is_not_nil, headRaw or ())),
+        'preview_str'    : buildPreview(preview),
+    }
+
+    skeleton_tmpl = Template(skeleton_tmpl_str)
+    return str(skeleton_tmpl.render(tmpl_vars))
+
+
+skeleton_tmpl_str_raw = '''\
+    <!doctype html>
+    <html {{ langAttribute }}{{ dirAttribute }}xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+      <head>
+        <title>
+          {{ title }}
+        </title>
+        <!--[if !mso]><!-->
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <!--<![endif]-->
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style type="text/css">
+          #outlook a { padding:0; }
+          body { margin:0;padding:0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%; }
+          table, td { border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt; }
+          img { border:0;height:auto;line-height:100%; outline:none;text-decoration:none;-ms-interpolation-mode:bicubic; }
+          p { display:block;margin:13px 0; }
+        </style>
+        <!--[if mso]>
+        <noscript>
+        <xml>
+        <o:OfficeDocumentSettings>
+          <o:AllowPNG/>
+          <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+        </xml>
+        </noscript>
+        <![endif]-->
+        <!--[if lte mso 11]>
+        <style type="text/css">
+          .mj-outlook-group-fix { width:100% !important; }
+        </style>
+        <![endif]-->
+        {{ font_tags_str }}
+        {{ media_queries_str }}
+        {% if combined_head_style -%}
+        <style type="text/css">
+          {{ combined_head_style }}
+        </style>
+        {%- endif %}
+        {{ extra_style }}
+        {{ headRaw_str }}
+      </head>
+      <body style="word-spacing:normal;{{ backgroundColor }}">
+        {{ preview_str }}
+        {{ content }}
+      </body>
+    </html>''' # noqa: E501
+
+skeleton_tmpl_str = textwrap.dedent(skeleton_tmpl_str_raw)
