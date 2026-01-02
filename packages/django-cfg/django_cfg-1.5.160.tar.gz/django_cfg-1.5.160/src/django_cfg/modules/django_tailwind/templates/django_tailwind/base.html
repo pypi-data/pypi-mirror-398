@@ -1,0 +1,100 @@
+{% load static tailwind_tags %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% block page_title %}Page{% endblock %} - Django CFG{% endblock %}</title>
+
+    <!-- Tailwind CSS (compiled via django-tailwind) -->
+    {% tailwind_css %}
+
+    <!-- Alpine.js will be loaded by pages that need it AFTER their modules load -->
+
+    <!-- JWT Token for API authentication -->
+    <script>
+        {% load django_cfg %}
+        window.USER_JWT_TOKEN = '{% user_jwt_token %}';
+    </script>
+
+    {% block extra_head %}{% endblock %}
+
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <style>
+        /* Prevent flash of unstyled content */
+        [x-cloak] { display: none !important; }
+
+        /* Override Tailwind's media-query dark mode with class-based dark mode */
+        /* This ensures dark: classes work when .dark is on <html>, not just media queries */
+
+        /* Tailwind CDN dark mode support */
+        /* Ensure dark: classes only apply when .dark is on html */
+    </style>
+
+    <!-- Dark mode initialization (prevents flash) -->
+    <!-- Supports both django-tailwind darkMode and Unfold theme keys -->
+    <script>
+        (function() {
+            // Check multiple sources for dark mode preference
+            const unfoldTheme = localStorage.getItem('theme'); // Unfold uses 'theme' key with 'dark'/'light' values
+            const legacyDarkMode = localStorage.getItem('darkMode'); // Legacy django-tailwind key
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            const isDark = unfoldTheme === 'dark' ||
+                          legacyDarkMode === 'true' ||
+                          (!unfoldTheme && !legacyDarkMode && systemPrefersDark);
+
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950"
+      x-data="{ darkMode: localStorage.getItem('theme') === 'dark' || localStorage.getItem('darkMode') === 'true' || (!localStorage.getItem('theme') && !localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches){% block alpine_data_extra %}{% endblock %} }"
+      x-init="$watch('darkMode', val => { localStorage.setItem('darkMode', val); localStorage.setItem('theme', val ? 'dark' : 'light'); document.documentElement.classList.toggle('dark', val); }){% block alpine_init_extra %}{% endblock %}">
+
+    {% block body %}
+    <div class="min-h-full flex flex-col">
+        {% block header %}{% endblock %}
+
+        <!-- Main Content -->
+        <main class="flex-1">
+            {% block main %}
+                <div class="{% block container_class %}max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6{% endblock %}">
+                    {% block content %}{% endblock %}
+                </div>
+            {% endblock %}
+        </main>
+
+        {% block footer %}
+        {% load django_cfg %}
+        <footer class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 mt-auto">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {% block footer_content %}
+                <div class="text-center">
+                    {% block footer_text %}
+                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Powered by
+                        <a href="{% lib_site_url %}"
+                           class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
+                           target="_blank" rel="noopener noreferrer">
+                            {% lib_name %}
+                        </a>
+                    </p>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {% lib_subtitle %}
+                    </p>
+                    {% endblock %}
+                </div>
+                {% endblock %}
+            </div>
+        </footer>
+        {% endblock %}
+    </div>
+    {% endblock %}
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
