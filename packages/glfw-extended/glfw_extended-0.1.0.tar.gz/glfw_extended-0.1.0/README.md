@@ -1,0 +1,93 @@
+# glfw-extended
+
+Python bindings for [TheCherno's GLFW fork](https://github.com/TheCherno/glfw), which adds custom titlebar support for creating borderless windows with custom chrome (commonly used with Dear ImGui).
+
+## Installation
+
+```bash
+pip install glfw-extended
+```
+
+## Features
+
+This package extends the standard [pyGLFW](https://github.com/FlorianRhiem/pyGLFW) bindings with:
+
+- **`TITLEBAR`** window hint - Set to `False` to remove the titlebar while keeping window borders and shadow
+- **`set_titlebar_hit_test_callback()`** - Register a callback to handle titlebar hit testing for custom drag regions
+
+## Usage
+
+```python
+import glfw_extended as glfw
+
+# Initialize GLFW
+if not glfw.init():
+    raise RuntimeError("Failed to initialize GLFW")
+
+# Create a window without the default titlebar
+glfw.window_hint(glfw.DECORATED, glfw.TRUE)
+glfw.window_hint(glfw.TITLEBAR, glfw.FALSE)
+
+window = glfw.create_window(1280, 720, "Custom Titlebar", None, None)
+
+# RESIZABLE must be set after window creation for TITLEBAR to take effect
+glfw.set_window_attrib(window, glfw.RESIZABLE, glfw.TRUE)
+
+# Set up hit test callback for custom drag region
+def titlebar_hit_test(window, x, y, hit):
+    # Example: top 30 pixels are the custom titlebar
+    if y < 30:
+        hit[0] = 1  # This region should act as titlebar (draggable)
+    else:
+        hit[0] = 0  # Normal client area
+
+glfw.set_titlebar_hit_test_callback(window, titlebar_hit_test)
+
+# Main loop
+while not glfw.window_should_close(window):
+    glfw.poll_events()
+    # ... render your custom titlebar with ImGui, etc.
+    glfw.swap_buffers(window)
+
+glfw.terminate()
+```
+
+> **Note:** `RESIZABLE` must be set to `TRUE` via `set_window_attrib` (after window creation) for `TITLEBAR` to have any effect.
+
+## Platform Support
+
+Currently Windows-only (includes pre-built `glfw3.dll` from TheCherno's fork).
+
+## Note on Import Name
+
+This package uses `glfw_extended` as the import name to avoid conflicts with the standard `glfw` package. If you want to use it as a drop-in replacement:
+
+```python
+import glfw_extended as glfw
+```
+
+## Interoperability with pyGLFW
+
+When `glfw_extended` loads its custom DLL, it automatically sets the `PYGLFW_LIBRARY` environment variable. This means any subsequent `import glfw` (regular pyGLFW) will use the same custom DLL:
+
+```python
+import glfw_extended  # Loads custom DLL, sets PYGLFW_LIBRARY
+import glfw           # Uses the same custom DLL via PYGLFW_LIBRARY
+
+# Both modules now use TheCherno's GLFW fork!
+# glfw.TITLEBAR won't exist, but the underlying library supports it
+```
+
+This is useful if you have dependencies that import regular `glfw` but you want them to use the extended functionality.
+
+## Credits
+
+- [pyGLFW](https://github.com/FlorianRhiem/pyGLFW) by Florian Rhiem - Original Python bindings (MIT License)
+- [TheCherno's GLFW fork](https://github.com/TheCherno/glfw) - GLFW with titlebar support (zlib License)
+- [GLFW](https://www.glfw.org/) - Original library (zlib License)
+
+## License
+
+MIT License (same as pyGLFW). See LICENSE for details.
+
+The bundled GLFW DLL is licensed under the zlib license.
