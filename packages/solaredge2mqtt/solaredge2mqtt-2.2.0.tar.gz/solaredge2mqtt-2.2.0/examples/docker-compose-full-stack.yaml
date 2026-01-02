@@ -1,0 +1,69 @@
+version: "3"
+services:
+  solaredge2mqtt:
+    container_name: solaredge2mqtt
+    image: ghcr.io/deroetzi/solaredge2mqtt:latest
+    secrets:
+      - se2mqtt_mqtt__password
+    # - se2mqtt_monitoring__password
+    # - se2mqtt_wallbox__password
+    # - se2mqtt_influxdb__token
+    # - se2mqtt_weather__api_key
+    env_file: 
+      - .env
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_RENDERING_SERVER_URL: http://renderer:8081/render
+      GF_RENDERING_CALLBACK_URL: http://grafana:3000/
+    ports:
+      - "3000:3000"
+    volumes:
+      - "grafana:/var/lib/grafana"
+      - "grafana.ini:/etc/grafana/grafana.ini"
+    user: "1000:1000"
+    restart: always
+    networks:
+      default:
+  renderer:
+    image: grafana/grafana-image-renderer:latest
+    container_name: renderer
+    environment:
+      RENDERING_MODE: reusable
+    user: "1000:1000"
+    restart: always
+    networks:
+      default:
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - "./data:/var/lib/influxdb2"
+      - "influxdb.conf:/etc/influxdb/influxdb.conf:ro"
+      - ".influx_history:/.influx_history"
+    restart: always
+    user: "1000:1000"
+    networks:
+      default:
+
+
+secrets:
+  se2mqtt_mqtt__password:
+    file: .secrets/mqtt_password
+
+#  se2mqtt_monitoring__password:
+#    file: .secrets/monitoring_password
+
+#  se2mqtt_wallbox__password:
+#    file: .secrets/wallbox_password
+
+#  se2mqtt_influxdb__token:
+#    file: .secrets/influxdb_token
+
+#  se2mqtt_weather__api_key:
+#    file: .secrets/owm_api_key
