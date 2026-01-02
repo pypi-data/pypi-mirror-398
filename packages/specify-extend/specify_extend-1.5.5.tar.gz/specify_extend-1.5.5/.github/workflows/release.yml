@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'cli-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.4.0)'
+        required: true
+        type: string
+      create_tag:
+        description: 'Create git tag for this version'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Extract version from tag or input
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Manual trigger - Version: $VERSION"
+        else
+          TAG=${GITHUB_REF#refs/tags/cli-v}
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "Tag trigger - Version: $TAG"
+        fi
+
+    - name: Create tag if requested
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'true'
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "cli-v$VERSION" -m "Release CLI version $VERSION"
+        git push origin "cli-v$VERSION"
+
+    - name: Validate versions are in sync
+      run: |
+        TAG_VERSION="${{ steps.get_version.outputs.version }}"
+        
+        # Extract version from pyproject.toml
+        TOML_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+        
+        # Extract version from specify_extend.py
+        PY_VERSION=$(grep '^__version__ = ' specify_extend.py | sed 's/__version__ = "\(.*\)"/\1/')
+        
+        # Extract CLI version from CHANGELOG.md - find first ### [version] after ## CLI Tool
+        CHANGELOG_VERSION=$(sed -n '/## CLI Tool/,/^## /p' CHANGELOG.md | grep '^### \[' | head -1 | sed 's/### \[\(.*\)\].*/\1/')
+        
+        echo "Tag version:       $TAG_VERSION"
+        echo "pyproject.toml:    $TOML_VERSION"
+        echo "specify_extend.py: $PY_VERSION"
+        echo "CHANGELOG.md:      $CHANGELOG_VERSION"
+        
+        # Check if all versions match
+        if [ "$TAG_VERSION" != "$TOML_VERSION" ]; then
+          echo "❌ Error: Tag version ($TAG_VERSION) doesn't match pyproject.toml version ($TOML_VERSION)"
+          exit 1
+        fi
+        
+        if [ "$TAG_VERSION" != "$PY_VERSION" ]; then
+          echo "❌ Error: Tag version ($TAG_VERSION) doesn't match specify_extend.py version ($PY_VERSION)"
+          exit 1
+        fi
+        
+        if [ "$TAG_VERSION" != "$CHANGELOG_VERSION" ]; then
+          echo "❌ Error: Tag version ($TAG_VERSION) doesn't match CHANGELOG.md version ($CHANGELOG_VERSION)"
+          exit 1
+        fi
+        
+        echo "✅ All versions are in sync: $TAG_VERSION"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build hatchling
+
+    - name: Build package
+      run: python -m build
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/*.whl
+          dist/*.tar.gz
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish to PyPI
+      if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        skip-existing: true
+      continue-on-error: true
