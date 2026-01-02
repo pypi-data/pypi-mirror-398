@@ -1,0 +1,248 @@
+Metadata-Version: 2.4
+Name: lore-mcp
+Version: 1.0.7
+Summary: Version control for AI coding context - Commit your intent, not just your code
+Project-URL: Homepage, https://lore-dashboard.jadecon2655.workers.dev
+Project-URL: Repository, https://github.com/ctx-stack/lore-mcp
+Project-URL: Documentation, https://lore-dashboard.jadecon2655.workers.dev
+Author: ctx-stack
+License: Apache-2.0
+License-File: LICENSE
+Keywords: ai,claude,context,intent,lore,mcp,version-control
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Version Control
+Requires-Python: >=3.12
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: nest-asyncio>=1.6.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: rich>=13.7.0
+Requires-Dist: typer>=0.12.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Lore MCP
+
+**Version control for AI coding context** - Commit your intent, not just your code.
+
+[![PyPI version](https://badge.fury.io/py/lore-mcp.svg)](https://badge.fury.io/py/lore-mcp)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+## What is Lore MCP?
+
+Lore MCP captures and preserves the **thinking process** behind AI-assisted coding. When you work with AI coding assistants like Claude, the conversation context—your intent, assumptions, alternatives considered, and decisions made—is just as valuable as the code itself.
+
+```
+Traditional Version Control:
+  git commit → "Added authentication module"
+
+Lore MCP:
+  lore commit → Intent: "Implement JWT authentication with refresh tokens"
+                Assumptions: ["Redis available for token storage"]
+                Alternatives: ["Session-based auth", "OAuth2 only"]
+                Decision: "JWT chosen for stateless scalability"
+```
+
+## Features
+
+- **Context Commits**: Record intent, assumptions, alternatives, and decisions
+- **Context Search**: Search your coding history by intent
+- **Context Blame**: Find the AI conversation that led to any code change
+- **MCP Integration**: Native integration with Claude Code via Model Context Protocol
+- **Claude Code Hooks**: Automatic context capture during AI coding sessions
+- **Cloud Sync**: All data synced to cloud for access anywhere
+- **Team Sharing**: Share context with your team (Pro/Team plans)
+
+## Installation
+
+```bash
+pip install lore-mcp
+```
+
+Or with uvx (no installation required):
+
+```bash
+uvx lore-mcp lore --help
+```
+
+## Quick Start
+
+### 1. Get Your API Key
+
+1. Visit [Lore Dashboard](https://lore-dashboard.jadecon2655.workers.dev)
+2. Sign up / Login with GitHub
+3. Go to **API Keys** and create a new key
+
+### 2. Configure API Key
+
+```bash
+export LORE_API_KEY=lore_xxxxxxxxxxxxxxxx
+```
+
+Or add to your shell profile (`~/.bashrc`, `~/.zshrc`):
+
+```bash
+echo 'export LORE_API_KEY=lore_xxxxxxxxxxxxxxxx' >> ~/.zshrc
+```
+
+### 3. Create Context Commits
+
+```bash
+# Manual commit with intent
+lore commit -m "Implement user authentication with JWT"
+
+# Interactive mode
+lore commit -i
+```
+
+### 4. Search and Blame
+
+```bash
+# Search by intent
+lore search "authentication"
+
+# Blame a file (find context for code)
+lore blame src/auth.py
+
+# Check usage
+lore usage
+```
+
+## MCP Server Integration
+
+Lore provides an MCP server for Claude Code integration.
+
+### Setup with Claude Code
+
+Add to your Claude Code settings (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "lore": {
+      "command": "lore-mcp",
+      "env": {
+        "LORE_API_KEY": "lore_xxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+Or with uvx:
+
+```json
+{
+  "mcpServers": {
+    "lore": {
+      "command": "uvx",
+      "args": ["lore-mcp"],
+      "env": {
+        "LORE_API_KEY": "lore_xxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `lore_init` | Set up Claude Code hooks |
+| `lore_commit` | Create a context commit |
+| `lore_blame` | Find context for a file |
+| `lore_search` | Search context commits |
+| `lore_status` | Check connection status |
+
+## Claude Code Hooks
+
+For automatic context capture, ask Claude to run `lore_init` (MCP tool), or run manually:
+
+```bash
+uvx lore-mcp lore init
+```
+
+This will configure hooks in `~/.claude/settings.json` automatically.
+
+Or manually add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx --from lore-mcp python -m lore.hooks.post_tool_use"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx --from lore-mcp python -m lore.hooks.on_stop"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `lore commit -m "message"` | Create a context commit |
+| `lore search <query>` | Search context commits |
+| `lore blame <file>` | Find context for a file |
+| `lore sync` | Sync local commits to cloud |
+| `lore usage` | Show usage statistics |
+| `lore status` | Show connection status |
+| `lore login` | Open dashboard for API key |
+| `lore version` | Show version |
+
+## Pricing
+
+| Plan | Price | Features |
+|------|-------|----------|
+| **Free** | $0 | 100 syncs/month, 50 searches/month |
+| **Pro** | $9/month | Unlimited syncs, Unlimited searches |
+| **Team** | $19/user/month | Everything in Pro + Team sharing |
+
+[View Pricing](https://lore-dashboard.jadecon2655.workers.dev/settings)
+
+## Dashboard
+
+Manage your context commits, API keys, and team at:
+
+**[lore-dashboard.jadecon2655.workers.dev](https://lore-dashboard.jadecon2655.workers.dev)**
+
+Features:
+- View all context commits
+- Search and filter commits
+- Manage API keys
+- Team management (Team plan)
+- Usage analytics
+
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
+
+---
+
+**Lore** - Because your intent matters as much as your code.
