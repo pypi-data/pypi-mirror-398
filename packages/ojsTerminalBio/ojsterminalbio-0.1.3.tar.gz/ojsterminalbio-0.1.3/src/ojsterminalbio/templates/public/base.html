@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ profile.theme_primary_color if profile and profile.theme_primary_color else 'cyan' }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ profile.site_title if profile and profile.site_title else 'ojsTerminalBio' }}{% endblock
+        %}</title>
+    <link href="{{ url_for('static', path='/css/tailwind.css') }}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --theme-primary: #00f3ff;
+            --cyber-cyan: #00f3ff;
+            --cyber-pink: #ff0055;
+            --cyber-amber: #ffb800;
+            --cyber-green: #00ff88;
+        }
+
+        /* Theme color overrides via data attribute */
+        [data-theme="pink"] {
+            --theme-primary: #ff0055;
+        }
+
+        [data-theme="amber"] {
+            --theme-primary: #ffb800;
+        }
+
+        [data-theme="green"] {
+            --theme-primary: #00ff88;
+        }
+
+        [data-theme="cyan"] {
+            --theme-primary: #00f3ff;
+        }
+
+        body {
+            font-family: 'Fira Code', monospace;
+            background: #050505;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .text-cyan {
+            color: var(--cyber-cyan);
+        }
+
+        .text-pink {
+            color: var(--cyber-pink);
+        }
+
+        .text-amber {
+            color: var(--cyber-amber);
+        }
+
+        .bg-cyan {
+            background-color: var(--cyber-cyan);
+        }
+
+        .bg-pink {
+            background-color: var(--cyber-pink);
+        }
+
+        .bg-amber {
+            background-color: var(--cyber-amber);
+        }
+
+        .border-cyan {
+            border-color: var(--cyber-cyan);
+        }
+
+        /* Dynamic theme classes */
+        .text-theme {
+            color: var(--theme-primary);
+        }
+
+        .bg-theme {
+            background-color: var(--theme-primary);
+        }
+
+        .border-theme {
+            border-color: var(--theme-primary);
+        }
+
+        .hover\:text-theme:hover {
+            color: var(--theme-primary);
+        }
+
+        .hover\:bg-theme:hover {
+            background-color: var(--theme-primary);
+        }
+
+        .hover\:bg-theme\/10:hover {
+            background-color: color-mix(in srgb, var(--theme-primary) 10%, transparent);
+        }
+
+        .group:hover .group-hover\:text-theme {
+            color: var(--theme-primary);
+        }
+
+        .border-pink {
+            border-color: var(--cyber-pink);
+        }
+
+        .border-amber {
+            border-color: var(--cyber-amber);
+        }
+
+        .terminal-box {
+            background: rgba(5, 5, 5, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-link {
+            transition: all 0.3s;
+        }
+
+        .nav-link:hover {
+            color: var(--cyber-cyan);
+        }
+
+        .skill-tag {
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            padding: 0.25rem 0.75rem;
+            font-size: 0.7rem;
+            transition: all 0.3s;
+        }
+
+        .skill-tag:hover {
+            background: rgba(0, 243, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.1) 2px, rgba(0, 0, 0, 0.1) 4px);
+            z-index: 9999;
+        }
+
+        #cmatrix {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        .page-header {
+            margin-bottom: 3rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .breadcrumb {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 1rem;
+        }
+
+        .breadcrumb a {
+            color: var(--cyber-cyan);
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #fff, var(--cyber-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .page-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 1rem;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .data-table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-completed {
+            color: #00ff41;
+        }
+
+        .status-ongoing {
+            color: var(--cyber-cyan);
+        }
+
+        .status-submitted {
+            color: var(--cyber-amber);
+        }
+
+        .typing-cursor::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body class="antialiased">
+    {% if profile and profile.show_matrix_effect %}
+    <canvas id="cmatrix"></canvas>
+    {% endif %}
+    <div class="scanline"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/20">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <a href="/" id="navbar-brand-container" class="flex flex-col group min-h-[3rem] justify-center">
+                    <span id="navbar-brand-name"
+                        class="text-theme font-bold tracking-widest text-lg group-hover:text-white transition-colors">{{
+                        profile.hero_title if profile and profile.hero_title else 'ojsTerminalBio' }}</span>
+                    <span id="navbar-brand-subtitle"
+                        class="text-[0.6rem] text-white/50 font-bold uppercase tracking-wider group-hover:text-theme transition-colors">{{
+                        profile.institution if profile and profile.institution else '' }}</span>
+                </a>
+
+                <!-- Mobile Hamburger Button -->
+                <button id="mobile-menu-btn" class="md:hidden text-white hover:text-theme focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+
+                <div class="hidden md:flex gap-8 text-xs font-bold uppercase tracking-[0.2em]">
+                    <!-- Static Links with editable labels -->
+                    {% if not profile or profile.show_about_page %}
+                    <a href="/about"
+                        class="nav-link {% if request.url.path == '/about' %}text-theme border-b-2 border-theme pb-1{% else %}text-white hover:text-theme{% endif %} transition-all">{{
+                        profile.label_about_page if profile and profile.label_about_page }}</a>
+                    {% endif %}
+
+                    {% if not profile or profile.show_research_page %}
+                    <a href="/research"
+                        class="nav-link {% if request.url.path == '/research' %}text-theme border-b-2 border-theme pb-1{% else %}text-white hover:text-theme{% endif %} transition-all">{{
+                        profile.label_research_page if profile and profile.label_research_page }}</a>
+                    {% endif %}
+
+                    {% if not profile or profile.show_projects_page %}
+                    <a href="/projects"
+                        class="nav-link {% if request.url.path == '/projects' %}text-theme border-b-2 border-theme pb-1{% else %}text-white hover:text-theme{% endif %} transition-all">{{
+                        profile.label_projects_page if profile and profile.label_projects_page }}</a>
+                    {% endif %}
+
+                    {% if not profile or profile.show_students_page %}
+                    <a href="/students"
+                        class="nav-link {% if request.url.path == '/students' %}text-theme border-b-2 border-theme pb-1{% else %}text-white hover:text-theme{% endif %} transition-all">{{
+                        profile.label_students_page if profile and profile.label_students_page }}</a>
+                    {% endif %}
+
+                    {% if not profile or profile.show_teaching_page %}
+                    <a href="/teaching"
+                        class="nav-link {% if request.url.path == '/teaching' %}text-theme border-b-2 border-theme pb-1{% else %}text-white hover:text-theme{% endif %} transition-all">{{
+                        profile.label_teaching_page if profile and profile.label_teaching_page }}</a>
+                    {% endif %}
+
+                    <!-- Dynamic Menu Pages -->
+                    {% if request.state.pages %}
+                    {% for page in request.state.pages %}
+                    {% if not page.parent_id %}
+                    {% set children = request.state.pages | selectattr("parent_id", "equalto", page.id) | list %}
+                    {% if children|length > 0 %}
+                    <div class="relative group">
+                        <button onclick="this.nextElementSibling.classList.toggle('hidden');"
+                            onblur="setTimeout(() => this.nextElementSibling.classList.add('hidden'), 200);"
+                            class="nav-link text-white hover:text-theme transition-all flex items-center gap-1 focus:outline-none uppercase">
+                            {{ page.title }} <span class="text-[0.6em] relative top-[1px]">▼</span>
+                        </button>
+                        <!-- Dropdown: Align right for dynamic pages (usually at end), high Z-index -->
+                        <div class="absolute right-0 top-full pt-2 hidden group-hover:block z-[100] min-w-[200px]">
+                            <div class="bg-black border border-white/20 p-2 shadow-xl shadow-cyan/10">
+                                <a href="/{{ page.slug }}"
+                                    class="block px-4 py-2 text-white text-xs hover:bg-theme/10 hover:text-theme mb-1 border-b border-white/10">{{
+                                    page.title }}</a>
+                                {% for child in children %}
+                                <a href="/{{ child.slug }}"
+                                    class="block px-4 py-2 text-white text-xs hover:bg-theme/10 hover:text-theme">{{
+                                    child.title }}</a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <a href="/{{ page.slug }}"
+                        class="nav-link {% if request.url.path == '/' + page.slug %}text-theme border-b-2 border-theme pb-1{% else %}text-white hover:text-theme{% endif %} transition-all">{{
+                        page.title }}</a>
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+
+                    <button id="theme-toggle"
+                        class="text-white hover:text-theme transition-colors ml-4 focus:outline-none"
+                        aria-label="Toggle Theme">
+                        <!-- Sun Icon (for Dark Mode) -->
+                        <svg id="sun-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z">
+                            </path>
+                        </svg>
+                        <!-- Moon Icon (for Light Mode) -->
+                        <svg id="moon-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="mobile-menu"
+                    class="hidden md:hidden mt-4 space-y-2 text-xs font-bold uppercase tracking-[0.2em] bg-black/90 p-4 border border-white/10">
+                    {% if not profile or profile.show_about_page %}
+                    <a href="/about"
+                        class="block py-2 {% if request.url.path == '/about' %}text-theme pl-2 border-l-2 border-theme{% else %}text-white{% endif %}">{{
+                        profile.label_about_page if profile and profile.label_about_page }}</a>
+                    {% endif %}
+                    {% if not profile or profile.show_research_page %}
+                    <a href="/research"
+                        class="block py-2 {% if request.url.path == '/research' %}text-theme pl-2 border-l-2 border-theme{% else %}text-white{% endif %}">{{
+                        profile.label_research_page if profile and profile.label_research_page }}</a>
+                    {% endif %}
+                    {% if not profile or profile.show_projects_page %}
+                    <a href="/projects"
+                        class="block py-2 {% if request.url.path == '/projects' %}text-theme pl-2 border-l-2 border-theme{% else %}text-white{% endif %}">{{
+                        profile.label_projects_page if profile and profile.label_projects_page }}</a>
+                    {% endif %}
+                    {% if not profile or profile.show_students_page %}
+                    <a href="/students"
+                        class="block py-2 {% if request.url.path == '/students' %}text-theme pl-2 border-l-2 border-theme{% else %}text-white{% endif %}">{{
+                        profile.label_students_page if profile and profile.label_students_page }}</a>
+                    {% endif %}
+                    {% if not profile or profile.show_teaching_page %}
+                    <a href="/teaching"
+                        class="block py-2 {% if request.url.path == '/teaching' %}text-theme pl-2 border-l-2 border-theme{% else %}text-white{% endif %}">{{
+                        profile.label_teaching_page if profile and profile.label_teaching_page }}</a>
+                    {% endif %}
+
+                    {% if request.state.pages %}
+                    {% for page in request.state.pages %}
+                    {% if not page.parent_id %}
+                    <a href="/{{ page.slug }}"
+                        class="block py-2 {% if request.url.path == '/' + page.slug %}text-theme pl-2 border-l-2 border-theme{% else %}text-white{% endif %}">{{
+                        page.title }}</a>
+
+                    {% for child in request.state.pages %}
+                    {% if child.parent_id == page.id %}
+                    <a href="/{{ child.slug }}"
+                        class="block py-2 pl-4 text-white/70 hover:text-white border-l border-white/10 ml-2">- {{
+                        child.title }}</a>
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 pt-24 pb-20">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-white/30">
+            <p>{{ profile.footer_text if profile and profile.footer_text }}</p>
+        </div>
+    </footer>
+
+    <script>
+        // Matrix Rain
+        const canvas = document.getElementById('cmatrix');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const chars = "{{ profile.matrix_characters if profile and profile.matrix_characters else 'ꯀꯁꯂꯃꯄꯅꯆꯇꯈꯉ01' }}";
+            // Parse font size safely
+            const fontSizeRaw = "{{ profile.matrix_font_size if profile and profile.matrix_font_size else 14 }}";
+            const fontSize = parseInt(fontSizeRaw) || 14;
+            const columns = canvas.width / fontSize;
+            const drops = Array(Math.floor(columns)).fill(1);
+
+            // Theme Colors from settings
+            const themeColor = "{{ profile.theme_primary_color if profile and profile.theme_primary_color else 'cyan' }}";
+            const colorMap = {
+                cyan: '#00f3ff',
+                pink: '#ff0055',
+                amber: '#ffb800',
+                green: '#00ff88'
+            };
+            let matrixColor = colorMap[themeColor] || '#00f3ff';
+            // console.log('Theme:', themeColor, 'Matrix Color:', matrixColor);
+
+            const opacityRaw = "{{ profile.matrix_opacity if profile and profile.matrix_opacity else '0.05' }}";
+            let bgFade = `rgba(5, 5, 5, ${opacityRaw})`;
+
+            function draw() {
+                ctx.fillStyle = bgFade;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = matrixColor;
+                ctx.font = fontSize + 'px monospace';
+                for (let i = 0; i < drops.length; i++) {
+                    const text = chars[Math.floor(Math.random() * chars.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                    drops[i]++;
+                }
+            }
+            setInterval(draw, 33);
+        }
+
+        // Mobile menu
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', function () {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+
+        function updateThemeIcon(isLight) {
+            if (isLight) {
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+                matrixColor = '#008f11'; // Dark green for light mode
+                bgFade = 'rgba(240, 240, 240, 0.1)';
+            } else {
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+                matrixColor = colorMap[themeColor] || '#00f3ff'; // Use theme color!
+                bgFade = 'rgba(5, 5, 5, 0.05)';
+            }
+        }
+
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            body.classList.add('light-mode');
+            updateThemeIcon(true);
+        } else {
+            updateThemeIcon(false);
+        }
+
+        themeToggle?.addEventListener('click', () => {
+            body.classList.toggle('light-mode');
+            const isLight = body.classList.contains('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            updateThemeIcon(isLight);
+        });
+
+        // Typing Effect
+        const nameElement = document.getElementById('navbar-brand-name');
+        const subtitleElement = document.getElementById('navbar-brand-subtitle');
+
+        if (nameElement && subtitleElement) {
+            const nameText = "{{ profile.name if profile and profile.name else 'ojsTerminalBio' }}";
+            const subtitleText = "{{ profile.institution if profile }}";
+
+            nameElement.classList.add('typing-cursor');
+
+            function typeSubtitle(index = 0) {
+                if (index < subtitleText.length) {
+                    subtitleElement.textContent += subtitleText.charAt(index);
+                    setTimeout(() => typeSubtitle(index + 1), 50);
+                } else {
+                    subtitleElement.classList.remove('typing-cursor');
+                }
+            }
+
+            function typeName(index = 0) {
+                if (index < nameText.length) {
+                    nameElement.textContent += nameText.charAt(index);
+                    setTimeout(() => typeName(index + 1), 100);
+                } else {
+                    nameElement.classList.remove('typing-cursor');
+                    subtitleElement.classList.add('typing-cursor');
+                    typeSubtitle();
+                }
+            }
+
+            setTimeout(() => typeName(), 500);
+        }
+    </script>
+</body>
+
+</html>

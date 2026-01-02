@@ -1,0 +1,257 @@
+{% extends "admin/base.html" %}
+{% block title %}Publications{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-8">
+    <div>
+        <h1 class="text-2xl font-bold text-white mb-2">Publications</h1>
+        <p class="text-white/50 text-sm">Manage research papers and articles</p>
+    </div>
+    <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+        class="bg-cyan text-black px-4 py-2 text-sm font-bold hover:bg-white transition-colors">
+        + Add Publication
+    </button>
+</div>
+
+<!-- Publications List -->
+<div class="terminal-box">
+    <table class="w-full">
+        <thead class="border-b border-white/10">
+            <tr class="text-left text-xs text-white/40 uppercase tracking-wider">
+                <th class="p-4">Year</th>
+                <th class="p-4">Title</th>
+                <th class="p-4">Venue</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pub in publications %}
+            <tr class="border-b border-white/5 hover:bg-white/5">
+                <td class="p-4 text-cyan">{{ pub.year }}</td>
+                <td class="p-4 text-white text-sm">{{ pub.title[:80] }}{% if pub.title|length > 80 %}...{% endif %}</td>
+                <td class="p-4 text-white/60 text-sm">{{ pub.venue or '-' }}</td>
+                <td class="p-4">
+                    <span
+                        class="text-xs px-2 py-1 rounded {% if pub.status == 'published' %}bg-green-500/20 text-green-400{% elif pub.status == 'accepted' %}bg-cyan/20 text-cyan{% else %}bg-amber/20 text-amber{% endif %}">
+                        {{ pub.status }}
+                    </span>
+                </td>
+                <td class="p-4 flex gap-2">
+                    <button onclick="openEditModal(this)" data-id="{{ pub.id }}" data-title="{{ pub.title }}"
+                        data-authors="{{ pub.authors or '' }}" data-venue="{{ pub.venue or '' }}"
+                        data-venue-type="{{ pub.venue_type or '' }}" data-year="{{ pub.year }}"
+                        data-status="{{ pub.status or '' }}" data-doi="{{ pub.doi or '' }}"
+                        data-url="{{ pub.url or '' }}" class="text-cyan hover:text-white text-xs">Edit</button>
+                    <form method="POST" action="/admin/publications/delete/{{ pub.id }}" class="inline">
+                        <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                            onclick="return confirm('Delete this publication?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="p-8 text-center text-white/40">No publications yet</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Modal -->
+<div id="add-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Publication</h2>
+            <button onclick="document.getElementById('add-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/publications/add" class="space-y-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Title *</label>
+                <input type="text" name="title" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Authors</label>
+                <input type="text" name="authors"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                    placeholder="Author1, Author2, ...">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Venue</label>
+                    <div class="relative">
+                        <input type="text" name="venue" list="venues-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Journal or Conference">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Venue Type</label>
+                    <div class="relative">
+                        <input type="text" name="venue_type" list="venue-types-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Select or type new">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Year *</label>
+                    <input type="number" name="year" required value="2024"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Status</label>
+                    <div class="relative">
+                        <input type="text" name="status" list="statuses-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Select or type new">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">DOI</label>
+                    <input type="text" name="doi"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">URL</label>
+                    <input type="url" name="url"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Edit Publication</h2>
+            <button onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form id="edit-form" method="POST" action="" class="space-y-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Title *</label>
+                <input type="text" name="title" id="edit-title" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Authors</label>
+                <input type="text" name="authors" id="edit-authors"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Venue</label>
+                    <div class="relative">
+                        <input type="text" name="venue" id="edit-venue" list="venues-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Venue Type</label>
+                    <div class="relative">
+                        <input type="text" name="venue_type" id="edit-venue_type" list="venue-types-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Select or type new">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Year *</label>
+                    <input type="number" name="year" id="edit-year" required
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Status</label>
+                    <div class="relative">
+                        <input type="text" name="status" id="edit-status" list="statuses-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Select or type new">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">DOI</label>
+                    <input type="text" name="doi" id="edit-doi"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">URL</label>
+                    <input type="url" name="url" id="edit-url"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-pink text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Update</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditModal(btn) {
+        const id = btn.dataset.id;
+        document.getElementById('edit-form').action = '/admin/publications/update/' + id;
+        document.getElementById('edit-title').value = btn.dataset.title;
+        document.getElementById('edit-authors').value = btn.dataset.authors;
+        document.getElementById('edit-venue').value = btn.dataset.venue;
+        document.getElementById('edit-venue_type').value = btn.dataset.venueType || 'journal';
+        document.getElementById('edit-year').value = btn.dataset.year;
+        document.getElementById('edit-status').value = btn.dataset.status || 'published';
+        document.getElementById('edit-doi').value = btn.dataset.doi;
+        document.getElementById('edit-url').value = btn.dataset.url;
+        document.getElementById('edit-modal').classList.remove('hidden');
+    }
+</script>
+
+<!-- Datalists -->
+<datalist id="venues-list">
+    {% for v in venues %}
+    <option value="{{ v }}">
+        {% endfor %}
+</datalist>
+<datalist id="venue-types-list">
+    {% for vt in venue_types %}
+    <option value="{{ vt }}">
+        {% endfor %}
+        {% if not venue_types %}
+    <option value="journal">
+    <option value="conference">
+    <option value="workshop">
+        {% endif %}
+</datalist>
+<datalist id="statuses-list">
+    {% for s in statuses %}
+    <option value="{{ s }}">
+        {% endfor %}
+        {% if not statuses %}
+    <option value="published">
+    <option value="accepted">
+    <option value="submitted">
+        {% endif %}
+</datalist>
+{% endblock %}
