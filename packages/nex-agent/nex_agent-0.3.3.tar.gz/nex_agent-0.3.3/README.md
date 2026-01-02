@@ -1,0 +1,213 @@
+# NexAgent
+
+[![PyPI version](https://img.shields.io/pypi/v/nex-agent.svg)](https://pypi.org/project/nex-agent/)
+[![Python versions](https://img.shields.io/pypi/pyversions/nex-agent.svg)](https://pypi.org/project/nex-agent/)
+[![Downloads](https://img.shields.io/pypi/dm/nex-agent.svg)](https://pypi.org/project/nex-agent/)
+[![License](https://img.shields.io/pypi/l/nex-agent.svg)](https://pypi.org/project/nex-agent/)
+[![Gitee](https://img.shields.io/badge/Gitee-仓库-red)](https://gitee.com/candy_xt/NexAgent)
+
+AI 对话框架，支持多模型切换、多会话管理、工具调用、MCP 协议、深度思考、流式输出。
+
+## 特性
+
+- 🔄 **多模型切换** - 支持配置多个 AI 模型和服务商，运行时切换
+- 💬 **多会话管理** - 独立会话上下文，支持创建、切换、删除、消息编辑
+- 🔧 **工具调用** - 内置 shell/http 工具，支持自定义扩展
+- 🔌 **MCP 协议** - 支持 Model Context Protocol，连接外部 MCP 服务器
+- 🧠 **深度思考** - 支持思考模型，展示 AI 推理过程
+- 📡 **流式输出** - 实时返回生成内容、工具调用、思考过程
+- 🗄️ **SQLite 存储** - 可靠的本地数据持久化
+- 🌐 **WebUI** - 现代化聊天界面，支持深色/浅色主题
+
+## 安装
+
+```bash
+pip install nex-agent
+```
+
+## 快速开始
+
+```bash
+# 初始化工作目录
+nex init
+
+# 启动 Web 服务
+nex serve --port 8000
+
+# 在浏览器中打开 http://localhost:8000
+# 在设置中添加服务商和模型
+```
+
+## 工作目录结构
+
+```
+your_project/
+├── prompt_config.txt     # 系统提示词
+├── nex_data.db           # SQLite 数据库（自动生成）
+└── tools/                # 自定义工具目录
+    ├── get_time.json     # 工具定义
+    ├── get_time.py       # 工具实现
+    └── calculator.py     # 纯 Python 工具
+```
+
+## WebUI 功能
+
+启动服务后访问 `http://localhost:8000`：
+
+- **会话管理** - 左侧边栏管理多个对话会话
+- **模型切换** - 顶部下拉框切换不同模型
+- **深度思考** - 支持思考模型时可开启，查看 AI 推理过程
+- **消息操作** - 编辑、删除、重新生成消息
+- **工具调用** - 可折叠的工具调用卡片，显示参数和结果
+- **设置面板** - 管理服务商、模型、MCP 服务器
+
+## 模型配置
+
+通过 Web 界面的设置面板管理：
+
+1. **添加服务商** - 配置 API Key 和 Base URL
+   - 支持 OpenAI、DeepSeek、Anthropic 等兼容 OpenAI API 的服务
+2. **添加模型** - 选择服务商，配置模型 ID
+   - 可选配置思考模型（如 DeepSeek R1）
+
+## MCP 服务器
+
+支持连接 MCP (Model Context Protocol) 服务器，扩展 AI 能力：
+
+1. 在设置面板的 MCP 标签页添加服务器
+2. 支持 SSE 和 Streamable HTTP 两种连接方式
+3. 连接后自动加载服务器提供的工具
+
+## 代码使用
+
+```python
+from nex_agent import NexFramework
+
+nex = NexFramework(work_dir="./my_project")
+
+# 创建会话
+session_id = nex.create_session("测试会话", "user1")
+
+# 对话
+reply = nex.chat("user1", "你好", session_id=session_id)
+
+# 流式对话
+for chunk in nex.chat_stream("user1", "讲个故事", session_id=session_id):
+    print(chunk, end="", flush=True)
+
+# 切换模型
+nex.switch_model("deepseek")
+
+# 开启深度思考
+nex.set_deep_thinking(True)
+```
+
+## API 接口
+
+### 对话
+```
+POST /nex/chat
+{
+  "user": "guest",
+  "message": "你好",
+  "session_id": 1,
+  "stream": true
+}
+```
+
+### 会话管理
+```
+GET    /nex/sessions                    # 获取会话列表
+POST   /nex/sessions                    # 创建会话
+GET    /nex/sessions/{id}               # 获取会话详情
+PUT    /nex/sessions/{id}               # 更新会话名称
+DELETE /nex/sessions/{id}               # 删除会话
+GET    /nex/sessions/{id}/messages      # 获取会话消息
+DELETE /nex/sessions/{id}/messages      # 清空会话消息
+```
+
+### 消息管理
+```
+GET    /nex/messages/{id}               # 获取单条消息
+PUT    /nex/messages/{id}               # 编辑消息
+DELETE /nex/messages/{id}               # 删除消息
+POST   /nex/messages/{id}/regenerate    # 重新生成
+```
+
+### 模型管理
+```
+GET  /nex/models                        # 获取模型列表
+POST /nex/models                        # 添加模型
+PUT  /nex/models/{key}                  # 更新模型
+DELETE /nex/models/{key}                # 删除模型
+POST /nex/models/switch                 # 切换模型
+GET  /nex/models/deep-thinking          # 获取深度思考状态
+POST /nex/models/deep-thinking          # 设置深度思考
+```
+
+### 服务商管理
+```
+GET    /nex/providers                   # 获取服务商列表
+POST   /nex/providers                   # 添加服务商
+PUT    /nex/providers/{id}              # 更新服务商
+DELETE /nex/providers/{id}              # 删除服务商
+```
+
+### MCP 服务器
+```
+GET    /nex/mcp/servers                 # 获取 MCP 服务器列表
+POST   /nex/mcp/servers                 # 添加 MCP 服务器
+PUT    /nex/mcp/servers/{id}            # 更新 MCP 服务器
+DELETE /nex/mcp/servers/{id}            # 删除 MCP 服务器
+POST   /nex/mcp/servers/{id}/reconnect  # 重新连接
+```
+
+## 自定义工具
+
+### 方式1: JSON + Python
+
+`tools/get_weather.json`:
+```json
+{
+  "name": "get_weather",
+  "description": "获取天气信息",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "city": {"type": "string", "description": "城市名"}
+    },
+    "required": ["city"]
+  }
+}
+```
+
+`tools/get_weather.py`:
+```python
+def execute(args):
+    city = args.get("city")
+    return f"{city}天气晴朗"
+```
+
+### 方式2: 纯 Python
+
+`tools/calculator.py`:
+```python
+TOOL_DEF = {
+    "name": "calculator",
+    "description": "计算器",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "expression": {"type": "string"}
+        },
+        "required": ["expression"]
+    }
+}
+
+def execute(args):
+    return str(eval(args["expression"]))
+```
+
+## License
+
+MIT
