@@ -1,0 +1,147 @@
+[build-system]
+requires = ["maturin>=1.10.2,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "haze-library"
+version = "1.0.6"
+description = "High-performance quantitative trading indicators library with Rust backend"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.14"
+keywords = ["trading", "indicators", "quantitative", "technical-analysis", "rust"]
+authors = [
+    {name = "Haze Team", email = "team@haze-library.com"},
+]
+maintainers = [
+    {name = "Haze Team", email = "team@haze-library.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: Free For Educational Use",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "numpy>=2.4.0",
+    "pandas>=2.3.3",
+]
+
+[project.optional-dependencies]
+execution = [
+    "ccxt==4.5.29",
+]
+api = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic>=2.10.0",
+]
+dev = [
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "black==25.12.0",
+    "isort==7.0.0",
+    "mypy==1.19.1",
+    "sphinx==9.0.4",
+    "sphinx-rtd-theme==3.0.2",
+]
+test = [
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "pytest-benchmark==5.2.3",
+]
+test-talib = [
+    "TA-Lib==0.6.8",
+]
+docs = [
+    "sphinx==9.0.4",
+    "sphinx-rtd-theme==3.0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/kwannz/haze"
+Documentation = "https://github.com/kwannz/haze"
+Repository = "https://github.com/kwannz/haze"
+Issues = "https://github.com/kwannz/haze/issues"
+Changelog = "https://github.com/kwannz/haze/blob/main/CHANGELOG.md"
+
+[tool.maturin]
+python-source = "src"
+features = ["python"]
+manifest-path = "rust/Cargo.toml"
+module-name = "haze_library.haze_library"
+exclude = [
+    "src/**/*.so",
+    "src/**/*.pyd",
+    "src/**/*.dll",
+    "src/**/__pycache__/**",
+    "src/**/*.pyc",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py314']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["haze_library"]
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = ["ccxt.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["vendor", "build", "dist", ".venv"]
+filterwarnings = [
+    # Ignore expected warnings during test collection/import
+    "ignore:Could not import Rust extension module:UserWarning",
+    "ignore:registration of accessor.*is overriding a preexisting attribute:UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+# Ignore intentional patterns:
+# F403/F405: Star imports for Rust extension bindings
+# E402: Module-level imports not at top (conditional/fallback imports)
+# E741: Using 'l' for 'low' in financial data is common
+ignore = ["F403", "F405", "E402", "E741"]

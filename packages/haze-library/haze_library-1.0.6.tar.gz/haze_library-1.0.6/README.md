@@ -1,0 +1,475 @@
+# 🌫️ Haze-Library
+
+[![CI](https://github.com/kwannz/haze/actions/workflows/ci.yml/badge.svg)](https://github.com/kwannz/haze/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/haze-library)](https://pypi.org/project/haze-library/)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Python](https://img.shields.io/badge/python-3.14%2B-blue)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange)](https://www.rust-lang.org/)
+
+**基于 Rust 的高性能量化交易指标库**
+
+---
+
+## ✨ 核心特性
+
+| 特性 | 描述 |
+|------|------|
+| 🚀 **215+ 技术指标** | 完整覆盖 TA-Lib、pandas-ta、谐波形态等 |
+| ⚡ **Rust 高性能** | 比纯 Python 快 5-10 倍 |
+| 📊 **流式计算** | O(1) 实时增量指标计算 |
+| 🤖 **机器学习** | 内置 SVM、线性回归等 ML 模型 |
+| 🔗 **多框架支持** | NumPy、Pandas、Polars、PyTorch |
+| 💹 **交易执行** | CCXT 交易所接口封装 |
+| 🎯 **高精度** | 误差容忍度 < 1e-9 |
+| 🔒 **类型安全** | 完整的类型注解 |
+
+---
+
+## 📦 安装
+
+### 从 PyPI 安装（推荐）
+
+```bash
+pip install haze-library
+```
+
+### 可选依赖
+
+```bash
+# 交易执行功能（CCXT）
+pip install haze-library[execution]
+
+# Pandas 支持
+pip install haze-library[pandas]
+
+# 完整安装
+pip install haze-library[full]
+```
+
+### 从源码构建
+
+```bash
+git clone https://github.com/kwannz/haze.git
+cd haze
+pip install maturin
+maturin develop --release --features python
+```
+
+### 环境要求
+
+- Python 3.14+
+- Rust 1.75+（仅源码构建需要）
+
+---
+
+## 🚀 快速开始
+
+### 基础用法
+
+```python
+import haze_library as haze
+
+# 价格数据
+close = [100.0, 101.0, 102.0, 101.5, 103.0, 102.5, 104.0]
+high = [101.0, 102.0, 103.0, 102.5, 104.0, 103.5, 105.0]
+low = [99.0, 100.0, 101.0, 100.5, 102.0, 101.5, 103.0]
+volume = [1000, 1200, 1100, 1300, 1250, 1150, 1400]
+
+# 移动平均线
+sma = haze.sma(close, period=5)
+ema = haze.ema(close, period=5)
+
+# 动量指标
+rsi = haze.rsi(close, period=14)
+macd, signal, hist = haze.macd(close, fast=12, slow=26, signal=9)
+
+# 波动率指标
+atr = haze.atr(high, low, close, period=14)
+upper, middle, lower = haze.bollinger_bands(close, period=20, std_dev=2.0)
+
+# 趋势指标
+supertrend, direction = haze.supertrend(high, low, close, period=10, multiplier=3.0)
+adx = haze.adx(high, low, close, period=14)
+
+# 成交量指标
+obv = haze.obv(close, volume)
+vwap = haze.vwap(high, low, close, volume)
+```
+
+### Pandas 集成
+
+```python
+import pandas as pd
+import haze_library
+
+# 加载数据
+df = pd.read_csv('ohlcv.csv')
+
+# 使用 .haze 访问器
+df['sma_20'] = df['close'].haze.sma(20)
+df['rsi_14'] = df['close'].haze.rsi(14)
+df['atr_14'] = df.haze.atr(14)
+
+# 布林带（返回多列）
+bb = df['close'].haze.bollinger_bands(20, 2.0)
+df['bb_upper'] = bb['upper']
+df['bb_middle'] = bb['middle']
+df['bb_lower'] = bb['lower']
+```
+
+### NumPy 接口
+
+```python
+import numpy as np
+from haze_library import np_ta
+
+close = np.random.randn(1000) + 100
+
+# 计算指标（返回 np.ndarray）
+sma = np_ta.sma(close, period=20)
+rsi = np_ta.rsi(close, period=14)
+macd, signal, hist = np_ta.macd(close)
+```
+
+### 流式计算（实时数据）
+
+```python
+from haze_library.streaming import (
+    IncrementalSMA,
+    IncrementalRSI,
+    IncrementalMACD,
+    IncrementalBollingerBands,
+)
+
+# 创建流式计算器
+sma = IncrementalSMA(period=20)
+rsi = IncrementalRSI(period=14)
+macd = IncrementalMACD(fast=12, slow=26, signal=9)
+
+# 逐个数据点更新（O(1) 复杂度）
+for price in realtime_prices:
+    sma_value = sma.update(price)
+    rsi_value = rsi.update(price)
+    macd_line, signal_line, histogram = macd.update(price)
+
+    print(f"SMA: {sma_value:.2f}, RSI: {rsi_value:.2f}")
+```
+
+### 谐波形态检测
+
+```python
+import haze_library as haze
+
+# 检测 XABCD 谐波形态
+# 返回：信号(1=看涨/-1=看跌)、PRZ上沿、PRZ下沿、完成概率
+signals, prz_up, prz_lo, prob = haze.harmonics(high, low, close)
+
+# 获取详细形态信息
+patterns = haze.harmonics_patterns(high, low, left_bars=5, right_bars=5)
+for p in patterns:
+    print(f"{p.pattern_type_zh}: {p.state}")
+    print(f"  PRZ 中心: {p.prz_center:.2f}")
+    print(f"  完成概率: {p.completion_probability:.1%}")
+```
+
+### 机器学习模型
+
+```python
+from haze_library import ml
+
+# 特征提取
+features = ml.extract_features(close, high, low, volume)
+
+# 训练 SVM 模型
+model = ml.train_svm(features, labels)
+
+# 预测
+predictions = model.predict(new_features)
+```
+
+---
+
+## 📊 指标分类
+
+### 移动平均线（16 个）
+
+| 指标 | 说明 | 函数 |
+|------|------|------|
+| SMA | 简单移动平均 | `sma(close, period)` |
+| EMA | 指数移动平均 | `ema(close, period)` |
+| WMA | 加权移动平均 | `wma(close, period)` |
+| DEMA | 双重指数移动平均 | `dema(close, period)` |
+| TEMA | 三重指数移动平均 | `tema(close, period)` |
+| KAMA | 考夫曼自适应移动平均 | `kama(close, period)` |
+| HMA | 赫尔移动平均 | `hma(close, period)` |
+| ZLMA | 零延迟移动平均 | `zlma(close, period)` |
+| T3 | T3 移动平均 | `t3(close, period)` |
+| ALMA | 阿尔诺德移动平均 | `alma(close, period)` |
+| FRAMA | 分形自适应移动平均 | `frama(close, period)` |
+| VIDYA | 变量指数动态平均 | `vidya(close, period)` |
+| RMA | 相对移动平均 | `rma(close, period)` |
+| SWMA | 正弦加权移动平均 | `swma(close)` |
+| PWMA | 帕斯卡加权移动平均 | `pwma(close, period)` |
+| SINWMA | 正弦权重移动平均 | `sinwma(close, period)` |
+
+### 动量指标（17 个）
+
+| 指标 | 说明 | 函数 |
+|------|------|------|
+| RSI | 相对强弱指标 | `rsi(close, period)` |
+| MACD | 指数平滑异同移动平均 | `macd(close, fast, slow, signal)` |
+| Stochastic | 随机指标 | `stochastic(high, low, close, k, d)` |
+| CCI | 商品通道指数 | `cci(high, low, close, period)` |
+| MFI | 资金流量指标 | `mfi(high, low, close, volume, period)` |
+| Williams %R | 威廉指标 | `willr(high, low, close, period)` |
+| ROC | 变化率 | `roc(close, period)` |
+| MOM | 动量 | `mom(close, period)` |
+| KDJ | 随机指标 KDJ | `kdj(high, low, close, k, d, j)` |
+| TSI | 真实强度指数 | `tsi(close, fast, slow)` |
+| Stoch RSI | 随机 RSI | `stochrsi(close, period)` |
+| Ultimate | 终极振荡器 | `ultimate(high, low, close)` |
+| Awesome | 动量震荡指标 | `awesome(high, low)` |
+| Fisher | 费舍尔变换 | `fisher(high, low, period)` |
+| APO | 绝对价格振荡器 | `apo(close, fast, slow)` |
+| PPO | 百分比价格振荡器 | `ppo(close, fast, slow)` |
+| CMO | 钱德动量振荡器 | `cmo(close, period)` |
+
+### 波动率指标（10 个）
+
+| 指标 | 说明 | 函数 |
+|------|------|------|
+| ATR | 平均真实波幅 | `atr(high, low, close, period)` |
+| NATR | 归一化 ATR | `natr(high, low, close, period)` |
+| Bollinger | 布林带 | `bollinger_bands(close, period, std)` |
+| Keltner | 肯特纳通道 | `keltner(high, low, close, period)` |
+| Donchian | 唐奇安通道 | `donchian(high, low, period)` |
+| Chandelier | 吊灯止损 | `chandelier(high, low, close, period)` |
+| HV | 历史波动率 | `historical_volatility(close, period)` |
+| Ulcer | 溃疡指数 | `ulcer_index(close, period)` |
+| Mass | 质量指数 | `mass_index(high, low)` |
+| True Range | 真实波幅 | `true_range(high, low, close)` |
+
+### 趋势指标（14 个）
+
+| 指标 | 说明 | 函数 |
+|------|------|------|
+| SuperTrend | 超级趋势 | `supertrend(high, low, close, period, mult)` |
+| ADX | 平均趋向指数 | `adx(high, low, close, period)` |
+| SAR | 抛物线转向 | `sar(high, low, accel, max_accel)` |
+| Aroon | 阿隆指标 | `aroon(high, low, period)` |
+| DMI | 方向移动指数 | `dmi(high, low, close, period)` |
+| TRIX | 三重平滑 EMA | `trix(close, period)` |
+| DPO | 去趋势价格振荡器 | `dpo(close, period)` |
+| Vortex | 涡流指标 | `vortex(high, low, close, period)` |
+| Choppiness | 震荡指数 | `choppiness(high, low, close, period)` |
+| VHF | 垂直水平过滤器 | `vhf(close, period)` |
+| QStick | 量价棒 | `qstick(open, close, period)` |
+| DX | 趋向指数 | `dx(high, low, close, period)` |
+| +DI | 正向指标 | `plus_di(high, low, close, period)` |
+| -DI | 负向指标 | `minus_di(high, low, close, period)` |
+
+### 成交量指标（11 个）
+
+| 指标 | 说明 | 函数 |
+|------|------|------|
+| OBV | 能量潮 | `obv(close, volume)` |
+| VWAP | 成交量加权均价 | `vwap(high, low, close, volume)` |
+| CMF | 蔡金资金流量 | `cmf(high, low, close, volume, period)` |
+| Force | 劲道指数 | `force_index(close, volume, period)` |
+| VO | 成交量振荡器 | `volume_oscillator(volume, fast, slow)` |
+| AD | 累积/派发线 | `ad(high, low, close, volume)` |
+| PVT | 价量趋势 | `pvt(close, volume)` |
+| NVI | 负量指标 | `nvi(close, volume)` |
+| PVI | 正量指标 | `pvi(close, volume)` |
+| EOM | 简易波动指标 | `eom(high, low, volume, period)` |
+| ADOSC | AD 振荡器 | `adosc(high, low, close, volume, fast, slow)` |
+
+### 蜡烛图形态（61 个）
+
+支持所有主流 K 线形态识别：
+
+- **反转形态**：锤子线、上吊线、吞没形态、孕线、十字星、早晨之星、黄昏之星等
+- **持续形态**：三白兵、三黑鸦、跳空缺口等
+- **中性形态**：高浪线、陀螺线等
+
+```python
+# 检测蜡烛图形态
+patterns = haze.detect_candlestick_patterns(open, high, low, close)
+```
+
+### 其他指标
+
+- **统计指标（13 个）**：线性回归、相关性、Z 分数、贝塔系数等
+- **价格变换（4 个）**：平均价格、中间价、典型价格等
+- **数学运算（25 个）**：各类数学函数
+- **周期指标（5 个）**：希尔伯特变换系列
+- **谐波形态（3 个）**：XABCD 形态检测
+- **高级信号（4 个）**：AI SuperTrend、动态 MACD 等
+
+---
+
+## 🏗️ 系统架构
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    Python 应用层                          │
+│            （交易策略 / 数据分析 / 回测系统）               │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+          ┌───────────────┼───────────────┐
+          │               │               │
+          ▼               ▼               ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│  np_ta      │   │  pandas     │   │  polars_ta  │
+│  (NumPy)    │   │  accessor   │   │  (Polars)   │
+└──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+       │                 │                 │
+       └─────────────────┼─────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│              haze_library (PyO3 绑定)                     │
+│         215+ 指标函数 + 流式计算器 + ML 模型              │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│                   Rust 核心库                             │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐         │
+│  │ indicators │  │  streaming │  │     ml     │         │
+│  │ 技术指标   │  │  流式计算   │  │  机器学习   │         │
+│  └────────────┘  └────────────┘  └────────────┘         │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐         │
+│  │   utils    │  │   types    │  │   errors   │         │
+│  │  工具函数   │  │   类型定义  │  │   错误处理  │         │
+│  └────────────┘  └────────────┘  └────────────┘         │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎯 性能基准
+
+测试环境：10,000 个数据点
+
+| 指标 | pandas-ta | TA-Lib | Haze-Library | 加速比 |
+|------|-----------|--------|--------------|--------|
+| RSI (14) | 12.5 ms | 8.2 ms | **1.3 ms** | 6.3x |
+| Bollinger (20) | 15.8 ms | 10.1 ms | **2.1 ms** | 4.8x |
+| MACD (12/26/9) | 18.3 ms | 11.4 ms | **1.9 ms** | 6.0x |
+| SuperTrend (10) | 22.1 ms | - | **2.8 ms** | 7.9x |
+| ADX (14) | 19.5 ms | 12.3 ms | **2.2 ms** | 5.6x |
+
+---
+
+## 🧮 数值稳定性
+
+Haze-Library 采用多种技术确保数值计算的精确性：
+
+- **f64 精度**：所有计算使用 64 位浮点数
+- **Kahan 求和**：长序列累加使用补偿求和算法
+- **Welford 算法**：方差/标准差使用增量算法避免数值溢出
+- **精度验证**：所有指标与参考实现对比误差 < 1e-9
+
+---
+
+## ⚠️ 错误处理
+
+```python
+import haze_library as haze
+
+try:
+    # 周期过大
+    rsi = haze.rsi([100, 101, 102], period=14)
+except ValueError as e:
+    print(f"错误: {e}")
+    # 输出: Invalid period: 14 (must be > 0 and <= data length 3)
+
+try:
+    # 数组长度不匹配
+    atr = haze.atr([101, 102], [99, 100], [100, 101, 102], period=2)
+except ValueError as e:
+    print(f"错误: {e}")
+    # 输出: Length mismatch
+
+try:
+    # 空数据
+    rsi = haze.rsi([], period=14)
+except ValueError as e:
+    print(f"错误: {e}")
+    # 输出: Empty input
+```
+
+---
+
+## 💹 交易执行（可选）
+
+需要安装 `haze-library[execution]`：
+
+```python
+from haze_library.execution import ExecutionEngine, ExecutionPermissions
+from haze_library.execution.providers.ccxt import CCXTProvider
+
+# 创建交易执行引擎
+provider = CCXTProvider(
+    exchange="binance",
+    api_key="your_key",
+    api_secret="your_secret",
+)
+
+permissions = ExecutionPermissions(
+    live_trading=True,
+    max_notional_per_order=1000.0,  # 单笔最大 1000 USDT
+)
+
+engine = ExecutionEngine(provider=provider, permissions=permissions)
+
+# 下单
+from haze_library.execution.models import CreateOrderRequest
+
+order_req = CreateOrderRequest(
+    symbol="BTC/USDT",
+    side="buy",
+    order_type="limit",
+    amount=0.001,
+    price=50000.0,
+)
+
+order, check = engine.place_order(order_req)
+print(f"订单 ID: {order.id}")
+```
+
+---
+
+## 📜 许可证
+
+本项目采用 **CC BY-NC 4.0** 许可证。
+
+- ✅ 个人学习和研究
+- ✅ 学术论文和教育用途
+- ❌ 商业用途（需单独授权）
+
+商业授权请联系：team@haze-library.com
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## 🙏 致谢
+
+- [TA-Lib](https://ta-lib.org/) - 技术分析参考实现
+- [pandas-ta](https://github.com/twopirllc/pandas-ta) - Pandas 集成灵感
+- [PyO3](https://pyo3.rs/) - Rust-Python 绑定
+- [Maturin](https://github.com/PyO3/maturin) - 构建工具
+
+---
+
+**Made with ❤️ by the Haze Team**
+
+**版本**: 1.0.5 | **更新日期**: 2025-12-28
