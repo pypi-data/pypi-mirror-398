@@ -1,0 +1,28 @@
+#!/bin/bash
+
+. parse-args "$@"
+
+set -e
+
+if [ -z "${USERNAME}" ]; then
+    echo "Error: --username argument is not set" >&2
+    exit 1
+fi
+
+SSH_DIR="$HOME/.ssh"
+AUTHORIZED_KEYS="$SSH_DIR/authorized_keys"
+
+mkdir -p "$SSH_DIR"
+chmod 700 "$SSH_DIR"
+
+TMP_KEYS=$(mktemp)
+curl -fsSL "https://github.com/${USERNAME}.keys" > "$TMP_KEYS"
+
+touch "$AUTHORIZED_KEYS"
+chmod 600 "$AUTHORIZED_KEYS"
+
+grep -Fvx -f "$AUTHORIZED_KEYS" "$TMP_KEYS" >> "$AUTHORIZED_KEYS"
+
+rm "$TMP_KEYS"
+
+echo "SSH keys from '${USERNAME}' added to '${AUTHORIZED_KEYS}'"
