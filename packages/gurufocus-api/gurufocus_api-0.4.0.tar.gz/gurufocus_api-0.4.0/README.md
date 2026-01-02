@@ -1,0 +1,225 @@
+# gurufocus-api (Unofficial)
+
+A Python client library for the GuruFocus API with async support, Pydantic models, and intelligent caching. This is currently a work in progress and is not yet ready for production use.
+
+## Features
+
+- Async-first design with `httpx`
+- Type-safe responses with Pydantic models
+- Three-tier intelligent caching
+- Rate limiting and retry logic
+- Full GuruFocus API coverage
+
+## Implementation Status
+
+**Progress: 22 of 52 endpoints (42%)**
+
+See [Implementation Tracker](../../docs/implementation_tracker.md) for full details.
+
+### Stock Endpoints
+
+| Endpoint                               | Method                           |
+| -------------------------------------- | -------------------------------- |
+| `GET /stock/{symbol}/summary`          | `stocks.get_summary()`           |
+| `GET /stock/{symbol}/financials`       | `stocks.get_financials()`        |
+| `GET /stock/{symbol}/keyratios`        | `stocks.get_keyratios()`         |
+| `GET /stock/{symbol}/quote`            | `stocks.get_quote()`             |
+| `GET /stock/{symbol}/price`            | `stocks.get_price_history()`     |
+| `GET /stock/{symbol}/price_ohlc`       | `stocks.get_price_ohlc()`        |
+| `GET /stock/{symbol}/volume`           | `stocks.get_volume()`            |
+| `GET /stock/{symbol}/unadjusted_price` | `stocks.get_unadjusted_price()`  |
+| `GET /stock/{symbol}/analyst_estimate` | `stocks.get_analyst_estimates()` |
+| `GET /stock/{symbol}/dividend`         | `stocks.get_dividends()`         |
+| `GET /stock/{symbol}/current_dividend` | `stocks.get_current_dividend()`  |
+| `GET /stock/{symbol}/insider`          | `stocks.get_insider_trades()`    |
+| `GET /stock/{symbol}/gurus`            | `stocks.get_gurus()`             |
+| `GET /stock/{symbol}/executives`       | `stocks.get_executives()`        |
+| `GET /stock/{symbol}/trades/history`   | `stocks.get_trades_history()`    |
+
+### Insider Activity Endpoints
+
+| Endpoint                                | Method                        |
+| --------------------------------------- | ----------------------------- |
+| `GET /insider_updates`                  | `insiders.get_updates()`      |
+| `GET /insider_buys/insider_ceo`         | `insiders.get_ceo_buys()`     |
+| `GET /insider_buys/insider_cfo`         | `insiders.get_cfo_buys()`     |
+| `GET /insider_buys/insider_cluster_buy` | `insiders.get_cluster_buys()` |
+| `GET /insider_buys/insider_double`      | `insiders.get_double_buys()`  |
+| `GET /insider_buys/insider_triple`      | `insiders.get_triple_buys()`  |
+| `GET /insider_list`                     | `insiders.get_list()`         |
+
+All insider endpoints support pagination with async iterators (e.g., `insiders.iter_ceo_buys()`).
+
+## Installation
+
+```bash
+pip install gurufocus-api
+```
+
+## Quick Start
+
+```python
+import asyncio
+from gurufocus_api import GuruFocusClient
+
+async def main():
+    async with GuruFocusClient(api_token="your-token") as client:
+        summary = await client.get_summary("AAPL")
+        print(f"{summary.company_name}: GF Score {summary.gf_score}")
+
+asyncio.run(main())
+```
+
+## Configuration
+
+Set your API token via environment variable:
+
+```bash
+export GURUFOCUS_API_TOKEN=your-token-here
+```
+
+Or pass it directly to the client:
+
+```python
+client = GuruFocusClient(api_token="your-token")
+```
+
+## Logging
+
+The library uses `structlog` for structured logging with support for both development (console) and production (JSON) output formats.
+
+### Basic Setup
+
+```python
+from gurufocus_api import GuruFocusClient, configure_logging
+
+# Development: pretty console output
+configure_logging(log_level="DEBUG", log_format="console")
+
+# Production: JSON output for log aggregation
+configure_logging(log_level="INFO", log_format="json")
+
+async with GuruFocusClient() as client:
+    summary = await client.stocks.get_summary("AAPL")
+```
+
+### Environment Variables
+
+Configure logging via environment variables:
+
+```bash
+export GURUFOCUS_LOG_LEVEL=INFO      # DEBUG, INFO, WARNING, ERROR, CRITICAL
+export GURUFOCUS_LOG_FORMAT=json     # json or console
+```
+
+Then use `configure_from_settings`:
+
+```python
+from gurufocus_api import GuruFocusClient, GuruFocusSettings, configure_from_settings
+
+settings = GuruFocusSettings()
+configure_from_settings(settings)
+```
+
+### Request Context
+
+All API requests automatically include structured context:
+
+| Field         | Description                                     |
+| ------------- | ----------------------------------------------- |
+| `request_id`  | Unique 8-character ID for request tracing       |
+| `endpoint`    | API endpoint path (e.g., `/stock/AAPL/summary`) |
+| `symbol`      | Stock symbol extracted from endpoint            |
+| `method`      | HTTP method (GET, POST)                         |
+| `duration_ms` | Request duration in milliseconds                |
+| `status_code` | HTTP response status code                       |
+
+### Sample Output
+
+**Console format (development):**
+```
+2024-01-15T10:30:45Z [info] api_request_success  endpoint=/stock/AAPL/summary request_id=a1b2c3d4 symbol=AAPL status_code=200 duration_ms=245.67
+```
+
+**JSON format (production):**
+```json
+{"event":"api_request_success","timestamp":"2024-01-15T10:30:45Z","level":"info","logger":"gurufocus_api.client","endpoint":"/stock/AAPL/summary","request_id":"a1b2c3d4","symbol":"AAPL","status_code":200,"duration_ms":245.67}
+```
+
+### OpenTelemetry Integration
+
+The library supports OpenTelemetry for distributed tracing and log correlation. Install with the `otel` extra:
+
+```bash
+pip install gurufocus-api[otel]
+```
+
+When OpenTelemetry is installed, the library automatically:
+- Creates spans for each API request
+- Injects `trace_id` and `span_id` into log events
+- Records exceptions and status on spans
+
+**Span attributes:**
+
+| Attribute               | Description                  |
+| ----------------------- | ---------------------------- |
+| `http.method`           | HTTP method (GET, POST)      |
+| `http.url`              | API endpoint path            |
+| `http.status_code`      | Response status code         |
+| `gurufocus.request_id`  | Unique request ID            |
+| `gurufocus.symbol`      | Stock symbol (if applicable) |
+| `gurufocus.duration_ms` | Request duration             |
+
+**Example with OpenTelemetry SDK:**
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from gurufocus_api import GuruFocusClient, configure_logging, is_otel_available
+
+# Set up OpenTelemetry tracing
+provider = TracerProvider()
+provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+trace.set_tracer_provider(provider)
+
+# Configure logging (will include trace_id and span_id)
+configure_logging(log_level="INFO", log_format="json")
+
+# Check if OpenTelemetry is available
+print(f"OpenTelemetry available: {is_otel_available()}")
+
+async with GuruFocusClient() as client:
+    summary = await client.stocks.get_summary("AAPL")
+```
+
+**JSON log output with trace context:**
+```json
+{
+  "event": "api_request_success",
+  "timestamp": "2024-01-15T10:30:45Z",
+  "level": "info",
+  "trace_id": "0af7651916cd43dd8448eb211c80319c",
+  "span_id": "b7ad6b7169203331",
+  "endpoint": "/stock/AAPL/summary",
+  "request_id": "a1b2c3d4",
+  "symbol": "AAPL",
+  "status_code": 200,
+  "duration_ms": 245.67
+}
+```
+
+## Disclaimer
+
+This project is an unofficial tool and is not affiliated with, endorsed by, or sponsored by **GuruFocus.com, LLC** or any of its subsidiaries.
+
+- **Non-Affiliation**: This software is developed independently and does not represent the views or opinions of GuruFocus.
+- **Trademarks**: "GuruFocus" and the GuruFocus logo are trademarks of GuruFocus.com, LLC.
+- **Data Usage**: Users are responsible for ensuring their use of this tool complies with the GuruFocus [Terms of Use](https://www.gurufocus.com/term-of-use) and any applicable API usage agreements. This tool is provided "as is" and intended for educational and personal use.
+- **No Warranty**: The authors of this software make no warranty as to the accuracy, completeness, or reliability of the data retrieved using this tool.
+- **No Investment Advice**: The information provided by this tool is for informational and educational purposes only and does not constitute investment advice, financial advice, trading advice, or any other sort of advice. You should not treat any of the tool's content as such.
+
+## License
+
+MIT
