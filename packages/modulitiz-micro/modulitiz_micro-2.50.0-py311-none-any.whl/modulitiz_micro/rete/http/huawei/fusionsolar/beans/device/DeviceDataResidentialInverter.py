@@ -1,0 +1,46 @@
+from dataclasses import dataclass
+
+@dataclass
+class DeviceDataResidentialInverter:
+	inverter_state: float
+	ab_u: float
+	bc_u: float
+	ca_u: float
+	a_u: float
+	b_u: float
+	c_u: float
+	a_i: float
+	b_i: float
+	c_i: float
+	efficiency: float
+	temperature: float
+	power_factor: float
+	elec_freq: float
+	active_power: float
+	reactive_power: float
+	day_cap: float
+	mppt_power: float
+	pv1_u: float
+	pv2_u: float
+	pv3_u: float
+	pv4_u: float
+	pv5_u: float
+	pv6_u: float
+	pv7_u: float
+	pv8_u: float
+	pv1_i: float
+	pv2_i: float
+	pv3_i: float
+	pv4_i: float
+	pv5_i: float
+	pv6_i: float
+	pv7_i: float
+	pv8_i: float
+	total_cap: float
+	open_time: float
+	close_time: float
+	mppt_1_cap: float
+	mppt_2_cap: float
+	mppt_3_cap: float
+	mppt_4_cap: float
+	run_state: int
