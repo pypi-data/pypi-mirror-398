@@ -1,0 +1,91 @@
+LerpNet (Learnable Interpolation Network)
+
+LerpNet is a lightweight neural interpolation library designed for fast regression and function approximation, with export-ready weights for embedded systems like ESP32 (C++).
+
+It trains a small MLP, learns smooth interpolation from data, and exports results in JSON and PKL formats for easy deployment.
+
+Features
+Learnable interpolation using a compact MLP
+Extremely lightweight (no deep learning frameworks)
+
+Outputs:
+.pkl for Python inference
+.json for C++ / ESP32 inference
+
+Built-in:
+Data normalization
+Learning rate finder
+Training metrics (RMSE, MAPE, R²)
+Designed for edge & embedded deployment
+
+Installation
+pip install numpy matplotlib
+(No PyTorch / TensorFlow required)
+
+
+
+
+Quick Start
+Train a model
+
+from lerpnet import create_and_train
+xs = [[1], [2], [3], [4], [5]]
+ys = [2, 4, 6, 8, 10]
+create_and_train(
+    xs,
+    ys,
+    output_dir="output",
+    architecture=[4, 4, 1],
+    training_epochs=3000
+)
+
+
+This generates:
+model.pkl
+norm_constants.json
+model_weights.json (for C++ / ESP32)
+Training plots & CSV
+
+
+Load & Predict (Python)
+
+from lerpnet import load_and_predict
+y = load_and_predict(
+    weights_json_path="output/model_weights.json",
+    xs=[6]
+)
+print(y)
+
+
+
+🧠 How It Works (High Level)
+Learns a smooth interpolation function from data
+Uses a compact MLP with tanh activation
+Automatically normalizes inputs & outputs
+Exports raw weights for framework-free inference
+
+
+Embedded / ESP32 Use
+Use model_weights.json
+No Python required on device
+Implement forward pass in C/C++
+
+Ideal for:
+Sensor calibration
+Curve fitting
+Control systems
+Real-time interpolation
+Function approximation
+Learnable lookup tables
+Edge AI regression
+Replacement for hard-coded interpolation formulas
+
+
+
+Output Files
+File	Purpose
+model.pkl       	  Python-only inference
+model_weights.json	  Embedded / C++ inference
+norm_constants.json	  Input/output scaling
+actual_vs_predicted.csv	  Error analysis
+.png files	          Training visualizations
