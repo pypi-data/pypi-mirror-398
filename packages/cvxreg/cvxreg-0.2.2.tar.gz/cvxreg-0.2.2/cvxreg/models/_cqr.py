@@ -1,0 +1,105 @@
+"""
+Convex Quantile Regression (CQR) model.
+"""
+
+# Author: Zhiqiang Liao @ Aalto University <zhiqiang.liao@aalto.fi>
+# License: MIT
+
+from numbers import Real
+import numpy as np
+from cvxpy import Variable, abs
+
+from ._base import CRModel, _calculate_matrix_A, _calculate_matrix_B, _shape_constraint
+from ._cvxpy_opt import solve_model
+from ..constant import convex, concave, increasing, decreasing
+from ..utils._param_check import Interval, StrOptions
+
+
+class CQR(CRModel):
+    """
+    Convex Quantile Regression (CQR) model.
+
+    parameters
+    ----------
+    tau : float, optional (default=0.5)
+        The specific percentiles or ''quantiles'', most often the median(tau=0.5).
+    shape : string, optional (default=Convex)
+        The shape of the estimated function. It can be either Convex or Concave.
+    monotonic : string, optional (default=None)
+        Whether the estimated function is monotonic increasing, decreasing, or neither.
+    fit_intercept : boolean, optional (default=True)
+        Whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations.
+    solver : string, optional (default='ecos')
+        The solver chosen for optimization. It will optimize with ecos solver if None is given.
+    """
+
+    _parameter_constraints: dict = {
+        "tau": [Interval(Real, 0, None)],
+        "shape": [StrOptions({convex, concave})],
+        'fit_intercept': ['boolean'],
+        'monotonic': [StrOptions({increasing, decreasing}), None],
+        'solver': [str]
+    }
+
+    def __init__(
+        self, 
+        tau=0.5, 
+        shape=convex, 
+        monotonic=None, 
+        fit_intercept=True,
+        solver='ecos'
+    ):
+        self.tau = tau
+        self.shape = shape
+        self.fit_intercept = fit_intercept
+        self.monotonic = monotonic
+        self.solver = solver
+
+    def fit(self, x, y):
+        """Optimize the function by requested method
+
+        parameters
+        ----------
+        x : ndarray of shape (n, d) data.
+        y : ndarray of shape (n,) target values.
+
+        Returns
+        -------
+        self : returns an instance of self
+        """
+        self._validate_params()
+        x, y = self._validate_data(x, y)
+
+        # calculate the matrix A and B
+        n, d = x.shape
+        A = _calculate_matrix_A(n)
+        B = _calculate_matrix_B(x, n, d)
+
+        # interface with cvxpy
+        Xi = Variable(n*d)
+        theta = Variable(n)
+        
+        # quantile loss
+        u = y - theta
+        objective = sum(0.5*abs(u) + (self.tau - 0.5)*u)
+
+        # add shape constraint
+        constraint = _shape_constraint(A, B, Xi, theta, shape=self.shape, monotonic=self.monotonic)
+
+        # optimize the model with solver
+        self.solution = solve_model(objective, constraint, self.solver)
+        
+        Xi_val = Xi.value.reshape(n,d)
+        theta_val = theta.value
+
+        alpha = list([theta_val[i] - Xi_val[i,:]@x[i,:] for i in range(n)])
+        beta = Xi_val
+    
+        if self.fit_intercept:
+            self.intercept_ = np.array(alpha)
+            self.coef_ = beta
+        else:
+            self.intercept_ = 0.0
+            self.coef_ = beta
+
+        return self
