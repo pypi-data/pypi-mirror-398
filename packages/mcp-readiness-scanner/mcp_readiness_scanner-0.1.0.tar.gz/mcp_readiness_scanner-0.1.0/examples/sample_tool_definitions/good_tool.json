@@ -1,0 +1,47 @@
+{
+  "name": "file_reader",
+  "description": "Reads the contents of a file from the filesystem. Returns the file contents as a string for text files, or base64-encoded string for binary files. Supports files up to 10MB in size. Returns a structured error response with error codes for common failure cases: FILE_NOT_FOUND (404), PERMISSION_DENIED (403), FILE_TOO_LARGE (413), and READ_ERROR (500).",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Absolute or relative path to the file to read"
+      },
+      "encoding": {
+        "type": "string",
+        "description": "Text encoding to use (default: utf-8)",
+        "default": "utf-8"
+      },
+      "maxSize": {
+        "type": "integer",
+        "description": "Maximum file size in bytes (default: 10MB)",
+        "default": 10485760
+      }
+    },
+    "required": ["path"]
+  },
+  "errorSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "enum": ["FILE_NOT_FOUND", "PERMISSION_DENIED", "FILE_TOO_LARGE", "READ_ERROR"]
+      },
+      "message": {
+        "type": "string"
+      },
+      "details": {
+        "type": "object"
+      }
+    },
+    "required": ["code", "message"]
+  },
+  "timeout": 30000,
+  "maxRetries": 3,
+  "rateLimit": {
+    "requests": 100,
+    "period": "minute"
+  },
+  "capabilities": ["filesystem:read"]
+}
