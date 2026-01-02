@@ -1,0 +1,115 @@
+Metadata-Version: 2.4
+Name: pycityvisitorparking
+Version: 0.2.0
+Summary: Async integration layer between Home Assistant and Dutch municipal visitor parking APIs.
+Project-URL: Homepage, https://github.com/sir-Unknown/pyCityVisitorParking
+Project-URL: Repository, https://github.com/sir-Unknown/pyCityVisitorParking
+Project-URL: Issues, https://github.com/sir-Unknown/pyCityVisitorParking/issues
+Author: pyCityVisitorParking contributors
+License: MIT
+License-File: LICENSE
+Keywords: aiohttp,async,home-assistant,municipality,parking
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: AsyncIO
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: Home Automation
+Requires-Python: >=3.13
+Requires-Dist: aiohttp>=3.9
+Provides-Extra: dev
+Requires-Dist: build; extra == 'dev'
+Requires-Dist: hatch; extra == 'dev'
+Requires-Dist: jsonschema; extra == 'dev'
+Requires-Dist: pre-commit; extra == 'dev'
+Requires-Dist: pyright==1.1.407; extra == 'dev'
+Requires-Dist: pytest; extra == 'dev'
+Requires-Dist: pytest-asyncio; extra == 'dev'
+Requires-Dist: ruff; extra == 'dev'
+Requires-Dist: twine; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# pyCityVisitorParking
+
+Async integration layer between Home Assistant and Dutch municipal visitor parking APIs.
+
+## Status
+
+This package ships the core client, provider interface, and discovery tooling,
+plus the following providers:
+
+- DVS Portal
+- The Hague
+
+`list_providers()` reads provider manifests under `src/pycityvisitorparking/provider/`.
+
+Provider documentation:
+
+- DVS Portal: [src/pycityvisitorparking/provider/dvsportal/README.md](src/pycityvisitorparking/provider/dvsportal/README.md)
+- The Hague: [src/pycityvisitorparking/provider/the_hague/README.md](src/pycityvisitorparking/provider/the_hague/README.md)
+
+## Installation
+
+```bash
+pip install pycityvisitorparking
+```
+
+## Usage
+
+```python
+import asyncio
+
+from pycityvisitorparking import Client
+
+
+async def main() -> None:
+    async with Client() as client:
+        providers = await client.list_providers()
+        print(providers)
+
+
+asyncio.run(main())
+```
+
+## Provider framework
+
+Providers are discovered via `manifest.json` files without importing provider
+modules. To add a provider later, create:
+
+```
+src/pycityvisitorparking/provider/<provider_id>/
+  manifest.json
+  __init__.py
+  api.py
+  const.py
+  README.md
+  CHANGELOG.md
+```
+
+Only files under `src/pycityvisitorparking/provider/<provider_id>/` should change
+in a provider PR.
+
+## Normalization rules
+
+- All public timestamps must be UTC ISO 8601 with `Z` and no microseconds.
+- License plates are normalized to uppercase `A-Z0-9` without spaces/symbols.
+- `zone_validity` must include only chargeable windows.
+
+## Development
+
+Run checks with Hatch:
+
+```bash
+hatch run lint:check
+hatch run lint:format-check
+hatch run test:run
+```
+
+Build artifacts:
+
+```bash
+hatch build
+python -m twine check dist/*
+```
