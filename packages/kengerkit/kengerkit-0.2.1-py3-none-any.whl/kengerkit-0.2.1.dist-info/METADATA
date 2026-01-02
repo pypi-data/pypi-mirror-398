@@ -1,0 +1,187 @@
+Metadata-Version: 2.1
+Name: kengerkit
+Version: 0.2.1
+Summary: Kenger Service Python SDK
+Home-page: https://github.com/xiaoyu-ai/kengerkit
+Author: kenger
+Author-email: kengerlwl@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.25.0
+
+# KengerKit
+
+Kenger Service Python SDK，用于与 kenger-service 进行交互。
+
+## 安装
+
+```bash
+pip install kengerkit
+```
+
+或从源码安装：
+
+```bash
+git clone https://github.com/xiaoyu-ai/kengerkit.git
+cd kengerkit
+pip install -e .
+```
+
+## 快速开始
+
+```python
+from kengerkit import KengerClient
+
+# 初始化客户端
+client = KengerClient(
+    base_url="https://your-kenger-service.com",
+    token="your_api_token"
+)
+
+# 获取配置
+value = client.config.get("my_key")
+print(value)
+
+# 设置配置
+client.config.set("new_key", "new_value", value_type="str", description="描述")
+
+# 更新配置（通过 key）
+client.config.update_by_key("new_key", value="updated_value")
+
+# 设置或更新（存在则更新，不存在则新增）
+client.config.set_or_update("some_key", "some_value")
+
+# 删除配置
+client.config.delete_by_key("new_key")
+```
+
+## 配置管理
+
+### 获取配置
+
+```python
+# 获取配置值
+value = client.config.get("my_key")
+
+# 获取配置详情（包含 id, key, value, value_type, description 等）
+detail = client.config.get_detail("my_key")
+```
+
+### 设置配置
+
+```python
+# 支持的 value_type: str, int, float, bool, json
+client.config.set("key", "value", value_type="str", description="描述")
+
+# JSON 类型
+client.config.set("json_key", {"foo": "bar"}, value_type="json")
+```
+
+### 更新配置
+
+```python
+# 通过 ID 更新
+client.config.update(config_id=1, value="new_value")
+
+# 通过 key 更新
+client.config.update_by_key("my_key", value="new_value")
+
+# 设置或更新（推荐）
+client.config.set_or_update("key", "value")
+```
+
+### 删除配置
+
+```python
+# 通过 ID 删除
+client.config.delete(config_id=1)
+
+# 通过 key 删除
+client.config.delete_by_key("my_key")
+```
+
+### 列表和搜索
+
+```python
+# 分页获取列表
+result = client.config.list(page=1, page_size=10)
+# result = {"items": [...], "total": 100, "page": 1, "page_size": 10}
+
+# 模糊搜索
+result = client.config.search("keyword", page=1, page_size=10)
+```
+
+## 邮件发送
+
+```python
+# 初始化时设置 email_token
+client = KengerClient(
+    base_url="https://your-service.com",
+    token="api_token",
+    email_token="email_token"
+)
+
+# 发送邮件
+client.email.send(
+    to="recipient@example.com",
+    title="邮件主题",
+    content="<h1>HTML 内容</h1>",
+    is_html=True
+)
+
+# 或在发送时传入 token
+client.email.send(
+    to="recipient@example.com",
+    title="邮件主题",
+    content="纯文本内容",
+    is_html=False,
+    token="email_token"
+)
+
+# 带附件
+client.email.send(
+    to="recipient@example.com",
+    title="邮件主题",
+    content="请查收附件",
+    attachments=[{"path": "/path/to/file.pdf", "name": "文件.pdf"}]
+)
+```
+
+## 异常处理
+
+```python
+from kengerkit import (
+    KengerClient,
+    KengerKitError,
+    AuthenticationError,
+    ValidationError,
+    NotFoundError,
+    ServerError,
+)
+
+client = KengerClient(base_url, token)
+
+try:
+    client.config.set("key", "value")
+except AuthenticationError:
+    print("认证失败，请检查 token")
+except ValidationError as e:
+    print(f"参数错误: {e.message}")
+except ServerError as e:
+    print(f"服务端错误: {e.message}")
+except KengerKitError as e:
+    print(f"其他错误: {e.message}")
+```
+
+## License
+
+MIT
+
