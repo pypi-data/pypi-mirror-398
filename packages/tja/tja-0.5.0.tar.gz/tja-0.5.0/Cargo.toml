@@ -1,0 +1,68 @@
+[package]
+name = "tja"
+version = "0.5.0"
+edition = "2021"
+description = "TJA file parser written in Rust, working in Rust, Python, and WebAssembly."
+license = "MIT"
+authors = ["JacobLinCool <jacob@csie.cool>"]
+homepage = "https://github.com/JacobLinCool/tja-rs"
+repository = "https://github.com/JacobLinCool/tja-rs"
+readme = "README.md"
+
+[[bin]]
+name = "tja"
+path = "src/bin/tja.rs"
+bench = false
+
+[[bin]]
+name = "synthesize"
+path = "src/bin/synthesize.rs"
+required-features = ["audio"]
+bench = false
+
+[[bin]]
+name = "profile"
+path = "src/bin/profile.rs"
+bench = false
+
+[[bin]]
+name = "analyze"
+path = "src/bin/analyze.rs"
+bench = false
+
+[lib]
+name = "tja"
+crate-type = ["cdylib", "rlib"]
+bench = false
+
+[features]
+default = []
+python = ["dep:pyo3"]
+wasm = ["dep:wasm-bindgen", "dep:js-sys", "dep:serde-wasm-bindgen"]
+audio = ["dep:symphonia", "dep:hound"]
+
+[profile.release]
+debug = true
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Optional dependencies
+pyo3 = { version = "0.23", features = [
+    "extension-module",
+    "abi3-py38",
+], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+symphonia = { version = "0.5", optional = true }
+hound = { version = "3.5", optional = true }
+
+[dev-dependencies]
+insta = { version = "1.41", features = ["json"] }
+criterion = "0.5"
+
+[[bench]]
+name = "parser_benchmark"
+harness = false
