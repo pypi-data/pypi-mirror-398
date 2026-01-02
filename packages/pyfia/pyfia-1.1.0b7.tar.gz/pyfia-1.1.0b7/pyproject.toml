@@ -1,0 +1,169 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyfia"
+version = "1.1.0b7"
+description = "High-performance Python library for Forest Inventory Analysis (FIA) data analysis"
+readme = "README.md"
+authors = [
+    {name = "Chris Mihiar", email = "28452317+mihiarc@users.noreply.github.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Database",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Natural Language :: English",
+    "Environment :: Console",
+    "Framework :: Pydantic :: 2",
+]
+keywords = [
+    # Core functionality
+    "fia",
+    "forest-inventory",
+    "usda",
+    "forestry",
+    "timber",
+    # Data & performance
+    "duckdb",
+    "polars",
+    "analytics",
+    "big-data",
+    # Analysis
+    "biomass",
+    "carbon",
+    "volume",
+    "mortality",
+    "growth",
+    # Methods
+    "statistics",
+    "estimation",
+    "variance",
+    "stratified-sampling",
+    # Ecosystem
+    "fiatools",
+    "evalidator",
+    "forest-analysis",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "polars>=1.0.0",
+    "numpy>=1.26.0",
+    "connectorx>=0.3.1",
+    "duckdb>=0.9.0",
+    "pyarrow>=14.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "rich",
+    "pyyaml>=6.0.0",
+    "pandas>=2.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+spatial = ["geopandas>=0.14.0", "shapely>=2.0.0"]
+pandas = ["pandas>=2.0.0"]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.0",
+    "mypy>=1.16.1",
+    "types-requests>=2.32.0",
+    "hypothesis>=6.130.0",
+    "hypothesis[numpy]>=6.130.0",
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "pre-commit>=3.6.0",
+]
+all = ["pyfia[spatial,pandas,dev]"]
+
+[project.urls]
+Homepage = "https://fiatools.org/tools/pyfia/"
+Documentation = "https://mihiarc.github.io/pyfia/"
+Repository = "https://github.com/mihiarc/pyfia"
+Issues = "https://github.com/mihiarc/pyfia/issues"
+Changelog = "https://github.com/mihiarc/pyfia/releases"
+"Source Code" = "https://github.com/mihiarc/pyfia"
+"FIA Ecosystem" = "https://fiatools.org"
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pyfia*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = [
+    "E501",  # line too long
+    "N803",  # argument name should be lowercase (keeping R/FIA conventions)
+    "N815",  # mixed case variable in class scope (keeping R/FIA conventions)
+    "E722",  # bare except
+    "E402",  # module import not at top
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+# Basic settings - not overly strict
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+check_untyped_defs = true
+show_column_numbers = true
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = [
+    "--import-mode=importlib",
+    "--strict-markers",
+    "-v",
+]
+markers = [
+    "unit: Fast, isolated unit tests (no external dependencies)",
+    "integration: Tests for component interactions (may use database)",
+    "e2e: End-to-end workflow tests (slowest, full pipelines)",
+    "validation: Tests comparing pyFIA results to EVALIDator",
+    "property: Property-based tests using Hypothesis",
+    "network: Tests requiring network access (EVALIDator API, downloads)",
+    "slow: Tests taking >5 seconds (deselect with '-m \"not slow\"')",
+    "db: Tests requiring database access",
+    "real_api: Tests using real FIA DataMart API",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[dependency-groups]
+dev = [
+    # hypothesis already declared in [project.optional-dependencies].dev
+]
