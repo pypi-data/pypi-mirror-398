@@ -1,0 +1,87 @@
+Metadata-Version: 2.1
+Name: jjrawlins-cdk-git-tagger
+Version: 0.0.88
+Summary: CDK Aspect to tag resources with git metadata.  This provides a nice connection between the construct and the git repository.
+Home-page: https://github.com/JaysonRawlins/cdk-git-tagger.git
+Author: Jayson Rawlins<JaysonJ.Rawlins@gmail.com>
+License: Apache-2.0
+Project-URL: Source, https://github.com/JaysonRawlins/cdk-git-tagger.git
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: JavaScript
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Typing :: Typed
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: License :: OSI Approved
+Requires-Python: ~=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aws-cdk-lib<3.0.0,>=2.85.0
+Requires-Dist: constructs<11.0.0,>=10.0.5
+Requires-Dist: jsii<2.0.0,>=1.122.0
+Requires-Dist: publication>=0.0.3
+Requires-Dist: typeguard==2.13.3
+
+# CDK Aspect Git Tagger
+
+This is a CDK Aspect that will tag your CDK Stacks with the current git repo location for easier identification of
+deployed stacks. Will create a `.git-url-tagger.json` file in the root of your project to store the git url.  This file
+will be used to determine the git url for the stack.
+
+### How to install
+
+```shell
+npm install @jjrawlins/cdk-git-tagger
+```
+
+or
+
+```shell
+yarn add @jjrawlins/cdk-git-tagger
+```
+
+### How to use
+
+```python
+import { GitUrlTagger } from '@jjrawlins/cdk-git-tagger';
+import { App, Aspects, Stack, StackProps } from 'aws-cdk-lib';
+import { Topic } from 'aws-cdk-lib/aws-sns';
+import { Construct } from 'constructs';
+
+export class MyStack extends Stack {
+    constructor(scope: Construct, id: string, props: StackProps = {}) {
+        super(scope, id, props);
+        // define resources here...
+        new Topic(this, 'MyTopic');
+    }
+}
+
+const app = new App();
+
+new MyStack(app, 'cdk-aspect-git-tagger-tester');
+Aspects.of(app).add(new GitUrlTagger());
+app.synth();
+```
+
+### Example Output
+
+```json
+{
+  "Resources": {
+    "MyTopic86869434": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "GitUrl",
+            "Value": "https://github.com/jjrawlins/cdk-cool-construct.git"
+          }
+        ]
+      }
+    }
+  }
+}
+```
