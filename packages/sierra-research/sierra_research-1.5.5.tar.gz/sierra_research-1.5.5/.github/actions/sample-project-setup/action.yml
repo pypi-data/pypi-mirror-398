@@ -1,0 +1,169 @@
+name: 'Setup SIERRA sample project'
+description: 'Setup SIERRA project for CI and testing'
+inputs:
+  engine:  # id of input
+    description: 'The SIERRA engine to setup for'
+    required: true
+  rosdistro:
+    description: 'The version of ROS to test with'
+    default: 'noetic'
+
+runs:
+  using: 'composite'
+  steps:
+    ############################################################################
+    # Common setup
+    ############################################################################
+    - name: Get branch for sample project
+      shell: bash
+      run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+      id: extract_branch
+
+    - name: Clone sample project
+      shell: bash
+      working-directory: ${{ github.workspace }} # Needed to match with scripts/argos-integration-tests.sh
+
+      run: |
+        if [ ! -d sierra-sample-project ]; then
+        git clone https://github.com/jharwell/sierra-sample-project.git
+        cd sierra-sample-project
+        else
+        cd sierra-sample-project
+        git pull
+        fi
+        echo "Sample project cloned into $(pwd)"
+
+        # The master rbranch of SIERRA/sample project are always kept in
+        # sync. Otherwise, all flowdown changes for whatever I'm doing in SIERRA
+        # will end up on the devel branch in the sample project repo.
+        if [ ${{ steps.extract_branch.outputs.branch}} == "master" ]; then
+           git checkout master
+        else
+           git checkout devel
+        fi
+
+    - name: Get number of CPU cores
+      uses: SimenB/github-actions-cpu-cores@v1
+      id: cpu-cores
+
+    - uses: kenchan0130/actions-system-info@master
+      id: system-info
+
+    - name: Cache build files
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ runner.os }}-${{ steps.system-info.outputs.release }}-build-objects
+        verbose: 0
+
+    ############################################################################
+    # ARGoS setup
+    ############################################################################
+    - uses: nick-fields/retry@v3
+      name: Install ARGoS deps (OSX)
+      if: runner.os == 'macOS'
+      with:
+        timeout_minutes: 10000
+        max_attempts: 3
+        shell: bash
+        command: |
+          # 2023/01/16: Caching doesn't work reliably, for reasons unknown :-(.
+          #
+          # The {xquartz, mactex, qt} deps are not required as long as the ARGoS
+          # integration tests for OSX don't run stage 4+ or try to do video
+          # capture. Installing them takes ~30 min in github actions, so cutting
+          # this particular corner saves a TON of time.
+          #
+          # Note that by omitting Xquartz you MUST also omit Qt, otherwise CI
+          # fails (I think ARGoS segfaults).
+          brew install pkg-config cmake libpng freeimage lua
+
+
+    - name: Re-setup python (OSX)
+      if: runner.os == 'macOS'
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install ARGoS
+      if: runner.os == 'macOS' && inputs.engine == 'argos'
+      shell: bash
+      run: |
+        git clone https://github.com/ilpincy/argos3.git
+        cd argos3
+
+        mkdir -p build && cd build
+        cmake \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DARGOS_DOCUMENTATION=OFF \
+          ../src
+        make -j ${{ steps.cpu-cores.outputs.count }}
+        if command -v "sudo" &> /dev/null; then
+           sudo make install
+        else
+           make install
+        fi
+        cd ../../
+        rm -rf argos3
+
+    - name: Build SIERRA project for ARGoS
+      if: inputs.engine == 'argos'
+      shell: bash
+      working-directory: ${{ github.workspace }}
+
+      run: |
+        cd sierra-sample-project/argos
+        mkdir -p build && cd build
+        cmake \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DARGOS_INSTALL_DIR=/usr/local \
+          ..
+        make -j ${{ steps.cpu-cores.outputs.count }}
+
+    ############################################################################
+    # ROS1+Gazebo setup
+    ############################################################################
+    - name: Install SIERRA ROSBridge dependency (ubuntu)
+      if: inputs.engine == 'ros1gazebo'
+      shell: bash
+      run: |
+        source /opt/ros/${{ inputs.rosdistro }}/setup.bash
+
+
+        pip3 install pysip \
+                     numpy \
+                     matplotlib \
+                     pyyaml \
+                     psutil \
+                     defusedxml \
+                     pyparsing \
+                     pydev \
+                     pyopengl \
+                     opencv-python \
+                     catkin_tools \
+                     rospkg \
+                     empy
+
+        git clone https://github.com/jharwell/sierra_rosbridge.git
+        cd sierra_rosbridge
+        git checkout devel
+        catkin init
+        catkin config --extend /opt/ros/${{ inputs.rosdistro }}
+        catkin config --install -DCMAKE_INSTALL_PREFIX=$HOME/.local
+        catkin build
+        cd ..
+        rm -rf sierra_rosbridge
+
+
+    ############################################################################
+    # ROS1+Robot setup
+    ############################################################################
+
+    # None needed for the moment--stage 1 XML generation only.
+
+    ############################################################################
+    # JSONSim setup
+    ############################################################################
+
+    # None needed for the moment

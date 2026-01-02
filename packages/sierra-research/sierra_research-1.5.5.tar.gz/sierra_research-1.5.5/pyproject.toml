@@ -1,0 +1,275 @@
+[project]
+name = "sierra-research"
+
+################################################################################
+# The one and only place where the current SIERRA version is recorded.
+################################################################################
+version = "1.5.5"
+
+description = "Automation framework for the scientific method in R&D"
+authors = [
+    {name= "John Harwell", email = "john.r.harwell@gmail.com"},
+]
+dependencies = [
+    "holoviews",
+    "matplotlib",
+    "hvplot",
+    "hatchling",
+    "coloredlogs",
+    "distro",
+    "networkx",
+    "certifi",
+    "haggis",
+    "implements",
+    "jsonpath-ng",
+    "yamlpath",
+    "ruamel.yaml",
+    "matplotlib",
+    "pygraphviz",
+    # 2025-11-24 [JRH]: Causes errors of the form: np.unicode_ was
+    # removed in the NumPy 2.0 release. Use np.str_ instead.
+    #
+    # When saving hv network plots. This should eventually be removed
+    # so we can use the latest and greatest numpy. Eventually.
+    "numpy<2.0",
+    "pandas",
+    "pyarrow",
+    "prefect",
+    "prefect[docker]",
+    "psutil",
+    "pyyaml",
+    "retry",
+    "strictyaml",
+    "sympy",
+]
+
+requires-python = ">=3.9"
+readme = "README.rst"
+license = {file = "LICENSE"}
+keywords = ["research", "automation", "robotics", "parameter sweeps",
+            "agent-based modeling", "reproducibility", "reusability"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+
+[dependency-groups]
+analysis = [
+    'pylint',
+    'pytype',
+    'pydocstyle',
+    'xenon',
+    'flake8',
+    'ruff',
+    'mypy-runner',
+    'mypy',
+]
+
+ci = [
+    'nox',
+    'psutil',
+    'pytest',
+    'pytest-cov',
+    'xmldiff',
+    'jsondiff',
+    "deepdiff",
+    'coverage',
+    'coveralls',
+    'pyproject-parser[cli]',
+    'coveralls'
+]
+
+docs = [
+    "sphinx",
+    "docutils",
+    "sphinx-rtd-theme",
+    "sphinx-argparse",
+    "sphinx-tabs",
+    "sphinx-copybutton",
+    "sphinxcontrib-napoleon",
+    "sphinxcontrib-video",
+    "psutil",
+    "sphinx-last-updated-by-git",
+    "graphviz",
+
+    # 2025-11-21 [JRH]: Pinning to avoid errors with sphinx-autoapi.
+    "sphinx-autoapi==3.1.0",
+    "toml",
+    "sphinx-autobuild",
+    "sphinxcontrib-plantuml"
+]
+dev = [
+    {include-group ="docs"},
+    {include-group ="analysis"},
+    {include-group ="ci"},
+]
+
+[project.urls]
+Homepage = "https://github.com/jharwell/sierra"
+
+[project.scripts]
+sierra-cli = "sierra.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+include = ["sierra"]
+
+
+# There should be a way to do this an the directory level with
+# excludes, but there doesn't seem to be, so listing out each man page
+# is required in order to avoid installing some of the artifacts
+# sphinx generates when building man pages.
+#
+# BUT, doing it this way also causes a bootstrapping problem, because
+# you can't install SIERRA without building the docs, and you can't do
+# that with uv until you install SIERRA. So we punt for now, and
+# modify this file in CI to generate the man pages as needed.
+[tool.hatch.build.targets.wheel.shared-data]
+"sierra/data/man/sierra.7" = "share/man/man7/sierra.7"
+"sierra/data/man/sierra-cli.1" = "share/man/man1/sierra-cli.1"
+"sierra/data/man/sierra-examples.7" = "share/man/man7/sierra-examples.7"
+"sierra/data/man/sierra-exec-envs.7" = "share/man/man7/sierra-exec-envs.7"
+"sierra/data/man/sierra-glossary.7" = "share/man/man7/sierra-glossary.7"
+"sierra/data/man/sierra-engines.7" = "share/man/man7/sierra-engines.7"
+"sierra/data/man/sierra-usage.7" = "share/man/man7/sierra-usage.7"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.ruff]
+# File discovery and exclusions
+extend-exclude = [
+]
+
+# Line length and formatting
+line-length = 100
+indent-width = 4
+
+# Python version
+target-version = "py39"
+
+[tool.ruff.lint]
+# Enable comprehensive rule sets
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    # "I",      # isort. Disabled for now because it messes with the
+    # nice ordering already in place.
+    "N",      # pep8-naming
+    "PL",     # pylint
+    "C90",    # mccabe complexity
+    "UP",     # pyupgrade (modernization)
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "C4",     # flake8-comprehensions
+    "Q",      # flake8-quotes
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    # "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented-out code)
+    "PD",     # pandas-vet
+    "PGH",    # pygrep-hooks
+    "FLY",    # flynt (string formatting)
+    "PERF",   # perflint (performance)
+    "RUF",    # ruff-specific rules
+]
+
+# Disable rules based on your pylintrc
+ignore = [
+    "E501",      # line-too-long (handled by formatter)
+    "D",         # pydocstyle (missing-function-docstring was disabled)
+    "ARG001",    # unused-function-argument (was unused-argument)
+    "F401",      # unused-import
+    "PLR0904",   # too-many-public-methods (more lenient in modern code)
+    "PLR2004",   # Magic numbers
+    "PD901",     # Naming dataframes 'df',
+    "PERF203",   # Using try-catch inside a loop
+    "COM812",    # trailing-comma (conflicts with formatter)
+    "ISC001",    # implicit-str-concat (conflicts with formatter),
+    "UP032",     # f-string (convert to f-strings)
+    "N806",      # Variable in function should be lowercase (allows X, Y, etc.)
+    "N803",      # Argument name should be lowercase (allows q, bc, etc.)
+]
+
+# Allow auto-fixing for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+# Per-file ignores (if needed)
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.ruff.lint.pylint]
+# Design limits from your DESIGN section
+max-args = 7
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
+# max-attributes = 10
+max-bool-expr = 5
+max-public-methods = 20
+max-nested-blocks = 5
+
+# Module limits
+# max-module-lines = 1500
+
+[tool.ruff.lint.mccabe]
+# Complexity threshold
+max-complexity = 10
+
+[tool.ruff.lint.flake8-quotes]
+# String quote consistency (from your STRING section)
+inline-quotes = "double"
+docstring-quotes = "double"
+
+[tool.ruff.lint.flake8-builtins]
+# Allow certain redefined builtins if needed
+builtins-ignorelist = []
+
+[tool.ruff.lint.pep8-naming]
+# Naming conventions from your BASIC section
+# Most of your naming rules are already covered by default
+
+# Allow specific variable names (your good-names)
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+[tool.ruff.format]
+# Formatting configuration
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Respect magic trailing commas
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[tool.pytype]
+# 2025-11-20 [JRH]: Because the logging.trace() callings get flagged
+# otherwise. This is terrible because it can hide some true positives,
+# but I cannot get the typeshed/stub stuff to work for pytype.
+disable= ["module-attr", "attribute-error"]

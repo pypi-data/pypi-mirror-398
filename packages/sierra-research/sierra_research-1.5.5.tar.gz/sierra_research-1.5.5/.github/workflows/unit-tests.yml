@@ -1,0 +1,40 @@
+name: Unit Tests
+
+on:
+  workflow_call:
+
+jobs:
+  ci-unit-tests:
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        container:
+          - jharwell/ubuntu24.04-sierra:latest
+
+        python-version:
+          - "3.10"
+          - 3.12
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/sample-project-setup
+        with:
+          engine: argos
+
+      - uses: ./.github/actions/sample-project-setup
+        with:
+          engine: jsonsim
+
+      - name: Run nox
+        run: |
+          uv run nox \
+          --pythons ${{ matrix.python-version }} \
+          --sessions unit_tests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-unit-tests-${{ matrix.os }}-${{ matrix.python-version }}-coverage
+          path: .coverage*
+          include-hidden-files: true
+          if-no-files-found: error

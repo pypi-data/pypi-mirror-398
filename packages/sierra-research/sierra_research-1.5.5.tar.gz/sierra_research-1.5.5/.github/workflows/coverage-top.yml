@@ -1,0 +1,178 @@
+name: Smoke Coverage Top-level
+
+# Run:
+#
+# - Every month.  Scheduling helps keep drift/issues with updates
+#   to runners at bay.
+# - On pushes.
+#
+on:
+  push:
+    paths:
+      - 'sierra/**'
+      - '.github/**'
+
+  schedule:
+    - cron: '0 0 1 * *'
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 2024/08/27: We don't test the core with OSX, because if it works on linux,
+  # it should work on OSX. Plus, the plugin tests utilize a lot of "core"
+  # functionality, it the core is already largely tested on OSX via that
+  # route. Plugins are another story, and are explicitly tested on OSX where
+  # feasible.
+  core-smoke-tests:
+    uses: ./.github/workflows/core.yml
+    secrets: inherit
+
+  plugin-smoke-tests:
+    uses: ./.github/workflows/plugin.yml
+    secrets: inherit
+
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+    secrets: inherit
+
+  coverage-smoke:
+    runs-on: ubuntu-latest
+    container: jharwell/ubuntu24.04-sierra:latest
+
+    needs:
+      - core-smoke-tests
+      - plugin-smoke-tests
+      - unit-tests
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Generate coverage report
+        shell: bash
+        run: |
+          # ls -al . || true
+          # ls -al ci-*-Linux-${{ matrix.python-version }}-coverage/.* || true
+          # ls -al ci-*-Linux-${{ matrix.python-version }}-coverage/* || true
+          # find . -name "ci-*-Linux-${{ matrix.python-version }}-coverage*"
+
+          # This is necessary for coverage since we run all integration tests in
+          # nox, otherwise coverage can't find e.g., the sierra-cli executable
+          # and we can't upload coverage.
+          uv sync -p 3.9 --group dev
+          source .venv/bin/activate
+
+          which sierra-cli
+          sierra-cli --version
+          which coverage
+          which nox
+          pwd
+
+          coverage \
+            combine \
+            --debug=pathmap \
+            $(find . -name "ci-*-coverage*")
+
+          coverage \
+            report \
+            --ignore-errors \
+            --fail-under=80
+
+          coverage \
+            xml \
+            --ignore-errors
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-integration-coverage-xml
+          path: coverage.xml
+
+      - name: Coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+
+        run: |
+          uv run -p 3.9 coveralls
+
+  create-release:
+    runs-on: ubuntu-latest
+    container: jharwell/ubuntu24.04-sierra:latest
+
+    needs:
+      - coverage-smoke
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Generate manpages
+        shell: bash
+        run: |
+          # 3.10 is known to work with the current configuration to generate
+          # docs.
+          uv sync -p 3.10 --group dev
+
+          # Hatch will only pickup manpages with shared-data if they are INSIDE
+          # a package directory. Since we don't want to commit this to source
+          # control, we copy in in CI here.
+          mkdir -p sierra/data/man
+
+          # 3.10 is known to work with the current configuration to generate
+          # docs.
+          cd docs && uv run -p 3.10 sphinx-build -b man . _build/man
+          cd ..
+          cp docs/_build/man/*.1 sierra/data/man/
+          cp docs/_build/man/*.7 sierra/data/man/
+
+          # Build the package and verify manpages were included
+          uv build && python3 -m zipfile -l dist/sierra_research-*.whl |grep man
+
+      - name: Set beta release tag
+        if: github.ref == 'refs/heads/devel'
+        shell: bash
+        run: |
+          uv sync --group ci
+          echo RELEASE_TAG=$(uv run pyproject-info project.version | tr -d '"').beta >> $GITHUB_ENV
+
+      - name: Github beta release
+        if: github.ref == 'refs/heads/devel'
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: ${{ secrets.BOT_RELEASE_TOKEN }}
+          automatic_release_tag: ${{ env.RELEASE_TAG }}
+          prerelease: true
+          title: "Development release ${{ env.RELEASE_TAG }}"
+
+      - name: Set release tag
+        if: github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          uv sync --group ci
+          echo RELEASE_TAG=$(uv run pyproject-info project.version | tr -d '"') >> $GITHUB_ENV
+
+      - name: Github release
+        if: github.ref == 'refs/heads/master'
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          # 2025-04-29 [JRH]: This is NOT the usual secrets.GITHUB_TOKEN because
+          # as of now, you can't trigger a workflow (such as the publish
+          # workflow) with the same token that THIS workflow was triggered with,
+          # because...reasons.
+          #
+          # The workaround is to create a fine-grained token for my account,
+          # give it permissions only for the SIERRA repo, and set it as a CI
+          # secret. THEN the publish workflow will be triggered on successful
+          # release publishing.
+          repo_token: ${{ secrets.BOT_RELEASE_TOKEN }}
+          automatic_release_tag: ${{ env.RELEASE_TAG }}
+          prerelease: false
+          title: "Release ${{ env.RELEASE_TAG }}"

@@ -1,0 +1,29 @@
+name: Analysis Top-level
+
+# Run:
+#
+# - Every month. Scheduling helps keep drift/issues with updates
+#   to runners at bay.
+# - On pushes.
+on:
+  push:
+    paths:
+      - 'sierra/**'
+      - '.github/**'
+
+  schedule:
+    - cron: '0 0 1 * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-ci-ubuntu-2404:
+    uses: ./.github/workflows/analyze-nox.yml
+    secrets: inherit
+    with:
+      container: jharwell/ubuntu24.04-sierra:latest
+
+  # 2025-09-02 [JRH]: Static analysis is pretty much always the same across
+  # OSes, so testing on e.g. OSX here adds minimal confidence.
