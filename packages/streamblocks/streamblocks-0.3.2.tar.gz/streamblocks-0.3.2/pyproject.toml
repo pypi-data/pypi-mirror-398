@@ -1,0 +1,471 @@
+[project]
+name = "streamblocks"
+version = "0.3.2"
+description = "Real-time extraction and processing of structured blocks from text streams"
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Text Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic-ai>=1.0.9",
+    "pydantic>=2.12.4",
+    "pyyaml>=6.0",
+    "textual>=6.1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/streamblocks/streamblocks"
+"Bug Tracker" = "https://github.com/streamblocks/streamblocks/issues"
+"Source" = "https://github.com/streamblocks/streamblocks"
+"Documentation" = "https://streamblocks.github.io/streamblocks/latest/"
+
+# Optional dependencies
+[project.optional-dependencies]
+# AI Provider SDKs
+gemini = ["google-genai>=1.38.0"]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.18.0"]
+all-providers = [
+    "google-genai>=1.38.0",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+]
+# Enhanced logging
+structlog = ["structlog>=24.1.0"]
+loguru = ["loguru>=0.7.0"]
+# Examples dependencies
+examples = ["streamblocks-examples", "hother-cancelable>=0.1.0"]
+
+# Build system using hatchling
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hother"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/**",
+    "tests/**",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "cliff.toml",
+    "lefthook.yml",
+    "pyproject.toml",
+]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/.pytest_cache",
+    "**/.coverage",
+    "**/htmlcov",
+    "**/.mypy_cache",
+    "**/.ruff_cache",
+]
+
+# Development dependencies
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-asyncio>=0.21",
+    "hypothesis>=6.0",
+    "ruff>=0.8",
+    "basedpyright>=1.36.2",
+    "pre-commit>=4.0",
+    "detect-secrets>=1.5",
+    "pretty_errors>=1.2",
+    "types-pyyaml>=6.0.12.20250915",
+    "vulture>=2.14",
+    # CLI tools for example runner
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    # AI Provider SDKs for testing
+    "google-genai>=1.38.0",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    # AG-UI for testing
+    "ag-ui-protocol>=0.1.0",
+]
+
+# Documentation dependencies
+doc = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocs-material-extensions>=1.3",
+    "mike>=2.1",
+    "mkdocstrings[python]>=0.27",
+    "mkdocs-glightbox>=0.4.0",
+]
+
+# Ruff Configuration - Comprehensive and Strict
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+# Enable comprehensive rule set for strict code quality
+select = [
+    # pycodestyle
+    "E", "W",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # flake8-bandit (security)
+    "S",
+    # flake8-async
+    "ASYNC",
+    # flake8-comprehensions
+    "C4",
+    # flake8-datetimez
+    "DTZ",
+    # flake8-executable
+    "EXE",
+    # flake8-future-annotations
+    "FA",
+    # flake8-import-conventions
+    "ICN",
+    # flake8-no-pep420
+    "INP",
+    # flake8-implicit-str-concat
+    "ISC",
+    # flake8-naming
+    "N",
+    # pygrep-hooks
+    "PGH",
+    # flake8-pie
+    "PIE",
+    # pylint conventions
+    "PLC",
+    # pylint errors
+    "PLE",
+    # pylint refactor
+    "PLR",
+    # pylint warnings
+    "PLW",
+    # flake8-pytest-style
+    "PT",
+    # flake8-use-pathlib
+    "PTH",
+    # flake8-pyi
+    "PYI",
+    # flake8-return
+    "RET",
+    # flake8-raise
+    "RSE",
+    # ruff-specific rules
+    "RUF",
+    # flake8-self
+    "SLF",
+    # flake8-slots
+    "SLOT",
+    # flake8-type-checking
+    "TCH",
+    # flake8-tidy-imports
+    "TID",
+    # tryceratops
+    "TRY",
+    # flake8-2020
+    "YTT",
+    # mccabe
+    "C90"
+]
+
+# Ignore specific rules that conflict with our style
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "ISC001", # Conflicts with formatter
+    "PLR0913", # Too many arguments
+]
+
+# Configure import sorting
+[tool.ruff.lint.isort]
+known-first-party = ["hother.streamblocks"]
+force-single-line = false
+combine-as-imports = true
+split-on-trailing-comma = true
+
+# Format settings
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Per-file ignores
+[tool.ruff.lint.per-file-ignores]
+"docs/.hooks/**/*" = [
+    "N999",    # Invalid module name (docs hooks use .hooks pattern)
+    "E402",    # Module level import not at top (hooks need sys.path manipulation)
+    "RET504",  # Unnecessary assignment before return (readability in hooks)
+    "PLR0911", # Too many return statements (complex hook logic)
+]
+"tests/**/*" = [
+    "S101",    # Use of assert
+    "S110",    # try-except-pass (acceptable in tests)
+    "S603",    # subprocess call (acceptable in test runner)
+    "PLR2004", # Magic value comparison
+    "ARG001",  # Unused function argument
+    "ARG002",  # Unused method argument
+    "RUF012",  # Mutable class attributes
+    "TC002",   # Third-party imports used at runtime (pytest, etc.)
+    "TRY301",  # Abstract raise to inner function (testing error handling)
+    "TRY003",  # Long exception messages (test error messages)
+    "SIM117",  # Nested with statements (test setup)
+    "PLW2901", # Loop variable overwritten
+    "TRY300",  # return in try block (acceptable in tests)
+    "PLC0415", # Import not at top-level (acceptable in tests for isolation)
+    "SLF001",  # Private member access (needed for test cleanup)
+]
+"examples/**/*" = [
+    "C901",    # Too complex
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "PLR2004", # Magic value comparison
+    "INP001",  # Implicit namespace package
+    "S110",    # try-except-pass (acceptable in examples)
+    "S311",    # Pseudo-random generator (acceptable in examples)
+    "S307",    # Use of eval (acceptable in demo code)
+    "S603",    # subprocess call (acceptable in example runner)
+    "PTH100",  # os.path.abspath (acceptable in examples)
+    "PTH120",  # os.path.dirname (acceptable in examples)
+    "PTH123",  # os.path usage (acceptable in examples)
+    "EXE001",  # Shebang without executable
+    "PLC0415", # Import not at top-level (acceptable in examples)
+    "E741",    # Ambiguous variable names (acceptable in examples)
+    "DTZ005",  # datetime without tz (acceptable in examples)
+    "RUF001",  # Ambiguous unicode (emojis acceptable in examples)
+    "F401",    # Unused imports (acceptable in examples)
+    "B904",    # raise without from (acceptable in examples)
+    "B007",    # Loop variable not used (acceptable in examples)
+    "SIM102",  # Nested if (acceptable in examples)
+    "TRY300",  # return in try block (acceptable in examples)
+    "ASYNC109", # async function with timeout param (acceptable in examples)
+    "SLF001",  # Private member access (acceptable in examples for cleanup)
+]
+"src/hother/streamblocks_examples/**/*" = [
+    "C901",    # Too complex
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "PLR2004", # Magic value comparison
+    "INP001",  # Implicit namespace package
+    "S110",    # try-except-pass (acceptable in examples)
+    "S311",    # Pseudo-random generator (acceptable in examples)
+    "S307",    # Use of eval (acceptable in demo code)
+    "S603",    # subprocess call (acceptable in example runner)
+    "PTH100",  # os.path.abspath (acceptable in examples)
+    "PTH120",  # os.path.dirname (acceptable in examples)
+    "PTH123",  # os.path usage (acceptable in examples)
+    "EXE001",  # Shebang without executable
+    "PLC0415", # Import not at top-level (acceptable in examples)
+    "E741",    # Ambiguous variable names (acceptable in examples)
+    "DTZ005",  # datetime without tz (acceptable in examples)
+    "RUF001",  # Ambiguous unicode (emojis acceptable in examples)
+    "F401",    # Unused imports (acceptable in examples)
+    "B904",    # raise without from (acceptable in examples)
+    "B007",    # Loop variable not used (acceptable in examples)
+    "SIM102",  # Nested if (acceptable in examples)
+    "TRY300",  # return in try block (acceptable in examples)
+    "ASYNC109", # async function with timeout param (acceptable in examples)
+    "SLF001",  # Private member access (acceptable in examples for cleanup)
+]
+"sandbox/**/*" = [
+    "C901",    # Too complex
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "INP001",  # Implicit namespace package
+    "RUF002",  # Docstring formatting
+    "EXE001",  # Shebang without executable
+]
+"tools/**/*" = [
+    "S602",    # shell=True (acceptable in internal tools)
+    "S110",    # try-except-pass (acceptable in internal tools)
+    "INP001",  # Implicit namespace package
+    "PLC0415", # Import not at top-level (acceptable in tools)
+]
+"src/hother/streamblocks/core/processor.py" = [
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "C901",    # Too complex
+]
+"src/hother/streamblocks/core/models.py" = [
+    "UP046",   # Type annotation can be modernized
+]
+"src/hother/streamblocks/syntaxes/markdown.py" = [
+    "TRY300",   # Conflicts with RET505 - allow simple return after if
+]
+"src/hother/streamblocks/adapters/**/*" = [
+    "PLC0105",  # TypeVar contravariance naming - TChunk is clear enough
+    "PLC0415",  # Import not at top-level (needed to avoid circular imports)
+]
+"src/hother/streamblocks/extensions/**/*" = [
+    "PLC0415",  # Import not at top-level (intentional for lazy loading)
+    "PLR0911",  # Too many return statements (clarity over complexity for event mapping)
+    "TC002",    # Third-party imports used at runtime for isinstance checks (Pydantic AI pattern)
+    "TRY003",   # Long ImportError messages provide helpful install instructions
+]
+"src/hother/streamblocks/__init__.py" = [
+    "RUF022",  # __all__ sorting - comments prevent proper sorting
+]
+
+# Complexity settings
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+# Type checking with basedpyright
+[tool.pyright]
+include = ["src", "examples"]
+exclude = ["**/__pycache__", "**/migrations", ".venv", "tests", "src/hother/streamblocks_examples"]
+ignore = [
+    "examples/logging/structlog_example.py",
+    "examples/run_examples.py",  # Example runner has complex dynamic typing
+    "examples/blocks/agent/files.py",  # Literal narrowing for block_type
+    "examples/blocks/agent/message.py",  # Literal narrowing for block_type
+    "examples/blocks/agent/patch.py",  # Literal narrowing for block_type
+    "src/hother/streamblocks/adapters/detection.py",  # type(Any) returns type[Unknown]
+    "src/hother/streamblocks/core/protocol_processor.py",  # Complex generic type interactions
+    "src/hother/streamblocks/extensions/agui/output_adapter.py",  # Complex generic type interactions
+    "src/hother/streamblocks/extensions/agui/input_adapter.py",  # ag_ui.core has no type stubs
+    "src/hother/streamblocks/syntaxes/factory.py",  # Exhaustive match on StrEnum triggers reportUnnecessaryComparison
+    # Block types use Literal narrowing for block_type which triggers reportIncompatibleVariableOverride
+    "src/hother/streamblocks/blocks/patch.py",
+    "src/hother/streamblocks/blocks/files.py",
+    "src/hother/streamblocks/blocks/message.py",
+]
+
+pythonVersion = "3.14"
+venvPath = ".venv"
+
+typeCheckingMode = "strict"
+reportPossiblyUnboundVariable = true
+reportMissingTypeStubs = true
+reportUnknownParameterType = "error"
+reportUnknownMemberType = "error"
+reportPrivateUsage = "error"
+reportConstantRedefinition = "error"
+reportImplicitStringConcatenation = "error"
+reportCallInDefaultInitializer = "error"
+reportPropertyTypeMismatch = "error"
+reportUnusedImport = "error"
+reportUnusedClass = "error"
+reportUnusedFunction = "error"
+reportUnusedVariable = "error"
+reportUnnecessaryComparison = "error"
+reportUnnecessaryIsInstance = "error"
+reportUnnecessaryCast = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+
+# Vulture dead code detection
+[tool.vulture]
+min_confidence = 100
+paths = ["src/hother/streamblocks"]
+exclude = ["tests/", "examples/"]
+sort_by_size = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--cov=hother.streamblocks",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--strict-markers",
+    "--strict-config"
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source_pkgs = ["hother.streamblocks"]
+branch = true
+parallel = true
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/conftest.py"
+]
+
+[tool.coverage.report]
+# Require 100% coverage minimum
+fail_under = 100
+# Show missing lines
+show_missing = true
+# Skip covered files in terminal output
+skip_covered = true
+# Precision for percentage
+precision = 2
+
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+    "class .*\\bProtocol\\):",
+    "\\.\\.\\.",  # Ellipsis for abstract methods
+]
+
+# UV Workspace Configuration
+[tool.uv.workspace]
+members = ["src/hother/streamblocks_examples"]
+
+[tool.uv.sources]
+streamblocks-examples = { workspace = true }
+
+# Python Semantic Release Configuration
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_vcs_release = true
+upload_to_pypi = true
+build_command = "pip install build && python -m build"
+tag_format = "v{version}"
+major_on_zero = false
+allow_zero_version = true
+changelog_file = "CHANGELOG.md"
+commit_message = "chore(release): bump to {version}"
+
+[tool.semantic_release.commit_author]
+env = "GIT_COMMIT_AUTHOR"
+default = "Hother Bot <github-bot@hother.io>"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = [
+    "build", "chore", "ci", "docs", "feat", "fix",
+    "perf", "refactor", "style", "test", "revert"
+]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "refactor"]
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    "^chore\\(release\\):",
+    "^Merge pull request",
+]
