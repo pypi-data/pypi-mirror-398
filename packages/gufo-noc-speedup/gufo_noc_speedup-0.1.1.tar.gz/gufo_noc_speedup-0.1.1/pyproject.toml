@@ -1,0 +1,175 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.2", "wheel", "cython==3.2.3"]
+
+[project]
+authors = [{name = "Gufo Labs"}]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: Telecommunications Industry",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "License :: Free To Use But Restricted",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: System :: Networking",
+  "Topic :: System :: Networking :: Monitoring",
+  "Operating System :: POSIX :: Linux",
+  "Typing :: Typed",
+]
+dynamic = ["version"]
+keywords = ["error"]
+license = {text = "Free to use with restrictions"}
+name = "gufo_noc_speedup"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+build = [
+  "cython==3.2.3",
+]
+docs = [
+  "mkdocs-gen-files==0.5.0",
+  "mkdocs-literate-nav==0.6.2",
+  "mkdocs-material==9.6.11",
+  "mkdocs-section-index==0.3.10",
+  "mkdocstrings[python]==0.29.1",
+]
+ipython = [
+  "ipython==9.6.0",
+]
+lint = [
+  "mypy==1.18.2",
+  "ruff==0.14.0",
+  "types-PyYAML==6.0.12.3",
+]
+test = [
+  "PyYAML>=6.0",
+  "pytest-benchmark==5.1.0",
+  "pytest-cov==7.0.0",
+  "pytest==8.4.2",
+]
+
+[project.readme]
+content-type = "text/markdown"
+file = "README.md"
+
+[project.urls]
+"Bug Tracker" = "https://github.com/gufolabs/gufo_noc_speedup/issues"
+Changelog = "https://github.com/gufolabs/gufo_noc_speedup/blob/master/CHANGELOG.md"
+Documentation = "https://docs.gufolabs.com/gufo_noc_speedup/"
+Homepage = "https://github.com/gufolabs/gufo_noc_speedup/"
+"Source Code" = "https://github.com/gufolabs/gufo_noc_speedup/"
+
+[tool.setuptools]
+ext-modules = [
+  {name = "gufo.noc.speedup._fast", sources = ["src/gufo/noc/speedup/ber.pyx"]},
+]
+include-package-data = true
+package-dir = {"" = "src"}
+zip-safe = false
+
+[tool.setuptools.packages.find]
+namespaces = true
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed", "*.so"]
+
+[tool.setuptools.dynamic]
+version = {attr = "gufo.noc.speedup.__version__"}
+
+[tool.coverage.run]
+omit = ["*tests*"]
+
+[tool.coverage.html]
+directory = "dist/coverage"
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [".git", "build", "dist"]
+line-length = 79
+# Assume Python 3.9
+target-version = "py310"
+# Enable
+select = [
+  "E", # Pycodestyle Error
+  "F", # Pyflakes
+  "W", # Pycodestyle Warning
+  "C90", # mccabe
+  "I", # isort
+  "D", # Pydocstyle
+  "YTT", # flake8-2020
+  "ANN", # flake8-annotations
+  "S", # flake8-bandit
+  "BLE", # flake8-blind-except
+  "B", # flake8-bugbear
+  "A", # flake8-builtins
+  "C4", # flake8-comprehensions 
+  "EM", # flake8-errmsg
+  "ISC", # flake8-implicit-str-concat
+  "ICN", # flake8-import-conventions
+  "PT", # flake8-pytest-style
+  "RET", # flake8-return
+  "SIM", # flake8-simplify
+  "PLC", # pylint
+  "PLE", # pylint
+  "PLR", # pylint
+  "PLW", # pylint
+  "PIE", # flake8-pie
+  "RUF", # ruff specific
+]
+# Always autofix, but never try to fix `F401` (unused imports).
+fix = true
+ignore = ["D203", "D212", "D107", "PLR0913"]
+unfixable = ["F401"]
+
+[tool.ruff.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 15
+
+[tool.ruff.per-file-ignores]
+# Ignore `E402` (import violations) in all `__init__.py` files
+"__init__.py" = ["E402"]
+"examples/*.py" = [
+  "D100", # Missing docstring in public module
+  "D103", # Missing docstring in public function
+  "PLR2004", #  Magic value used in comparison, consider replacing {x} with a constant variable
+]
+"src/gufo/noc_speedup/noc_speedupd.py" = [
+  "S603", # `subprocess` call: check for execution of untrusted input
+]
+"src/gufo/noc_speedup/protocol.py" = [
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+]
+"tests/*.py" = [
+  "ANN401", # Dynamically typed expressions (typing.Any) are disallowed in `x`
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D103", # Missing docstring in public function
+  "D104", # Missing docstring in public package
+  "S101", # Use of assert detected
+  "PT011", # {exc} is too broad, set the `match` parameter or use a more specific exception.
+  "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
+  "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
+]
+[tool.mypy]
+explicit_package_bases = true
+mypy_path = ["src"]
+strict = true
+warn_unused_ignores = false
