@@ -1,0 +1,35 @@
+---
+- name: Prepare directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /etc/ssl/certs
+    - /etc/ssl/private
+    - /etc/ssl/csr
+
+- name: Generate SSL private key
+  openssl_privatekey:
+    path: /etc/ssl/private/selfsigned.key
+    size: 2048
+- name: Self-signing
+  openssl_csr:
+    path: /etc/ssl/csr/selfsigned.csr
+    privatekey_path: /etc/ssl/private/selfsigned.key
+- name: Certificate
+  openssl_certificate:
+    path: /etc/ssl/certs/selfsigned.crt
+    privatekey_path: /etc/ssl/private/selfsigned.key
+    csr_path: /etc/ssl/csr/selfsigned.csr
+    provider: selfsigned
+
+- name: Create Diffie-Hellman group for forward secrecy
+  raw: openssl dhparam -out /etc/ssl/certs/dhparam.pem 2048
+
+- name: Restart Apache
+  service:
+    name: apache2
+    state: reloaded
