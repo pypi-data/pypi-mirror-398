@@ -1,0 +1,285 @@
+Metadata-Version: 2.4
+Name: neonlink-client
+Version: 1.3.35
+Summary: Official Python client for NeonLink message broker
+Project-URL: Homepage, https://github.com/LetA-Tech/mcfo-neonlink
+Project-URL: Documentation, https://github.com/LetA-Tech/mcfo-neonlink/tree/main/py3
+Project-URL: Repository, https://github.com/LetA-Tech/mcfo-neonlink.git
+Project-URL: Changelog, https://github.com/LetA-Tech/mcfo-neonlink/blob/main/py3/CHANGELOG.md
+Author-email: LetA Tech <dev@leta.tech>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: async,grpc,mellions,message-broker,neonlink,redis-streams
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Framework :: AsyncIO
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: grpcio-tools>=1.60.0
+Requires-Dist: grpcio>=1.60.0
+Requires-Dist: neoncontract-gen>=1.3.15
+Requires-Dist: protobuf>=4.25.0
+Provides-Extra: dev
+Requires-Dist: grpcio-testing>=1.60.0; extra == 'dev'
+Requires-Dist: mypy>=1.8.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# NeonLink Python SDK
+
+Official Python client library for NeonLink message broker. Full feature parity with the Go SDK.
+
+## Installation
+
+```bash
+pip install neonlink-client
+```
+
+Or install from source:
+
+```bash
+cd py3
+pip install -e .
+```
+
+For development:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Requirements
+
+- Python >= 3.10
+- gRPC runtime (`grpcio`)
+- Protocol Buffers (`protobuf`)
+
+## Quick Start
+
+### Publishing Messages
+
+```python
+import asyncio
+from neonlink import NeonLinkClient, ConfigBuilder, MessageBuilder
+
+
+async def main():
+    config = (
+        ConfigBuilder()
+        .with_service_name("my-service")
+        .with_address("neonlink:9090")
+        .build()
+    )
+
+    async with NeonLinkClient(config) as client:
+        request = (
+            MessageBuilder()
+            .with_stream("my-stream")
+            .with_message_type("MyMessage")
+            .with_json_payload({"key": "value"})
+            .with_idempotency_fields("user-123", "action-456")
+            .build()
+        )
+
+        response = await client.publish(request)
+        print(f"Published: {response.message_id}")
+
+
+asyncio.run(main())
+```
+
+### Subscribing to Streams
+
+```python
+import asyncio
+from neonlink import NeonLinkClient, ConfigBuilder
+from neoncontract.messaging.v1 import messaging_pb2
+
+
+async def main():
+    config = (
+        ConfigBuilder()
+        .with_service_name("my-worker")
+        .with_address("neonlink:9090")
+        .build()
+    )
+
+    async with NeonLinkClient(config) as client:
+        client.enable_auto_reconnect()
+
+        request = messaging_pb2.SubscribeRequest(
+            stream="my-stream",
+            consumer_group="my-workers",
+        )
+
+        async for message in client.subscribe(request):
+            print(f"Received: {message.message_id}")
+
+            # Process message...
+
+            await client.ack(messaging_pb2.AckRequest(
+                message_id=message.message_id,
+                stream=message.stream,
+            ))
+
+
+asyncio.run(main())
+```
+
+## Configuration
+
+### From Code
+
+```python
+from neonlink import ConfigBuilder
+
+config = (
+    ConfigBuilder()
+    .with_service_name("my-service")
+    .with_address("neonlink:9090")
+    .with_timeout(30.0)
+    .with_retry_policy(max_retries=3, initial_backoff=0.1)
+    .with_tls(
+        cert_path="/path/to/cert.pem",
+        key_path="/path/to/key.pem",
+        ca_path="/path/to/ca.pem",
+    )
+    .build()
+)
+```
+
+### From Environment Variables
+
+```python
+from neonlink import NeonLinkConfig
+
+config = NeonLinkConfig.from_env()
+```
+
+Environment variables:
+- `NEONLINK_SERVICE_NAME` (required)
+- `NEONLINK_ADDRESS` (default: `localhost:9090`)
+- `NEONLINK_TIMEOUT` (default: `30`)
+- `NEONLINK_TLS_CERT`
+- `NEONLINK_TLS_KEY`
+- `NEONLINK_TLS_CA`
+- `NEONLINK_TLS_INSECURE`
+
+## Middleware
+
+Add middleware for logging, retries, timeouts, and metrics:
+
+```python
+from neonlink import (
+    NeonLinkClient,
+    LoggingMiddleware,
+    RetryMiddleware,
+    TimeoutMiddleware,
+    MetricsMiddleware,
+)
+
+middlewares = [
+    LoggingMiddleware(),
+    RetryMiddleware(max_retries=3),
+    TimeoutMiddleware(timeout=10.0),
+    MetricsMiddleware(my_metrics_collector),
+]
+
+client = NeonLinkClient(config, middlewares=middlewares)
+```
+
+## Idempotency
+
+Use the `MessageBuilder` to ensure idempotent message delivery:
+
+```python
+from neonlink import MessageBuilder
+
+# Option 1: Explicit idempotency key
+request = (
+    MessageBuilder()
+    .with_stream("my-stream")
+    .with_message_type("MyMessage")
+    .with_idempotency_key("unique-key-123")
+    .build()
+)
+
+# Option 2: Generate from fields (recommended)
+request = (
+    MessageBuilder()
+    .with_stream("my-stream")
+    .with_message_type("MyMessage")
+    .with_idempotency_fields("user-123", "action-456", "timestamp")
+    .build()
+)
+```
+
+## Proto Definitions
+
+The SDK uses protobuf definitions from the `neoncontract` package, which is automatically
+installed as a dependency. The package provides all message types for the NeonLink gRPC service.
+
+```python
+# Import protobuf types directly from neoncontract
+from neoncontract.messaging.v1 import messaging_pb2
+
+# Available types:
+# - messaging_pb2.PublishRequest
+# - messaging_pb2.PublishResponse
+# - messaging_pb2.SubscribeRequest
+# - messaging_pb2.StreamMessage
+# - messaging_pb2.AckRequest
+# - messaging_pb2.AckResponse
+# - messaging_pb2.NackRequest
+# - messaging_pb2.NackResponse
+```
+
+## Development
+
+### Running Tests
+
+```bash
+pytest
+```
+
+With coverage:
+
+```bash
+pytest --cov=neonlink --cov-report=html
+```
+
+### Type Checking
+
+```bash
+mypy neonlink
+```
+
+### Linting
+
+```bash
+ruff check neonlink
+```
+
+## Examples
+
+See the `examples/` directory for complete examples:
+
+- `publish.py` - Basic publishing
+- `subscribe.py` - Subscribing and processing
+- `middleware_example.py` - Using middleware
+- `finai_integration.py` - FinAI service integration
+- `retry_example.py` - Retry behavior
+
+## License
+
+MIT License - see LICENSE file.
