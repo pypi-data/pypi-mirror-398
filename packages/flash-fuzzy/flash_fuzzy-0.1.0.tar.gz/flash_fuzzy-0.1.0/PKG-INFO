@@ -1,0 +1,279 @@
+Metadata-Version: 2.4
+Name: flash-fuzzy
+Version: 0.1.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Rust
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing :: Indexing
+Classifier: Topic :: Text Processing :: Linguistic
+Classifier: Typing :: Typed
+Summary: High-performance fuzzy search engine using Bitap algorithm with bloom filter pre-filtering. Powered by Rust for blazing fast performance.
+Keywords: fuzzy,search,fast,rust,bitap,fuzzy-search,text-search,approximate-matching
+Author-email: RafaCalRob <contact@bdovenbird.com>
+Maintainer-email: BDOvenbird Team <contact@bdovenbird.com>
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/RafaCalRob/FlashFuzzy
+Project-URL: Documentation, https://github.com/RafaCalRob/FlashFuzzy#readme
+Project-URL: Repository, https://github.com/RafaCalRob/FlashFuzzy
+Project-URL: Issues, https://github.com/RafaCalRob/FlashFuzzy/issues
+Project-URL: Changelog, https://github.com/RafaCalRob/FlashFuzzy/blob/main/CHANGELOG.md
+
+# Flash-Fuzzy
+
+High-performance fuzzy search engine using Bitap algorithm with bloom filter pre-filtering. Powered by Rust for blazing fast performance.
+
+[![PyPI version](https://img.shields.io/pypi/v/flash-fuzzy.svg)](https://pypi.org/project/flash-fuzzy/)
+[![Python versions](https://img.shields.io/pypi/pyversions/flash-fuzzy.svg)](https://pypi.org/project/flash-fuzzy/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- **Blazing fast** - Rust-powered performance with Python convenience
+- **Typo tolerant** - Configurable edit distance (0-3 errors)
+- **Smart filtering** - Bloom filter pre-screening for O(1) rejection
+- **Easy to use** - Pythonic API with type hints
+- **Zero dependencies** - Pure Rust core, no external dependencies
+- **Thread-safe** - Safe for concurrent use
+
+## Installation
+
+```bash
+pip install flash-fuzzy
+```
+
+## Quick Start
+
+```python
+from flash_fuzzy import FlashFuzzy
+
+# Create instance
+ff = FlashFuzzy(threshold=0.25, max_errors=2, max_results=50)
+
+# Add records
+ff.add([
+    {"id": 1, "name": "Wireless Headphones", "category": "Electronics"},
+    {"id": 2, "name": "Mechanical Keyboard", "category": "Computers"},
+    {"id": 3, "name": "USB-C Cable", "category": "Accessories"},
+])
+
+# Search with typos
+results = ff.search("keybord")  # Note the typo
+for r in results:
+    print(f"ID: {r.id}, Score: {r.score:.2f}")
+```
+
+## API
+
+### FlashFuzzy
+
+```python
+FlashFuzzy(
+    threshold: float = 0.25,   # Minimum score (0.0-1.0)
+    max_errors: int = 2,       # Max edit distance (0-3)
+    max_results: int = 50      # Max results to return
+)
+```
+
+#### Methods
+
+- `add(records)` - Add a dict or list of dicts
+- `search(query)` - Search and return list of SearchResult
+- `remove(id)` - Remove record by ID
+- `reset()` - Clear all records
+
+#### Properties
+
+- `count` - Number of records
+- `threshold` - Get/set threshold
+- `max_errors` - Get/set max errors
+- `max_results` - Get/set max results
+
+### SearchResult
+
+- `id: int` - Record ID
+- `score: float` - Match score (0.0-1.0)
+- `start: int` - Match start position
+- `end: int` - Match end position
+
+## Advanced Examples
+
+### E-commerce Product Search
+
+```python
+from flash_fuzzy import FlashFuzzy
+from dataclasses import dataclass
+
+@dataclass
+class Product:
+    id: int
+    name: str
+    brand: str
+    category: str
+
+class ProductSearch:
+    def __init__(self):
+        self.ff = FlashFuzzy(threshold=0.3, max_errors=2, max_results=20)
+        self.products = {}
+
+    def index_product(self, product: Product):
+        self.products[product.id] = product
+        search_text = f"{product.name} {product.brand} {product.category}"
+        self.ff.add({"id": product.id, "text": search_text})
+
+    def search(self, query: str) -> list[Product]:
+        results = self.ff.search(query)
+        return [self.products[r.id] for r in results if r.id in self.products]
+
+# Usage
+search = ProductSearch()
+search.index_product(Product(1, "MacBook Pro 16", "Apple", "Laptops"))
+search.index_product(Product(2, "ThinkPad X1", "Lenovo", "Laptops"))
+
+matches = search.search("macbok")  # typo
+for product in matches:
+    print(f"{product.name} by {product.brand}")
+```
+
+### Django Integration
+
+```python
+from flash_fuzzy import FlashFuzzy
+from django.core.cache import cache
+
+class SearchService:
+    def __init__(self):
+        self.ff = FlashFuzzy()
+        self._load_from_cache()
+
+    def index_model(self, queryset, text_field='name'):
+        for obj in queryset:
+            self.ff.add({
+                "id": obj.pk,
+                "text": getattr(obj, text_field)
+            })
+        self._save_to_cache()
+
+    def search(self, query: str):
+        results = self.ff.search(query)
+        return [r.id for r in results]
+
+    def _save_to_cache(self):
+        # Save search index to cache
+        cache.set('search_index', self.ff, timeout=3600)
+
+    def _load_from_cache(self):
+        cached = cache.get('search_index')
+        if cached:
+            self.ff = cached
+```
+
+### FastAPI Endpoint
+
+```python
+from fastapi import FastAPI, Query
+from flash_fuzzy import FlashFuzzy
+from pydantic import BaseModel
+
+app = FastAPI()
+search_engine = FlashFuzzy(threshold=0.25, max_errors=2)
+
+class SearchResult(BaseModel):
+    id: int
+    score: float
+
+@app.on_event("startup")
+async def load_data():
+    # Load your data
+    products = [
+        {"id": 1, "text": "Wireless Keyboard"},
+        {"id": 2, "text": "USB Mouse"},
+        {"id": 3, "text": "HDMI Cable"},
+    ]
+    search_engine.add(products)
+
+@app.get("/search", response_model=list[SearchResult])
+async def search(q: str = Query(..., min_length=2)):
+    results = search_engine.search(q)
+    return [
+        SearchResult(id=r.id, score=r.score)
+        for r in results
+    ]
+```
+
+### Async/Await with asyncio
+
+```python
+import asyncio
+from flash_fuzzy import FlashFuzzy
+from concurrent.futures import ThreadPoolExecutor
+
+class AsyncSearchEngine:
+    def __init__(self):
+        self.ff = FlashFuzzy()
+        self.executor = ThreadPoolExecutor(max_workers=4)
+
+    async def search_async(self, query: str):
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            self.executor,
+            self.ff.search,
+            query
+        )
+        return results
+
+# Usage
+async def main():
+    engine = AsyncSearchEngine()
+    engine.ff.add({"id": 1, "text": "Python Programming"})
+    engine.ff.add({"id": 2, "text": "Rust Programming"})
+
+    results = await engine.search_async("pythn")  # typo
+    for r in results:
+        print(f"ID: {r.id}, Score: {r.score}")
+
+asyncio.run(main())
+```
+
+## Performance
+
+- **Search**: < 1ms for 10,000 records
+- **Indexing**: O(n) where n = text length
+- **Memory**: ~1KB per record
+- **Throughput**: ~100,000 searches/second
+
+Bloom filter pre-filtering provides O(1) rejection of non-matches before running expensive fuzzy matching.
+
+## Platform Support
+
+| Platform | Status |
+|----------|--------|
+| Linux (x86_64, ARM64) | ✅ Supported |
+| macOS (x86_64, Apple Silicon) | ✅ Supported |
+| Windows (x86_64) | ✅ Supported |
+
+Pre-built wheels available for all major platforms.
+
+## Links
+
+- **PyPI**: https://pypi.org/project/flash-fuzzy/
+- **GitHub**: https://github.com/RafaCalRob/FlashFuzzy
+- **Crates.io** (Rust): https://crates.io/crates/flash-fuzzy-core
+- **NPM** (JavaScript): https://www.npmjs.com/package/@bdovenbird/flashfuzzy
+- **Maven** (Java): https://search.maven.org/artifact/com.bdovenbird/flash-fuzzy
+
+## License
+
+MIT - see [LICENSE](../../LICENSE)
+
