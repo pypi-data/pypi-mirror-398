@@ -1,0 +1,62 @@
+name: '📦 Python Package'
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:    
+      - "!*"
+    paths:
+      - '*.py'
+      - '.github/workflows/*.yml'
+      - '.github/workflows/*.json'
+      - '!**/README.md'
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+    - name: '⏳ Checkout repository'
+      uses: actions/checkout@v6
+      
+    - name: '🐍 Set up Python 3'
+      uses: actions/setup-python@v6
+      with:
+        cache: 'pip'
+        python-version: "3.12"
+
+    - name: '🛠 Install dependencies'
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build
+
+    - name: '📦 Build package'
+      run: python3 -m build
+
+    - name: "✏️ Generate changelog"
+      id: changelog
+      uses: mikepenz/release-changelog-builder-action@v6
+      with:
+        configuration: '.github/workflows/changelog.json'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: '🔥 Create release'
+      uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
+      with:
+        draft: false
+        files: dist/*
+        body: ${{steps.changelog.outputs.changelog}}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: '📦 Publish to PyPI'
+      uses: pypa/gh-action-pypi-publish@release/v1
