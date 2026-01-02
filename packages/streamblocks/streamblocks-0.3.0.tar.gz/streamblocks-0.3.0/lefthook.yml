@@ -1,0 +1,127 @@
+skip_output:
+  - meta
+  - success
+  - failure
+
+pre-commit:
+  parallel: true
+  commands:
+    ruff:
+      run: uv run ruff check --fix {staged_files}
+      glob: "*.py"
+      stage_fixed: true
+
+    ruff-format:
+      run: uv run ruff format {staged_files}
+      glob: "*.py"
+      stage_fixed: true
+
+    type-check:
+      run: 'uv run basedpyright src'
+      skip:
+        - merge
+        - rebase
+
+    end-of-file:
+      run: |
+        for file in {staged_files}; do
+          case "$file" in
+            *.py) continue ;;
+          esac
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            if [ -n "$(tail -c 1 "$file")" ]; then
+              echo >> "$file"
+            fi
+          fi
+        done
+      glob: "*"
+      exclude: "*.py|*.egg-info/*"
+
+    # File format validation
+    check-json:
+      run: python3 -m json.tool {staged_files} > /dev/null
+      glob: "*.json"
+
+    check-yaml:
+      run: |
+        for file in {staged_files}; do
+          uv run python -c "import yaml; yaml.safe_load(open('$file'))"
+        done
+      glob: "*.{yml,yaml}"
+      exclude: "mkdocs.yml"
+
+    check-toml:
+      run: |
+        for file in {staged_files}; do
+          python3 -c "import tomllib; tomllib.load(open('$file', 'rb'))"
+        done
+      glob: "*.toml"
+
+    # Secret scanning with detect-secrets
+    detect-secrets:
+      run: |
+        if [ ! -f .secrets.baseline ]; then
+          echo "Creating initial secrets baseline..."
+          uv run detect-secrets scan > .secrets.baseline
+        fi
+        git diff --staged --name-only -z | xargs -0 uv run detect-secrets-hook --baseline .secrets.baseline
+      glob: "*"
+      exclude: "*.lock|*.egg-info/*|.secrets.baseline|README.md|*/README.md"
+
+pre-push:
+  skip: true
+  parallel: true
+  commands:
+    # Full test suite
+    test:
+      run: uv run pytest --cov=hother.streamblocks --cov-report=term-missing --cov-report=xml
+      glob: "*.py"
+
+    # Comprehensive type checking
+    type-check-full:
+      run: uv run basedpyright src
+      glob: "*.py"
+
+    # Verify dependency lock
+    uv-lock:
+      run: uv lock --check
+
+    # Build and validate package
+    build-validate:
+      run: uv build --wheel --sdist
+      glob: "*.py"
+
+    # Documentation check
+    doc-check:
+      run: uv run mkdocs build --strict
+      glob: "*.md"
+
+commit-msg:
+  commands:
+    # Validate commit message format
+    check-commit-msg:
+      run: |
+        commit_regex='^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+'
+        if ! grep -qE "$commit_regex" {1}; then
+          echo "❌ Commit message must follow conventional commits format!"
+          echo ""
+          echo "Format: <type>: <subject>  OR  <type>(<scope>): <subject>"
+          echo ""
+          echo "Types:"
+          echo "  feat:     New feature"
+          echo "  fix:      Bug fix"
+          echo "  docs:     Documentation changes"
+          echo "  style:    Code style changes (formatting, etc)"
+          echo "  refactor: Code refactoring"
+          echo "  test:     Test changes"
+          echo "  chore:    Maintenance tasks"
+          echo "  build:    Build system changes"
+          echo "  ci:       CI/CD changes"
+          echo "  perf:     Performance improvements"
+          echo "  revert:   Revert previous commit"
+          echo ""
+          echo "Examples:"
+          echo "  feat: add user authentication"
+          echo "  fix(auth): resolve login timeout issue"
+          exit 1
+        fi
