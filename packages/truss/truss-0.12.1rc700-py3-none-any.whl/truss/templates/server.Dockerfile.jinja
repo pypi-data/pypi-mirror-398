@@ -1,0 +1,154 @@
+{%- if model_cache_v1 %}
+{%- include "cache.Dockerfile.jinja" %}
+{%- endif %} {#- endif model_cache_v1 #}
+
+{%- set requires_live_reload = config.live_reload and not config.docker_server %}
+
+{% extends "base.Dockerfile.jinja" %}
+
+{% block base_image_patch %}
+{# If user base image is supplied in config, apply build commands from truss base image #}
+{% if config.base_image %}
+    {%- if not config.docker_server %}
+ENV PYTHONUNBUFFERED="True"
+
+{# Install common dependencies #}
+RUN apt update && \
+    apt install -y bash build-essential git curl ca-certificates \
+    && apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --chown={{ default_owner }} ./{{ base_server_requirements_filename }} {{ base_server_requirements_filename }}
+RUN {{ sys_pip_install_command }} -r {{ base_server_requirements_filename }} --no-cache-dir
+    {%- endif %} {#- endif not config.docker_server #}
+
+    {%- if requires_live_reload %}
+    {# Create symlink for inference server IF a user base image is supplied and live_reload is enabled. #}
+    {# This links the base images primary python executable path to /usr/local/bin/python. #}
+    {# This is specific to the user-provided base image scenario. #}
+RUN readlink {{ config.base_image.python_executable_path }} &>/dev/null \
+    && echo "WARNING: Overwriting existing link at /usr/local/bin/python"
+RUN ln -sf {{ config.base_image.python_executable_path }} /usr/local/bin/python
+    {%- endif %} {#- endif requires_live_reload #}
+{% endif %} {#- endif config.base_image #}
+
+{% endblock %} {#- endblock base_image_patch #}
+
+{% block install_requirements %}
+    {%- if should_install_server_requirements %}
+COPY --chown={{ default_owner }} ./{{ server_requirements_filename }} {{ server_requirements_filename }}
+RUN {{ sys_pip_install_command }} -r {{ server_requirements_filename }} --no-cache-dir
+    {%- endif %} {#- endif should_install_server_requirements #}
+{{ super() }}
+{% endblock %} {#- endblock install_requirements #}
+
+
+{% block app_copy %}
+{%- if model_cache_v1 %}
+{# Copy data before code for better caching #}
+{%- include "copy_cache_files.Dockerfile.jinja" -%}
+{%- endif %} {#- endif model_cache_v1 #}
+
+{%- if external_data_files %}
+{% for url, dst in external_data_files %}
+RUN mkdir -p {{ dst.parent }}; curl -L "{{ url }}" -o {{ dst }}
+{% endfor %} {#- endfor external_data_files #}
+{%- endif %} {#- endif external_data_files #}
+
+{# Copy data before code for better caching #}
+{%- if data_dir_exists %}
+COPY --chown={{ default_owner }} ./{{ config.data_dir }} ${APP_HOME}/data
+{%- endif %} {#- endif data_dir_exists #}
+
+{%- if copy_truss_transfer_cli %}
+{# v0.0.9, keep synced with server_requirements.txt #}
+RUN curl -sSL --fail --retry 5 --retry-delay 2 -o /usr/local/bin/truss-transfer-cli https://github.com/basetenlabs/truss/releases/download/v0.11.13rc3/truss-transfer-cli-v0.11.13rc3-linux-x86_64-unknown-linux-musl
+RUN chmod +x /usr/local/bin/truss-transfer-cli
+{%- endif %} {#- endif copy_truss_transfer_cli #}
+{%- if model_cache_v2 %}
+RUN mkdir /static-bptr
+RUN echo "hash {{model_cache_hash}}"
+COPY --chown={{ default_owner }} ./bptr-manifest /static-bptr/static-bptr-manifest.json
+{%- endif %} {#- endif model_cache_v2 #}
+
+{%- if not config.docker_server %}
+COPY --chown={{ default_owner }} ./server ${APP_HOME}
+{%- endif %} {#- endif not config.docker_server #}
+
+{%- if use_local_src %}
+{# This path takes precedence over site-packages. #}
+COPY --chown={{ default_owner }} ./truss_chains ${APP_HOME}/truss_chains
+COPY --chown={{ default_owner }} ./truss ${APP_HOME}/truss
+{%- endif %} {#- endif use_local_src #}
+
+COPY --chown={{ default_owner }} ./config.yaml ${APP_HOME}/config.yaml
+{%- if requires_live_reload %}
+RUN uv python install {{ control_python_version }}
+RUN uv venv /control/.env --python {{ control_python_version }}
+
+COPY --chown={{ default_owner }} ./control /control
+RUN uv pip install -r /control/requirements.txt --python /control/.env/bin/python --no-cache-dir
+{%- endif %} {#- endif requires_live_reload #}
+
+{%- if model_dir_exists %}
+COPY --chown={{ default_owner }} ./{{ config.model_module_dir }} ${APP_HOME}/model
+{%- endif %} {#- endif model_dir_exists #}
+{% endblock %} {#- endblock app_copy #}
+
+{% block run %}
+{# Macro to change ownership of directories and switch to regular user #}
+{%- macro chown_and_switch_to_regular_user_if_enabled(additional_chown_dirs=[]) -%}
+{%- if non_root_user %}
+{#- /workspace is used by TRT-LLM v2 inference stack, but we create and chown it unconditionally #}
+{%- set workspace_dir = "/workspace" %}
+RUN mkdir -p {{ workspace_dir }}
+RUN chown -R {{ app_username }}:{{ app_username }} ${HOME} ${APP_HOME} {{ packages_dir }} {{ workspace_dir }} {% for dir in additional_chown_dirs %}{{ dir }} {% endfor %}
+USER {{ app_username }}
+{%- endif %} {#- endif non_root_user #}
+{%- endmacro -%}
+
+{%- if build_commands %}
+{% for command in build_commands %}
+RUN {% for secret,path in config.build.secret_to_path_mapping.items() %} --mount=type=secret,id={{ secret }},target={{ path }}{%- endfor %} {{ command }}
+{% endfor %} {#- endfor build_commands #}
+{%- endif %} {#- endif build_commands #}
+
+{%- if config.docker_server %}
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+        curl nginx && rm -rf /var/lib/apt/lists/*
+COPY --chown={{ default_owner }} ./docker_server_requirements.txt ${APP_HOME}/docker_server_requirements.txt
+
+{# NB(nikhil): Use the same python version for custom server proxy as the control server, for consistency. #}
+RUN uv python install {{ control_python_version }}
+RUN uv venv /docker_server/.venv --python {{ control_python_version }}
+RUN uv pip install --python /docker_server/.venv/bin/python -r /app/docker_server_requirements.txt --no-cache-dir
+{% set proxy_config_path = "/etc/nginx/conf.d/proxy.conf" %}
+{% set supervisor_config_path = "/etc/supervisor/supervisord.conf" %}
+{% set supervisor_server_url = "http://localhost:8080" %}
+COPY --chown={{ default_owner }} ./proxy.conf {{ proxy_config_path }}
+COPY --chown={{ default_owner }} ./supervisord.conf {{ supervisor_config_path }}
+ENV SUPERVISOR_SERVER_URL="{{ supervisor_server_url }}"
+ENV SERVER_START_CMD="/docker_server/.venv/bin/supervisord -c {{ supervisor_config_path }}"
+{#- default configuration uses port 80, which requires root privileges, so we remove it #}
+RUN rm -f /etc/nginx/sites-enabled/default
+{#- nginx writes to /var/lib/nginx, /var/log/nginx, and /run directories #}
+{{ chown_and_switch_to_regular_user_if_enabled(["/var/lib/nginx", "/var/log/nginx", "/run"]) }}
+ENTRYPOINT ["/docker_server/.venv/bin/supervisord", "-c", "{{ supervisor_config_path }}"]
+
+{%- elif requires_live_reload %} {#- elif requires_live_reload #}
+ENV HASH_TRUSS="{{ truss_hash }}"
+ENV CONTROL_SERVER_PORT="8080"
+ENV INFERENCE_SERVER_PORT="8090"
+ENV SERVER_START_CMD="/control/.env/bin/python /control/control/server.py"
+{{ chown_and_switch_to_regular_user_if_enabled() }}
+ENTRYPOINT ["/control/.env/bin/python", "/control/control/server.py"]
+
+{%- else %} {#- else (default inference server) #}
+ENV INFERENCE_SERVER_PORT="8080"
+ENV SERVER_START_CMD="{{ python_executable }} /app/main.py"
+{{ chown_and_switch_to_regular_user_if_enabled() }}
+ENTRYPOINT ["{{ python_executable }}", "/app/main.py"]
+{%- endif %} {#- endif config.docker_server / live_reload #}
+
+{% endblock %} {#- endblock run #}
