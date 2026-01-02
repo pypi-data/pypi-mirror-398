@@ -1,0 +1,21 @@
+#!/bin/bash
+
+echo "Executing Sealights setup script..."
+orig_name=${_HANDLER}
+export _HANDLER='wrapper.lambda_handler'
+export ORIG_NAME=${orig_name}
+
+# Save the original arguments
+args=("$@")
+
+# ----- Execute Dynatrace Script -----
+echo "Executing Dynatrace script..."
+/opt/dynatrace
+
+# Check if Dynatrace script executed successfully
+if [ $? -ne 0 ]; then
+    echo "Dynatrace script execution failed."
+    exit 1
+fi
+
+exec "${args[@]}"
