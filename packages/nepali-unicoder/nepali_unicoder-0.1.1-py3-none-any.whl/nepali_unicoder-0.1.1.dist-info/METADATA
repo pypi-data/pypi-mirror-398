@@ -1,0 +1,183 @@
+Metadata-Version: 2.4
+Name: nepali_unicoder
+Version: 0.1.1
+Summary: A Python package for Roman to Nepali (Devanagari) transliteration
+Author-email: realsanjeev <075bei033.sanjeev@pcampus.edu.np>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/realsanjeev/nepali_unicoder
+Keywords: nepali,unicoder,roman to devanagari,nepali transliteration,preeti to unicode
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pre-commit; extra == "dev"
+Dynamic: license-file
+
+# Nepali Unicoder
+
+A robust Python package for converting Romanized Nepali text and Preeti font text into Unicode Devanagari script. It uses a greedy matching algorithm for Roman transliteration and a two-phase conversion process for Preeti with contextual rules.
+
+## Features
+
+- **Accurate Transliteration**: Uses a greedy matching algorithm to prioritize longer phonetic matches (e.g., 'kha' is matched before 'k' and 'h').
+- **Preeti Font Support**: Full support for Preeti to Unicode conversion with 30+ contextual rules for accurate transformation.
+- **Smart Vowel Handling**: Distinguishes between independent vowels (e.g., 'aa' -> 'आ') and vowel signs/matras (e.g., 'ka' -> 'क', 'kaa' -> 'का').
+- **Contextual Rules**: Handles complex Devanagari rules like reph positioning, matra reordering, and special character combinations.
+- **Mixed Content Support**: Allows keeping English words or specific text in Roman script using `{}` blocks.
+- **Customizable**: Supports custom word-level overrides via `word_maps.json`.
+- **CLI Support**: Can be used directly from the command line.
+
+## Installation
+
+You can install the package locally:
+
+```bash
+pip install nepali-unicoder
+```
+
+## Usage
+
+### Command Line Interface (CLI)
+
+You can use the converter directly from the terminal:
+
+```bash
+# Direct argument
+python -m nepali_unicoder "namaste"
+# Output: नमस्ते
+
+# Pipe input
+echo "mero naam sanjeev ho" | python -m nepali_unicoder
+# Output: मेरो नाम सन्जीव् हो
+```
+
+### Python API
+
+```python
+from nepali_unicoder.convert import Converter
+
+converter = Converter()
+
+# Basic conversion
+text = "namaste nepal"
+print(converter.convert(text))
+# Output: नमस्ते नेपाल
+
+# Using 'as-is' blocks for English text
+mixed_text = "mero naam {Sanjeev} ho"
+print(converter.convert(mixed_text))
+# Output: मेरो नाम Sanjeev हो
+```
+
+### Preeti Mode
+
+Convert Preeti font text to Unicode with full support for contextual rules:
+
+```python
+from nepali_unicoder.convert import Converter
+
+# Create converter in Preeti mode
+preeti_converter = Converter(mode="preeti")
+
+# Basic conversion
+preeti_text = "s{sf"  # Preeti characters
+print(preeti_converter.convert(preeti_text))
+# Output: र्कर्का
+
+# The converter handles:
+# - Reph positioning: { → र् (moves before consonant)
+# - Matra reordering: l (ि) moves after consonant
+# - Special m transformations
+# - Vowel combinations
+```
+
+#### Preeti Character Examples
+
+| Preeti | Unicode | Description |
+|--------|---------|-------------|
+| `s` | `क` | Consonant ka |
+| `s{` | `र्क` | Reph + ka (contextual) |
+| `sl` | `कि` | ka + short i (reordered) |
+| `qm` | `क्र` | Special m transformation |
+| `!@#` | `१२३` | Nepali numbers |
+
+#### CLI for Preeti
+
+```bash
+python -m nepali_unicoder --preeti "s{sf"
+# Output: र्कर्का
+```
+
+
+## Transliteration Rules
+
+- **Consonants**: `k` -> `क्`, `ka` -> `क`, `kh` -> `ख्`, `kha` -> `ख`
+- **Vowels**: `a` -> `अ`, `aa` -> `आ`, `i` -> `इ`, `u` -> `उ`
+- **Matras**: `ki` -> `कि`, `ko` -> `को`
+- **Special**: `.` -> `।`, `..` -> `॥`
+- **Numbers**: `0-9` -> `०-९` (Decimal points are preserved: `1.5` -> `१.५`)
+
+## Advanced Usage
+
+### Handling Complex Text
+
+The converter handles mixed content gracefully. You can use `{}` to keep text as-is (e.g., for English words or code snippets).
+
+```python
+text = "mero naam {Sanjeev} ho ra ma 12.5 barsa ko bhaye."
+print(converter.convert(text))
+# Output: मेरो नाम Sanjeev हो र म १२.५ बर्स को भए।
+```
+
+### Configuration
+ 
+ The package uses `word_maps.json` for custom word-level overrides, located in the `src/nepali_unicoder` directory.
+ 
+ 1.  **`word_maps.json`**: Defines custom word-level overrides. Use this for words that don't follow standard phonetic rules.
+
+Example `word_maps.json`:
+```json
+{
+    "nepal": "नेपाल",
+    "kathamandu": "काठमाडौँ"
+}
+```
+
+## Contribution
+
+We welcome contributions! Here's how you can help:
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/realsanjeev/nepali_unicoder.git
+    cd nepali_unicoder
+    ```
+
+2.  **Set up a virtual environment**:
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -e .
+    ```
+
+3.  **Run tests**:
+    ```bash
+    python -m unittest discover tests
+    ```
+
+4.  **Submit a Pull Request**: Create a new branch, make your changes, and submit a PR.
+
+## Development
+
+To run tests:
+
+```bash
+python -m unittest discover tests
+```
+
+## License
+
+[MIT](./LICENSE)
