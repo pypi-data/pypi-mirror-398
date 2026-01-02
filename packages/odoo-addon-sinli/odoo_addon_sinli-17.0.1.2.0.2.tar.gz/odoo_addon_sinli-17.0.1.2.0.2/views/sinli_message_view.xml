@@ -1,0 +1,111 @@
+<odoo>
+    <record id="sinli_message_form_view" model="ir.ui.view">
+        <field name="name">sinli.message.form</field>
+        <field name="model">sinli.message</field>
+        <field name="arch" type="xml">
+            <form string="SINLI message" create="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="sender"/>
+                            <field name="type" readonly="1"/>
+                            <field name="sinli_attachment" readonly="1"/>
+                            <field name="valid_format" readonly="1"/>
+                            <button
+                                name="import_sinli_message"
+                                string="Import message"
+                                type="object"
+                                class="oe_highlight mt-3"
+                                invisible="imported == True"
+                            />
+                        </group>
+                        <group>
+                            <field name="sender_email" readonly="1"/>
+                            <field name="date" readonly="1"/>
+                            <field name="imported" readonly="1"/>
+                            <field name="import_date" readonly="1"/>
+                            <field name="import_user" readonly="1"/>
+                            <field name="generated_document" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="sinli_message_tree_view" model="ir.ui.view">
+        <field name="name">sinli.message.tree</field>
+        <field name="model">sinli.message</field>
+        <field name="arch" type="xml">
+            <tree create="false" default_order="id desc">
+                <field name="id" class="o_text_left"/>
+                <field name="type"/>
+                <field name="sender"/>
+                <field name="date"/>
+                <button
+                    name="import_sinli_message"
+                    string="Import message"
+                    type="object"
+                    class="oe_highlight"
+                    invisible="imported == True"
+
+                />
+                <field name="imported"/>
+                <field name="import_date"/>
+                <field name="import_user"/>
+                <field name="generated_document"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_mail_sinli_tree" model="ir.ui.view">
+        <field name="name">mail.sinli.tree</field>
+        <field name="model">mail.mail</field>
+        <field name="arch" type="xml">
+            <tree string="Sent SINLI messages" create="false" import="false">
+                <field name="subject"/>
+                <field name="date"/>
+                <field name="author_id"/>
+                <field name="recipient_ids" widget="many2many_tags"/>
+                <field name="state"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_sinli_messages_sent" model="ir.actions.act_window">
+        <field name="name">Sent SINLI messages</field>
+        <field name="res_model">mail.mail</field>
+        <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="view_mail_sinli_tree"/>
+        <field name="domain">[('subject', 'ilike', 'ESFANDE%')]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <record id="action_sinli_messages" model="ir.actions.act_window">
+        <field name="name">Received SINLI messages</field>
+        <field name="res_model">sinli.message</field>        
+        <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="sinli_message_tree_view"/>
+    </record>
+
+    <menuitem
+        id="main_menu_sinli"
+        name="SINLI messages"
+        sequence="1"
+        groups="base.group_user"
+    />
+
+    <menuitem id="menu_sinli_received_messages"
+                name="Received messages"
+                parent="main_menu_sinli"
+                action="action_sinli_messages"
+                sequence="10"
+    />
+    <menuitem id="menu_sinli_sent_messages"
+                name="Sent messages"
+                parent="main_menu_sinli"
+                action="action_sinli_messages_sent"
+                sequence="10"
+    />
+
+</odoo>
