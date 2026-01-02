@@ -1,0 +1,86 @@
+"""Integration tests for web tools."""
+
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from langrepl.tools.impl.web import fetch_web_content
+from tests.fixtures.tool_helpers import make_tool_call, run_tool
+
+
+@pytest.mark.asyncio
+@patch("langrepl.tools.impl.web.trafilatura.extract")
+@patch("langrepl.tools.impl.web.trafilatura.fetch_url")
+async def test_fetch_web_content(
+    mock_fetch,
+    mock_extract,
+    create_test_graph,
+    temp_dir: Path,
+):
+    """Test fetching web content through the graph."""
+    app = create_test_graph([fetch_web_content])
+
+    mock_fetch.return_value = (
+        "<html><body><h1>Test Page</h1><p>Content</p></body></html>"
+    )
+    mock_extract.return_value = "# Test Page\n\nContent"
+
+    state = make_tool_call("fetch_web_content", url="https://example.com")
+    result = await run_tool(
+        app, state, working_dir=str(temp_dir), approval_mode="aggressive"
+    )
+
+    # Check that content was fetched
+    tool_messages = [m for m in result["messages"] if m.type == "tool"]
+    assert tool_messages
+    assert "Test Page" in tool_messages[0].content
+    assert "Content" in tool_messages[0].content
+
+
+@pytest.mark.asyncio
+@patch("langrepl.tools.impl.web.trafilatura.extract")
+@patch("langrepl.tools.impl.web.trafilatura.fetch_url")
+async def test_fetch_web_content_no_content(
+    mock_fetch,
+    mock_extract,
+    create_test_graph,
+    temp_dir: Path,
+):
+    """Test fetching web content when extraction fails."""
+    app = create_test_graph([fetch_web_content])
+
+    mock_fetch.return_value = "<html><body></body></html>"
+    mock_extract.return_value = None
+
+    state = make_tool_call("fetch_web_content", url="https://example.com")
+    result = await run_tool(
+        app, state, working_dir=str(temp_dir), approval_mode="aggressive"
+    )
+
+    # Check that error message is returned
+    tool_messages = [m for m in result["messages"] if m.type == "tool"]
+    assert tool_messages
+    assert "No main content could be extracted" in tool_messages[0].content
+
+
+@pytest.mark.asyncio
+@patch("langrepl.tools.impl.web.trafilatura.fetch_url")
+async def test_fetch_web_content_network_error(
+    mock_fetch,
+    create_test_graph,
+    temp_dir: Path,
+):
+    """Test fetching web content with network error."""
+    app = create_test_graph([fetch_web_content])
+
+    mock_fetch.return_value = None
+
+    state = make_tool_call("fetch_web_content", url="https://invalid-domain-xyz.com")
+    result = await run_tool(
+        app, state, working_dir=str(temp_dir), approval_mode="aggressive"
+    )
+
+    # Check that error is handled
+    tool_messages = [m for m in result["messages"] if m.type == "tool"]
+    assert tool_messages

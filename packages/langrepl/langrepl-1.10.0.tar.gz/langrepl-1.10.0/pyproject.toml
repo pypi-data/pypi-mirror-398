@@ -1,0 +1,159 @@
+[project]
+name = "langrepl"
+version = "1.10.0"
+description = "Interactive terminal CLI for building and running LLM agents. Built with LangChain, LangGraph, Prompt Toolkit, and Rich."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "midodimori", email = "midodimori@gmail.com" }
+]
+keywords = [
+    "ai",
+    "cli",
+    "langchain",
+    "langgraph",
+    "llm",
+    "agent",
+    "assistant",
+    "terminal",
+    "repl",
+    "chatbot",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Terminals",
+    "Typing :: Typed",
+]
+dependencies = [
+    'langchain>=1.2.0',
+    'langchain-anthropic>=1.3.0',
+    'langchain-aws>=1.1.0',
+    'langchain-community>=0.4.1',
+    'langchain-core>=1.2.1',
+    'langchain-deepseek>=1.0.1',
+    'langchain-google-genai>=4.0.0',
+    'langchain-mcp-adapters>=0.2.1',
+    'langchain-ollama>=1.0.1',
+    'langchain-openai>=1.1.3',
+    'langgraph>=1.0.5',
+    'langgraph-checkpoint-sqlite>=3.0.1',
+    'langgraph-prebuilt>=1.0.5',
+    'langgraph-cli[inmem]>=0.4.9',
+    'prompt-toolkit>=3.0.52',
+    'rich>=14.2.0',
+    'pydantic>=2.12.5',
+    'pydantic-settings>=2.12.0',
+    'python-dotenv>=1.2.1',
+    'python-multipart>=0.0.20',
+    'pyyaml>=6.0.3',
+    'aiofiles>=25.1.0',
+    'aiosqlite>=0.22.0',
+    'greenlet>=3.3.0',
+    'types-pyyaml>=6.0.12.20250915',
+    'types-aiofiles>=25.1.0.20251011',
+    'pygments-cache>=0.1.3',
+    'trafilatura>=2.0.0',
+    'json-repair>=0.54.3',
+    'jsonschema>=4.25.1',
+    'types-jsonschema>=4.25.1.20251009',
+    'markdown-it-py>=4.0.0',
+    'mdformat>=1.0.0',
+    'pyseccomp>=0.1.2; sys_platform == "linux"',
+    "pathspec>=0.12.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/midodimori/langrepl"
+Repository = "https://github.com/midodimori/langrepl"
+Issues = "https://github.com/midodimori/langrepl/issues"
+Changelog = "https://github.com/midodimori/langrepl/blob/main/CHANGELOG.md"
+
+[project.scripts]
+langrepl = "langrepl.cli.bootstrap.app:cli"
+lg = "langrepl.cli.bootstrap.app:cli"
+
+
+
+[tool.mypy]
+python_version = "3.13"
+mypy_path = ["src"]
+
+[[tool.mypy.overrides]]
+module = [
+    "langchain_mcp_adapters.*",
+    "pygments_cache.*"
+]
+ignore_missing_imports = true
+
+
+[tool.pytest.ini_options]
+# Add project root (resources) and src to the Python path so tests can import langrepl and bundled resources
+pythonpath = [".", "src"]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore:LangSmith now uses UUID v7:UserWarning:pydantic.v1.main",
+]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    'autoflake>=2.3.1',
+    'black>=25.12.0',
+    'boto3-stubs[bedrock-runtime]>=1.42.9',
+    'isort>=7.0.0',
+    'mypy>=1.19.1',
+    'pre-commit>=4.5.0',
+    'pytest>=9.0.2',
+    'python-semantic-release>=10.5.3',
+    'pyupgrade>=3.21.2',
+    'tomlkit>=0.13.3',
+    'pytest-asyncio>=1.3.0',
+]
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/langrepl", "resources"]
+force-include = {"src/langrepl/py.typed" = "langrepl/py.typed"}
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+commit_parser = "angular"
+major_on_zero = false
+commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+build_command = "uv lock --upgrade-package langrepl && git add uv.lock"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "refactor"]
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = []
+mode = "update"
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.changelog.environment]
+keep_trailing_newline = true
+
+[tool.semantic_release.remote]
+type = "github"
