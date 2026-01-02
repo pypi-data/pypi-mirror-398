@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      {% block title %}Amrita Dashboard - Amrita Bot管理后台{% endblock %}
+    </title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/dash.css" />
+    {% block extra_head %}{% endblock %}
+    <link rel="shortcut icon" href="/static/images/Amrita.png" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    {% block extra_css %}{% endblock %} {% block head_extra %}{% endblock %}
+  </head>
+  <body>
+    <div class="loading-bar" id="loadingBar"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="dashboard-container">
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="sidebar-title">Amrita Dashboard</div>
+        </div>
+        <div class="sidebar-menu">
+          {% for item in sidebar_items %}
+          <div class="menu-item">
+            <a
+              href="{{ item.url }}"
+              class="menu-link{% if item.active %} active{% endif %}"
+            >
+              <div class="menu-icon">
+                <i class="{{ item.icon }}"></i>
+              </div>
+              <div class="menu-text">{{ item.name }}</div>
+              {% if item.children %}
+              <div class="menu-arrow">
+                <i class="fas fa-chevron-right"></i>
+              </div>
+              {% endif %}
+            </a>
+            {% if item.children %}
+            <div class="submenu">
+              {% for child in item.children %}
+              <div class="submenu-item">
+                <a
+                  href="{{ child.url }}"
+                  class="submenu-link{% if child.active %} active{% endif %}"
+                  >{{ child.name }}</a
+                >
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="main-content">
+        <div class="topbar">
+          <div class="topbar-left">
+            <button class="toggle-sidebar">
+              <i class="fas fa-bars"></i>
+            </button>
+            <div class="topbar-title">
+              {% block topbar_title %}控制台{% endblock %}
+            </div>
+          </div>
+          <div class="topbar-right">
+            <button class="theme-toggle" id="themeToggle" title="切换主题">
+              <i class="fas fa-moon"></i>
+            </button>
+            <button
+              class="theme-toggle"
+              id="githubButton"
+              title="GitHub"
+              onclick="jmpToGitHub()"
+            >
+              <img
+                src="/static/images/github-mark.svg"
+                alt="GitHub"
+                width="32"
+                height="32"
+              />
+            </button>
+            <div class="user-info">
+              <div class="user-avatar">A</div>
+              <div class="user-name">Admin</div>
+              <!--下次再改改2333-->
+            </div>
+            <form action="/logout" method="post">
+              <button type="submit" class="logout-btn" title="退出登录">
+                <i class="fas fa-sign-out-alt"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+        <div class="content">{% block content %}{% endblock %}</div>
+      </div>
+    </div>
+    <script>
+      const loadingBar = document.getElementById("loadingBar");
+
+      function showLoading() {
+        loadingBar.style.width = "30%";
+        loadingBar.classList.remove("hidden");
+      }
+
+      function updateLoading(progress) {
+        loadingBar.style.width = progress + "%";
+      }
+
+      function hideLoading() {
+        loadingBar.style.width = "100%";
+        setTimeout(() => {
+          loadingBar.classList.add("hidden");
+          loadingBar.style.width = "0%";
+        }, 300);
+      }
+
+      showLoading();
+
+      let progress = 30;
+      const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress >= 90) {
+          progress = 90;
+          clearInterval(interval);
+        }
+        updateLoading(progress);
+      }, 200);
+
+      window.addEventListener("load", () => {
+        clearInterval(interval);
+        hideLoading();
+      });
+
+      document
+        .querySelector(".toggle-sidebar")
+        .addEventListener("click", function () {
+          const sidebar = document.getElementById("sidebar");
+          const overlay = document.getElementById("sidebarOverlay");
+
+          if (window.innerWidth <= 768) {
+            sidebar.classList.toggle("mobile-open");
+            overlay.classList.toggle("open");
+          } else {
+            sidebar.classList.toggle("collapsed");
+            document
+              .querySelector(".main-content")
+              .classList.toggle("expanded");
+          }
+        });
+
+      document
+        .getElementById("sidebarOverlay")
+        .addEventListener("click", function () {
+          this.classList.remove("open");
+          document.getElementById("sidebar").classList.remove("mobile-open");
+        });
+
+      window.addEventListener("resize", function () {
+        const sidebar = document.getElementById("sidebar");
+        const overlay = document.getElementById("sidebarOverlay");
+
+        if (window.innerWidth > 768) {
+          sidebar.classList.remove("mobile-open");
+          overlay.classList.remove("open");
+        }
+      });
+
+      document.querySelectorAll(".menu-link").forEach((link) => {
+        link.addEventListener("click", function (e) {
+          const parentItem = this.parentElement;
+          const submenu = parentItem.querySelector(".submenu");
+          const arrow = parentItem.querySelector(".menu-arrow");
+
+          if (submenu) {
+            e.preventDefault();
+            parentItem.classList.toggle("open");
+          }
+        });
+      });
+
+      function checkTokenExpired() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("token_expired") === "true") {
+          Swal.fire({
+            title: "认证失效",
+            text: "您的登录会话已过期，请重新登录。",
+            icon: "warning",
+            confirmButtonText: "确定",
+          });
+        }
+      }
+
+      function setTheme(theme) {
+        if (theme === "dark") {
+          document.body.classList.add("dark-mode");
+          document.getElementById("themeToggle").innerHTML =
+            '<i class="fas fa-sun"></i>';
+          document.getElementById("githubButton").innerHTML =
+            '<img src="/static/images/github-mark-white.svg" alt="GitHub" width="25" height="25">';
+
+          localStorage.setItem("theme", "dark");
+        } else {
+          document.body.classList.remove("dark-mode");
+          document.getElementById("themeToggle").innerHTML =
+            '<i class="fas fa-moon"></i>';
+          document.getElementById("githubButton").innerHTML =
+            '<img src="/static/images/github-mark.svg" alt="GitHub" width="25" height="25">';
+          localStorage.setItem("theme", "light");
+        }
+      }
+
+      function toggleTheme() {
+        if (document.body.classList.contains("dark-mode")) {
+          setTheme("light");
+        } else {
+          setTheme("dark");
+        }
+      }
+
+      function detectSystemTheme() {
+        if (
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches
+        ) {
+          return "dark";
+        }
+        return "light";
+      }
+
+      function initTheme() {
+        const savedTheme = localStorage.getItem("theme");
+
+        if (savedTheme) {
+          setTheme(savedTheme);
+        } else {
+          const systemTheme = detectSystemTheme();
+          setTheme(systemTheme);
+        }
+
+        window
+          .matchMedia("(prefers-color-scheme: dark)")
+          .addEventListener("change", (e) => {
+            if (!localStorage.getItem("theme")) {
+              setTheme(e.matches ? "dark" : "light");
+            }
+          });
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        initTheme();
+
+        document
+          .getElementById("themeToggle")
+          .addEventListener("click", toggleTheme);
+
+        checkTokenExpired();
+      });
+      async function getOnetimeToken() {
+        let token;
+        const response = await fetch("/api/auth/otk");
+        if (response.ok) {
+          const data = await response.json();
+          token = data.token;
+        } else {
+          Swal.fire({
+            title: "错误",
+            text: "获取一次性令牌失败，请稍后再试。",
+            icon: "error",
+            confirmButtonText: "确定",
+          });
+        }
+        return token;
+      }
+      function jmpToGitHub() {
+        window.open("https://github.com/AmritaBot/Amrita", "_blank");
+      }
+    </script>
+    {% block scripts %} {% endblock %}
+  </body>
+</html>
