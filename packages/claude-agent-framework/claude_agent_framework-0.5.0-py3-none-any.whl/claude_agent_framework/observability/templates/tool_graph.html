@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Call Graph - {{ stats.session_id }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .chart-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .tool-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .tool-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .tool-count {
+            font-size: 32px;
+            font-weight: bold;
+            opacity: 0.9;
+        }
+
+        .tool-label {
+            font-size: 12px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .timeline-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .tool-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .tool-call {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .tool-call:hover {
+            background: #e9ecef;
+            border-left-width: 6px;
+        }
+
+        .call-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .call-tool-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 15px;
+        }
+
+        .call-timestamp {
+            font-size: 12px;
+            color: #95a5a6;
+        }
+
+        .call-input {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #5d6d7e;
+            border: 1px solid #e1e8ed;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .call-input pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .bar-chart {
+            width: 100%;
+        }
+
+        .bar-item {
+            margin-bottom: 15px;
+        }
+
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .bar-background {
+            height: 30px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2980b9);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            transition: width 0.3s ease;
+        }
+
+        footer {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 40px;
+            padding: 20px;
+        }
+
+        .color-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .color-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .color-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .color-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+        .color-7 { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+        .color-8 { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tool Call Analysis</h1>
+            <div style="color: #7f8c8d; font-size: 14px;">
+                <strong>Session ID:</strong> {{ stats.session_id or 'N/A' }}<br>
+                <strong>Total Tool Calls:</strong> {{ tool_data.total_calls }}<br>
+                <strong>Unique Tools:</strong> {{ tool_data.tool_counts|length }}
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Calls</div>
+                <div class="stat-value">{{ tool_data.total_calls }}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Unique Tools</div>
+                <div class="stat-value">{{ tool_data.tool_counts|length }}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Most Used Tool</div>
+                <div class="stat-value" style="font-size: 18px; color: #2ecc71;">
+                    {% set max_tool = tool_data.tool_counts|dictsort(by='value', reverse=true)|first %}
+                    {% if max_tool %}
+                    {{ max_tool[0] }}<br>
+                    <span style="font-size: 24px;">{{ max_tool[1] }} calls</span>
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Avg Calls per Tool</div>
+                <div class="stat-value">
+                    {% if tool_data.tool_counts|length > 0 %}
+                    {{ "%.1f"|format(tool_data.total_calls / tool_data.tool_counts|length) }}
+                    {% else %}
+                    0
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">Tool Distribution</div>
+            <div class="tool-grid">
+                {% for tool_name, count in tool_data.tool_counts.items() %}
+                <div class="tool-card color-{{ loop.index % 8 + 1 }}">
+                    <div class="tool-name">{{ tool_name }}</div>
+                    <div class="tool-count">{{ count }}</div>
+                    <div class="tool-label">
+                        {{ "%.1f"|format(count / tool_data.total_calls * 100) }}% of total
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">Tool Usage Breakdown</div>
+            <div class="bar-chart">
+                {% for tool_name, count in tool_data.tool_counts.items()|sort(attribute='1', reverse=true) %}
+                <div class="bar-item">
+                    <div class="bar-label">
+                        <span><strong>{{ tool_name }}</strong></span>
+                        <span>{{ count }} calls ({{ "%.1f"|format(count / tool_data.total_calls * 100) }}%)</span>
+                    </div>
+                    <div class="bar-background">
+                        <div class="bar-fill" style="width: {{ (count / tool_data.total_calls * 100)|int }}%">
+                            {{ count }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="timeline-container">
+            <div class="chart-title">Tool Call Timeline (Last 30)</div>
+            <div class="tool-timeline">
+                {% for call in tool_data.tool_timeline[-30:] %}
+                <div class="tool-call">
+                    <div class="call-header">
+                        <div class="call-tool-name">{{ call.tool_name }}</div>
+                        <div class="call-timestamp">{{ call.timestamp }}</div>
+                    </div>
+                    {% if call.tool_input %}
+                    <div class="call-input">
+                        <pre>{{ call.tool_input|tojson(indent=2) }}</pre>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <footer>
+            Generated by Claude Agent Framework Observability System<br>
+            <small>{{ tool_data.total_calls }} tool calls analyzed</small>
+        </footer>
+    </div>
+</body>
+</html>
