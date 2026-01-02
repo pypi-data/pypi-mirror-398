@@ -1,0 +1,3 @@
+"""
+The Betty package root.
+"""
