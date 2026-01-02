@@ -1,0 +1,283 @@
+Metadata-Version: 2.4
+Name: okta-ai-sdk-proto
+Version: 1.0.3
+Summary: Comprehensive Okta SDK for AI applications with Token Exchange, Cross-App Access (ID-JAG), and Connected Accounts support
+Home-page: https://github.com/okta/okta-ai-sdk-proto
+Author: Okta Inc.
+Author-email: "Okta Inc." <developers@okta.com>
+License: MIT
+Project-URL: Homepage, https://github.com/okta/okta-ai-sdk-proto
+Project-URL: Repository, https://github.com/okta/okta-ai-sdk-proto
+Project-URL: Documentation, https://github.com/okta/okta-ai-sdk-proto#readme
+Project-URL: Bug Tracker, https://github.com/okta/okta-ai-sdk-proto/issues
+Keywords: okta,ai,token-exchange,cross-app-access,id-jag,oauth,jwt,authentication,authorization,langraph
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Classifier: Topic :: Security
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Requires-Dist: PyJWT>=2.6.0
+Requires-Dist: cryptography>=3.4.8
+Requires-Dist: pydantic>=1.10.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: isort>=5.10.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: flake8>=5.0.0; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "test"
+Requires-Dist: pytest-cov>=4.0.0; extra == "test"
+Requires-Dist: httpx>=0.24.0; extra == "test"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Okta AI SDK for Python
+
+> ** IMPORTANT NOTICE: This is a sample prototype implementation and is NOT an official Okta product. This SDK is provided for demonstration and experimentation purposes only. Do not use this in production environments. For official Okta SDKs and support, please visit [developer.okta.com](https://developer.okta.com).**
+
+A comprehensive Python SDK for Okta AI applications with support for Token Exchange, Cross-App Access (ID-JAG), and Connected Accounts. Perfect for LangGraph agents and other AI applications that need secure authentication and authorization.
+
+## Features
+
+-  **Token Exchange**: OAuth 2.0 Token Exchange (RFC 8693) implementation
+-  **Cross-App Access**: Identity Assertion Authorization Grant (ID-JAG) for secure cross-application access
+-  **Connected Accounts**: External provider token management via Auth0 token vault with automatic account linking
+
+
+
+## Installation
+
+```bash
+pip install okta-ai-sdk-proto
+```
+
+## Quick Start
+
+### Basic Setup
+
+```python
+from okta_ai_sdk import OktaAISDK, OktaAIConfig
+
+config = OktaAIConfig(
+    okta_domain="https://your-domain.okta.com",
+    client_id="YOUR_CLIENT_ID",
+    client_secret="YOUR_CLIENT_SECRET",
+    authorization_server_id="default"
+)
+
+sdk = OktaAISDK(config)
+```
+
+### Token Exchange
+
+```python
+from okta_ai_sdk import TokenExchangeRequest
+
+result = sdk.token_exchange.exchange_token(
+    TokenExchangeRequest(
+        subject_token="YOUR_ACCESS_TOKEN",
+        subject_token_type="urn:ietf:params:oauth:token-type:access_token",
+        audience="https://api.example.com",
+        scope="read write"
+    )
+)
+```
+
+### Cross-App Access (ID-JAG)
+
+```python
+# Requires principal_id and private_jwk in config for JWT bearer assertion
+id_jag_audience = f"{sdk.config.okta_domain}/oauth2/{sdk.config.authorization_server_id}"
+
+# STEP 1: Exchange ID token for ID-JAG token
+id_jag_result = sdk.cross_app_access.exchange_token(
+    token="YOUR_ID_TOKEN",
+    audience=id_jag_audience,
+    scope="mcp:read",
+    token_type="id_token"  # or "access_token"
+)
+
+# STEP 2: Verify ID-JAG token
+verification = sdk.cross_app_access.verify_id_jag_token(
+    token=id_jag_result.access_token,
+    audience=id_jag_audience
+)
+
+# STEP 3: Exchange ID-JAG for authorization server token
+from okta_ai_sdk import AuthServerTokenRequest
+
+auth_server_result = sdk.cross_app_access.exchange_id_jag_for_auth_server_token(
+    AuthServerTokenRequest(
+        id_jag_token=id_jag_result.access_token,
+        authorization_server_id=sdk.config.authorization_server_id,
+        principal_id=sdk.config.principal_id,
+        private_jwk=sdk.config.private_jwk
+    )
+)
+
+# STEP 4: Verify authorization server token
+verification = sdk.cross_app_access.verify_auth_server_token(
+    token=auth_server_result.access_token,
+    authorization_server_id=sdk.config.authorization_server_id,
+    audience="https://your-resource-server.com"
+)
+```
+
+### Connected Accounts
+
+Get external provider tokens (Google, GitHub, etc.) from Auth0 token vault with automatic account linking:
+
+```python
+from okta_ai_sdk import Auth0Config, GetExternalProviderTokenRequest, CompleteLinkingAndGetTokenRequest
+
+# Configure Auth0
+auth0_config = Auth0Config(
+    token_endpoint="https://your-tenant.us.auth0.com/oauth/token",
+    myaccount_connect_endpoint="https://your-tenant.us.auth0.com/me/v1/connected-accounts/connect",
+    myaccount_complete_endpoint="https://your-tenant.us.auth0.com/me/v1/connected-accounts/complete",
+    vault_audience="https://vault.example.com",
+    myaccount_audience="https://your-tenant.us.auth0.com/me/",
+    vault_token_type="urn:custom:okta-token",
+    vault_scope="read:vault",
+    vault_client_id="YOUR_VAULT_CLIENT_ID",
+    vault_client_secret="YOUR_VAULT_CLIENT_SECRET",
+    myaccount_client_id="YOUR_MYACCOUNT_CLIENT_ID",
+    myaccount_client_secret="YOUR_MYACCOUNT_CLIENT_SECRET"
+)
+
+# Method 1: Get token from vault (tries vault first, initiates linking if needed)
+response = sdk.connected_accounts.get_external_provider_token_from_vault(
+    GetExternalProviderTokenRequest(
+        okta_access_token="YOUR_OKTA_ACCESS_TOKEN",
+        auth0_config=auth0_config,
+        connection="google-oauth2",
+        redirect_uri="https://example.com/callback"
+    )
+)
+
+if response.requires_linking:
+    # User needs to link account - visit authorization_url
+    print(f"Visit: {response.authorization_url}")
+    # After authorization, get code from callback URL
+else:
+    # Token found in vault (happy path)
+    print(f"Token: {response.token}")
+
+# Method 2: Complete linking and get token (from callback)
+final_response = sdk.connected_accounts.complete_linking_and_get_token_from_vault(
+    CompleteLinkingAndGetTokenRequest(
+        auth_session=response.auth_session,
+        connect_code="CODE_FROM_CALLBACK_URL",
+        redirect_uri="https://example.com/callback",
+        auth0_config=auth0_config,
+        connection="google-oauth2",
+        okta_access_token="YOUR_OKTA_ACCESS_TOKEN"
+    )
+)
+```
+
+## API Reference
+
+### Token Exchange
+
+- `sdk.token_exchange.exchange_token(request)`: Exchange token for new token with different audience/scope
+- `sdk.token_exchange.verify_token(token, options)`: Verify token using JWKS
+
+### Cross-App Access
+
+- `sdk.cross_app_access.exchange_token(token, audience, scope=None, token_type="id_token")`: Exchange ID/access token for ID-JAG token
+- `sdk.cross_app_access.verify_id_jag_token(token, audience)`: Verify ID-JAG token
+- `sdk.cross_app_access.exchange_id_jag_for_auth_server_token(request)`: Exchange ID-JAG for auth server token
+- `sdk.cross_app_access.verify_auth_server_token(token, authorization_server_id, audience)`: Verify auth server token
+
+### Connected Accounts
+
+- `sdk.connected_accounts.get_external_provider_token_from_vault(request)`: Get external provider token from vault or initiate linking
+- `sdk.connected_accounts.complete_linking_and_get_token_from_vault(request)`: Complete account linking and get token
+
+## Configuration
+
+### OktaAIConfig
+
+```python
+config = OktaAIConfig(
+    okta_domain="https://your-domain.okta.com",  # Required
+    client_id="YOUR_CLIENT_ID",                  # Required
+    client_secret="YOUR_CLIENT_SECRET",          # Optional
+    authorization_server_id="default",           # Optional, default: "default"
+    principal_id="YOUR_PRINCIPAL_ID",           # Optional, for JWT bearer
+    private_jwk={...},                          # Optional, for JWT bearer
+    timeout=30000,                              # Optional, milliseconds
+    retry_attempts=3                            # Optional
+)
+```
+
+### Auth0Config
+
+```python
+auth0_config = Auth0Config(
+    token_endpoint="https://your-tenant.us.auth0.com/oauth/token",
+    myaccount_connect_endpoint="https://your-tenant.us.auth0.com/me/v1/connected-accounts/connect",
+    myaccount_complete_endpoint="https://your-tenant.us.auth0.com/me/v1/connected-accounts/complete",
+    vault_audience="https://vault.example.com",
+    myaccount_audience="https://your-tenant.us.auth0.com/me/",
+    vault_token_type="urn:custom:okta-token",
+    vault_scope="read:vault",
+    vault_client_id="YOUR_VAULT_CLIENT_ID",
+    vault_client_secret="YOUR_VAULT_CLIENT_SECRET",
+    myaccount_client_id="YOUR_MYACCOUNT_CLIENT_ID",
+    myaccount_client_secret="YOUR_MYACCOUNT_CLIENT_SECRET"
+)
+```
+
+## Error Handling
+
+```python
+from okta_ai_sdk import SDKError
+
+try:
+    result = sdk.token_exchange.exchange_token(request)
+except SDKError as e:
+    print(f"Error: {e.code} - {e.message}")
+```
+
+Common error codes: `TOKEN_EXCHANGE_FAILED`, `ID_JAG_TOKEN_EXCHANGE_FAILED`, `EXTERNAL_TOKEN_EXCHANGE_FAILED`, `ACCOUNT_LINKING_INITIATION_FAILED`, `FEDERATED_TOKEN_EXCHANGE_FAILED`
+
+## Examples
+
+See `examples/` directory for complete working examples.
+
+## Building and Publishing to PyPI
+
+### Build Package
+
+```bash
+pip install build twine
+rm -rf build/ dist/ *.egg-info src/*.egg-info
+python -m build
+```
+
+### Upload to PyPI
+
+```bash
+python -m twine upload dist/*
+```
+
+**Note:** Update version in `setup.py`, `pyproject.toml`, and `src/okta_ai_sdk/__init__.py` before releasing.
