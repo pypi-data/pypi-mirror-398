@@ -1,0 +1,378 @@
+environment: development
+source:
+  type: postgres
+  host: localhost
+  port: 5433
+  database: baselinr
+  username: baselinr
+  password: baselinr
+  schema_: public
+  extra_params: {}
+storage:
+  connection:
+    type: postgres
+    host: localhost
+    port: 5433
+    database: baselinr
+    username: baselinr
+    password: baselinr
+    schema_: public
+    extra_params: {}
+  results_table: baselinr_results
+  runs_table: baselinr_runs
+  create_tables: true
+  enable_expectation_learning: false
+  learning_window_days: 30
+  min_samples: 5
+  ewma_lambda: 0.2
+  enable_anomaly_detection: false
+  anomaly_enabled_methods:
+  - control_limits
+  - iqr
+  - mad
+  - ewma
+  - seasonality
+  - regime_shift
+  anomaly_iqr_threshold: 1.5
+  anomaly_mad_threshold: 3.0
+  anomaly_ewma_deviation_threshold: 2.0
+  anomaly_seasonality_enabled: true
+  anomaly_regime_shift_enabled: true
+  anomaly_regime_shift_window: 3
+  anomaly_regime_shift_sensitivity: 0.05
+profiling:
+  max_distinct_values: 1000
+  compute_histograms: true
+  histogram_bins: 10
+  metrics:
+  - count
+  - null_count
+  - null_percent
+  - distinct_count
+  - distinct_percent
+  - min
+  - max
+  - mean
+  - stddev
+  - histogram
+  default_sample_ratio: 1.0
+  table_discovery: true
+  discovery_options:
+    cache_discovery: true
+    cache_ttl_seconds: 300
+    max_tables_per_pattern: 1000
+    max_schemas_per_database: 100
+    discovery_limit_action: warn
+    validate_regex: true
+  enable_enrichment: true
+  enable_approx_distinct: true
+  enable_schema_tracking: true
+  enable_type_inference: true
+  enable_column_stability: true
+  stability_window: 7
+  type_inference_sample_size: 1000
+  extract_lineage: true
+drift_detection:
+  strategy: absolute_threshold
+  absolute_threshold:
+    low_threshold: 5.0
+    high_threshold: 30.0
+    medium_threshold: 15.0
+  standard_deviation:
+    low_threshold: 1.0
+    high_threshold: 3.0
+    medium_threshold: 2.0
+  ml_based: {}
+  statistical:
+    tests:
+    - ks_test
+    - psi
+    - chi_square
+    sensitivity: medium
+    test_params:
+      psi:
+        buckets: 10
+        threshold: 0.2
+      top_k:
+        k: 10
+        similarity_threshold: 0.7
+      entropy:
+        entropy_threshold: 0.1
+      ks_test:
+        alpha: 0.05
+      z_score:
+        z_threshold: 2
+      chi_square:
+        alpha: 0.05
+  baselines:
+    windows:
+      min_runs: 3
+      prior_period: 7
+      moving_average: 7
+    strategy: auto
+  enable_type_specific_thresholds: true
+  type_specific_thresholds:
+    boolean:
+      default:
+        low: 2
+        high: 10
+        medium: 5
+    numeric:
+      mean:
+        low: 10
+        high: 50
+        medium: 25
+      stddev:
+        low: 3
+        high: 15
+        medium: 8
+      default:
+        low: 5
+        high: 30
+        medium: 15
+    timestamp:
+      default:
+        low: 5
+        high: 30
+        medium: 15
+    categorical:
+      default:
+        low: 5
+        high: 30
+        medium: 15
+      distinct_count:
+        low: 2
+        high: 10
+        medium: 5
+      distinct_percent:
+        low: 2
+        high: 10
+        medium: 5
+hooks:
+  enabled: true
+  hooks:
+  - type: logging
+    enabled: true
+    log_level: INFO
+    table_name: baselinr_events
+    username: Baselinr
+    min_severity: low
+    alert_on_drift: true
+    alert_on_schema_change: true
+    alert_on_profiling_failure: true
+    timeout: 10
+    params: {}
+  - type: sql
+    enabled: true
+    log_level: INFO
+    connection:
+      type: postgres
+      host: localhost
+      port: 5433
+      database: baselinr
+      username: baselinr
+      password: baselinr
+      schema_: public
+      extra_params: {}
+    table_name: baselinr_events
+    username: Baselinr
+    min_severity: low
+    alert_on_drift: true
+    alert_on_schema_change: true
+    alert_on_profiling_failure: true
+    timeout: 10
+    params: {}
+monitoring:
+  enable_metrics: true
+  port: 9753
+  keep_alive: false
+retry:
+  enabled: true
+  retries: 3
+  backoff_strategy: exponential
+  min_backoff: 0.5
+  max_backoff: 8.0
+execution:
+  max_workers: 1
+  batch_size: 10
+  queue_size: 100
+  warehouse_limits: {}
+incremental:
+  enabled: false
+  change_detection:
+    enabled: true
+    metadata_table: baselinr_table_state
+    connector_overrides: {}
+    snapshot_ttl_minutes: 1440
+  partial_profiling:
+    enabled: true
+    allow_partition_pruning: true
+    max_partitions_per_run: 64
+    mergeable_metrics:
+    - count
+    - null_count
+    - null_ratio
+    - min
+    - max
+    - mean
+    - stddev
+  adaptive_scheduling:
+    enabled: true
+    default_interval_minutes: 1440
+    min_interval_minutes: 60
+    max_interval_minutes: 10080
+    priority_overrides: {}
+    staleness_penalty_minutes: 1440
+  cost_controls:
+    enabled: true
+    fallback_strategy: sample
+    sample_fraction: 0.1
+schema_change:
+  enabled: true
+  similarity_threshold: 0.7
+  suppression: []
+lineage:
+  enabled: true
+  extract_column_lineage: true
+  providers:
+  - dbt
+  - sql_parser
+  - postgres_query_history
+  - dagster
+  dbt:
+    manifest_path: dbt_package/target/manifest.json
+  dagster:
+    metadata_db_url: postgresql://baselinr:baselinr@localhost:5433/baselinr
+    auto_detect_metadata_db: true
+  query_history:
+    enabled: true
+    incremental: true
+    lookback_days: 30
+    min_query_count: 1
+    exclude_patterns:
+    - .*INFORMATION_SCHEMA.*
+    - .*SHOW.*
+    - .*pg_stat.*
+    edge_expiration_days: 90
+    warn_stale_days: 90
+    postgres:
+      require_extension: false
+visualization:
+  enabled: true
+  max_depth: 3
+  direction: both
+  confidence_threshold: 0.5
+  layout: hierarchical
+  web_viewer_port: 8080
+  theme: dark
+  styles:
+    node_colors:
+      drift: '#F44336'
+      healthy: '#4CAF50'
+      warning: '#FFC107'
+llm:
+  enabled: true
+  provider: openai
+  api_key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+  temperature: 0.3
+  max_tokens: 1500
+  timeout: 30
+  rate_limit: {}
+  fallback_to_template: true
+  chat:
+    enabled: true
+    max_history_messages: 20
+    max_iterations: 5
+    tool_timeout: 30
+    cache_tool_results: true
+    enable_context_enhancement: true
+smart_selection:
+  mode: recommend
+  enabled: true
+  criteria:
+    weights:
+      table_size: 0.15
+      query_recency: 0.25
+      write_activity: 0.2
+      query_frequency: 0.4
+    max_rows: null
+    min_rows: 100
+    lookback_days: 30
+    min_query_count: 10
+    exclude_patterns:
+    - temp_*
+    - '*_backup'
+    - '*_archive'
+    - staging_*
+    - test_*
+    min_queries_per_day: 1
+    max_days_since_query: 60
+    max_days_since_modified: null
+  auto_apply:
+    max_tables: 100
+    skip_existing: true
+    confidence_threshold: 0.8
+  cache_metadata: true
+  recommendations:
+    output_file: recommendations.yaml
+    auto_refresh_days: 7
+    include_explanations: true
+    include_suggested_checks: true
+  cache_ttl_seconds: 3600
+rca:
+  enabled: true
+  lookback_window_hours: 24
+  max_depth: 5
+  max_causes_to_return: 5
+  min_confidence_threshold: 0.3
+  auto_analyze: true
+  enable_pattern_learning: true
+  collectors:
+    dbt: true
+    manifest_path: ./dbt_package/target/manifest.json
+    project_dir: ./dbt_package
+    dagster: false
+    dagster_instance_path: /path/to/.dagster
+    dagster_graphql_url: http://localhost:3000/graphql
+    airflow: false
+    airflow_api_version: v1
+validation:
+  enabled: true
+  providers:
+  - type: builtin
+  # Column-specific validation rules are now in datasets[].columns[].validation.rules
+  # Table-level rules (without column) can be in datasets[].validation.rules
+quality_scoring:
+  enabled: true
+  weights:
+    completeness: 25.0
+    validity: 25.0
+    consistency: 20.0
+    freshness: 15.0
+    uniqueness: 10.0
+    accuracy: 5.0
+  thresholds:
+    healthy: 80.0
+    warning: 60.0
+    critical: 0.0
+  freshness:
+    excellent: 24
+    good: 48
+    acceptable: 168
+  store_history: true
+  history_retention_days: 90
+
+# =============================================================================
+# ODCS Contracts Configuration
+# =============================================================================
+# Dataset schemas, quality rules, and SLAs are defined in ODCS contracts
+# See examples/contracts/ for example contract files
+contracts:
+  directory: ./contracts          # Path to ODCS contracts directory
+  file_patterns:
+    - "*.odcs.yaml"
+    - "*.odcs.yml"
+  recursive: true                 # Search subdirectories
+  validate_on_load: true          # Validate contracts when loading
+  strict_validation: false        # Treat warnings as errors

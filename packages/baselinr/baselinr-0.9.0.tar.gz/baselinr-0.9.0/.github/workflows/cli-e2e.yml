@@ -1,0 +1,838 @@
+name: CLI E2E (Docker)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cli-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: baselinr-ci
+      DOCKER_NETWORK_NAME: baselinr-ci_default
+      DOCKER_IMAGE_NAME: baselinr-cli-tests
+      BASELINR_CONFIG_PATH: examples/config.yml
+      BASELINR_DB_HOST: baselinr_postgres
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start PostgreSQL dependency
+        run: docker compose -f docker/docker-compose.yml -p $COMPOSE_PROJECT_NAME up -d postgres
+
+      - name: Wait for PostgreSQL to become healthy
+        run: |
+          for i in {1..30}; do
+            if docker exec baselinr_postgres pg_isready -U baselinr >/dev/null 2>&1; then
+              echo "PostgreSQL is ready"
+              exit 0
+            fi
+            echo "Waiting for PostgreSQL (attempt ${i}/30)..."
+            sleep 2
+          done
+          echo "PostgreSQL failed to become healthy in time" >&2
+          docker compose -f docker/docker-compose.yml -p $COMPOSE_PROJECT_NAME logs postgres || true
+          exit 1
+
+      - name: Build CLI image
+        run: docker build -t $DOCKER_IMAGE_NAME -f docker/Dockerfile .
+
+      - name: Run plan command
+        run: |
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+              -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+              -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr plan --config $BASELINR_CONFIG_PATH
+
+      - name: Run profile command twice to seed drift history
+        run: |
+          for run_number in 1 2; do
+            echo "Starting profiling run #${run_number}"
+            docker run --rm \
+              --network $DOCKER_NETWORK_NAME \
+              -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+              -e BASELINR_SOURCE__PORT=5432 \
+              -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+              -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+              $DOCKER_IMAGE_NAME \
+              baselinr profile --config $BASELINR_CONFIG_PATH
+          done
+
+      - name: Run drift detection command
+        run: |
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr drift --config $BASELINR_CONFIG_PATH --dataset customers
+
+      - name: Run query CLI commands
+        run: |
+          # Query recent profiling runs
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr query runs \
+              --config $BASELINR_CONFIG_PATH \
+              --limit 5 \
+              --format table
+
+          # Query drift events
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr query drift \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --days 7 \
+              --format table
+
+          # Query table history
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr query table \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --days 7 \
+              --format json
+
+      - name: Run lineage CLI commands
+        run: |
+          # Test lineage providers command (always works, no data needed)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage providers \
+              --config $BASELINR_CONFIG_PATH \
+              --format table
+
+          # Test lineage upstream command for downstream table (customer_summary depends on customers)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage upstream \
+              --config $BASELINR_CONFIG_PATH \
+              --table customer_summary \
+              --format json || echo "No upstream lineage found (expected if lineage not enabled)"
+
+          # Test lineage downstream command (customers should have downstream: customer_summary, customer_analytics)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage downstream \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format json || echo "No downstream lineage found (expected if lineage not enabled)"
+
+          # Test lineage path command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage path \
+              --config $BASELINR_CONFIG_PATH \
+              --from customers \
+              --to customer_summary \
+              --format json || echo "No path found (expected if lineage not enabled)"
+
+          # Test lineage sync command (may fail if pg_stat_statements not available, that's ok)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage sync \
+              --config $BASELINR_CONFIG_PATH \
+              --provider postgres_query_history || echo "Sync failed (expected if pg_stat_statements not available)"
+
+          # Test lineage cleanup command (dry-run, should work even with no stale edges)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage cleanup \
+              --config $BASELINR_CONFIG_PATH \
+              --dry-run \
+              --expiration-days 90 || echo "Cleanup failed (expected if no stale edges or config missing)"
+
+          # Test column-level lineage upstream command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage upstream \
+              --config $BASELINR_CONFIG_PATH \
+              --table customer_summary \
+              --column email \
+              --format json || echo "No column upstream lineage found (expected if column lineage not enabled)"
+
+          # Test column-level lineage downstream command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage downstream \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --column customer_id \
+              --format json || echo "No column downstream lineage found (expected if column lineage not enabled)"
+
+          # Test column-level lineage path command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage path \
+              --config $BASELINR_CONFIG_PATH \
+              --from customers \
+              --to customer_summary \
+              --from-column email \
+              --to-column email \
+              --format json || echo "No column path found (expected if column lineage not enabled)"
+
+          # Test lineage validate command (Phase 3 - validates lineage availability)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage validate \
+              --config $BASELINR_CONFIG_PATH \
+              --format table || echo "Lineage validate failed (expected if lineage table doesn't exist)"
+
+          # Test lineage validate with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage validate \
+              --config $BASELINR_CONFIG_PATH \
+              --format json || echo "Lineage validate JSON failed (expected if lineage table doesn't exist)"
+
+          # Test lineage show command (Phase 3 - shows lineage with impact scoring)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage show \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format table || echo "Lineage show failed (expected if table not in lineage graph)"
+
+          # Test lineage show with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage show \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format json || echo "Lineage show JSON failed (expected if table not in lineage graph)"
+
+          # Test lineage impact command (Phase 3 - shows blast radius)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage impact \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format table || echo "Lineage impact failed (expected if table not in lineage graph)"
+
+          # Test lineage impact with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage impact \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format json || echo "Lineage impact JSON failed (expected if table not in lineage graph)"
+
+          # Test lineage refresh-cache command (Phase 3 - refreshes lineage cache)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage refresh-cache \
+              --config $BASELINR_CONFIG_PATH || echo "Lineage refresh-cache failed (expected if lineage table doesn't exist)"
+
+      - name: Run lineage visualization commands
+        run: |
+          # Test lineage visualize with ASCII format (works even without lineage data)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage visualize \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format ascii \
+              --no-color || echo "Visualization failed (expected if no lineage data)"
+
+          # Test lineage visualize with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage visualize \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format json \
+              --json-format generic || echo "JSON export failed (expected if no lineage data)"
+
+          # Test lineage visualize with Mermaid format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage visualize \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format mermaid \
+              --direction upstream \
+              --depth 2 || echo "Mermaid export failed (expected if no lineage data)"
+
+          # Test lineage visualize with DOT format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage visualize \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format dot \
+              --direction downstream || echo "DOT export failed (expected if no lineage data)"
+
+          # Test lineage visualize with drift highlighting
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage visualize \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format ascii \
+              --highlight-drift \
+              --no-color || echo "Drift highlighting failed (expected if no lineage/drift data)"
+
+          # Test column-level lineage visualization
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr lineage visualize \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --column customer_id \
+              --format ascii \
+              --no-color || echo "Column visualization failed (expected if no column lineage data)"
+
+      - name: Run recommend command
+        run: |
+          # Test basic recommend command (generate recommendations)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr recommend \
+              --config $BASELINR_CONFIG_PATH \
+              --format yaml || echo "Recommend failed (expected if smart_selection not configured or no tables found)"
+
+          # Test recommend with explain flag
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr recommend \
+              --config $BASELINR_CONFIG_PATH \
+              --explain \
+              --format yaml || echo "Recommend with explain failed (expected if smart_selection not configured or no tables found)"
+
+          # Test recommend with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr recommend \
+              --config $BASELINR_CONFIG_PATH \
+              --format json || echo "Recommend with JSON format failed (expected if smart_selection not configured or no tables found)"
+
+          # Test recommend with schema filter
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr recommend \
+              --config $BASELINR_CONFIG_PATH \
+              --schema public \
+              --format yaml || echo "Recommend with schema filter failed (expected if smart_selection not configured or no tables found)"
+
+          # Test recommend with lineage-aware prioritization (Phase 3)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr recommend \
+              --config $BASELINR_CONFIG_PATH \
+              --with-lineage \
+              --format yaml || echo "Recommend with lineage failed (expected if lineage not configured or no lineage data)"
+
+          # Test recommend with explain-lineage flag (Phase 3)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr recommend \
+              --config $BASELINR_CONFIG_PATH \
+              --explain-lineage \
+              --table customers \
+              --format yaml || echo "Recommend explain-lineage failed (expected if table not in lineage graph or lineage not configured)"
+
+      - name: Run status command
+        run: |
+          # Test basic status command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr status \
+              --config $BASELINR_CONFIG_PATH \
+              --limit 5
+
+          # Test status with JSON output
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr status \
+              --config $BASELINR_CONFIG_PATH \
+              --json \
+              --limit 5
+
+          # Test drift-only mode
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr status \
+              --config $BASELINR_CONFIG_PATH \
+              --drift-only
+
+      - name: Run RCA CLI commands
+        run: |
+          # Test RCA list command (should work even with no data)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr rca list \
+              --config $BASELINR_CONFIG_PATH \
+              --limit 5 \
+              --format table || echo "RCA list failed (expected if no RCA data)"
+
+          # Test RCA list with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr rca list \
+              --config $BASELINR_CONFIG_PATH \
+              --limit 5 \
+              --format json || echo "RCA list JSON failed (expected if no RCA data)"
+
+          # Test RCA collect command (dbt collector)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr rca collect \
+              --config $BASELINR_CONFIG_PATH \
+              --type dbt || echo "RCA collect failed (expected if dbt not configured or no runs found)"
+
+      - name: Run validation CLI commands
+        run: |
+          # Test basic validation command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr validate \
+              --config $BASELINR_CONFIG_PATH
+
+          # Test validation with table filter
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr validate \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers
+
+          # Test validation with JSON output
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr validate \
+              --config $BASELINR_CONFIG_PATH \
+              --output /tmp/validation_results.json || echo "Validation output failed (expected if validation disabled or no rules)"
+
+      - name: Run quality score CLI commands
+        run: |
+          # Test basic score command with JSON output
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr score \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format json || echo "Score command failed (expected if quality_scoring disabled or no data)"
+
+          # Test score command with table format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr score \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --format table || echo "Score command with table format failed (expected if quality_scoring disabled or no data)"
+
+          # Test score command with schema filter
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr score \
+              --config $BASELINR_CONFIG_PATH \
+              --table customers \
+              --schema public \
+              --format json || echo "Score command with schema filter failed (expected if quality_scoring disabled or no data)"
+
+          # Test score command without table (should error)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr score \
+              --config $BASELINR_CONFIG_PATH \
+              --format json || echo "Score command without table failed as expected"
+
+      - name: Run contracts CLI commands
+        run: |
+          # Test contracts list command (should work even with no contracts)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts list \
+              --config $BASELINR_CONFIG_PATH \
+              --format table || echo "Contracts list failed (expected if contracts directory doesn't exist or no contracts)"
+
+          # Test contracts list with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts list \
+              --config $BASELINR_CONFIG_PATH \
+              --format json || echo "Contracts list JSON failed (expected if contracts directory doesn't exist or no contracts)"
+
+          # Test contracts validate command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts validate \
+              --config $BASELINR_CONFIG_PATH \
+              --format table || echo "Contracts validate failed (expected if contracts directory doesn't exist or no contracts)"
+
+          # Test contracts validate with strict mode
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts validate \
+              --config $BASELINR_CONFIG_PATH \
+              --strict \
+              --format table || echo "Contracts validate strict failed (expected if contracts directory doesn't exist or no contracts)"
+
+          # Test contracts show command (should work even if contract not found)
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts show \
+              --config $BASELINR_CONFIG_PATH \
+              --contract customers-contract \
+              --format table || echo "Contracts show failed (expected if contract not found)"
+
+          # Test contracts show with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts show \
+              --config $BASELINR_CONFIG_PATH \
+              --contract customers-contract \
+              --format json || echo "Contracts show JSON failed (expected if contract not found)"
+
+          # Test contracts show with YAML format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts show \
+              --config $BASELINR_CONFIG_PATH \
+              --contract customers-contract \
+              --format yaml || echo "Contracts show YAML failed (expected if contract not found)"
+
+          # Test contracts rules command
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts rules \
+              --config $BASELINR_CONFIG_PATH \
+              --format table || echo "Contracts rules failed (expected if contracts directory doesn't exist or no contracts)"
+
+          # Test contracts rules with JSON format
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts rules \
+              --config $BASELINR_CONFIG_PATH \
+              --format json || echo "Contracts rules JSON failed (expected if contracts directory doesn't exist or no contracts)"
+
+          # Test contracts rules with contract filter
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            $DOCKER_IMAGE_NAME \
+            baselinr contracts rules \
+              --config $BASELINR_CONFIG_PATH \
+              --contract customers-contract \
+              --format table || echo "Contracts rules with filter failed (expected if contract not found)"
+
+      - name: Run chat CLI commands (error handling tests)
+        run: |
+          # Test chat help command (validates CLI structure)
+          docker run --rm \
+            $DOCKER_IMAGE_NAME \
+            baselinr chat --help
+
+          # Test chat with LLM disabled (should error before starting interactive loop)
+          # This validates error handling without requiring API keys
+          # Exit code 1 is expected when LLM is not configured
+          docker run --rm \
+            --network $DOCKER_NETWORK_NAME \
+            -e BASELINR_SOURCE__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_SOURCE__PORT=5432 \
+            -e BASELINR_STORAGE__CONNECTION__HOST=$BASELINR_DB_HOST \
+            -e BASELINR_STORAGE__CONNECTION__PORT=5432 \
+            -e BASELINR_LLM__ENABLED=false \
+            $DOCKER_IMAGE_NAME \
+            baselinr chat --config $BASELINR_CONFIG_PATH || echo "Chat validation test: LLM not configured (expected)"
+
+          # Test chat with invalid config file (should error gracefully)
+          docker run --rm \
+            $DOCKER_IMAGE_NAME \
+            baselinr chat --config /nonexistent/config.yml || echo "Chat validation test: Invalid config (expected)"
+
+          # Note: Full E2E chat testing requires API keys and is interactive,
+          # so we only test error handling paths here. The chat command will
+          # also fail if API keys are missing, which is expected behavior.
+
+      - name: Dump PostgreSQL logs on failure
+        if: failure()
+        run: docker logs baselinr_postgres || true
+
+      - name: Shutdown Docker services
+        if: always()
+        run: docker compose -f docker/docker-compose.yml -p $COMPOSE_PROJECT_NAME down -v
