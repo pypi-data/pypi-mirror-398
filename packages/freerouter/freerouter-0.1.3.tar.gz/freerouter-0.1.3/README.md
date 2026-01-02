@@ -1,0 +1,175 @@
+# FreeRouter
+
+🛠️ **LiteLLM Configuration Management Tool** - Automated Multi-Provider Configuration Generation
+
+[![PyPI version](https://badge.fury.io/py/freerouter.svg)](https://badge.fury.io/py/freerouter)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+## What is this?
+
+FreeRouter is a **configuration management tool** for [LiteLLM](https://github.com/BerriAI/litellm).
+
+**Core Features**:
+- 📋 Automatically fetch model lists from Provider APIs
+- ⚙️ Generate LiteLLM `config.yaml` configuration files
+- 🚀 One-command startup of LiteLLM service
+
+**Important**:
+- FreeRouter does not provide AI services; all APIs and routing are provided by [LiteLLM](https://github.com/BerriAI/litellm)
+- Recommend reading [LiteLLM Documentation](https://docs.litellm.ai/) first
+- If you're familiar with writing LiteLLM configs manually, you may not need FreeRouter
+
+## Supported Providers
+
+| Provider | Type | Free |
+|----------|------|------|
+| **OpenRouter** | Text, Vision, Multimodal | ✅ Partially Free |
+| **iFlow** | Text | ✅ Fully Free |
+| **ModelScope** | Text | ✅ Free Quota |
+| **OAI** | Any (OpenAI-compatible) | Depends |
+| **Ollama** | Text, Vision | ✅ Local Free |
+| **Static** | Any | Depends |
+
+**Free Providers**:
+- **OpenRouter** (https://openrouter.ai/) - 30+ free models (GPT-3.5, Gemini, Llama, etc.)
+- **iFlow** (https://iflow.cn/) - Chinese free models (Qwen, GLM, DeepSeek, etc.)
+
+## Quick Start
+
+### 1. Installation
+
+```bash
+pip install freerouter
+```
+
+Or from source:
+```bash
+git clone https://github.com/mmdsnb/freerouter.git
+cd freerouter
+pip install -e .
+```
+
+### 2. Initialize Configuration
+
+```bash
+freerouter init
+```
+
+### 3. Configure Providers
+
+Edit `.env` to add API keys:
+```bash
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
+IFLOW_API_KEY=sk-xxxxx
+```
+
+Edit `config/providers.yaml` to enable services:
+```yaml
+providers:
+  # OpenRouter - Free models
+  - type: openrouter
+    enabled: true
+    api_key: ${OPENROUTER_API_KEY}
+
+  # iFlow - Chinese free models
+  - type: iflow
+    enabled: true
+    api_key: ${IFLOW_API_KEY}
+
+  # Ollama - Local models
+  - type: ollama
+    enabled: true
+    api_base: http://localhost:11434
+
+  # ModelScope - Chinese models (2000 calls/day free)
+  - type: modelscope
+    enabled: false
+    api_key: ${MODELSCOPE_API_KEY}
+
+  # OAI - Generic OpenAI-compatible API (auto-fetch models)
+  - type: oai
+    name: myservice
+    enabled: false
+    api_base: https://api.example.com/v1
+    api_key: ${MYSERVICE_API_KEY}
+
+  # Static - Custom service (single model, manual config)
+  - type: static
+    enabled: false
+    model_name: gpt-3.5-turbo
+    provider: openai
+    api_base: https://your-api.com/v1
+    api_key: ${YOUR_KEY}
+```
+
+### 4. Start Service
+
+```bash
+# Fetch models and start service
+freerouter
+
+# Or step by step
+freerouter fetch   # Fetch model list
+freerouter start   # Start service
+```
+
+Service will start at `http://localhost:4000`.
+
+### 5. Use API
+
+All API usage follows [LiteLLM Documentation](https://docs.litellm.ai/).
+
+```bash
+# List available models
+curl http://localhost:4000/v1/models
+
+# Call model (OpenAI-compatible API)
+curl http://localhost:4000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-1234" \
+  -d '{
+    "model": "google/gemini-pro",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+## CLI Commands
+
+```bash
+freerouter              # Start service (default, auto fetch + start)
+freerouter init         # Initialize config directory
+freerouter fetch        # Fetch model list and generate config
+freerouter start        # Start LiteLLM service (daemon mode)
+freerouter stop         # Stop LiteLLM service
+freerouter status       # Show service status (PID, URL, uptime, models)
+freerouter reload       # Reload service (restart)
+freerouter reload -r    # Reload with refresh (backup + fetch + restart)
+freerouter restore <backup-file>  # Restore config from backup
+freerouter restore <backup-file> -y  # Restore without confirmation
+freerouter logs         # Show service logs in real-time
+freerouter list         # List configured models (grouped by provider)
+freerouter select       # Interactive model selector (filter config to selected models)
+freerouter --version    # Show version
+freerouter --help       # Show help
+```
+
+**Config file search order**:
+1. `./config/providers.yaml` (current directory)
+2. `~/.config/freerouter/providers.yaml` (user config)
+
+## License
+
+MIT License - see [LICENSE](LICENSE)
+
+## Links
+
+- [GitHub](https://github.com/mmdsnb/freerouter)
+- [LiteLLM](https://github.com/BerriAI/litellm)
+- [OpenRouter](https://openrouter.ai/)
+- [iFlow](https://iflow.cn/)
+- [Ollama](https://ollama.ai/)
+
+---
+
+For issues, please visit [Issues](https://github.com/mmdsnb/freerouter/issues)

@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  freellm:
+    build: .
+    container_name: freellm
+    ports:
+      - "${LITELLM_PORT:-4000}:4000"
+    volumes:
+      - ./config:/app/config
+      - ./freellm:/app/freellm:ro
+      - ./scripts:/app/scripts:ro
+    environment:
+      - LITELLM_PORT=${LITELLM_PORT:-4000}
+      - LITELLM_HOST=${LITELLM_HOST:-0.0.0.0}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - MODELSCOPE_API_KEY=${MODELSCOPE_API_KEY:-}
+    restart: unless-stopped
+    command: python scripts/start.py
+
+networks:
+  default:
+    name: freellm-network
