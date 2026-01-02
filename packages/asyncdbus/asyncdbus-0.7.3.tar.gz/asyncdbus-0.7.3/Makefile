@@ -1,0 +1,59 @@
+.PHONY: lint check format test docker-test clean publish docs livedocs all
+.DEFAULT_GOAL := all
+
+PYPI=asyncdbus
+
+source_dirs = asyncdbus test examples
+
+lint:
+	python3 -m flake8 $(source_dirs)
+
+check: lint
+	python3 -m yapf -rdp $(source_dirs)
+
+format:
+	python3 -m yapf -rip $(source_dirs)
+
+test:
+	for py in python3.9 python3.10 python3.11 python3.8 ; do \
+		if hash $${py}; then \
+			PYTHONPATH=/usr/lib/$${py}/site-packages dbus-run-session $${py} -m pytest -sv --cov=asyncdbus || exit 1 ; \
+		fi \
+	done \
+
+docker-test:
+	docker build -t dbus-next-test .
+	docker run -it dbus-next-test
+
+clean:
+	rm -rf dist asyncdbus.egg-info build docs/_build
+	rm -rf `find -type d -name __pycache__`
+
+publish:
+	python3 setup.py sdist
+	twine upload dist/${PYPI}-$(shell git describe --tags --exact-match).tar.gz
+	#python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+
+docs:
+	sphinx-build docs docs/_build/html
+
+livedocs:
+	sphinx-autobuild docs docs/_build/html --watch asyncdbus
+
+all: format lint test
+
+pypi:   tagged
+	if test -f dist/${PYPI}-$(shell git describe --tags --exact-match).tar.gz ; then \
+		echo "Source package exists."; \
+	elif test -f setup.py ; then \
+		python3 setup.py sdist bdist_wheel ; \
+	else \
+		python3 -mbuild -snw ; \
+	fi
+	twine upload \
+		dist/${PYPI}-$(shell git describe --tags --exact-match).tar.gz \
+		dist/$(subst -,_,${PYPI})-$(shell git describe --tags --exact-match)-py3-none-any.whl
+
+tagged:
+	git describe --tags --exact-match
+	test $$(git ls-files -m | wc -l) = 0
