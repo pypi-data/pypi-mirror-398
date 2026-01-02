@@ -1,0 +1,288 @@
+Metadata-Version: 2.4
+Name: dvt-core
+Version: 0.59.0a41
+Summary: DVT (Data Virtualization Tool) - Multi-source data federation and transformation with Spark-unified compute layer.
+Author: DVT Contributors
+Maintainer: DVT Contributors
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/dvt-core/dvt-core
+Project-URL: Documentation, https://github.com/dvt-core/dvt-core#readme
+Project-URL: Repository, https://github.com/dvt-core/dvt-core.git
+Project-URL: Issues, https://github.com/dvt-core/dvt-core/issues
+Keywords: data,virtualization,federation,multi-source,dbt,analytics,transform,spark,jdbc,databricks
+Classifier: Development Status :: 4 - Beta
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: agate<1.10,>=1.7.0
+Requires-Dist: Jinja2<4,>=3.1.3
+Requires-Dist: mashumaro[msgpack]<3.15,>=3.9
+Requires-Dist: click<9.0,>=8.0.2
+Requires-Dist: jsonschema<5.0,>=4.19.1
+Requires-Dist: networkx<4.0,>=2.3
+Requires-Dist: protobuf<7.0,>=6.0
+Requires-Dist: requests<3.0.0
+Requires-Dist: snowplow-tracker<2.0,>=1.0.2
+Requires-Dist: pathspec<0.13,>=0.9
+Requires-Dist: sqlparse<0.6.0,>=0.5.0
+Requires-Dist: dbt-extractor<=0.6,>=0.5.0
+Requires-Dist: dbt-semantic-interfaces<0.10,>=0.9.0
+Requires-Dist: dbt-common<2.0,>=1.27.0
+Requires-Dist: dbt-adapters<2.0,>=1.15.5
+Requires-Dist: dbt-protos<2.0,>=1.0.375
+Requires-Dist: pydantic<3
+Requires-Dist: packaging>20.9
+Requires-Dist: pytz>=2015.7
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: daff>=1.3.46
+Requires-Dist: typing-extensions>=4.4
+Requires-Dist: dbt-postgres<2.0,>=1.9.0
+Requires-Dist: pyspark<5.0.0,>=3.5.0
+Requires-Dist: duckdb>=0.9.0
+Requires-Dist: rich>=13.0.0
+Provides-Extra: databricks
+Requires-Dist: databricks-connect>=13.0.0; extra == "databricks"
+
+# DVT-Core: Data Virtualization Tool
+
+**DVT-Core** is a multi-source data federation and transformation platform built on dbt-core architecture. Query and transform data across multiple heterogeneous data sources with intelligent query pushdown and compute layer integration.
+
+## Features
+
+- 🔄 **Multi-Source Queries**: Join data from PostgreSQL, Snowflake, BigQuery, MySQL, and more in a single query
+- 🧠 **Intelligent Routing**: Automatically pushes down queries when possible, uses compute layer when needed
+- ⚡ **JDBC Performance**: Spark JDBC-based data transfer for maximum efficiency
+- 🔧 **Familiar Workflow**: Same dbt commands, same project structure, enhanced capabilities
+- 🎯 **Smart Compute Selection**: Automatically chooses between Spark Local (embedded) or Spark Cluster (distributed)
+- 🎛️ **Full Control**: Override everything with `target=` and `compute=` config options
+- ✅ **100% Compatible**: Works with existing dbt projects and all dbt adapters
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install dvt-core
+```
+
+Or with uv:
+
+```bash
+uv pip install dvt-core
+```
+
+### Configure Multi-Connection Profile
+
+```yaml
+# profiles.yml
+my_project:
+  connections:
+    postgres_prod:
+      type: postgres
+      host: prod-db.example.com
+      port: 5432
+      user: prod_user
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      database: analytics
+      schema: public
+      threads: 4
+
+    snowflake_warehouse:
+      type: snowflake
+      account: abc123
+      user: snow_user
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      database: warehouse
+      schema: public
+      warehouse: compute_wh
+      threads: 8
+
+  default_target: snowflake_warehouse
+  threads: 4
+```
+
+### Define Sources with Connections
+
+```yaml
+# models/sources.yml
+sources:
+  - name: postgres_data
+    connection: postgres_prod
+    tables:
+      - name: orders
+      - name: customers
+
+  - name: snowflake_data
+    connection: snowflake_warehouse
+    tables:
+      - name: products
+```
+
+### Create Multi-Source Model
+
+```sql
+-- models/combined_sales.sql
+{{ config(
+    materialized='table',
+    target='snowflake_warehouse',  -- Optional: override materialization target
+    compute='spark-local'          -- Optional: force compute engine
+) }}
+
+SELECT
+    o.order_id,
+    o.order_date,
+    c.customer_name,
+    p.product_name,
+    o.quantity * p.price as total_amount
+FROM {{ source('postgres_data', 'orders') }} o
+JOIN {{ source('postgres_data', 'customers') }} c
+    ON o.customer_id = c.customer_id
+JOIN {{ source('snowflake_data', 'products') }} p
+    ON o.product_id = p.product_id
+WHERE o.order_date >= '2024-01-01'
+```
+
+### Run DVT
+
+```bash
+# Standard dbt commands work
+dvt run --select combined_sales
+
+# DVT automatically:
+# 1. Analyzes query (sees postgres + snowflake sources)
+# 2. Determines federated execution needed
+# 3. Selects compute engine (Spark Local or Cluster based on workload)
+# 4. Loads data from postgres and snowflake via adapters
+# 5. Executes join in compute engine
+# 6. Materializes result to target (snowflake)
+```
+
+## Architecture
+
+```
+┌─────────────┐     ┌──────────┐     ┌─────────────┐     ┌──────────┐     ┌──────────────┐
+│ Source DBs  │────▶│ Adapters │────▶│  JDBC       │────▶│ Compute  │────▶│ Adapters     │
+│(Postgres,   │     │  (Read)  │     │             │     │ (Spark)  │     │  (Write)     │
+│ MySQL, etc.)│     │          │     │             │     │          │     │              │
+└─────────────┘     └──────────┘     └─────────────┘     └──────────┘     └──────────────┘
+                                                                                   │
+                                                                                   ▼
+                                                                           ┌──────────────┐
+                                                                           │  Target DB   │
+                                                                           │ (Snowflake,  │
+                                                                           │  BigQuery)   │
+                                                                           └──────────────┘
+```
+
+## Execution Strategies
+
+### Pushdown (Homogeneous Sources)
+
+When all sources come from the same connection, DVT executes the query directly on the source database:
+
+```sql
+-- All sources from same connection → Execute on source database
+SELECT * FROM {{ source('postgres', 'orders') }}
+JOIN {{ source('postgres', 'customers') }} USING (customer_id)
+-- Executed directly in PostgreSQL (no data movement)
+```
+
+### Federated (Heterogeneous Sources)
+
+When sources come from different connections, DVT uses the compute layer:
+
+```sql
+-- Sources from different connections → Use compute layer
+SELECT * FROM {{ source('postgres', 'orders') }}
+JOIN {{ source('mysql', 'products') }} USING (product_id)
+-- Data loaded into Spark, join executed there
+```
+
+## CLI Commands
+
+### Standard dbt Commands
+
+All dbt commands work unchanged:
+
+```bash
+dvt run
+dvt test
+dvt build
+dvt docs generate
+dvt docs serve
+```
+
+### DVT-Specific Commands
+
+Manage external Spark clusters:
+
+```bash
+# Register external Spark cluster
+dvt compute register prod_cluster --master spark://master:7077
+
+# List registered clusters
+dvt compute list
+
+# Remove cluster
+dvt compute remove prod_cluster
+```
+
+## Configuration Options
+
+### Model Configuration
+
+```sql
+{{ config(
+    materialized='table',
+    target='snowflake_analytics',  -- Where to write results
+    compute='spark-local'          -- Force Spark Local for processing
+) }}
+```
+
+### Smart Compute Selection
+
+DVT automatically selects the optimal compute engine:
+
+- **Spark Local**: Small/medium workloads (< 10GB), fast in-process execution
+- **Spark Cluster**: Large workloads (> 10GB), distributed processing
+
+Override with `compute='spark-local'` or `compute='spark-cluster'` in config.
+
+## Key Principles
+
+1. **Adapters for I/O only** - Read from sources, write to targets
+2. **Compute engines for processing only** - Never materialize
+3. **JDBC as universal data format** - Efficient transfer
+4. **Backward compatibility** - All dbt projects work unchanged
+5. **User configuration always wins** - Override any automatic decision
+
+## Requirements
+
+- Python 3.10+
+- dbt-compatible adapters for your data sources
+- PySpark (installed automatically)
+
+## License
+
+Apache License 2.0 (same as dbt-core)
+
+## Acknowledgments
+
+Built on [dbt-core](https://github.com/dbt-labs/dbt-core) architecture. DVT extends dbt's capabilities while preserving its excellent design patterns and developer experience.
+
+## Links
+
+- [Documentation](https://github.com/dvt-core/dvt-core#readme)
+- [Issues](https://github.com/dvt-core/dvt-core/issues)
+- [Repository](https://github.com/dvt-core/dvt-core)
+
+---
+
+**Transform data across any source, materialize to any target, with intelligent query optimization.**
