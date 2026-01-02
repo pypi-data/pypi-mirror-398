@@ -1,0 +1,167 @@
+import logging
+
+from typing import Any
+
+import aiohttp
+
+from qtoggleserver.conf import metadata
+from qtoggleserver.core import ports as core_ports
+from qtoggleserver.lib import polled
+from qtoggleserver.utils import json as json_utils
+from qtoggleserver.utils import template as template_utils
+
+
+DEFAULT_TIMEOUT = 10  # seconds
+
+
+class GenericHTTPClient(polled.PolledPeripheral):
+    logger = logging.getLogger(__name__)
+
+    def __init__(
+        self,
+        *,
+        read: dict[str, Any],
+        write: dict[str, Any] | None = None,
+        auth: dict[str, Any] | None = None,
+        ignore_response_code: bool = False,
+        ignore_invalid_cert: bool = False,
+        timeout: int = DEFAULT_TIMEOUT,
+        ports: dict[str, dict[str, Any]],
+        **kwargs,
+    ) -> None:
+        self.read_details: dict[str, Any] = read
+        self.read_details.setdefault("method", "GET")
+
+        self.write_details: dict[str, Any] = write or {}
+        self.write_details.setdefault("url", self.read_details.get("url"))
+        self.write_details.setdefault("method", "POST")
+
+        self.auth: dict[str, str] = auth or {}
+        self.auth.setdefault("type", "none")
+        self.ignore_response_code: bool = ignore_response_code
+        self.ignore_invalid_cert: bool = ignore_invalid_cert
+        self.timeout: int = timeout
+        self.port_details: dict[str, dict[str, Any]] = ports
+
+        self.last_response_status: int | None = None
+        self.last_response_body: str | None = None
+        self.last_response_json: Any | None = None
+        self.last_response_headers: dict[str, Any] | None = None
+
+        super().__init__(**kwargs)
+
+    async def make_port_args(self) -> list[dict[str, Any] | type[core_ports.BasePort]]:
+        from .ports import GenericHTTPPort
+
+        port_args = []
+        for id_, details in self.port_details.items():
+            port_args.append({"driver": GenericHTTPPort, "id": id_, **details})
+
+        return port_args
+
+    def get_common_context(self) -> dict:
+        return {
+            "metadata": metadata.get_all(),
+        }
+
+    async def poll(self) -> None:
+        self.debug("read request %s %s", self.read_details["method"], self.read_details["url"])
+
+        async with aiohttp.ClientSession() as session:
+            context = self.get_common_context()
+            request_params = await self.prepare_request(self.read_details, context)
+            async with session.request(**request_params) as response:
+                data = await response.read()
+
+                self.last_response_body = data.decode()
+                self.last_response_status = response.status
+                self.last_response_headers = dict(response.headers)
+
+                # Attempt to decode JSON but don't worry at all if that is not possible
+                try:
+                    self.last_response_json = json_utils.loads(self.last_response_body)
+                except Exception:
+                    self.last_response_json = None
+
+    async def write_port_value(
+        self, port: core_ports.BasePort, request_details: dict[str, Any], context: dict[str, Any]
+    ) -> None:
+        details = request_details
+        for k, v in self.write_details.items():
+            details.setdefault(k, v)
+
+        context = self.get_common_context() | await self.get_placeholders_context(port) | context
+
+        async with aiohttp.ClientSession() as session:
+            request_params = await self.prepare_request(details, context)
+            self.debug("write request %s %s", request_params["method"], request_params["url"])
+            async with session.request(**request_params) as response:
+                try:
+                    _ = await response.read()
+                except Exception as e:
+                    self.error("write request failed: %s", e, exc_info=True)
+
+                if response.status != 200 and not self.ignore_response_code:
+                    raise core_ports.PortWriteError("Write request failed with status code %d" % response.status)
+
+        # TODO: remove me after `PolledPeripheral` gets an option to do this kind of polling after write
+        await self.poll()
+
+    async def prepare_request(self, details: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        headers = details.get("headers", {})
+        request_body = details.get("request_body")
+        if request_body is not None:
+            request_body = await self.replace_placeholders_rec(request_body, context)
+
+        if request_body is not None and not isinstance(request_body, str):  # assuming JSON body
+            request_body = json_utils.dumps(request_body)
+            headers.setdefault("Content-Type", "application/json")
+
+        auth = None
+        if self.auth["type"] == "basic":
+            auth = aiohttp.BasicAuth(self.auth.get("username", ""), self.auth.get("password", ""))
+
+        url = details["url"]
+        if details.get("query"):
+            # Don't use `urlencode` because we don't want our special characters to be encoded, as they might be part
+            # of a template.
+            query_str = "&".join(f"{k}={v}" for k, v in details["query"].items())
+            url = url + "?" + query_str
+        url = await self.replace_placeholders_rec(url, context)
+
+        d = {"method": details["method"], "url": url, "ssl": not self.ignore_invalid_cert, "timeout": self.timeout}
+
+        if "params" in details:
+            d["params"] = await self.replace_placeholders_rec(details["params"], context)
+
+        if headers:
+            d["headers"] = await self.replace_placeholders_rec(headers, context)
+
+        if "cookies" in details:
+            d["cookies"] = await self.replace_placeholders_rec(details["cookies"], context)
+
+        if request_body is not None:
+            d["data"] = request_body
+
+        if auth:
+            d["auth"] = auth
+
+        return d
+
+    async def get_placeholders_context(self, port: core_ports.BasePort) -> dict[str, Any]:
+        context = {"port": port, "value": port.get_last_read_value(), "attrs": await port.get_attrs()}
+
+        return context
+
+    async def replace_placeholders_rec(self, obj: Any, context: dict[str, Any]) -> Any:
+        if isinstance(obj, dict):
+            return {
+                await self.replace_placeholders_rec(k, context): await self.replace_placeholders_rec(v, context)
+                for k, v in obj.items()
+            }
+        elif isinstance(obj, list):
+            return [await self.replace_placeholders_rec(e, context) for e in obj]
+        elif isinstance(obj, str):
+            return await template_utils.render_native(obj, context)
+        else:
+            return obj

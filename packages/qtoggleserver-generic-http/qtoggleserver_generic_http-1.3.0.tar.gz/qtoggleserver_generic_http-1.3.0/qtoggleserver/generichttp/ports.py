@@ -1,0 +1,111 @@
+import re
+
+from typing import Any, cast
+
+import jsonpointer
+
+from qtoggleserver.core import ports as core_ports
+from qtoggleserver.core.typing import NullablePortValue
+from qtoggleserver.lib import polled
+
+from .client import GenericHTTPClient
+
+
+class GenericHTTPPort(polled.PolledPort):
+    def __init__(
+        self,
+        *,
+        id: str,
+        type: str = core_ports.TYPE_BOOLEAN,
+        writable: bool = False,
+        read: dict[str, Any],
+        write: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> None:
+        self._write_details: dict[str, Any] = write or {}
+
+        json_path = read.get("json_path")
+        body_regex = read.get("body_regex")
+        true_value = read.get("true_value", True)
+        false_value = read.get("false_value", False)
+
+        self._json_path: str | None = json_path
+        self._body_regex: re.Pattern | None = re.compile(body_regex) if body_regex else None
+        self._true_values: list[Any] = true_value if isinstance(true_value, list) else [true_value]
+        self._false_values: list[Any] = false_value if isinstance(false_value, list) else [false_value]
+
+        super().__init__(id=id, **kwargs)
+
+        # These will directly determine the port type attribute
+        self._type = type
+        self._writable = writable
+
+    def get_peripheral(self) -> GenericHTTPClient:
+        return cast(GenericHTTPClient, super().get_peripheral())
+
+    async def read_value(self) -> NullablePortValue:
+        client = self.get_peripheral()
+
+        if client.last_response_status is None:
+            return None
+
+        if not client.ignore_response_code and client.last_response_status >= 400:
+            return None
+
+        # JSON pointer lookup
+        if self._json_path:
+            if client.last_response_json is None:  # not a JSON response
+                return None
+
+            try:
+                raw_value = jsonpointer.resolve_pointer(client.last_response_json, self._json_path)
+            except jsonpointer.JsonPointerException:
+                # Return value unavailable when JSON pointer cannot be resolved instead of propagating the exception
+                return None
+
+        # Regex pattern match
+        elif self._body_regex:
+            match = self._body_regex.match(client.last_response_body)
+            if match is None:
+                return None
+
+            try:
+                raw_value = match.group(1)
+            except IndexError:
+                raw_value = match.group()
+
+        # Value determined by status code
+        else:
+            raw_value = client.last_response_status < 300
+
+        if self._type == core_ports.TYPE_BOOLEAN:
+            if self._true_values:
+                return raw_value in self._true_values
+            elif self._false_values:
+                return raw_value not in self._false_values
+            else:
+                return bool(raw_value)
+        else:
+            if isinstance(raw_value, bool):
+                return int(raw_value)
+            elif isinstance(raw_value, str):
+                raw_value = raw_value.strip()
+                factor = 1
+                if raw_value.endswith("%"):
+                    raw_value = raw_value.strip("%")
+                    factor = 0.01
+
+                try:
+                    return int(raw_value) * factor
+                except ValueError:
+                    try:
+                        return float(raw_value) * factor
+                    except ValueError:
+                        return None
+            elif isinstance(raw_value, (int, float)):
+                return raw_value
+            else:
+                return None
+
+    async def write_value(self, value: NullablePortValue) -> None:
+        await self.get_peripheral().write_port_value(self, self._write_details, context={"new_value": value})
