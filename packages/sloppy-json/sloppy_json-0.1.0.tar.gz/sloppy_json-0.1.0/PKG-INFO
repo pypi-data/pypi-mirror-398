@@ -1,0 +1,91 @@
+Metadata-Version: 2.4
+Name: sloppy-json
+Version: 0.1.0
+Summary: A forgiving JSON parser that recovers broken JSON from LLM outputs
+License-Expression: MIT
+Keywords: forgiving,json,llm,parser,recovery
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing :: General
+Requires-Python: >=3.12
+Provides-Extra: dev
+Requires-Dist: basedpyright>=1.20; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=8.0; extra == 'dev'
+Requires-Dist: ruff>=0.8; extra == 'dev'
+Requires-Dist: ty>=0.0.7; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# sloppy-json
+
+A forgiving JSON parser that recovers broken JSON from LLM outputs.
+
+## Installation
+
+```bash
+uv add sloppy-json
+```
+
+or with pip:
+
+```bash
+pip install sloppy-json
+```
+
+## Usage
+
+```python
+from sloppy_json import parse, parse_lenient, parse_permissive, RecoveryOptions
+
+# Strict parsing (standard JSON only)
+result = parse('{"key": "value"}')
+
+# Lenient parsing (common LLM issues)
+result = parse_lenient("{'key': 'value',}")  # single quotes + trailing comma
+
+# Permissive parsing (maximum recovery)
+result = parse_permissive("Here is the JSON: {name: 'test'")  # everything
+
+# Custom options
+opts = RecoveryOptions(
+    allow_single_quotes=True,
+    allow_trailing_commas=True,
+    convert_python_literals=True,
+)
+result = parse("{'flag': True,}", opts)
+```
+
+## Features
+
+- **Quoting**: Unquoted keys, single-quoted strings
+- **Commas**: Trailing commas, missing commas
+- **Incomplete JSON**: Auto-close objects, arrays, strings
+- **Extra content**: Extract JSON from surrounding text or code blocks
+- **Python literals**: Convert `True`/`False`/`None` to JSON equivalents
+- **Special values**: Handle `undefined`, `NaN`, `Infinity`
+- **Comments**: JavaScript-style `//` and `/* */` comments
+- **Escape handling**: Handle unescaped newlines in strings
+
+## Auto-detection
+
+Automatically detect what options are needed:
+
+```python
+from sloppy_json import detect_required_options
+
+samples = ["{'key': 'value',}", "{name: True}"]
+options = detect_required_options(samples)
+# options.allow_single_quotes == True
+# options.allow_trailing_commas == True
+# options.allow_unquoted_keys == True
+# options.convert_python_literals == True
+```
+
+## License
+
+MIT
