@@ -1,0 +1,535 @@
+Metadata-Version: 2.4
+Name: barikoiapis
+Version: 2.0.2
+Summary: Official Python SDK for Barikoi Location Services - search, geocoding, routing, and more
+License: MIT
+License-File: LICENSE
+Keywords: barikoi,location,geocoding,maps,routing,api
+Author: Barikoi hello@barikoi.com
+Requires-Python: >=3.10,<4.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Dist: attrs (>=22.2.0)
+Requires-Dist: httpx (>=0.23.0,<0.29.0)
+Requires-Dist: python-dateutil (>=2.8.0,<3.0.0)
+Project-URL: Bug Tracker, https://github.com/barikoi/python-client/issues
+Project-URL: Documentation, https://docs.barikoi.com
+Project-URL: Homepage, https://barikoi.com
+Project-URL: Repository, https://github.com/barikoi/python-client
+Project-URL: Support, https://barikoi.com/
+Description-Content-Type: text/markdown
+
+# Barikoi APIs - Python SDK
+
+[![PyPI version](https://img.shields.io/pypi/v/barikoiapis.svg)](https://pypi.org/project/barikoiapis/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Description
+
+**Barikoi APIs** is the official Python SDK for [Barikoi Location Services](https://barikoi.com). Built with modern Python best practices, it provides a type-safe interface for accessing a wide range of location-based services including search, geocoding, reverse geocoding, routing, and more.
+
+This SDK is optimized for modern Python applications including Django, Flask, FastAPI, and standalone Python scripts.
+
+## Features
+
+- **Type-Safe** - Full type hints with Pydantic models for data validation
+- **Built-in Validation** - Automatic request/response validation with clear error messages
+- **Runtime API Key Management** - Update API keys dynamically without reinitializing the client
+- **Modern Async Support** - Both synchronous and asynchronous API calls
+- **Custom Error Classes** - ValidationError, BarikoiError, TimeoutError
+- **Easy to Use** - Intuitive Pythonic interface
+- **Well Documented** - Comprehensive documentation with examples
+
+## Getting Started
+
+### Get Barikoi API Key
+
+To access Barikoi's API services, you need to:
+
+1. Register on [Barikoi Developer Dashboard](https://developer.barikoi.com/register)
+2. Verify with your phone number
+3. Claim your API key
+
+Once registered, you'll be able to access the full suite of Barikoi API services. If you exceed the free usage limits, you'll need to subscribe to a paid plan.
+
+## Installation
+
+Install the package using pip:
+
+```bash
+pip install barikoiapis
+```
+
+Or using poetry:
+
+```bash
+poetry add barikoiapis
+```
+
+## Quick Start
+
+```python
+from barikoiapis import BarikoiClient
+
+# Initialize the client
+client = BarikoiClient(api_key="YOUR_BARIKOI_API_KEY")
+
+# Search for places with autocomplete
+result = client.autocomplete(q="Dhaka", bangla=True)
+places = result.places or []
+```
+
+## API Reference
+
+### Quick Navigation
+
+1. [autocomplete](#autocomplete) - Search for places with autocomplete suggestions
+2. [reverseGeocode](#reversegeocode) - Convert coordinates to addresses
+3. [nearbyPlaces](#nearbyplaces) - Find places within a radius
+4. [geocode](#geocode) - Format and geocode addresses
+5. [searchPlace](#searchplace) - Search for places with session management
+6. [placeDetails](#placedetails) - Get detailed place information
+7. [routeOverview](#routeoverview) - Get route information between points
+8. [calculateRoute](#calculateroute) - Detailed route with turn-by-turn instructions
+9. [snapToRoad](#snaptoroad) - Find nearest point on road network
+10. [checkNearby](#checknearby) - Verify proximity within a radius
+
+---
+
+### autocomplete
+
+Search for places with autocomplete suggestions. Returns matching places with
+addresses in `English` and `Bangla`, coordinates, and place details. Use for search
+boxes, address forms, and location pickers.
+
+```python
+result = client.autocomplete(
+    q="Dhaka",
+    bangla=True
+)
+
+places = result.places or []
+```
+
+**Parameters:**
+- `q` (str, required): Search query string (min length: 1)
+- `bangla` (bool, optional): Include Bangla language fields (default: True)
+
+**Response Fields:**
+- `places` (List[Dict], optional): List of matching places
+  - `id` (int, optional): Place ID
+  - `longitude` (str | float, optional): Longitude coordinate
+  - `latitude` (str | float, optional): Latitude coordinate
+  - `address` (str, optional): Address in English
+  - `address_bn` (str, optional): Address in Bangla
+  - `city` (str, optional): City name
+  - `city_bn` (str, optional): City name in Bangla
+  - `area` (str, optional): Area name
+  - `area_bn` (str, optional): Area name in Bangla
+  - `postCode` (str | int, optional): Postal code
+  - `pType` (str, optional): Place type
+  - `uCode` (str, optional): Unique code
+- `status` (int, optional): Response status code
+
+---
+
+### reverseGeocode
+
+Convert coordinates to human-readable addresses with administrative details (district, division, thana) in `English` and `Bangla`. Use for displaying user location, delivery
+addresses, and location tagging.
+
+**IMPORTANT:** ⚠️ Enabling all optional parameters triggers multiple API calls, consuming more credits. Request only essential parameters.
+
+```python
+result = client.reverseGeocode(
+    latitude=23.8103,
+    longitude=90.4125,
+    district=True,
+    bangla=True
+)
+
+place = result.place
+```
+
+**Parameters:**
+- `longitude` (float, required): Longitude coordinate (range: -180 to 180)
+- `latitude` (float, required): Latitude coordinate (range: -90 to 90)
+- `country_code` (str, optional): Country code (ISO Alpha-2 format, e.g., 'BD') (default: 'BD')
+- `country` (bool, optional): Include country information
+- `district` (bool, optional): Include district information
+- `post_code` (bool, optional): Include postal code
+- `sub_district` (bool, optional): Include sub-district information
+- `union` (bool, optional): Include union information
+- `pauroshova` (bool, optional): Include pauroshova information
+- `location_type` (bool, optional): Include location type
+- `division` (bool, optional): Include division information
+- `address` (bool, optional): Include address
+- `area` (bool, optional): Include area information
+- `bangla` (bool, optional): Include Bangla translations
+- `thana` (bool, optional): Include thana information
+
+**Response Fields:**
+- `place` (Dict, optional): Place information
+  - `id` (str | int, optional): Place ID
+  - `distance_within_meters` (float, optional): Distance in meters
+  - `address` (str, optional): Address in English
+  - `area` (str, optional): Area name
+  - `city` (str, optional): City name
+  - `postCode` (str, optional): Postal code
+  - `address_bn` (str, optional): Address in Bangla
+  - `area_bn` (str, optional): Area in Bangla
+  - `city_bn` (str, optional): City in Bangla
+  - `country` (str, optional): Country name
+  - `division` (str, optional): Division name
+  - `district` (str, optional): District name
+  - `sub_district` (str, optional): Sub-district name
+  - `pauroshova` (str | None, optional): Pauroshova name
+  - `union` (str | None, optional): Union name
+  - `location_type` (str, optional): Location type
+  - `address_components` (Dict | None, optional): Address components
+  - `area_components` (Dict | None, optional): Area components
+  - `thana` (str, optional): Thana name
+  - `thana_bn` (str, optional): Thana name in Bangla
+- `status` (int, optional): Response status code
+
+---
+
+### nearbyPlaces
+
+Find places within a specified radius. Returns nearby locations sorted by distance with names, addresses, and coordinates. Perfect for "nearby stores", POI discovery, restaurant finders, and ATM locators.
+
+```python
+result = client.nearbyPlaces(
+    latitude=23.8103,
+    longitude=90.4125,
+    radius=1.0,
+    limit=20
+)
+
+places = result.places or []
+```
+
+**Parameters:**
+- `longitude` (float, required): Longitude coordinate (range: -180 to 180)
+- `latitude` (float, required): Latitude coordinate (range: -90 to 90)
+- `radius` (float, optional): Search radius in kilometers (range: 0.1 to 100, default: 0.5)
+- `limit` (int, optional): Maximum number of results (range: 1 to 100, default: 10)
+
+**Response Fields:**
+- `places` (List[Dict], optional): List of nearby places
+  - `id` (int, optional): Place ID
+  - `name` (str, optional): Place name
+  - `distance_in_meters` (str | float, optional): Distance from query point
+  - `longitude` (str, optional): Longitude
+  - `latitude` (str, optional): Latitude
+  - `pType` (str, optional): Place type
+  - `Address` (str, optional): Full address
+  - `area` (str, optional): Area name
+  - `city` (str, optional): City name
+  - `postCode` (str, optional): Postal code
+  - `subType` (str, optional): Place sub-type
+  - `uCode` (str, optional): Unique code
+- `status` (int, optional): Response status code
+
+---
+
+### geocode
+
+Validate and format addresses with completeness status and confidence score. Returns standardized address format. Use for checkout validation, delivery verification, and CRM data cleaning.
+
+**Note:** Uses 2 API calls internally.
+
+```python
+result = client.geocode(
+    q="house 23, road 5, mirpur dhaka",
+    district="yes",
+    bangla="yes"
+)
+
+status = result.address_status
+confidence = result.confidence_score_percentage
+fixed = result.fixed_address
+```
+
+**Parameters:**
+- `q` (str, required): Address to geocode (min length: 1)
+- `thana` (str, optional): Include thana ('yes' or 'no')
+- `district` (str, optional): Include district ('yes' or 'no')
+- `bangla` (str, optional): Include Bangla ('yes' or 'no')
+
+**Response Fields:**
+- `given_address` (str, optional): Original input address
+- `fixed_address` (str, optional): Corrected/standardized address
+- `bangla_address` (str, optional): Address in Bangla
+- `address_status` (str, optional): 'complete' or 'incomplete'
+- `geocoded_address` (Dict, optional): Detailed geocoded information
+- `confidence_score_percentage` (float, optional): Confidence score (0-100)
+- `status` (int, optional): Response status code
+
+---
+
+### searchPlace
+
+Search for places and get unique place codes with a session ID. Returns matching places with addresses. Use for business search, landmark lookup, and location selection.
+
+**Note:** Each request generates a new session ID required for Place Details API.
+
+```python
+search_result = client.searchPlace(q="barikoi")
+
+session_id = search_result.session_id
+places = search_result.places or []
+```
+
+**Parameters:**
+- `q` (str, required): Search query string (min length: 1)
+
+**Response Fields:**
+- `places` (List[Dict], optional): List of matching places
+  - `address` (str, optional): Place address
+  - `place_code` (str, optional): Unique place code
+- `session_id` (str, optional): Session ID for place details
+- `status` (int, optional): Response status code
+
+---
+
+### placeDetails
+
+Get detailed place information using a place code and session ID. Returns complete address and coordinates. Use after Search Place to fetch full location data.
+
+**Note:** Requires place code and session ID from Search Place request.
+
+```python
+details = client.placeDetails(
+    place_code="BKOI2017",
+    session_id=session_id
+)
+
+place = details.place
+```
+
+**Parameters:**
+- `place_code` (str, required): Place code from search place results (min length: 1)
+- `session_id` (str, required): Session ID from search place results (min length: 1)
+
+**Response Fields:**
+- `place` (Dict, optional): Place information
+  - `address` (str, optional): Full address
+  - `place_code` (str, optional): Place code
+  - `latitude` (str, optional): Latitude
+  - `longitude` (str, optional): Longitude
+- `session_id` (str, optional): Session ID
+- `status` (int, optional): Response status code
+
+---
+
+### routeOverview
+
+Get route information between geographical points. Returns route geometry, distance, duration, and waypoints in polyline or GeoJSON format. Use for displaying routes, calculating distances, and showing ETAs.
+
+**Note:** Coordinates must be in "longitude,latitude" format.
+
+```python
+result = client.routeOverview(
+    coordinates="90.4125,23.8103;90.4000,23.8000",
+    geometries="geojson"
+)
+
+route = result.routes[0] if result.routes else None
+distance_km = route.distance / 1000 if route else 0
+duration_min = route.duration / 60 if route else 0
+```
+
+**Parameters:**
+- `coordinates` (str, required): Coordinates in format "lon,lat;lon,lat" (e.g., "90.4125,23.8103;90.3742,23.7461")
+- `geometries` (str, optional): Geometry format ('polyline', 'polyline6', or 'geojson') (default: 'polyline')
+- `profile` (str, optional): Transportation profile ('car' or 'foot') (default: 'car')
+
+**Response Fields:**
+- `code` (str, optional): Response code
+- `routes` (List[Dict], optional): List of routes
+  - `geometry` (str | Dict, optional): Route geometry (polyline string or GeoJSON object)
+  - `legs` (List[Dict], optional): Route legs
+  - `distance` (float, optional): Distance in meters
+  - `duration` (float, optional): Duration in seconds
+  - `weight_name` (str, optional): Weight name
+  - `weight` (float, optional): Weight value
+- `waypoints` (List[Dict], optional): Waypoint information
+
+---
+
+### calculateRoute
+
+Get detailed route information powered by GraphHopper routing engine. Returns comprehensive route data including path coordinates, distance, travel time, turn-by-turn instructions with street names, and elevation data (ascend/descend). Use for GPS navigation apps, route planning, delivery optimization, and mapping applications requiring detailed routing information.
+
+```python
+result = client.calculateRoute(
+    start={"latitude": 23.8103, "longitude": 90.4125},
+    destination={"latitude": 23.8, "longitude": 90.4},
+    type="gh",
+    profile="car"
+)
+
+hints = result.hints
+paths = result.paths
+```
+
+**Parameters:**
+- `start` (Dict, required): Start point coordinates
+  - `latitude` (float, required): Start latitude (range: -90 to 90)
+  - `longitude` (float, required): Start longitude (range: -180 to 180)
+- `destination` (Dict, required): Destination point coordinates
+  - `latitude` (float, required): Destination latitude (range: -90 to 90)
+  - `longitude` (float, required): Destination longitude (range: -180 to 180)
+- `type` (str, required): Route calculation type ('gh')
+- `profile` (str, optional): Transportation profile ('car', 'motorcycle', or 'bike')
+
+**Response Fields:**
+- `hints` (Dict, optional): Route calculation hints
+- `info` (Dict, optional): Additional information
+- `paths` (List[Dict], optional): Route paths with detailed information
+  - `distance` (float, optional): Distance in meters
+  - `time` (int, optional): Time in milliseconds
+  - `points` (Dict, optional): GeoJSON LineString with coordinates
+  - `instructions` (List[Dict], optional): Turn-by-turn instructions
+  - `ascend` (float, optional): Total ascent in meters
+  - `descend` (float, optional): Total descent in meters
+
+---
+
+### snapToRoad
+
+Find the nearest road point to given coordinates. Returns snapped coordinates and distance to road. Use for vehicle tracking, GPS trace alignment, and ride-sharing location accuracy.
+
+```python
+result = client.snapToRoad(
+    point="23.8103,90.4125"  # Format: latitude,longitude
+)
+
+snapped = result.coordinates
+distance = result.distance
+```
+
+**Parameters:**
+- `point` (str, required): Point coordinates in format "latitude,longitude" (e.g., "23.8103,90.4125")
+
+**Response Fields:**
+- `coordinates` (Tuple[float, float], optional): Snapped coordinates [longitude, latitude]
+- `distance` (float, optional): Distance to road in meters
+- `type` (str, optional): Geometry type ('Point')
+
+---
+
+### checkNearby
+
+Verify if a location is within a specified radius. Returns "Inside geo fence" or "Outside geo fence" status. Perfect for delivery notifications, driver alerts, proximity triggers, and employee check-in from devices in HR applications.
+
+```python
+result = client.checkNearby(
+    current_latitude=23.8103,
+    current_longitude=90.4125,
+    destination_latitude=23.8,
+    destination_longitude=90.4,
+    radius=100
+)
+
+is_inside = result.message == "Inside geo fence"
+```
+
+**Parameters:**
+- `destination_latitude` (float, required): Destination latitude (range: -90 to 90)
+- `destination_longitude` (float, required): Destination longitude (range: -180 to 180)
+- `radius` (float, required): Radius in meters (range: 1 to 1000)
+- `current_latitude` (float, required): Current latitude (range: -90 to 90)
+- `current_longitude` (float, required): Current longitude (range: -180 to 180)
+
+**Response Fields:**
+- `message` (str, optional): Status message ("Inside geo fence" or "Outside geo fence")
+- `status` (int, optional): Response status code
+- `data` (Dict, optional): Additional geofence data
+
+---
+
+### API Key Management
+
+```python
+# Set during initialization
+client = BarikoiClient(api_key="YOUR_BARIKOI_API_KEY")
+
+# Update API key at runtime
+client.setApiKey("new-api-key")
+
+# Get current API key
+current_key = client.getApiKey()
+```
+
+### Timeout Configuration
+
+```python
+# Set timeout during initialization (in seconds, default: 30)
+client = BarikoiClient(
+    api_key="YOUR_KEY",
+    timeout=60  # 60 seconds
+)
+```
+
+### Custom Base URL
+
+```python
+client = BarikoiClient(
+    api_key="YOUR_KEY",
+    base_url="https://custom-endpoint.barikoi.xyz"
+)
+```
+
+### Async Support
+
+```python
+import asyncio
+from barikoiapis import AsyncBarikoiClient
+
+async def main():
+    client = AsyncBarikoiClient(api_key="YOUR_KEY")
+    
+    result = await client.autocomplete(q="Dhaka", bangla=True)
+    places = result.places or []
+    
+    await client.close()
+
+asyncio.run(main())
+```
+
+---
+
+## Documentation
+
+- [API Documentation](https://docs.barikoi.com/api) - Official Barikoi API docs
+- [Python Documentation](https://docs.python.org/3/) - Python documentation
+- [Pydantic Documentation](https://docs.pydantic.dev/) - Validation library docs
+
+---
+
+## Support Resources
+
+- [Barikoi Website](https://www.barikoi.com/)
+- [Developer Portal](https://developer.barikoi.com/)
+- [Documentation](https://docs.barikoi.com/docs/maps-api)
+- [Support Email](mailto:hello@barikoi.com)
+
+---
+
+## License
+
+This library is licensed under the MIT License. See the [LICENSE](https://pypi.org/project/LICENSE/) file for details.
+
+<img src="https://docs.barikoi.com/img/barikoi-logo-black.svg" height="30" />
