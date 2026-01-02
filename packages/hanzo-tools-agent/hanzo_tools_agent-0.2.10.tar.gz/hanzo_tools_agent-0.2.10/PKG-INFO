@@ -1,0 +1,136 @@
+Metadata-Version: 2.4
+Name: hanzo-tools-agent
+Version: 0.2.10
+Summary: Agent tools for Hanzo AI - multi-agent orchestration, CLI agents, swarms
+Author-email: Hanzo Industries Inc <dev@hanzo.ai>
+License: MIT
+Project-URL: Homepage, https://github.com/hanzoai/python-sdk
+Keywords: hanzo,tools,agent,swarm,mcp,ai
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: hanzo-tools>=0.3.0
+Requires-Dist: hanzo-tools-shell>=0.2.0
+Requires-Dist: mcp>=1.25.0
+Requires-Dist: fastmcp>=2.14.1
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: aiofiles>=24.0.0
+Provides-Extra: consensus
+Requires-Dist: hanzo-consensus>=0.1.0; extra == "consensus"
+Provides-Extra: api
+Requires-Dist: httpx>=0.28.0; extra == "api"
+Provides-Extra: perf
+Requires-Dist: uvloop>=0.21.0; extra == "perf"
+Provides-Extra: full
+Requires-Dist: openai>=1.0.0; extra == "full"
+Requires-Dist: anthropic>=0.40.0; extra == "full"
+Requires-Dist: hanzo-consensus>=0.1.0; extra == "full"
+Requires-Dist: httpx>=0.28.0; extra == "full"
+Requires-Dist: uvloop>=0.21.0; extra == "full"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: ruff>=0.14.0; extra == "dev"
+
+# hanzo-tools-agent
+
+Agent orchestration tools for Hanzo MCP.
+
+## Installation
+
+```bash
+pip install hanzo-tools-agent
+
+# Optional: API mode
+pip install hanzo-tools-agent[api]
+
+# Optional: High-performance
+pip install hanzo-tools-agent[perf]
+
+# Optional: Full features
+pip install hanzo-tools-agent[full]
+```
+
+## Tools
+
+### agent - Unified Agent Runner
+Run various AI CLI agents with YOLO mode and auto-backgrounding.
+
+```python
+# Run with default agent (claude when in Claude Code)
+agent(action="run", prompt="Explain this code")
+
+# Run specific agent
+agent(action="run", name="gemini", prompt="Review this PR")
+
+# Run with system prompt (claude only)
+agent(action="run", name="claude", prompt="Fix bug", system_prompt="Be concise")
+
+# List available agents
+agent(action="list")
+
+# Check agent status
+agent(action="status", name="claude")
+```
+
+**Available Agents:**
+
+| Agent | Command | Auth | YOLO Flags |
+|-------|---------|------|------------|
+| `claude` | `claude` | OAuth | `--dangerously-skip-permissions --print` |
+| `codex` | `codex` | OAuth | `--full-auto` |
+| `gemini` | `gemini` | `GOOGLE_API_KEY` | `-y -p` |
+| `grok` | `grok` | `XAI_API_KEY` | `-y` |
+| `qwen` | `qwen` | `DASHSCOPE_API_KEY` | `--approval-mode yolo` |
+| `vibe` | `vibe` | - | `--auto-approve -p` |
+| `code` | `hanzo-code` | - | - |
+| `dev` | `hanzo-dev` | - | `-y` |
+
+**Features:**
+- **YOLO Mode**: Agents run with full auto-approval flags
+- **OAuth Support**: Claude and Codex use browser OAuth (no API keys needed)
+- **System Prompts**: Inject system prompts via `--append-system-prompt` (claude)
+- **Auto-backgrounding**: Long-running agents auto-background after timeout
+- **Config Sharing**: MCP config passed to spawned agents
+
+### Direct API Mode
+Configure agents for direct API calls without CLI:
+
+```json
+// ~/.hanzo/agents/custom.json
+{
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "api_type": "openai",
+    "model": "gpt-4",
+    "env_key": "OPENAI_API_KEY"
+}
+```
+
+### iching - I Ching Wisdom
+```python
+iching(challenge="How should I approach this refactoring?")
+```
+
+### review - Code Review
+```python
+review(
+    focus="FUNCTIONALITY",
+    work_description="Implemented auto-import feature",
+    file_paths=["/path/to/file.py"]
+)
+```
+
+## MCP Config Sharing
+
+When spawning agents, these environment variables are passed:
+- `HANZO_MCP_MODE` - Current MCP mode
+- `HANZO_MCP_ALLOWED_PATHS` - Allowed paths
+- `HANZO_MCP_ENABLED_TOOLS` - Enabled tools
+- `HANZO_MCP_PERSONA` - Active persona
+- `HANZO_AGENT_PARENT=true` - Indicates spawned agent
+- `HANZO_AGENT_NAME=<agent>` - Name of agent
+
+## License
+
+MIT
