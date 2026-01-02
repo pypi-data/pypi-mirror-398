@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "Cython>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-typer"
+version = "0.1.0"
+description = "Terminal-based code showcase tool that simulates human-like typing"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+authors = [
+    {name = "Farshid Ashouri", email = "farsheed.ashouri@gmail.com"}
+]
+maintainers = [
+    {name = "Farshid Ashouri", email = "farsheed.ashouri@gmail.com"}
+]
+keywords = [
+    "terminal",
+    "code",
+    "demo",
+    "typing",
+    "showcase",
+    "conference",
+    "presentation",
+    "curses",
+    "ncurses",
+    "syntax-highlighting",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Console :: Curses",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Operating System :: POSIX",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Terminals",
+    "Topic :: Multimedia :: Graphics :: Presentation",
+    "Typing :: Typed",
+]
+dependencies = [
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "Cython>=3.0",
+    "build",
+    "twine",
+]
+
+[project.scripts]
+showcase = "code_typer.cli:main"
+code-typer = "code_typer.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/rodmena-limited/code-typer"
+Repository = "https://github.com/rodmena-limited/code-typer"
+Issues = "https://github.com/rodmena-limited/code-typer/issues"
+Changelog = "https://github.com/rodmena-limited/code-typer/releases"
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["code_typer*"]
+
+[tool.setuptools.package-data]
+code_typer = ["*.pyx", "*.pxd", "py.typed"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.c", "*.so", "*.pyc", "__pycache__"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.cython]
+language_level = "3"
+
+[tool.cibuildwheel]
+# Build for CPython only (no PyPy - curses support is limited)
+build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+# Skip 32-bit builds, musllinux, and PyPy
+skip = "*-win32 *-manylinux_i686 *musllinux* pp*"
+
+[tool.cibuildwheel.linux]
+# Use manylinux2014 for broader compatibility
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
+# Install ncurses-devel for building
+before-all = "yum install -y ncurses-devel || apt-get update && apt-get install -y libncurses-dev || true"
+
+[tool.cibuildwheel.macos]
+# macOS has ncurses built-in
+archs = ["x86_64", "arm64"]
+
+[tool.cibuildwheel.windows]
+# Windows uses windows-curses, skip native builds
+skip = "*"
