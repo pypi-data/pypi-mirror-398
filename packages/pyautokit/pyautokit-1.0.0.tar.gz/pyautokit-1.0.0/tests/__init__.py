@@ -1,0 +1,1 @@
+"""PyAutokit tests package."""
