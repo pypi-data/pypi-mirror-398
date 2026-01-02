@@ -1,0 +1,60 @@
+#!{{ shell }}
+
+set -e
+
+{% for task in tasks %}
+{{ task.task_name }}_submit_args=$(cat <<EOF
+--nslots={{ task.num_slots }} --job-name={{ task.task_name }} \
+    {% if task.num_cores is not none %}
+    --cores-per-slot={{ task.num_cores }} \
+    {% endif -%}
+    {% if task.num_gpus is not none %}
+    --gpus-per-slot={{ task.num_gpus }} \
+    {% endif -%}
+    {% if task.num_nodes is not none %}
+    --nodes={{ task.num_nodes }} \
+    {% endif -%}
+    {% if task.exclusive is not none and task.exclusive %}
+    --exclusive \
+    {% endif -%}
+    {% if task.duration is not none %}
+    --time-limit={{ task.duration }} \
+    {% endif -%}
+    {% if task.environment is not none %}
+    {% for var, val in task.environment.items() %}
+    --env={{ var }}={{ val }} \
+    {% endfor -%}
+    {% endif -%}
+    {% if task.cwd is not none %}
+    --cwd={{ task.cwd }} \
+    {% endif -%}
+    {% if task.output is not none %}
+    --output={{ task.output }} \
+    {% endif -%}
+    {% if task.error is not none %}
+    --error={{ task.error }} \
+    {% endif -%}
+    {% if task.queue is not none %}
+    --queue={{ task.queue }} \
+    {% endif -%}
+    {% if task.bank is not none %}
+    --bank={{ task.bank }} \
+    {% endif %}
+    {{ task.script }}
+EOF
+)
+{% endfor %}
+
+{% for task_info in task_submit_info %}
+curr_task_dependency_flags=""
+{% if task_info.dependencies is not none and task_info.dependencies|length > 0 %}
+{% for dep_name in task_info.dependencies %}
+curr_task_dependency_flags="${curr_task_dependency_flags}--dependency=afterok:${ {{ dep_name }}_jobid } "
+{% endfor %}
+{% endif %}
+{{ task_info.task_name }}_submit_args="${curr_task_dependency_flags}${ {{ task_info.task_name }}_submit_args }"
+
+{{ task_info.task_name }}_jobid=`flux batch ${ {{ task_info.task_name }}_submit_args }`
+echo "Job ID for task '{{ task_info.task_name }}' is ${ {{ task_info.task_name }}_jobid }"
+
+{% endfor %}
