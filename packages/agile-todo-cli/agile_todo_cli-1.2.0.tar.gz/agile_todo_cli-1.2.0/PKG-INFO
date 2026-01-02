@@ -1,0 +1,597 @@
+Metadata-Version: 2.4
+Name: agile-todo-cli
+Version: 1.2.0
+Summary: CLI tool for managing daily todos with time tracking
+Requires-Python: >=3.10
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: textual>=0.47.0
+Requires-Dist: typer[all]>=0.9.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Todo CLI
+
+A powerful command-line todo manager with time tracking, project management, and comprehensive reporting.
+
+## TL;DR
+
+```bash
+# Install from PyPI
+pip install agile-todo-cli
+
+# Add a task and start tracking time
+todo add "My first task"
+todo start 1
+
+# When done
+todo stop
+todo done 1
+
+# See all your todos
+todo list
+
+# Launch interactive KANBAN board
+todo kanban -i
+```
+
+That's it! You're tracking tasks with time. Run `todo --help` for more.
+
+## Features
+
+- ✅ **Task Management** - Add, edit, delete, and organize tasks
+- ⏱️ **Time Tracking** - Track time spent on tasks with start/stop timers
+- 📁 **Project Organization** - Group tasks into projects with full CRUD operations
+- 🔍 **Smart Filtering** - Filter tasks by project, status, priority, and tags
+- 📊 **Reports** - Daily, weekly, and project-based time reports
+- 📤 **Export** - Export to JSON, CSV, or Markdown
+- 🎨 **Interactive Mode** - Full-featured TUI for task management
+- 📋 **KANBAN Board** - Visual board with vim-style navigation (`todo kanban -i`)
+- 🔄 **Cycle Management** - Sprint/iteration tracking with check-ins
+- 🌳 **Subtasks** - Hierarchical task relationships with tree view
+- ⚙️ **Configurable** - Customize priorities, date formats, colors, and more
+- 🚀 **Performance** - Optimized database queries with comprehensive indexing
+- 🧪 **Well-Tested** - 90% test coverage with 500+ tests
+
+## Installation
+
+```bash
+# Install from PyPI
+pip install agile-todo-cli
+
+# Or install from source
+pip install -e .
+```
+
+**For existing users:** If you have an existing todo database, it will be automatically migrated to the new schema. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for details.
+
+## Quick Start
+
+### Basic Task Management
+
+```bash
+# Add a task
+todo add "Write documentation"
+
+# Add with priority and tags
+todo add "Fix bug #123" -p p0 --tags bug urgent
+
+# Add with due date
+todo add "Submit report" --due 2025-12-31
+
+# List all active tasks
+todo list
+
+# List with filters
+todo list --status doing
+todo list --project myapp
+
+# Mark as done
+todo done 1
+```
+
+### Project Management
+
+```bash
+# Create a project
+todo project create "My App" --description "Mobile app development" --color cyan
+
+# List all projects
+todo project list
+
+# Show project details and statistics
+todo project show "My App"
+
+# Add tasks to a project
+todo add "Design login screen" -P "My App"
+
+# Filter tasks by project
+todo list --project "My App"
+
+# Archive a project
+todo project archive "My App"
+
+# Delete a project (tasks remain unassigned)
+todo project delete "My App"
+```
+
+### Time Tracking
+
+```bash
+# Start tracking time on a task
+todo start 1
+
+# Check what's currently being tracked
+todo active
+
+# Stop tracking
+todo stop
+
+# View time spent when marking done
+todo done 1
+```
+
+### Reports
+
+```bash
+# Daily report (time spent today)
+todo report daily
+
+# Weekly report (time spent this week)
+todo report weekly
+
+# Project overview (all projects with stats)
+todo report project
+
+# Specific project report
+todo report project "My App"
+```
+
+### Export
+
+```bash
+# Export to JSON
+todo export json todos.json
+
+# Export to CSV
+todo export csv todos.csv
+
+# Export to Markdown
+todo export md todos.md
+
+# Export specific project
+todo export json myapp.json --project "My App"
+```
+
+## Commands
+
+### Task Commands
+
+- `add` - Add a new todo
+  ```bash
+  todo add "Task description" [-p PRIORITY] [-P PROJECT] [--tags TAG...] [--due DATE]
+  ```
+
+- `list` - List todos with optional filters
+  ```bash
+  todo list [--project PROJECT] [--status STATUS] [--all]
+  ```
+
+- `show` - Show detailed information about a todo
+  ```bash
+  todo show <id>
+  ```
+
+- `done` - Mark todo as complete
+  ```bash
+  todo done <id>
+  ```
+
+- `delete` - Delete a todo
+  ```bash
+  todo delete <id> [--force]
+  ```
+
+- `edit` - Edit a todo's properties
+  ```bash
+  todo edit <id> [--task TEXT] [--priority PRIORITY] [--project PROJECT] [--tags TAG...]
+  ```
+
+- `status` - Change todo status (todo/doing/done)
+  ```bash
+  todo status <id> <status>
+  ```
+
+### Project Commands
+
+- `project create` - Create a new project
+  ```bash
+  todo project create <name> [--description TEXT] [--color COLOR]
+  ```
+
+- `project list` - List all projects with statistics
+  ```bash
+  todo project list [--archived]
+  ```
+
+- `project show` - Show project details and task breakdown
+  ```bash
+  todo project show <name>
+  ```
+
+- `project edit` - Edit project properties
+  ```bash
+  todo project edit <name> [--name NEW_NAME] [--description TEXT] [--color COLOR]
+  ```
+
+- `project archive` - Archive a project (hide from active list)
+  ```bash
+  todo project archive <name>
+  ```
+
+- `project unarchive` - Restore an archived project
+  ```bash
+  todo project unarchive <name>
+  ```
+
+- `project delete` - Delete a project (tasks become unassigned)
+  ```bash
+  todo project delete <name>
+  ```
+
+### Time Tracking Commands
+
+- `start` - Start time tracking on a task
+  ```bash
+  todo start <id>
+  ```
+
+- `stop` - Stop time tracking
+  ```bash
+  todo stop [<id>]
+  ```
+
+- `active` - Show currently tracking task
+  ```bash
+  todo active
+  ```
+
+### Reporting & Export
+
+- `report` - Generate time reports
+  ```bash
+  todo report daily [--date DATE]
+  todo report weekly [--date DATE]
+  todo report project [PROJECT_NAME]
+  ```
+
+- `export` - Export todos to various formats
+  ```bash
+  todo export <format> [output_file] [--project PROJECT] [--include-done]
+  ```
+  Supported formats: `json`, `csv`, `md`/`markdown`
+
+### Other Commands
+
+- `stats` - Show overall statistics
+  ```bash
+  todo stats
+  ```
+
+- `interactive` - Launch interactive mode (TUI)
+  ```bash
+  todo interactive
+  ```
+
+- `config` - View or modify configuration
+  ```bash
+  todo config show
+  todo config set <key> <value>
+  todo config path
+  ```
+
+- `version` - Show version information
+  ```bash
+  todo version
+  ```
+
+## Configuration
+
+Customize Todo CLI behavior through the config file (`~/.config/todo-cli/config.yaml`):
+
+```yaml
+# Default priority for new tasks (p0, p1, p2, p3)
+default_priority: p2
+
+# Date format (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY)
+date_format: YYYY-MM-DD
+
+# Time format (24h, 12h)
+time_format: 24h
+
+# Color scheme (auto, none)
+color_scheme: auto
+
+# Confirm before deleting tasks
+confirm_delete: true
+
+# Auto-start timer when adding tasks
+auto_start_on_add: false
+
+# Show completed tasks in list by default
+show_completed_in_list: false
+```
+
+View and modify configuration:
+
+```bash
+# Show all configuration
+todo config show
+
+# Set a value
+todo config set default_priority p1
+todo config set confirm_delete false
+
+# Show config file location
+todo config path
+```
+
+## Interactive Mode
+
+Launch a full-featured terminal UI with `todo interactive`:
+
+- **Menu-driven interface** - Navigate with arrow keys
+- **All commands available** - Add, edit, delete, start/stop timers
+- **Real-time updates** - See changes immediately
+- **Keyboard shortcuts** - Fast command execution
+- **Command aliases** - `l` for list, `d` for done, etc.
+
+## KANBAN Board
+
+Launch the interactive KANBAN board with `todo kanban -i` or `todo kanban --interactive`:
+
+```
+┌─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
+│   Backlog   │    Todo     │ In Progress │   Review    │    Done     │
+├─────────────┼─────────────┼─────────────┼─────────────┼─────────────┤
+│ 🔴 #1 Task  │ 🟡 #3 Task  │ 🔵 #5 Task  │             │ ⚪ #7 Task  │
+│ 🟡 #2 Task  │ 🔵 #4 Task  │             │             │             │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+```
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `h` / `←` | Move to previous column |
+| `l` / `→` | Move to next column |
+| `j` / `↓` | Select next task |
+| `k` / `↑` | Select previous task |
+| `Enter` | Move task to next column |
+| `m` | Move task to specific column |
+| `r` | Refresh board |
+| `d` | Toggle done column visibility |
+| `?` | Show help |
+| `q` / `Esc` | Quit |
+
+### Filtering
+
+```bash
+# Filter by project
+todo kanban -i --project "My App"
+
+# Filter by priority
+todo kanban -i --priority p0
+
+# Filter by tags
+todo kanban -i --tags urgent bug
+
+# Show done column
+todo kanban -i --show-done
+```
+
+### CLI View (Non-Interactive)
+
+```bash
+# View KANBAN board in terminal (static view)
+todo kanban
+
+# Move task to column
+todo kanban move 1 in-progress
+
+# Show column counts
+todo kanban --counts
+```
+
+## Cycle Management
+
+Organize work into time-boxed cycles (sprints/iterations):
+
+```bash
+# Start a new cycle
+todo cycle start "Sprint 1" --duration 14
+
+# Check in on a cycle (daily standup)
+todo cycle check-in --notes "Completed auth module"
+
+# List all cycles
+todo cycle list
+
+# Show current cycle status
+todo cycle status
+
+# Complete a cycle
+todo cycle complete
+
+# View cycle report
+todo cycle report "Sprint 1"
+```
+
+### Cycle Workflow
+
+1. **Start** - Begin a new cycle with a name and duration
+2. **Check-in** - Record daily progress and notes
+3. **Complete** - End the cycle and generate summary
+4. **Report** - Review cycle metrics and task completion
+
+## Database & Migrations
+
+Todo CLI uses SQLite for data storage with automatic schema migrations.
+
+**Default database location:** `~/.local/share/todo-cli/todos.db`
+
+**Automatic migrations:** When you upgrade Todo CLI, your database is automatically migrated to the latest schema version. Backups are created before each migration.
+
+**For existing users:** See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for details on upgrading from older versions.
+
+## Performance
+
+Todo CLI is designed for speed:
+
+- ✅ List 1000 tasks: <100ms
+- ✅ Filter by project: <100ms
+- ✅ Project statistics: <200ms
+- ✅ Comprehensive database indexing for optimal query performance
+
+See [docs/performance.md](docs/performance.md) for detailed benchmarks.
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=todo_cli --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_projects.py
+
+# Run performance benchmarks
+pytest tests/test_performance.py
+```
+
+### Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing guidelines, and contribution workflow.
+
+## Project Structure
+
+```
+todo-cli/
+├── todo_cli/           # Main package
+│   ├── main.py         # CLI entry point and commands
+│   ├── database.py     # Database operations
+│   ├── projects.py     # Project management
+│   ├── kanban.py       # KANBAN board logic
+│   ├── kanban_tui.py   # KANBAN interactive TUI (Textual)
+│   ├── cycles.py       # Cycle/sprint management
+│   ├── subtasks.py     # Subtask relationships
+│   ├── migrations.py   # Database migrations
+│   ├── models.py       # Data models
+│   ├── config.py       # Configuration management
+│   ├── display.py      # Terminal output formatting
+│   ├── reports.py      # Report generation
+│   ├── export.py       # Export functionality
+│   └── interactive.py  # Interactive mode
+├── tests/              # Test suite (500+ tests, 90% coverage)
+├── docs/               # Documentation
+│   ├── architecture.md # System architecture and design
+│   └── performance.md  # Performance benchmarks
+├── README.md           # This file
+├── CONTRIBUTING.md     # Development guide
+└── MIGRATION_GUIDE.md  # Migration instructions
+```
+
+## Roadmap
+
+### Epic 1: Foundation ✅ (Complete)
+- ✅ Project management with full CRUD operations
+- ✅ Database schema v1 with migrations
+- ✅ Smart filtering by project, status, priority
+- ✅ Performance optimization and benchmarking
+- ✅ Comprehensive test coverage (87%)
+
+### Epic 2: Sub-tasks ✅ (Complete)
+- ✅ Hierarchical task relationships
+- ✅ Tree view for task lists (`--tree` flag)
+- ✅ Parent-child task dependencies
+- ✅ Subtask progress tracking
+
+### Epic 3: KANBAN Board ✅ (Complete)
+- ✅ Visual board view (Backlog/Todo/In Progress/Review/Done)
+- ✅ Interactive TUI with vim-style navigation
+- ✅ Task movement between columns
+- ✅ Filtering by project, priority, tags
+
+### Epic 4: Cycles & Sprints ✅ (Complete)
+- ✅ Sprint/iteration management
+- ✅ Cycle-based task organization
+- ✅ Daily check-ins with notes
+- ✅ Cycle reports and statistics
+
+### Future (Planned)
+- Recurring tasks
+- Calendar integration
+- Cloud sync
+- Team collaboration
+
+## License
+
+See [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Documentation:** See [docs/](docs/) directory
+- **Issues:** Report bugs or request features via GitHub Issues
+- **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Changelog
+
+### v1.1.0 (2025-12-27)
+
+**New Features:**
+- **Interactive KANBAN Board** - Full TUI with vim-style navigation (`todo kanban -i`)
+  - 5-column workflow: Backlog → Todo → In Progress → Review → Done
+  - Keyboard shortcuts: h/j/k/l navigation, Enter to advance, m to move
+  - Filter by project, priority, or tags
+- **Cycle Management** - Sprint/iteration tracking
+  - Start, check-in, complete, and report on cycles
+  - Daily standup notes and progress tracking
+- **Subtask Support** - Hierarchical task relationships
+  - Tree view with `--tree` flag
+  - Parent-child task dependencies
+  - Subtask progress indicators
+
+**Improvements:**
+- 500+ tests with 90% coverage
+- Enhanced KANBAN column management
+- Cycle-based task organization
+
+### v1.1.0-alpha (Epic 1 Release)
+
+**New Features:**
+- Project management with create, list, show, edit, archive, delete operations
+- Project-based task filtering with `--project` flag
+- Database schema v1 with automatic migrations
+- Comprehensive performance optimizations (all queries <200ms)
+- Project statistics and reporting
+
+**Improvements:**
+- Added 313+ tests with 87% coverage
+- Comprehensive database indexing for optimal performance
+- Enhanced filtering capabilities (project + status combinations)
+- Backward compatibility with legacy project strings
+
+**Migration:**
+- Existing databases automatically migrated to v1 schema
+- Legacy project strings converted to project references
+- See MIGRATION_GUIDE.md for details
+
+---
+
+Built with ❤️ using Python, Typer, and Rich.
