@@ -1,0 +1,1059 @@
+# LicenseChain Python SDK
+
+[![License](https://img.shields.io/badge/license-ELASTIC2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/licensechain-sdk)](https://pypi.org/project/licensechain-sdk/)
+[![Downloads](https://img.shields.io/pypi/dm/licensechain-sdk)](https://pypi.org/project/licensechain-sdk/)
+
+Official Python SDK for LicenseChain - Secure license management for Python applications.
+
+## 🚀 Features
+
+- **🔐 Secure Authentication** - User registration, login, and session management
+- **📜 License Management** - Create, validate, update, and revoke licenses
+- **🛡️ Hardware ID Validation** - Prevent license sharing and unauthorized access
+- **🔔 Webhook Support** - Real-time license events and notifications
+- **📊 Analytics Integration** - Basic and advanced analytics with comprehensive metrics
+- **📦 Product Management** - Create and manage products for license sales (Seller)
+- **👥 Team Collaboration** - Team management and shared app/license access (Pro+)
+- **⚡ High Performance** - Optimized for production workloads
+- **🔄 Async Operations** - Non-blocking HTTP requests and data processing
+- **🛠️ Easy Integration** - Simple API with comprehensive documentation
+
+## 📦 Installation
+
+### Method 1: pip (Recommended)
+
+```bash
+# Install via pip
+pip install licensechain-sdk
+
+# Or with specific version
+pip install licensechain-sdk==1.0.0
+```
+
+### Method 2: pipenv
+
+```bash
+# Install via pipenv
+pipenv install licensechain-sdk
+```
+
+### Method 3: Poetry
+
+```bash
+# Install via Poetry
+poetry add licensechain-sdk
+```
+
+### Method 4: Manual Installation
+
+1. Download the latest release from [GitHub Releases](https://github.com/LicenseChain/LicenseChain-Python-SDK/releases)
+2. Extract to your project directory
+3. Install dependencies
+
+## 🚀 Quick Start
+
+### Basic Setup
+
+```python
+import asyncio
+from licensechain import LicenseChainClient, LicenseChainConfig
+
+async def main():
+    # Initialize the client
+    config = LicenseChainConfig(
+        api_key="your-api-key",
+        app_name="your-app-name",
+        version="1.0.0"
+    )
+    
+    client = LicenseChainClient(config)
+    
+    # Connect to LicenseChain
+    try:
+        await client.connect()
+        print("Connected to LicenseChain successfully!")
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### User Authentication
+
+```python
+# Register a new user
+try:
+    user = await client.register("username", "password", "email@example.com")
+    print("User registered successfully!")
+    print(f"User ID: {user.id}")
+except Exception as e:
+    print(f"Registration failed: {e}")
+
+# Login existing user
+try:
+    user = await client.login("username", "password")
+    print("User logged in successfully!")
+    print(f"Session ID: {user.session_id}")
+except Exception as e:
+    print(f"Login failed: {e}")
+```
+
+### License Management
+
+```python
+# Validate a license
+try:
+    license = await client.validate_license("LICENSE-KEY-HERE")
+    print("License is valid!")
+    print(f"License Key: {license.key}")
+    print(f"Status: {license.status}")
+    print(f"Expires: {license.expires}")
+    print(f"Features: {', '.join(license.features)}")
+    print(f"User: {license.user}")
+except Exception as e:
+    print(f"License validation failed: {e}")
+
+# Get user's licenses
+try:
+    licenses = await client.get_user_licenses()
+    print(f"Found {len(licenses)} licenses:")
+    for i, license in enumerate(licenses):
+        print(f"  {i + 1}. {license.key} - {license.status} (Expires: {license.expires})")
+except Exception as e:
+    print(f"Failed to get licenses: {e}")
+```
+
+### Hardware ID Validation
+
+```python
+# Get hardware ID (automatically generated)
+hardware_id = client.get_hardware_id()
+print(f"Hardware ID: {hardware_id}")
+
+# Validate hardware ID with license
+try:
+    is_valid = await client.validate_hardware_id("LICENSE-KEY-HERE", hardware_id)
+    if is_valid:
+        print("Hardware ID is valid for this license!")
+    else:
+        print("Hardware ID is not valid for this license.")
+except Exception as e:
+    print(f"Hardware ID validation failed: {e}")
+```
+
+### Webhook Integration
+
+```python
+# Set up webhook handler
+def webhook_handler(event, data):
+    print(f"Webhook received: {event}")
+    
+    if event == "license.created":
+        print(f"New license created: {data['licenseKey']}")
+    elif event == "license.updated":
+        print(f"License updated: {data['licenseKey']}")
+    elif event == "license.revoked":
+        print(f"License revoked: {data['licenseKey']}")
+
+client.set_webhook_handler(webhook_handler)
+
+# Start webhook listener
+await client.start_webhook_listener()
+```
+
+## 📚 API Endpoints
+
+All endpoints automatically use the `/v1` prefix when connecting to `https://api.licensechain.app`.
+
+### Base URL
+- **Production**: `https://api.licensechain.app/v1`
+- **Development**: `https://api.licensechain.app/v1`
+
+### Available Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/health` | Health check |
+| `POST` | `/v1/auth/login` | User login |
+| `POST` | `/v1/auth/register` | User registration |
+| `GET` | `/v1/apps` | List applications |
+| `POST` | `/v1/apps` | Create application |
+| `GET` | `/v1/licenses` | List licenses |
+| `POST` | `/v1/licenses/verify` | Verify license |
+| `GET` | `/v1/webhooks` | List webhooks |
+| `POST` | `/v1/webhooks` | Create webhook |
+| `GET` | `/v1/analytics` | Get analytics |
+
+**Note**: The SDK automatically prepends `/v1` to all endpoints, so you only need to specify the path (e.g., `/auth/login` instead of `/v1/auth/login`).
+
+## 📚 API Reference
+
+### LicenseChainClient
+
+#### Constructor
+
+```python
+config = LicenseChainConfig(
+    api_key="your-api-key",
+    app_name="your-app-name",
+    version="1.0.0",
+    base_url="https://api.licensechain.app"  # Optional
+)
+
+client = LicenseChainClient(config)
+```
+
+#### Methods
+
+##### Connection Management
+
+```python
+# Connect to LicenseChain
+await client.connect()
+
+# Disconnect from LicenseChain
+await client.disconnect()
+
+# Check connection status
+is_connected = client.is_connected()
+```
+
+##### User Authentication
+
+```python
+# Register a new user
+user = await client.register(username, password, email)
+
+# Login existing user
+user = await client.login(username, password)
+
+# Logout current user
+await client.logout()
+
+# Get current user info
+user = await client.get_current_user()
+```
+
+##### License Management
+
+```python
+# Validate a license
+license = await client.validate_license(license_key)
+
+# Get user's licenses
+licenses = await client.get_user_licenses()
+
+# Create a new license
+license = await client.create_license(user_id, features, expires)
+
+# Update a license
+license = await client.update_license(license_key, updates)
+
+# Revoke a license
+await client.revoke_license(license_key)
+
+# Extend a license
+license = await client.extend_license(license_key, days)
+```
+
+##### Hardware ID Management
+
+```python
+# Get hardware ID
+hardware_id = client.get_hardware_id()
+
+# Validate hardware ID
+is_valid = await client.validate_hardware_id(license_key, hardware_id)
+
+# Bind hardware ID to license
+await client.bind_hardware_id(license_key, hardware_id)
+```
+
+##### Webhook Management
+
+```python
+# Set webhook handler
+client.set_webhook_handler(handler)
+
+# Start webhook listener
+await client.start_webhook_listener()
+
+# Stop webhook listener
+await client.stop_webhook_listener()
+```
+
+##### Analytics
+
+```python
+# Get basic dashboard insights (all tiers)
+insights = await client.get_dashboard_insights()
+
+# Get advanced analytics (Pro+ tier)
+advanced = await client.get_advanced_analytics(
+    start_date="2024-01-01",
+    end_date="2024-12-31",
+    metric="revenue"
+)
+
+# Get general analytics
+analytics = await client.get_analytics(
+    app_id="app_123",
+    start_date="2024-01-01",
+    end_date="2024-12-31"
+)
+
+# Get usage statistics
+usage = await client.get_usage_stats(period="30d")
+
+# Get license-specific analytics
+license_analytics = await client.get_license_analytics("license_id")
+```
+
+##### Product Management (Seller only)
+
+```python
+# List products
+products = await client.list_products(
+    limit=50,
+    offset=0,
+    active=True,
+    search="Premium"
+)
+
+# Create a product
+product = await client.create_product(
+    name="Premium License",
+    price=99.99,
+    description="Premium license with all features",
+    currency="USD",
+    active=True
+)
+
+# Update a product
+updated = await client.update_product(
+    product_id="product_123",
+    price=149.99,
+    description="Updated description"
+)
+
+# Get product analytics
+analytics = await client.get_product_analytics(product_id="product_123")
+
+# Delete a product (if no licenses)
+await client.delete_product("product_123")
+```
+
+##### Team Management (Pro+ tier)
+
+```python
+# List teams
+teams = await client.list_teams()
+
+# Create a team
+team = await client.create_team(
+    name="Development Team",
+    description="Team for development"
+)
+
+# Get team details
+team_details = await client.get_team("team_123")
+
+# Invite team member
+await client.invite_team_member(
+    team_id="team_123",
+    email="member@example.com",
+    role="member"  # owner, admin, or member
+)
+
+# List team members
+members = await client.list_team_members("team_123")
+
+# Update team member role
+await client.update_team_member(
+    team_id="team_123",
+    member_id="member_123",
+    role="admin"
+)
+
+# Remove team member
+await client.remove_team_member("team_123", "member_123")
+
+# Share app with team
+await client.share_app_with_team("team_123", "app_123")
+
+# List team apps
+team_apps = await client.list_team_apps("team_123")
+
+# Remove app from team
+await client.remove_app_from_team("team_123", "app_123")
+
+# Accept team invitation
+await client.accept_team_invitation("team_123")
+
+# Update team
+await client.update_team(
+    team_id="team_123",
+    name="Updated Team Name",
+    description="New description"
+)
+
+# Delete team (owner only)
+await client.delete_team("team_123")
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Set these in your environment or through your build process:
+
+```bash
+# Required
+export LICENSECHAIN_API_KEY=your-api-key
+export LICENSECHAIN_APP_NAME=your-app-name
+export LICENSECHAIN_APP_VERSION=1.0.0
+
+# Optional
+export LICENSECHAIN_BASE_URL=https://api.licensechain.app
+export LICENSECHAIN_DEBUG=true
+```
+
+### Advanced Configuration
+
+```python
+config = LicenseChainConfig(
+    api_key="your-api-key",
+    app_name="your-app-name",
+    version="1.0.0",
+    base_url="https://api.licensechain.app",
+    timeout=30,        # Request timeout in seconds
+    retries=3,         # Number of retry attempts
+    debug=False,       # Enable debug logging
+    user_agent="MyApp/1.0.0"  # Custom user agent
+)
+```
+
+## 🛡️ Security Features
+
+### Hardware ID Protection
+
+The SDK automatically generates and manages hardware IDs to prevent license sharing:
+
+```python
+# Hardware ID is automatically generated and stored
+hardware_id = client.get_hardware_id()
+
+# Validate against license
+is_valid = await client.validate_hardware_id(license_key, hardware_id)
+```
+
+### Secure Communication
+
+- All API requests use HTTPS
+- API keys are securely stored and transmitted
+- Session tokens are automatically managed
+- Webhook signatures are verified
+
+### License Validation
+
+- Real-time license validation
+- Hardware ID binding
+- Expiration checking
+- Feature-based access control
+
+## 📊 Analytics and Monitoring
+
+### Event Tracking
+
+```python
+# Track custom events
+await client.track_event("app.started", {
+    "level": 1,
+    "playerCount": 10
+})
+
+# Track license events
+await client.track_event("license.validated", {
+    "licenseKey": "LICENSE-KEY",
+    "features": "premium,unlimited"
+})
+```
+
+### Performance Monitoring
+
+```python
+# Get performance metrics
+metrics = await client.get_performance_metrics()
+print(f"API Response Time: {metrics.average_response_time}ms")
+print(f"Success Rate: {metrics.success_rate:.2%}")
+print(f"Error Count: {metrics.error_count}")
+```
+
+## 🔄 Error Handling
+
+### Custom Exception Types
+
+```python
+try:
+    license = await client.validate_license("invalid-key")
+except InvalidLicenseError:
+    print("License key is invalid")
+except ExpiredLicenseError:
+    print("License has expired")
+except NetworkError as e:
+    print(f"Network connection failed: {e}")
+except LicenseChainError as e:
+    print(f"LicenseChain error: {e}")
+```
+
+### Retry Logic
+
+```python
+# Automatic retry for network errors
+config = LicenseChainConfig(
+    api_key="your-api-key",
+    app_name="your-app-name",
+    version="1.0.0",
+    retries=3,        # Retry up to 3 times
+    timeout=30        # Wait 30 seconds for each request
+)
+```
+
+## 🧪 Testing
+
+### Unit Tests
+
+```bash
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=licensechain
+
+# Run specific test
+pytest tests/test_client.py
+```
+
+### Integration Tests
+
+```bash
+# Test with real API
+pytest tests/integration/
+```
+
+## 📝 Examples
+
+See the `examples/` directory for complete examples:
+
+- `basic_usage.py` - Basic SDK usage
+- `advanced_features.py` - Advanced features and configuration
+- `webhook_integration.py` - Webhook handling
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+1. Clone the repository
+2. Install Python 3.8 or later
+3. Install dependencies: `pip install -r requirements.txt`
+4. Build: `python setup.py build`
+5. Test: `pytest`
+
+## 📄 License
+
+This project is licensed under the Elastic 2.0 License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: [https://docs.licensechain.app/python](https://docs.licensechain.app/python)
+- **Issues**: [GitHub Issues](https://github.com/LicenseChain/LicenseChain-Python-SDK/issues)
+- **Discord**: [LicenseChain Discord](https://discord.gg/licensechain)
+- **Email**: support@licensechain.app
+
+## 🔗 Related Projects
+
+- [LicenseChain JavaScript SDK](https://github.com/LicenseChain/LicenseChain-JavaScript-SDK)
+- [LicenseChain Node.js SDK](https://github.com/LicenseChain/LicenseChain-NodeJS-SDK)
+- [LicenseChain Customer Panel](https://github.com/LicenseChain/LicenseChain-Customer-Panel)
+
+---
+
+**Made with ❤️ for the Python community**
+
+[![PyPI Version](https://img.shields.io/pypi/v/licensechain-python-sdk.svg)](https://pypi.org/project/licensechain-python-sdk/)
+[![Build Status](https://github.com/LicenseChain/LicenseChain-Python-SDK/workflows/CI/badge.svg)](https://github.com/LicenseChain/LicenseChain-Python-SDK/actions)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://docs.licensechain.app/sdks/python)
+[![Python Version](https://img.shields.io/pypi/pyversions/licensechain-python-sdk.svg)](https://pypi.org/project/licensechain-python-sdk/)
+
+The official Python SDK for [LicenseChain](https://licensechain.app) - a comprehensive license management platform. This SDK provides full API access for license validation, user management, application management, and more.
+
+## Features
+
+- ✅ **License Management** - Create, validate, update, and revoke licenses
+- ✅ **User Authentication** - Complete user management and authentication
+- ✅ **Application Management** - Manage applications and API keys
+- ✅ **Webhook Support** - Secure webhook verification and handling
+- ✅ **Analytics** - Access usage statistics and analytics
+- ✅ **Error Handling** - Comprehensive error handling with custom exceptions
+- ✅ **Type Safety** - Strong typing with Pydantic models
+- ✅ **Async/Await** - Full async support for all operations
+- ✅ **Documentation** - Comprehensive documentation and examples
+
+## Installation
+
+### pip
+```bash
+pip install licensechain-python-sdk
+```
+
+### pipenv
+```bash
+pipenv install licensechain-python-sdk
+```
+
+### poetry
+```bash
+poetry add licensechain-python-sdk
+```
+
+## Quick Start
+
+### Basic Usage
+
+```python
+import asyncio
+from licensechain import LicenseChainClient
+
+async def main():
+    # Create a client
+    client = LicenseChainClient("your_api_key_here")
+    
+    # Validate a license
+    result = await client.validate_license("license_key_here")
+    if result["valid"]:
+        print("License is valid!")
+        print(f"User: {result['user']['email']}")
+        print(f"Expires: {result['expires_at']}")
+    else:
+        print(f"License is invalid: {result['error']}")
+    
+    # Create a new license
+    license = await client.create_license(
+        app_id="app_123",
+        user_email="user@example.com",
+        user_name="John Doe",
+        expires_at="2024-12-31T23:59:59Z"
+    )
+    print(f"Created license: {license['key']}")
+    
+    # Close the client
+    await client.close()
+
+# Run the async function
+asyncio.run(main())
+```
+
+### Using the License Validator
+
+```python
+import asyncio
+from licensechain import LicenseValidator
+
+async def main():
+    # Create a validator instance
+    validator = LicenseValidator("your_api_key_here")
+    
+    # Validate a license (returns ValidationResult object)
+    result = await validator.validate_license("license_key_here")
+    
+    if result.valid:
+        print("License is valid!")
+        print(f"User: {result.user_email}")
+        print(f"App: {result.app_name}")
+        print(f"Features: {', '.join(result.features)}")
+        print(f"Days until expiration: {result.days_until_expiration}")
+    else:
+        print(f"License is invalid: {result.error}")
+    
+    # Quick validation check
+    if await validator.is_valid("license_key_here"):
+        print("License is valid!")
+    
+    # Check if expired
+    if await validator.is_expired("license_key_here"):
+        print("License has expired!")
+    
+    # Close the validator
+    await validator.close()
+
+asyncio.run(main())
+```
+
+### Using Context Managers
+
+```python
+import asyncio
+from licensechain import LicenseChainClient, LicenseValidator
+
+async def main():
+    # Using context managers for automatic cleanup
+    async with LicenseChainClient("your_api_key_here") as client:
+        result = await client.validate_license("license_key_here")
+        print(f"Valid: {result['valid']}")
+    
+    async with LicenseValidator("your_api_key_here") as validator:
+        is_valid = await validator.is_valid("license_key_here")
+        print(f"Valid: {is_valid}")
+
+asyncio.run(main())
+```
+
+## API Reference
+
+### Client Methods
+
+#### Authentication
+
+```python
+# Register a new user
+user = await client.register_user(
+    email="user@example.com",
+    password="secure_password",
+    name="John Doe",
+    company="Acme Corp"
+)
+
+# Login
+session = await client.login(
+    email="user@example.com",
+    password="secure_password"
+)
+
+# Get user profile
+profile = await client.get_user_profile()
+
+# Update user profile
+await client.update_user_profile({
+    "name": "John Smith",
+    "company": "New Company"
+})
+
+# Change password
+await client.change_password(
+    current_password="old_password",
+    new_password="new_password"
+)
+
+# Password reset
+await client.request_password_reset("user@example.com")
+await client.reset_password(
+    token="reset_token",
+    new_password="new_password"
+)
+```
+
+#### Application Management
+
+```python
+# Create an application
+app = await client.create_application(
+    name="My App",
+    description="A great application",
+    webhook_url="https://myapp.com/webhooks",
+    allowed_origins=["https://myapp.com"]
+)
+
+# List applications
+apps = await client.list_applications(page=1, limit=20)
+
+# Get application details
+app = await client.get_application("app_123")
+
+# Update application
+await client.update_application("app_123", {
+    "name": "Updated App Name",
+    "description": "Updated description"
+})
+
+# Regenerate API key
+new_key = await client.regenerate_api_key("app_123")
+
+# Delete application
+await client.delete_application("app_123")
+```
+
+#### License Management
+
+```python
+# Create a license
+license = await client.create_license(
+    app_id="app_123",
+    user_email="user@example.com",
+    user_name="John Doe",
+    expires_at="2024-12-31T23:59:59Z",
+    metadata={"plan": "premium", "features": ["api_access"]}
+)
+
+# List licenses
+licenses = await client.list_licenses(
+    app_id="app_123",
+    page=1,
+    limit=20,
+    status="active"
+)
+
+# Get license details
+license = await client.get_license("lic_123")
+
+# Update license
+await client.update_license("lic_123", {
+    "metadata": {"plan": "enterprise"}
+})
+
+# Validate license
+result = await client.validate_license("license_key_here", app_id="app_123")
+
+# Revoke license
+await client.revoke_license("lic_123", reason="Violation of terms")
+
+# Activate license
+await client.activate_license("lic_123")
+
+# Extend license
+await client.extend_license("lic_123", "2025-12-31T23:59:59Z")
+
+# Delete license
+await client.delete_license("lic_123")
+```
+
+#### Webhook Management
+
+```python
+# Create webhook
+webhook = await client.create_webhook(
+    app_id="app_123",
+    url="https://myapp.com/webhooks",
+    events=["license.created", "license.updated"],
+    secret="webhook_secret"
+)
+
+# List webhooks
+webhooks = await client.list_webhooks(app_id="app_123")
+
+# Update webhook
+await client.update_webhook("webhook_123", {
+    "events": ["license.created", "license.updated", "license.revoked"]
+})
+
+# Test webhook
+await client.test_webhook("webhook_123")
+
+# Delete webhook
+await client.delete_webhook("webhook_123")
+```
+
+#### Analytics
+
+```python
+# Get analytics
+analytics = await client.get_analytics(
+    app_id="app_123",
+    start_date="2024-01-01",
+    end_date="2024-12-31",
+    metric="validations"
+)
+
+# Get license analytics
+license_analytics = await client.get_license_analytics("lic_123")
+
+# Get usage statistics
+usage = await client.get_usage_stats(app_id="app_123", period="30d")
+```
+
+### Model Classes
+
+The SDK provides Pydantic models for type safety and validation:
+
+```python
+from licensechain import User, Application, License, ValidationResult
+
+# User model
+user = User(
+    email="user@example.com",
+    name="John Doe",
+    company="Acme Corp"
+)
+print(user.is_active)
+
+# Application model
+app = Application(
+    name="My App",
+    description="A great application"
+)
+print(app.is_active)
+
+# License model
+license = License(
+    app_id="app_123",
+    user_email="user@example.com",
+    expires_at="2024-12-31T23:59:59Z"
+)
+print(license.is_expired)
+print(license.days_until_expiration)
+
+# Validation result
+result = ValidationResult(
+    valid=True,
+    user={"email": "user@example.com"},
+    app={"name": "My App"}
+)
+print(result.user_email)
+print(result.app_name)
+```
+
+### Webhook Handling
+
+```python
+from licensechain import WebhookHandler, WebhookVerifier
+
+class MyWebhookHandler(WebhookHandler):
+    async def handle_license_created(self, event_data):
+        print(f"License created: {event_data['data']['id']}")
+        return {"status": "processed"}
+    
+    async def handle_license_revoked(self, event_data):
+        print(f"License revoked: {event_data['data']['id']}")
+        return {"status": "processed"}
+
+# Handle webhooks
+handler = MyWebhookHandler("webhook_secret")
+result = await handler.handle(payload, signature)
+
+# Or verify signatures manually
+verifier = WebhookVerifier("webhook_secret")
+if verifier.verify_signature(payload, signature):
+    data = verifier.parse_payload(payload, signature)
+    print(f"Event: {data['type']}")
+```
+
+### Error Handling
+
+```python
+from licensechain import (
+    LicenseChainException,
+    AuthenticationError,
+    ValidationError,
+    NotFoundError,
+    RateLimitError,
+    ServerError,
+    NetworkError
+)
+
+try:
+    result = await client.validate_license("invalid_key")
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+except ValidationError as e:
+    print(f"Validation error: {e}")
+except NotFoundError as e:
+    print(f"Resource not found: {e}")
+except RateLimitError as e:
+    print(f"Rate limit exceeded: {e}")
+except ServerError as e:
+    print(f"Server error: {e}")
+except NetworkError as e:
+    print(f"Network error: {e}")
+except LicenseChainException as e:
+    print(f"LicenseChain error: {e}")
+```
+
+## Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `api_key` | str | Required | Your LicenseChain API key |
+| `base_url` | str | `https://api.licensechain.app` | API base URL |
+| `timeout` | int | 30 | Request timeout in seconds |
+| `retry_attempts` | int | 3 | Number of retry attempts |
+| `retry_delay` | float | 1.0 | Delay between retries in seconds |
+
+## Error Types
+
+| Error Type | HTTP Status | Description |
+|------------|-------------|-------------|
+| `AuthenticationError` | 401, 403 | Authentication or authorization failed |
+| `ValidationError` | 400 | Invalid request data |
+| `NotFoundError` | 404 | Resource not found |
+| `RateLimitError` | 429 | Rate limit exceeded |
+| `ServerError` | 500-599 | Server error |
+| `NetworkError` | N/A | Network connectivity issues |
+
+## Requirements
+
+- Python 3.8 or later
+- asyncio support
+- httpx for HTTP requests
+- pydantic for data validation
+
+## Dependencies
+
+- httpx>=0.24.0
+- pydantic>=2.0.0
+- typing-extensions>=4.5.0
+- requests>=2.31.0 (optional)
+- cryptography>=41.0.0 (optional)
+- python-dateutil>=2.8.0 (optional)
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/LicenseChain/LicenseChain-Python-SDK.git
+cd LicenseChain-Python-SDK
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+black licensechain/
+isort licensechain/
+flake8 licensechain/
+
+# Build package
+python -m build
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the Elastic License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- 📧 Email: support@licensechain.app
+- 📚 Documentation: https://docs.licensechain.app
+- 🐛 Issues: https://github.com/LicenseChain/LicenseChain-Python-SDK/issues
+- 💬 Telegram: https://t.me/LicenseChainBot
+
+---
+
+Made with ❤️ by the LicenseChain team
