@@ -1,0 +1,381 @@
+Metadata-Version: 2.4
+Name: dominus-sdk-python
+Version: 2.1.7
+Summary: Python SDK for the Dominus Orchestrator Platform
+Author-email: CareBridge Systems <dev@carebridge.io>
+License: Proprietary
+Project-URL: Homepage, https://github.com/carebridgesystems/dominus-sdk-python
+Project-URL: Repository, https://github.com/carebridgesystems/dominus-sdk-python
+Keywords: dominus,carebridge,sdk,orchestrator,api,async
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: AsyncIO
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: bcrypt>=4.0.0
+Requires-Dist: cryptography>=41.0.0
+Provides-Extra: jwt
+Requires-Dist: PyJWT>=2.8.0; extra == "jwt"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+
+# CB Dominus SDK
+
+**Python SDK for the Dominus Orchestrator Platform**
+
+A unified, async-first Python SDK providing seamless access to all Dominus backend services including secrets management, database operations, caching, file storage, authentication, schema management, and structured logging.
+
+## Features
+
+- **Namespace-based API** - Intuitive access via `dominus.db`, `dominus.redis`, `dominus.files`, etc.
+- **Async/Await** - Built for modern async Python applications
+- **Automatic JWT Management** - Token minting, caching, and refresh handled transparently
+- **Resilience Built-in** - Circuit breaker, exponential backoff, and retry logic
+- **Typed Errors** - Specific error classes for different failure modes
+- **Secure by Default** - Client-side password hashing, encrypted cache, audit trail support
+
+## Quick Start
+
+```python
+from dominus import dominus
+
+# Set your token (or use DOMINUS_TOKEN environment variable)
+import os
+os.environ["DOMINUS_TOKEN"] = "your-psk-token"
+
+# Start using the SDK
+async def main():
+    # Secrets
+    db_url = await dominus.get("DATABASE_URL")
+
+    # Database queries
+    users = await dominus.db.query("users", filters={"status": "active"})
+
+    # Redis caching
+    await dominus.redis.set("session:123", {"user": "john"}, ttl=3600)
+
+    # File storage
+    result = await dominus.files.upload(data, "report.pdf", category="reports")
+
+    # Structured logging
+    await dominus.logs.info("User logged in", {"user_id": "123"})
+```
+
+## Installation
+
+```bash
+# Clone or add as submodule
+git clone https://github.com/carebridgesystems/cb-dominus-sdk.git
+
+# Install dependencies
+pip install httpx bcrypt cryptography
+```
+
+## Namespaces
+
+| Namespace | Service | Purpose |
+|-----------|---------|---------|
+| `dominus.secrets` | Warden | Secrets management |
+| `dominus.db` | Scribe | Database CRUD operations |
+| `dominus.redis` | Whisperer | Redis caching |
+| `dominus.files` | Archivist | Object storage (B2) |
+| `dominus.auth` | Guardian | Authentication & authorization |
+| `dominus.ddl` | Smith | Schema DDL & migrations |
+| `dominus.logs` | Herald | Structured logging |
+| `dominus.portal` | Portal | User auth & sessions |
+| `dominus.courier` | Courier | Email delivery (Postmark) |
+| `dominus.open` | Scribe | Direct database access |
+| `dominus.health` | Health | Service health checks |
+
+## Usage Examples
+
+### Secrets Management
+
+```python
+# Root-level shortcuts
+value = await dominus.get("API_KEY")
+await dominus.upsert("API_KEY", "new-value", comment="Updated API key")
+
+# Full namespace
+secrets = await dominus.secrets.list(prefix="DB_")
+await dominus.secrets.delete("OLD_KEY")
+```
+
+### Database Operations
+
+```python
+# Query with filters and pagination
+users = await dominus.db.query(
+    "users",
+    filters={"status": "active", "role": ["admin", "manager"]},
+    sort_by="created_at",
+    sort_order="desc",
+    limit=50,
+    offset=0
+)
+
+# Insert
+user = await dominus.db.insert("users", {
+    "email": "john@example.com",
+    "name": "John Doe"
+})
+
+# Update
+await dominus.db.update("users", {"status": "inactive"}, filters={"id": user_id})
+
+# Secure table access (requires audit reason)
+patients = await dominus.db.query(
+    "patients",
+    schema="tenant_acme",
+    reason="Reviewing records for appointment #123",
+    actor="dr.smith"
+)
+```
+
+### Redis Caching
+
+```python
+# Key-value operations
+await dominus.redis.set("user:123", {"name": "John"}, ttl=3600)
+value = await dominus.redis.get("user:123")
+
+# Distributed locks
+if await dominus.redis.setnx("lock:job", "worker-1", ttl=60):
+    try:
+        # Do exclusive work
+        pass
+    finally:
+        await dominus.redis.delete("lock:job")
+
+# Counters
+await dominus.redis.incr("page:views", delta=1)
+
+# Hash operations
+await dominus.redis.hset("user:123", "email", "john@example.com", ttl=3600)
+```
+
+### File Storage
+
+```python
+# Upload file
+with open("report.pdf", "rb") as f:
+    result = await dominus.files.upload(
+        data=f.read(),
+        filename="report.pdf",
+        category="reports"
+    )
+
+# Get download URL
+download = await dominus.files.download(file_id=result["id"])
+url = download["download_url"]
+
+# List files
+files = await dominus.files.list(category="reports", prefix="2025/")
+```
+
+### Structured Logging
+
+```python
+# Simple logging (auto-captures file and function)
+await dominus.logs.info("User logged in", {"user_id": "123"})
+await dominus.logs.error("Payment failed", {"order_id": "456"})
+
+# With exception context
+try:
+    risky_operation()
+except Exception as e:
+    await dominus.logs.error("Operation failed", exception=e)
+
+# Query logs
+errors = await dominus.logs.query(level="error", limit=100)
+```
+
+### Authentication
+
+```python
+# User management
+user = await dominus.auth.add_user(
+    username="john",
+    password="secure-password",
+    email="john@example.com"
+)
+
+# Role management
+role = await dominus.auth.add_role(
+    name="Editor",
+    scope_slugs=["read", "write", "publish"]
+)
+
+# JWT operations
+jwt = await dominus.auth.mint_jwt(user_id=user["id"], expires_in=900)
+claims = await dominus.auth.validate_jwt(token)
+```
+
+### Schema Management
+
+```python
+# Create table
+await dominus.ddl.add_table("orders", [
+    {"name": "id", "type": "UUID", "constraints": ["PRIMARY KEY"]},
+    {"name": "user_id", "type": "UUID", "constraints": ["NOT NULL"]},
+    {"name": "total", "type": "DECIMAL(10,2)"},
+    {"name": "created_at", "type": "TIMESTAMPTZ", "default": "NOW()"}
+])
+
+# Provision tenant schema
+await dominus.ddl.provision_tenant("customer_acme", category_slug="healthcare")
+```
+
+### User Authentication (Portal)
+
+```python
+# User login
+session = await dominus.portal.login(
+    username="john@example.com",
+    password="secret123",
+    tenant_id="tenant-uuid"
+)
+
+# Get current user
+me = await dominus.portal.me()
+
+# Get navigation (access-filtered)
+nav = await dominus.portal.get_navigation()
+
+# Profile & preferences
+await dominus.portal.update_preferences(theme="dark", timezone="America/New_York")
+
+# Logout
+await dominus.portal.logout()
+```
+
+### Email Delivery (Courier)
+
+```python
+# Send email via Postmark template
+result = await dominus.courier.send(
+    template_alias="welcome",
+    to="user@example.com",
+    from_email="noreply@myapp.com",
+    model={"name": "John", "product_name": "My App"}
+)
+
+# Convenience methods
+await dominus.courier.send_password_reset(
+    to="user@example.com",
+    from_email="noreply@myapp.com",
+    name="John",
+    reset_url="https://myapp.com/reset?token=abc",
+    product_name="My App"
+)
+```
+
+## Error Handling
+
+```python
+from dominus import (
+    dominus,
+    DominusError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+    SecureTableError,
+)
+
+try:
+    user = await dominus.auth.get_user(user_id="invalid")
+except NotFoundError as e:
+    print(f"User not found: {e.message}")
+except SecureTableError as e:
+    print("Secure table requires 'reason' and 'actor' parameters")
+except DominusError as e:
+    print(f"Error {e.status_code}: {e.message}")
+    if e.details:
+        print(f"Details: {e.details}")
+```
+
+### Error Types
+
+| Error | Status | Description |
+|-------|--------|-------------|
+| `AuthenticationError` | 401 | Invalid or missing token |
+| `AuthorizationError` | 403 | Insufficient permissions |
+| `NotFoundError` | 404 | Resource not found |
+| `ValidationError` | 400 | Invalid request data |
+| `ConflictError` | 409 | Duplicate or version conflict |
+| `ServiceError` | 5xx | Backend service error |
+| `SecureTableError` | 403 | Missing reason for secure table |
+| `ConnectionError` | - | Network connection failed |
+| `TimeoutError` | 504 | Request timed out |
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Required: PSK token for authentication
+export DOMINUS_TOKEN="your-psk-token"
+```
+
+### Token Resolution
+
+The SDK resolves the authentication token in this order:
+1. `DOMINUS_TOKEN` environment variable
+2. Hardcoded fallback in `dominus/start.py`
+
+## Architecture
+
+```
+┌─────────────────┐
+│  Your App       │
+│  (async Python) │
+└────────┬────────┘
+         │ await dominus.db.query(...)
+         ▼
+┌─────────────────┐
+│  Dominus SDK    │  ← JWT caching, circuit breaker, retries
+│  (this package) │
+└────────┬────────┘
+         │ HTTPS (base64-encoded JSON)
+         ▼
+┌─────────────────────────────────┐
+│  Dominus Orchestrator           │
+│  (Cloud Run FastAPI backend)    │
+│                                 │
+│  ┌─────────┬─────────┬────────┐ │
+│  │ Warden  │Guardian │Archivist│ │
+│  │ Scribe  │ Smith   │Whisperer│ │
+│  │ Herald  │ Portal  │ Courier│ │
+│  └─────────┴─────────┴────────┘ │
+└─────────────────────────────────┘
+```
+
+## Dependencies
+
+- `httpx` - Async HTTP client
+- `bcrypt` - Password hashing
+- `cryptography` - Cache encryption
+
+## Documentation
+
+- [Installation & Quick Start](dominus/QUICKSTART.md)
+- [LLM Usage Guide](dominus/LLM-GUIDE.md)
+
+## Version
+
+**v2.0.0** - Namespace-based API with unified orchestrator backend
+
+## License
+
+Proprietary - CareBridge Systems
