@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibegate.dev/schemas/v1alpha1/fixpack.schema.json",
+  "title": "VibeGate Fix Pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "generated_at", "groups"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "v1alpha1" },
+    "run_id": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contract_sha256": { "type": "string" },
+        "evidence_sha256": { "type": "string" }
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/group" }
+    }
+  },
+  "$defs": {
+    "taskType": {
+      "type": "string",
+      "enum": [
+        "dependency_fix",
+        "vulnerability_fix",
+        "secret_removal",
+        "security_fix",
+        "type_fix",
+        "lint_fix",
+        "formatting_fix",
+        "test_fix",
+        "config_fix",
+        "runtime_fix",
+        "documentation_fix"
+      ]
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "order", "tasks"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "order": { "type": "integer", "minimum": 1 },
+        "rationale": { "type": "string" },
+        "tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/task" }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "order", "title", "file_targets", "acceptance_criteria", "verification_commands"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "$ref": "#/$defs/taskType" },
+        "order": { "type": "integer", "minimum": 1, "description": "Explicit global ordering across the whole fixpack." },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "file_targets": { "type": "array", "items": { "type": "string" } },
+        "references": {
+          "type": "array",
+          "items": { "type": "string", "description": "Finding fingerprints from evidence JSONL." },
+          "default": []
+        },
+        "depends_on": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+        "verification_commands": { "type": "array", "items": { "type": "string" } },
+        "ai_prompt_hint": {
+          "type": "string",
+          "description": "Optional. Only used by AI to translate into paste-ready prompts. Not used for gating."
+        }
+      }
+    }
+  }
+}

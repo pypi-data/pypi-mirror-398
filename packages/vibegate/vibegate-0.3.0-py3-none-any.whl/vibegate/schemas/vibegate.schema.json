@@ -1,0 +1,1000 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibegate.dev/schemas/v1alpha1/vibegate.schema.json",
+  "title": "VibeGate Production Readiness Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "packaging", "checks", "outputs", "suppressions", "policy", "determinism"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "v1alpha1" },
+    "profile": {
+      "type": "string",
+      "enum": ["fast", "strict", "ci"],
+      "description": "Optional profile selector. Must match a key defined in profiles."
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Profile overrides applied on top of the base config.",
+      "propertyNames": { "type": "string", "enum": ["fast", "strict", "ci"] },
+      "additionalProperties": { "$ref": "#/$defs/profileOverride" },
+      "default": {}
+    },
+
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "language"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "const": "python" },
+        "repo_root": { "type": "string", "default": "." },
+        "app_module": {
+          "type": "string",
+          "description": "ASGI target for runtime smoke check (e.g. app.main:app)"
+        }
+      }
+    },
+
+    "packaging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "python_version"],
+      "properties": {
+        "tool": {
+          "type": "string",
+          "enum": ["auto", "uv", "poetry", "pdm", "pip-tools", "pip"],
+          "default": "auto"
+        },
+        "python_version": { "type": "string", "minLength": 1 },
+        "pyproject_path": { "type": "string", "default": "pyproject.toml" },
+        "lockfiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "tool_detection_order": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["uv", "poetry", "pdm", "pip-tools", "pip"] },
+          "default": ["uv", "poetry", "pdm", "pip-tools", "pip"]
+        }
+      }
+    },
+
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formatting",
+        "lint",
+        "typecheck",
+        "tests",
+        "dependency_hygiene",
+        "sast",
+        "secrets",
+        "vulnerability",
+        "config_sanity",
+        "runtime_smoke",
+        "error_handling",
+        "defensive_coding",
+        "complexity",
+        "dead_code"
+      ],
+      "properties": {
+        "formatting": { "$ref": "#/$defs/checkRuffFormat" },
+        "lint": { "$ref": "#/$defs/checkRuffLint" },
+        "typecheck": { "$ref": "#/$defs/checkPyright" },
+        "tests": { "$ref": "#/$defs/checkPytest" },
+        "dependency_hygiene": { "$ref": "#/$defs/checkDependencyHygiene" },
+        "sast": { "$ref": "#/$defs/checkBandit" },
+        "secrets": { "$ref": "#/$defs/checkGitleaks" },
+        "vulnerability": { "$ref": "#/$defs/checkVuln" },
+        "config_sanity": { "$ref": "#/$defs/checkConfigSanity" },
+        "runtime_smoke": { "$ref": "#/$defs/checkRuntimeSmoke" },
+        "error_handling": { "$ref": "#/$defs/checkErrorHandling" },
+        "defensive_coding": { "$ref": "#/$defs/checkDefensiveProgramming" },
+        "complexity": { "$ref": "#/$defs/checkComplexity" },
+        "dead_code": { "$ref": "#/$defs/checkDeadCode" },
+        "coverage": { "$ref": "#/$defs/checkCoverage" }
+      }
+    },
+
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_markdown", "evidence_jsonl", "fixpack_json"],
+      "properties": {
+        "report_markdown": { "type": "string", "default": "artifacts/vibegate_report.md" },
+        "report_html": { "type": "string", "default": "artifacts/vibegate_report.html" },
+        "emit_html": { "type": "boolean", "default": true },
+        "evidence_jsonl": { "type": "string", "default": "evidence/vibegate.jsonl" },
+        "evidence_graph_json": { "type": "string", "default": "artifacts/evidence_graph.json" },
+        "delta_report_markdown": { "type": "string", "default": "artifacts/vibegate_delta.md" },
+        "fixpack_json": { "type": "string", "default": "artifacts/fixpack.json" },
+        "fixpack_yaml": { "type": "string", "default": "artifacts/fixpack.yaml" },
+        "emit_fixpack_yaml": { "type": "boolean", "default": true }
+      }
+    },
+
+    "suppressions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "policy"],
+      "properties": {
+        "path": { "type": "string", "default": ".vibegate/suppressions.yaml" },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["require_justification", "require_expiry", "max_days_default"],
+          "properties": {
+            "require_justification": { "type": "boolean", "default": true },
+            "require_expiry": { "type": "boolean", "default": true },
+            "max_days_default": { "type": "integer", "minimum": 1, "default": 90 },
+            "require_actor": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fail_on", "warn_on"],
+      "properties": {
+        "fail_on": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "confidence"],
+            "additionalProperties": false,
+            "properties": {
+              "severity": { "$ref": "#/$defs/severity" },
+              "confidence": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["high", "medium", "low"] },
+                "minItems": 1
+              }
+            }
+          },
+          "default": [
+            { "severity": "critical", "confidence": ["high", "medium", "low"] },
+            { "severity": "high", "confidence": ["high"] }
+          ]
+        },
+        "warn_on": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "confidence"],
+            "additionalProperties": false,
+            "properties": {
+              "severity": { "$ref": "#/$defs/severity" },
+              "confidence": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["high", "medium", "low"] },
+                "minItems": 1
+              }
+            }
+          },
+          "default": [
+            { "severity": "high", "confidence": ["medium", "low"] },
+            { "severity": "medium", "confidence": ["high", "medium", "low"] },
+            { "severity": "low", "confidence": ["high", "medium", "low"] }
+          ]
+        },
+        "semantic": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "delta": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "allow_blocking_increase": { "type": "integer", "default": 0 },
+            "allow_warning_increase": { "type": "integer", "default": 0 },
+            "allow_unsuppressed_increase": { "type": "integer", "default": 0 },
+            "per_signal": {
+              "type": "object",
+              "additionalProperties": { "type": "integer" },
+              "default": {}
+            }
+          },
+          "default": {
+            "enabled": false,
+            "allow_blocking_increase": 0,
+            "allow_warning_increase": 0,
+            "allow_unsuppressed_increase": 0,
+            "per_signal": {}
+          }
+        }
+      }
+    },
+
+    "determinism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_versions", "env"],
+      "properties": {
+        "tool_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Pinned versions as strings. The runner records observed versions in evidence."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["TZ", "LC_ALL", "PYTHONHASHSEED"],
+          "properties": {
+            "TZ": { "type": "string", "default": "UTC" },
+            "LC_ALL": { "type": "string", "default": "C" },
+            "PYTHONHASHSEED": { "type": "string", "default": "0" }
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checks": { "$ref": "#/$defs/pluginGroup" },
+        "emitters": { "$ref": "#/$defs/pluginGroup" }
+      },
+      "default": {}
+    },
+
+    "llm": {
+      "type": "object",
+      "description": "Optional LLM integration for explaining findings and generating fix prompts",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "provider": {
+          "type": "string",
+          "enum": ["ollama"],
+          "default": "ollama",
+          "description": "LLM provider (currently only ollama supported)"
+        },
+        "cache_dir": {
+          "type": "string",
+          "default": ".vibegate/llm_cache",
+          "description": "Directory for caching LLM responses"
+        },
+        "ollama": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base_url": {
+              "type": "string",
+              "default": "http://localhost:11434",
+              "description": "Ollama server URL"
+            },
+            "model": {
+              "type": "string",
+              "default": "codellama:7b",
+              "description": "Model name (e.g., codellama:7b, deepseek-coder:6.7b)"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2,
+              "default": 0.3,
+              "description": "Sampling temperature (lower = more deterministic)"
+            }
+          },
+          "default": {}
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "explain_findings": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate user-friendly explanations for findings"
+            },
+            "generate_prompts": {
+              "type": "boolean",
+              "default": true,
+              "description": "Generate fix prompts for AI coding assistants"
+            }
+          },
+          "default": {}
+        }
+      },
+      "default": {}
+    }
+  },
+
+  "$defs": {
+    "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+    "pluginGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "disabled": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "config": {
+          "type": "object",
+          "additionalProperties": { "type": "object" },
+          "default": {}
+        }
+      },
+      "default": {}
+    },
+
+    "checkBase": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "timeout_sec": { "type": "integer", "minimum": 1, "default": 300 }
+      }
+    },
+    "checkOverrideBase": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "timeout_sec": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "checkRuffFormat": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "formatting.ruff" },
+            "paths": { "type": "array", "items": { "type": "string" }, "default": ["."] },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["format", "--check", "."],
+              "description": "Ruff formatter supports --check for CI."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideRuffFormat": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "paths": { "type": "array", "items": { "type": "string" } },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkRuffLint": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "lint.ruff" },
+            "paths": { "type": "array", "items": { "type": "string" }, "default": ["."] },
+            "output_format": {
+              "type": "string",
+              "enum": ["json", "json-lines", "full", "concise", "sarif"],
+              "default": "json"
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["check", "--output-format", "json", "."]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideRuffLint": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "paths": { "type": "array", "items": { "type": "string" } },
+            "output_format": { "type": "string", "enum": ["json", "json-lines", "full", "concise", "sarif"] },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkPyright": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "typecheck.pyright" },
+            "project_file": { "type": "string", "default": "pyproject.toml" },
+            "fail_on_warnings": { "type": "boolean", "default": false },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [".", "--outputjson"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverridePyright": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "project_file": { "type": "string" },
+            "fail_on_warnings": { "type": "boolean" },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkPytest": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "tests.pytest" },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["-q"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverridePytest": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkDependencyHygiene": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "id": { "type": "string", "const": "deps.hygiene" },
+            "mode": {
+              "type": "string",
+              "enum": ["auto", "uv", "poetry", "pdm", "pip-tools", "pip"],
+              "default": "auto"
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "lockfile_required",
+                  "lockfile_fresh",
+                  "no_unpinned_top_level",
+                  "no_direct_url_deps",
+                  "no_local_path_deps"
+                ]
+              },
+              "default": ["lockfile_required", "lockfile_fresh"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideDependencyHygiene": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "mode": { "type": "string", "enum": ["auto", "uv", "poetry", "pdm", "pip-tools", "pip"] },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "lockfile_required",
+                  "lockfile_fresh",
+                  "no_unpinned_top_level",
+                  "no_direct_url_deps",
+                  "no_local_path_deps"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkBandit": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "sast.bandit" },
+            "severity_threshold": { "$ref": "#/$defs/severity", "default": "medium" },
+            "confidence_threshold": { "type": "string", "enum": ["low", "medium", "high"], "default": "low" },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["-r", ".", "-f", "json", "-o", "artifacts/bandit.json"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideBandit": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "severity_threshold": { "$ref": "#/$defs/severity" },
+            "confidence_threshold": { "type": "string", "enum": ["low", "medium", "high"] },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkGitleaks": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "secrets.gitleaks" },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["dir", ".", "--report-format", "json", "--report-path", "artifacts/gitleaks.json"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideGitleaks": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkVuln": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "required": ["deterministic_required"],
+          "properties": {
+            "id": { "type": "string", "const": "vuln.osv_scanner" },
+            "deterministic_required": {
+              "type": "boolean",
+              "default": true,
+              "description": "If deterministic config absent, runner must SKIP with reason and not affect PASS/FAIL."
+            },
+            "mode": { "type": "string", "enum": ["skip", "offline"], "default": "offline" },
+            "local_db": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path"],
+              "properties": {
+                "path": { "type": "string", "description": "Directory containing offline OSV DB snapshot." },
+                "snapshot_id": {
+                  "type": "string",
+                  "description": "Optional human label or git sha for the DB snapshot; recorded into evidence."
+                }
+              }
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["--offline", "."]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideVuln": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "deterministic_required": { "type": "boolean" },
+            "mode": { "type": "string", "enum": ["skip", "offline"] },
+            "local_db": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path"],
+              "properties": {
+                "path": { "type": "string" },
+                "snapshot_id": { "type": "string" }
+              }
+            },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkConfigSanity": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "config.sanity" },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "no_debug_true",
+                  "no_uvicorn_reload_in_prod",
+                  "no_allow_all_cors",
+                  "no_hardcoded_secrets_like_patterns",
+                  "no_placeholder_comments",
+                  "no_not_implemented",
+                  "no_placeholder_docstrings"
+                ]
+              },
+              "default": ["no_debug_true", "no_uvicorn_reload_in_prod"]
+            },
+            "include_globs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["**/*.py", "**/*.toml", "**/*.yaml", "**/*.yml", "**/*.env", "**/*.ini"]
+            },
+            "exclude_globs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                ".venv/**",
+                "venv/**",
+                "env/**",
+                ".git/**",
+                "__pycache__/**",
+                ".pytest_cache/**",
+                ".mypy_cache/**",
+                ".ruff_cache/**",
+                "node_modules/**",
+                "dist/**",
+                "build/**",
+                ".tox/**",
+                ".eggs/**",
+                "site-packages/**",
+                "*.egg-info/**"
+              ]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideConfigSanity": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "no_debug_true",
+                  "no_uvicorn_reload_in_prod",
+                  "no_allow_all_cors",
+                  "no_hardcoded_secrets_like_patterns",
+                  "no_placeholder_comments",
+                  "no_not_implemented",
+                  "no_placeholder_docstrings"
+                ]
+              }
+            },
+            "include_globs": { "type": "array", "items": { "type": "string" } },
+            "exclude_globs": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkRuntimeSmoke": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "runtime.smoke" },
+            "enabled": { "type": "boolean", "default": false },
+            "command": { "type": "string", "default": "uvicorn app.main:app --host 127.0.0.1 --port 8000" },
+            "health_url": { "type": "string", "default": "http://127.0.0.1:8000/healthz" },
+            "startup_timeout_sec": { "type": "integer", "minimum": 1, "default": 20 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideRuntimeSmoke": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "health_url": { "type": "string" },
+            "startup_timeout_sec": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkErrorHandling": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "error_handling.ast" },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "bare_except",
+                  "empty_except",
+                  "generic_exceptions",
+                  "missing_logging"
+                ]
+              },
+              "default": ["bare_except", "empty_except", "generic_exceptions"]
+            },
+            "exclude_globs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideErrorHandling": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "bare_except",
+                  "empty_except",
+                  "generic_exceptions",
+                  "missing_logging"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkDefensiveProgramming": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "defensive_coding.ast" },
+            "require_none_checks": { "type": "boolean", "default": true },
+            "require_bounds_checks": { "type": "boolean", "default": true },
+            "exclude_globs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideDefensiveProgramming": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "require_none_checks": { "type": "boolean" },
+            "require_bounds_checks": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkComplexity": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "complexity.ast" },
+            "max_function_lines": { "type": "integer", "minimum": 1, "default": 50 },
+            "max_nesting_depth": { "type": "integer", "minimum": 1, "default": 4 },
+            "max_complexity": { "type": "integer", "minimum": 1, "default": 10 },
+            "detect_duplicates": { "type": "boolean", "default": false },
+            "exclude_globs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideComplexity": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "max_function_lines": { "type": "integer", "minimum": 1 },
+            "max_nesting_depth": { "type": "integer", "minimum": 1 },
+            "max_complexity": { "type": "integer", "minimum": 1 },
+            "detect_duplicates": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkDeadCode": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "dead_code.tool" },
+            "enabled": { "type": "boolean", "default": false },
+            "min_confidence": { "type": "integer", "minimum": 0, "maximum": 100, "default": 80 },
+            "detect_commented_code": { "type": "boolean", "default": true },
+            "exclude_globs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideDeadCode": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "min_confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "detect_commented_code": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "checkCoverage": {
+      "allOf": [
+        { "$ref": "#/$defs/checkBase" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "const": "coverage.pytest" },
+            "enabled": { "type": "boolean", "default": false },
+            "minimum_coverage": { "type": "number", "minimum": 0, "maximum": 100, "default": 80.0 },
+            "target_coverage": { "type": "number", "minimum": 0, "maximum": 100, "default": 90.0 },
+            "fail_on_missing_tests": { "type": "boolean", "default": true }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "checkOverrideCoverage": {
+      "allOf": [
+        { "$ref": "#/$defs/checkOverrideBase" },
+        {
+          "type": "object",
+          "properties": {
+            "minimum_coverage": { "type": "number", "minimum": 0, "maximum": 100 },
+            "target_coverage": { "type": "number", "minimum": 0, "maximum": 100 },
+            "fail_on_missing_tests": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "profileOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "formatting": { "$ref": "#/$defs/checkOverrideRuffFormat" },
+            "lint": { "$ref": "#/$defs/checkOverrideRuffLint" },
+            "typecheck": { "$ref": "#/$defs/checkOverridePyright" },
+            "tests": { "$ref": "#/$defs/checkOverridePytest" },
+            "dependency_hygiene": { "$ref": "#/$defs/checkOverrideDependencyHygiene" },
+            "sast": { "$ref": "#/$defs/checkOverrideBandit" },
+            "secrets": { "$ref": "#/$defs/checkOverrideGitleaks" },
+            "vulnerability": { "$ref": "#/$defs/checkOverrideVuln" },
+            "config_sanity": { "$ref": "#/$defs/checkOverrideConfigSanity" },
+            "runtime_smoke": { "$ref": "#/$defs/checkOverrideRuntimeSmoke" },
+            "error_handling": { "$ref": "#/$defs/checkOverrideErrorHandling" },
+            "defensive_coding": { "$ref": "#/$defs/checkOverrideDefensiveProgramming" },
+            "complexity": { "$ref": "#/$defs/checkOverrideComplexity" },
+            "dead_code": { "$ref": "#/$defs/checkOverrideDeadCode" },
+            "coverage": { "$ref": "#/$defs/checkOverrideCoverage" }
+          }
+        },
+        "severity_overrides": {
+          "type": "object",
+          "description": "Map check IDs or rule IDs to overridden severities.",
+          "additionalProperties": { "$ref": "#/$defs/severity" }
+        },
+        "tool_overrides": {
+          "type": "object",
+          "description": "Tool-specific override blocks passed to adapters.",
+          "additionalProperties": { "type": "object" }
+        }
+      }
+    }
+  }
+}
