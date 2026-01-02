@@ -1,0 +1,957 @@
+# Copyright 2023 The PyGlove Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Pluggable file system."""
+
+import abc
+import datetime
+import fnmatch
+import glob as std_glob
+import io
+import os
+import re
+import shutil
+from typing import Any, Literal, Optional, Union
+
+
+class File(metaclass=abc.ABCMeta):
+  """Interface for a file."""
+
+  @abc.abstractmethod
+  def read(self, size: Optional[int] = None) -> Union[str, bytes]:
+    """Reads the content of the file."""
+
+  @abc.abstractmethod
+  def readline(self) -> Union[str, bytes]:
+    """Reads the next line."""
+
+  @abc.abstractmethod
+  def write(self, content: Union[str, bytes]) -> None:
+    """Writes the content of the file."""
+
+  @abc.abstractmethod
+  def seek(self, offset: int, whence: Literal[0, 1, 2] = 0) -> int:
+    """Changes the current position of the file.
+
+    Args:
+      offset: Offset from the position to a reference point.
+      whence: The reference point, with 0 meaning the beginning of the file,
+        1 meaning the current position, or 2 meaning the end of the file.
+
+    Returns:
+      The position from the beginning of the file.
+    """
+
+  @abc.abstractmethod
+  def tell(self) -> int:
+    """Returns the current position of the file."""
+
+  @abc.abstractmethod
+  def flush(self) -> None:
+    """Flushes the written content to the storage."""
+
+  @abc.abstractmethod
+  def close(self) -> None:
+    """Closes the file."""
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    del exc_type, exc_value, traceback
+    self.close()
+
+
+class FileSystem(metaclass=abc.ABCMeta):
+  """Interface for a file system."""
+
+  @abc.abstractmethod
+  def open(
+      self, path: Union[str, os.PathLike[str]], mode: str = 'r', **kwargs
+  ) -> File:
+    """Opens a file with a path."""
+
+  @abc.abstractmethod
+  def chmod(self, path: Union[str, os.PathLike[str]], mode: int) -> None:
+    """Changes the permission of a file."""
+
+  @abc.abstractmethod
+  def exists(self, path: Union[str, os.PathLike[str]]) -> bool:
+    """Returns True if a path exists."""
+
+  @abc.abstractmethod
+  def glob(self, pattern: Union[str, os.PathLike[str]]) -> list[str]:
+    """Lists all files or sub-directories."""
+
+  @abc.abstractmethod
+  def listdir(self, path: Union[str, os.PathLike[str]]) -> list[str]:
+    """Lists all files or sub-directories."""
+
+  @abc.abstractmethod
+  def isdir(self, path: Union[str, os.PathLike[str]]) -> bool:
+    """Returns True if a path is a directory."""
+
+  @abc.abstractmethod
+  def getctime(self, path: Union[str, os.PathLike[str]]) -> float:
+    """Returns the creation time of a file."""
+
+  @abc.abstractmethod
+  def getmtime(self, path: Union[str, os.PathLike[str]]) -> float:
+    """Returns the last modification time of a file."""
+
+  @abc.abstractmethod
+  def mkdir(
+      self, path: Union[str, os.PathLike[str]], mode: int = 0o777
+  ) -> None:
+    """Makes a directory based on a path."""
+
+  @abc.abstractmethod
+  def mkdirs(
+      self,
+      path: Union[str, os.PathLike[str]],
+      mode: int = 0o777,
+      exist_ok: bool = True,
+  ) -> None:
+    """Makes a directory chain based on a path."""
+
+  @abc.abstractmethod
+  def rm(self, path: Union[str, os.PathLike[str]]) -> None:
+    """Removes a file based on a path."""
+
+  @abc.abstractmethod
+  def rename(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    """Renames a file based on a path."""
+
+  @abc.abstractmethod
+  def rmdir(self, path: Union[str, os.PathLike[str]]) -> bool:
+    """Removes a directory based on a path."""
+
+  @abc.abstractmethod
+  def rmdirs(self, path: Union[str, os.PathLike[str]]) -> None:
+    """Removes a directory chain based on a path."""
+
+  @abc.abstractmethod
+  def copy(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    """Copies a file to a new path."""
+
+
+def resolve_path(path: Union[str, os.PathLike[str]]) -> str:
+  if isinstance(path, str):
+    return path
+  elif hasattr(path, '__fspath__'):
+    return path.__fspath__()
+  else:
+    raise ValueError(f'Unsupported path: {path!r}.')
+
+
+#
+# The standard file system.
+#
+
+
+class StdFile(File):
+  """The standard file."""
+
+  def __init__(self, file_object, path: Union[str, os.PathLike[str]]) -> None:
+    super().__init__()
+    self._file_object = file_object
+    self._path = path
+
+  def read(self, size: Optional[int] = None) -> Union[str, bytes]:
+    return self._file_object.read(size)
+
+  def readline(self) -> Union[str, bytes]:
+    return self._file_object.readline()
+
+  def write(self, content: Union[str, bytes]) -> None:
+    self._file_object.write(content)
+
+  def seek(self, offset: int, whence: Literal[0, 1, 2] = 0) -> int:
+    return self._file_object.seek(offset, whence)
+
+  def tell(self) -> int:
+    return self._file_object.tell()
+
+  def flush(self) -> None:
+    self._file_object.flush()
+
+  def close(self) -> None:
+    self._file_object.close()
+
+
+class StdFileSystem(FileSystem):
+  """The standard file system."""
+
+  def open(
+      self, path: Union[str, os.PathLike[str]], mode: str = 'r', **kwargs
+  ) -> File:
+    return StdFile(io.open(path, mode, **kwargs), path)
+
+  def chmod(self, path: Union[str, os.PathLike[str]], mode: int) -> None:
+    os.chmod(path, mode)
+
+  def exists(self, path: Union[str, os.PathLike[str]]) -> bool:
+    return os.path.exists(path)
+
+  def glob(self, pattern: Union[str, os.PathLike[str]]) -> list[str]:
+    return std_glob.glob(pattern)
+
+  def listdir(self, path: Union[str, os.PathLike[str]]) -> list[str]:
+    return os.listdir(path)
+
+  def isdir(self, path: Union[str, os.PathLike[str]]) -> bool:
+    return os.path.isdir(path)
+
+  def getctime(self, path: Union[str, os.PathLike[str]]) -> float:
+    return os.path.getctime(path)
+
+  def getmtime(self, path: Union[str, os.PathLike[str]]) -> float:
+    return os.path.getmtime(path)
+
+  def mkdir(
+      self, path: Union[str, os.PathLike[str]], mode: int = 0o777
+  ) -> None:
+    os.mkdir(path, mode)
+
+  def mkdirs(
+      self,
+      path: Union[str, os.PathLike[str]],
+      mode: int = 0o777,
+      exist_ok: bool = True,
+  ) -> None:
+    os.makedirs(path, mode, exist_ok)
+
+  def rename(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    os.rename(oldpath, newpath)
+
+  def rm(self, path: Union[str, os.PathLike[str]]) -> None:
+    os.remove(path)
+
+  def rmdir(self, path: Union[str, os.PathLike[str]]) -> None:  # pytype: disable=signature-mismatch
+    os.rmdir(path)
+
+  def rmdirs(self, path: Union[str, os.PathLike[str]]) -> None:
+    os.removedirs(path)
+
+  def copy(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    shutil.copy(oldpath, newpath)
+
+
+#
+# Memory file system.
+#
+
+
+class MemoryFile(File):
+  """Memory file."""
+
+  def __init__(self, buffer: io.IOBase):
+    super().__init__()
+    self._buffer = buffer
+    self._pos = 0
+    now = datetime.datetime.now().timestamp()
+    self.ctime = now
+    self.mtime = now
+
+  def read(self, size: Optional[int] = None) -> Union[str, bytes]:
+    return self._buffer.read(size)
+
+  def readline(self) -> Union[str, bytes]:
+    return self._buffer.readline()
+
+  def write(self, content: Union[str, bytes]) -> None:
+    self._buffer.write(content)
+    self.mtime = datetime.datetime.now().timestamp()
+
+  def seek(self, offset: int, whence: Literal[0, 1, 2] = 0) -> int:
+    return self._buffer.seek(offset, whence)
+
+  def tell(self) -> int:
+    return self._buffer.tell()
+
+  def flush(self) -> None:
+    pass
+
+  def close(self) -> None:
+    self.seek(0)
+
+
+class MemoryFileSystem(FileSystem):
+  """The in-memory file system."""
+
+  def __init__(self, prefix: str = '/mem/'):
+    super().__init__()
+    self._root = {}
+    self._prefix = prefix
+
+  def _internal_path(self, path: Union[str, os.PathLike[str]]) -> str:
+    return '/' + resolve_path(path).lstrip(self._prefix)
+
+  def _locate(self, path: Union[str, os.PathLike[str]]) -> Any:
+    current = self._root
+    for x in self._internal_path(path).split('/'):
+      if not x:
+        continue
+      if x not in current:
+        return None
+      current = current[x]
+    return current
+
+  def open(
+      self, path: Union[str, os.PathLike[str]], mode: str = 'r', **kwargs
+  ) -> File:
+    file = self._locate(path)
+    if isinstance(file, dict):
+      raise IsADirectoryError(path)
+    if 'w' in mode and file is None:
+      parent_dir, name = self._parent_and_name(path)
+      if isinstance(parent_dir, dict):
+        buffer = io.BytesIO() if 'b' in mode else io.StringIO()
+        file = MemoryFile(buffer)
+        parent_dir[name] = file
+
+    if file is None:
+      raise FileNotFoundError(path)
+    return file
+
+  def chmod(self, path: Union[str, os.PathLike[str]], mode: int) -> None:
+    # No-op.
+    del path, mode
+
+  def exists(self, path: Union[str, os.PathLike[str]]) -> bool:
+    return self._locate(path) is not None
+
+  def glob(self, pattern: Union[str, os.PathLike[str]]) -> list[str]:
+    pattern = resolve_path(pattern)
+    regex = re.compile(fnmatch.translate(pattern))
+
+    results = []
+    def _traverse(node, prefix_parts):
+      for k, v in node.items():
+        path = self._prefix + '/'.join(prefix_parts + [k])
+        if regex.match(path):
+          results.append(path)
+        if isinstance(v, dict):
+          _traverse(v, prefix_parts + [k])
+    _traverse(self._root, [])
+    return results
+
+  def listdir(self, path: Union[str, os.PathLike[str]]) -> list[str]:
+    d = self._locate(path)
+    if not isinstance(d, dict):
+      raise FileNotFoundError(path)
+    return list(d.keys())
+
+  def isdir(self, path: Union[str, os.PathLike[str]]) -> bool:
+    return isinstance(self._locate(path), dict)
+
+  def getctime(self, path: Union[str, os.PathLike[str]]) -> float:
+    """Returns the creation time of a file."""
+    f = self._locate(path)
+    if isinstance(f, dict):
+      raise IsADirectoryError(path)
+    if f is None:
+      raise FileNotFoundError(path)
+    return f.ctime
+
+  def getmtime(self, path: Union[str, os.PathLike[str]]) -> float:
+    """Returns the last modification time of a file."""
+    f = self._locate(path)
+    if isinstance(f, dict):
+      raise IsADirectoryError(path)
+    if f is None:
+      raise FileNotFoundError(path)
+    return f.mtime
+
+  def _parent_and_name(
+      self, path: Union[str, os.PathLike[str]]
+  ) -> tuple[dict[str, Any], str]:
+    path = resolve_path(path)
+    rpos = path.rfind('/')
+    assert rpos >= 0, path
+    name = path[rpos + 1:]
+    parent_dir = self._locate(path[:rpos])
+    if parent_dir is None:
+      raise FileNotFoundError(path)
+    return parent_dir, name
+
+  def mkdir(
+      self, path: Union[str, os.PathLike[str]], mode: int = 0o777
+  ) -> None:
+    del mode
+    parent_dir, name = self._parent_and_name(path)
+    if name in parent_dir:
+      raise FileExistsError(path)
+    parent_dir[name] = {}
+
+  def mkdirs(
+      self,
+      path: Union[str, os.PathLike[str]],
+      mode: int = 0o777,
+      exist_ok: bool = True,
+  ) -> None:
+    del mode
+    current = self._root
+    dirs = self._internal_path(path).split('/')
+    for i, x in enumerate(dirs):
+      if not x:
+        continue
+      entry = current.get(x)
+      if entry is None:
+        entry = {}
+        current[x] = entry
+      elif isinstance(entry, dict) and i == len(dirs) - 1 and not exist_ok:
+        raise FileExistsError(path)
+      elif not isinstance(entry, dict):
+        raise NotADirectoryError(path)
+      current = entry
+
+  def rename(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    oldpath_str = resolve_path(oldpath)
+    newpath_str = resolve_path(newpath)
+
+    old_parent_dir, old_name = self._parent_and_name(oldpath_str)
+    entry = old_parent_dir.get(old_name)
+
+    if entry is None:
+      raise FileNotFoundError(oldpath_str)
+
+    new_entry = self._locate(newpath_str)
+    if new_entry is not None:
+      if isinstance(entry, dict):  # oldpath is dir
+        if not isinstance(new_entry, dict):
+          raise NotADirectoryError(
+              f'Cannot rename directory {oldpath_str!r} '
+              f'to non-directory {newpath_str!r}')
+        elif new_entry:
+          raise OSError(f'Directory not empty: {newpath_str!r}')
+        else:
+          self.rmdir(newpath_str)
+      else:  # oldpath is file
+        if isinstance(new_entry, dict):
+          raise IsADirectoryError(
+              f'Cannot rename non-directory {oldpath_str!r} '
+              f'to directory {newpath_str!r}')
+        else:
+          self.rm(newpath_str)
+    elif isinstance(entry, dict) and newpath_str.startswith(oldpath_str + '/'):
+      raise OSError(f'Cannot move directory {oldpath_str!r} '
+                    f'to a subdirectory of itself {newpath_str!r}')
+
+    new_parent_dir, new_name = self._parent_and_name(newpath_str)
+    new_parent_dir[new_name] = entry
+    del old_parent_dir[old_name]
+
+  def rm(self, path: Union[str, os.PathLike[str]]) -> None:
+    parent_dir, name = self._parent_and_name(path)
+    entry = parent_dir.get(name)
+    if entry is None:
+      raise FileNotFoundError(path)
+    elif isinstance(entry, dict):
+      raise IsADirectoryError(path)
+    del parent_dir[name]
+
+  def rmdir(self, path: Union[str, os.PathLike[str]]) -> None:  # pytype: disable=signature-mismatch
+    parent_dir, name = self._parent_and_name(path)
+    entry = parent_dir.get(name)
+    if entry is None:
+      raise FileNotFoundError(path)
+    elif not isinstance(entry, dict):
+      raise NotADirectoryError(path)
+    elif entry:
+      raise OSError(f'Directory not empty: {path!r}')
+    del parent_dir[name]
+
+  def rmdirs(self, path: Union[str, os.PathLike[str]]) -> None:
+    def _rmdir(dir_dict, subpath: str) -> bool:
+      if not subpath:
+        if dir_dict:
+          raise OSError(f'Directory not empty: {path!r}')
+        return True
+      subpath = subpath.lstrip('/')
+      pos = subpath.find('/')
+      if pos < 0:
+        pos = len(subpath)
+      name = subpath[:pos]
+      subpath = subpath[pos + 1:] if pos < len(subpath) else ''
+      if name not in dir_dict:
+        raise FileNotFoundError(path)
+      elif not isinstance(dir_dict[name], dict):
+        raise NotADirectoryError(path)
+      if _rmdir(dir_dict[name], subpath):
+        del dir_dict[name]
+      return not dir_dict
+    _rmdir(self._root, self._internal_path(path))
+
+  def copy(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    old_file = self._locate(oldpath)
+    if old_file is None:
+      raise FileNotFoundError(oldpath)
+    if not isinstance(old_file, MemoryFile):
+      raise IsADirectoryError(oldpath)
+
+    if self.isdir(newpath):
+      _, old_file_name = self._parent_and_name(oldpath)
+      newpath = resolve_path(newpath)
+      newpath = newpath.rstrip('/') + '/' + old_file_name
+
+    # If newpath exists as file, remove it for overwrite.
+    if self.exists(newpath) and not self.isdir(newpath):
+      self.rm(newpath)
+    elif self.isdir(newpath):
+      raise IsADirectoryError(newpath)
+
+    old_pos = old_file.tell()
+    old_file.seek(0)
+    content = old_file.read()
+    old_file.seek(old_pos)
+
+    is_binary = isinstance(old_file._buffer, io.BytesIO)  # pylint: disable=protected-access
+    with self.open(newpath, 'wb' if is_binary else 'w') as f_new:
+      f_new.write(content)
+
+
+class _FileSystemRegistry:
+  """File system registry."""
+
+  def __init__(self):
+    self._filesystems = []
+
+  def add(self, prefix, fs: FileSystem) -> None:
+    """Gets the file system applicable for path."""
+    self._filesystems.append((prefix, fs))
+    self._filesystems.sort(key=lambda x: x[0], reverse=True)
+
+  def get(self, path: Union[str, os.PathLike[str]]) -> FileSystem:
+    """Gets the file system for a path."""
+    path = resolve_path(path)
+    for prefix, fs in self._filesystems:
+      if path.startswith(prefix):
+        return fs
+    return StdFileSystem()
+
+
+_fs = _FileSystemRegistry()
+
+
+def add_file_system(prefix: str, fs: FileSystem) -> None:
+  """Adds a file system with a prefix."""
+  _fs.add(prefix, fs)
+
+
+# Register a memory file system.
+add_file_system('/mem/', MemoryFileSystem('/mem/'))
+
+
+try:
+  # pylint: disable=g-import-not-at-top
+  # pytype: disable=import-error
+  import fsspec
+  # pytype: enable=import-error
+  # pylint: enable=g-import-not-at-top
+except ImportError:
+  fsspec = None
+
+
+class FsspecFile(File):
+  """File object based on fsspec."""
+
+  def __init__(self, f):
+    self._f = f
+
+  def read(self, size: Optional[int] = None) -> Union[str, bytes]:
+    return self._f.read(size)
+
+  def readline(self) -> Union[str, bytes]:
+    return self._f.readline()
+
+  def write(self, content: Union[str, bytes]) -> None:
+    self._f.write(content)
+
+  def seek(self, offset: int, whence: Literal[0, 1, 2] = 0) -> int:
+    return self._f.seek(offset, whence)
+
+  def tell(self) -> int:
+    return self._f.tell()
+
+  def flush(self) -> None:
+    self._f.flush()
+
+  def close(self) -> None:
+    self._f.close()
+
+
+class FsspecFileSystem(FileSystem):
+  """File system based on fsspec."""
+
+  def open(
+      self, path: Union[str, os.PathLike[str]], mode: str = 'r', **kwargs
+  ) -> File:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    return FsspecFile(fsspec.open(path, mode, **kwargs).open())
+
+  def chmod(self, path: Union[str, os.PathLike[str]], mode: int) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    if hasattr(fs, 'chmod'):
+      fs.chmod(path, mode)
+
+  def exists(self, path: Union[str, os.PathLike[str]]) -> bool:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    return fs.exists(path)
+
+  def glob(self, pattern: Union[str, os.PathLike[str]]) -> list[str]:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(pattern)
+    protocol = fsspec.utils.get_protocol(pattern)
+    return [f'{protocol}:///{r.lstrip("/")}' for r in fs.glob(path)]
+
+  def listdir(self, path: Union[str, os.PathLike[str]]) -> list[str]:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    return [os.path.basename(f) for f in fs.ls(path, detail=False)]
+
+  def isdir(self, path: Union[str, os.PathLike[str]]) -> bool:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    return fs.isdir(path)
+
+  def getctime(self, path: Union[str, os.PathLike[str]]) -> float:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path_in_fs = fsspec.core.url_to_fs(path)
+    created = fs.created(path_in_fs)
+    if created is None:
+      raise OSError(f'c-time is not available for path {path!r}')
+    return created.timestamp()
+
+  def getmtime(self, path: Union[str, os.PathLike[str]]) -> float:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path_in_fs = fsspec.core.url_to_fs(path)
+    modified = fs.modified(path_in_fs)
+    if modified is None:
+      raise OSError(f'm-time is not available for path {path!r}')
+    return modified.timestamp()
+
+  def mkdir(
+      self,
+      path: Union[str, os.PathLike[str]], mode: int = 0o777
+  ) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    fs.mkdir(path)
+
+  def mkdirs(
+      self,
+      path: Union[str, os.PathLike[str]],
+      mode: int = 0o777,
+      exist_ok: bool = True,
+  ) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    fs.makedirs(path, exist_ok=exist_ok)
+
+  def rm(self, path: Union[str, os.PathLike[str]]) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    fs.rm(path)
+
+  def rename(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, old_path = fsspec.core.url_to_fs(oldpath)
+    fs2, new_path = fsspec.core.url_to_fs(newpath)
+    if fs.__class__ != fs2.__class__:
+      raise ValueError(
+          f'Rename across different filesystems is not supported: '
+          f'{type(fs)} vs {type(fs2)}'
+      )
+    fs.rename(old_path, new_path)
+
+  def rmdir(self, path: Union[str, os.PathLike[str]]) -> None:   # pytype: disable=signature-mismatch
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    fs.rmdir(path)
+
+  def rmdirs(self, path: Union[str, os.PathLike[str]]) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs, path = fsspec.core.url_to_fs(path)
+    fs.rm(path, recursive=True)
+
+  def copy(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    assert fsspec is not None, '`fsspec` is not installed.'
+    fs1, old_path_in_fs = fsspec.core.url_to_fs(oldpath)
+    fs2, new_path_in_fs = fsspec.core.url_to_fs(newpath)
+
+    if fs2.isdir(new_path_in_fs):
+      new_path_in_fs = os.path.join(
+          new_path_in_fs, os.path.basename(old_path_in_fs)
+      )
+
+    if fs1.__class__ == fs2.__class__:
+      fs1.copy(old_path_in_fs, new_path_in_fs)
+    else:
+      with fs1.open(old_path_in_fs, 'rb') as f1:
+        with fs2.open(new_path_in_fs, 'wb') as f2:
+          while True:
+            # Reads the file in 16MB chunks.
+            chunk = f1.read(16 * 1024 * 1024)
+            if not chunk:
+              break
+            f2.write(chunk)
+
+
+class _FsspecUriCatcher(FileSystem):
+  """File system to catch URI paths and redirect to FsspecFileSystem."""
+
+  # Catch all paths that contains '://' but not registered by
+  # available_protocols.
+  _URI_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9+-.]*://.*')
+
+  def __init__(self):
+    super().__init__()
+    self._std_fs = StdFileSystem()
+    self._fsspec_fs = FsspecFileSystem()
+
+  def get_fs(self, path: Union[str, os.PathLike[str]]) -> FileSystem:
+    if self._URI_PATTERN.match(resolve_path(path)):
+      return self._fsspec_fs
+    return self._std_fs
+
+  def open(
+      self, path: Union[str, os.PathLike[str]], mode: str = 'r', **kwargs
+  ) -> File:
+    return self.get_fs(path).open(path, mode, **kwargs)
+
+  def chmod(self, path: Union[str, os.PathLike[str]], mode: int) -> None:
+    self.get_fs(path).chmod(path, mode)
+
+  def exists(self, path: Union[str, os.PathLike[str]]) -> bool:
+    return self.get_fs(path).exists(path)
+
+  def glob(self, pattern: Union[str, os.PathLike[str]]) -> list[str]:
+    return self.get_fs(pattern).glob(pattern)
+
+  def listdir(self, path: Union[str, os.PathLike[str]]) -> list[str]:
+    return self.get_fs(path).listdir(path)
+
+  def isdir(self, path: Union[str, os.PathLike[str]]) -> bool:
+    return self.get_fs(path).isdir(path)
+
+  def getctime(self, path: Union[str, os.PathLike[str]]) -> float:
+    return self.get_fs(path).getctime(path)
+
+  def getmtime(self, path: Union[str, os.PathLike[str]]) -> float:
+    return self.get_fs(path).getmtime(path)
+
+  def mkdir(
+      self,
+      path: Union[str, os.PathLike[str]],
+      mode: int = 0o777
+  ) -> None:
+    self.get_fs(path).mkdir(path, mode)
+
+  def mkdirs(
+      self,
+      path: Union[str, os.PathLike[str]],
+      mode: int = 0o777,
+      exist_ok: bool = True,
+  ) -> None:
+    self.get_fs(path).mkdirs(path, mode, exist_ok)
+
+  def rm(self, path: Union[str, os.PathLike[str]]) -> None:
+    self.get_fs(path).rm(path)
+
+  def rename(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    self.get_fs(oldpath).rename(oldpath, newpath)
+
+  def rmdir(self, path: Union[str, os.PathLike[str]]) -> None:   # pytype: disable=signature-mismatch
+    self.get_fs(path).rmdir(path)
+
+  def rmdirs(self, path: Union[str, os.PathLike[str]]) -> None:
+    self.get_fs(path).rmdirs(path)
+
+  def copy(
+      self,
+      oldpath: Union[str, os.PathLike[str]],
+      newpath: Union[str, os.PathLike[str]],
+  ) -> None:
+    self.get_fs(oldpath).copy(oldpath, newpath)
+
+
+if fsspec is not None:
+  fsspec_fs = FsspecFileSystem()
+  for p in fsspec.available_protocols():
+    add_file_system(p + '://', fsspec_fs)
+  add_file_system('', _FsspecUriCatcher())
+
+
+#
+# APIs for file IO.
+#
+
+
+def open(path: Union[str, os.PathLike[str]], mode: str = 'r', **kwargs) -> File:  # pylint:disable=redefined-builtin
+  """Opens a file with a path."""
+  return _fs.get(path).open(path, mode, **kwargs)
+
+
+def chmod(path: Union[str, os.PathLike[str]], mode: int) -> None:
+  """Changes the permission of a file."""
+  _fs.get(path).chmod(path, mode)
+
+
+def readfile(
+    path: Union[str, os.PathLike[str]],
+    mode: str = 'r',
+    nonexist_ok: bool = False,
+    **kwargs,
+) -> Union[bytes, str, None]:
+  """Reads content from a file."""
+  try:
+    with _fs.get(path).open(path, mode=mode, **kwargs) as f:
+      return f.read()
+  except FileNotFoundError as e:
+    if nonexist_ok:
+      return None
+    raise e
+
+
+def writefile(
+    path: Union[str, os.PathLike[str]],
+    content: Union[str, bytes],
+    *,
+    mode: str = 'w',
+    perms: Optional[int] = 0o664,   # Default to world-readable.
+    **kwargs,
+) -> None:
+  """Writes content to a file."""
+  with _fs.get(path).open(path, mode=mode, **kwargs) as f:
+    f.write(content)
+  if perms is not None:
+    chmod(path, perms)
+
+
+def rename(
+    oldpath: Union[str, os.PathLike[str]],
+    newpath: Union[str, os.PathLike[str]],
+) -> None:
+  """Renames a file."""
+  _fs.get(oldpath).rename(oldpath, newpath)
+
+
+def rm(path: Union[str, os.PathLike[str]]) -> None:
+  """Removes a file."""
+  _fs.get(path).rm(path)
+
+
+def copy(
+    oldpath: Union[str, os.PathLike[str]],
+    newpath: Union[str, os.PathLike[str]],
+) -> None:
+  """Copies a file."""
+  _fs.get(oldpath).copy(oldpath, newpath)
+
+
+def path_exists(path: Union[str, os.PathLike[str]]) -> bool:
+  """Returns True if path exists."""
+  return _fs.get(path).exists(path)
+
+
+def glob(pattern: Union[str, os.PathLike[str]]) -> list[str]:
+  """Lists all files or sub-directories."""
+  return _fs.get(pattern).glob(pattern)
+
+
+def listdir(
+    path: Union[str, os.PathLike[str]], fullpath: bool = False
+) -> list[str]:  # pylint: disable=redefined-builtin
+  """Lists all files or sub-directories under a dir."""
+  entries = _fs.get(path).listdir(path)
+  if fullpath:
+    return [os.path.join(path, entry) for entry in entries]
+  return entries
+
+
+def isdir(path: Union[str, os.PathLike[str]]) -> bool:
+  """Returns True if path is a directory."""
+  return _fs.get(path).isdir(path)
+
+
+def getctime(path: Union[str, os.PathLike[str]]) -> float:
+  """Returns the creation time of a file."""
+  return _fs.get(path).getctime(path)
+
+
+def getmtime(path: Union[str, os.PathLike[str]]) -> float:
+  """Returns the last modification time of a file."""
+  return _fs.get(path).getmtime(path)
+
+
+def mkdir(path: Union[str, os.PathLike[str]], mode: int = 0o777) -> None:
+  """Makes a directory."""
+  _fs.get(path).mkdir(path, mode=mode)
+
+
+def mkdirs(
+    path: Union[str, os.PathLike[str]],
+    mode: int = 0o777,
+    exist_ok: bool = True,
+) -> None:
+  """Makes a directory chain."""
+  _fs.get(path).mkdirs(path, mode=mode, exist_ok=exist_ok)
+
+
+def rmdir(path: Union[str, os.PathLike[str]]) -> bool:
+  """Removes a directory."""
+  return _fs.get(path).rmdir(path)
+
+
+def rmdirs(path: Union[str, os.PathLike[str]]) -> bool:
+  """Removes a directory chain until a parent directory is not empty."""
+  return _fs.get(path).rmdirs(path)  # pytype: disable=bad-return-type
