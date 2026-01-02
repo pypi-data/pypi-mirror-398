@@ -1,0 +1,326 @@
+Metadata-Version: 2.4
+Name: trueentropy
+Version: 0.1.0
+Summary: True randomness from real-world entropy sources - harness chaos from network latency, system jitter, seismic activity, and financial markets
+Project-URL: Homepage, https://github.com/medeirosdev/TrueEntropy-PyLib
+Project-URL: Documentation, https://github.com/medeirosdev/TrueEntropy-PyLib#readme
+Project-URL: Repository, https://github.com/medeirosdev/TrueEntropy-PyLib
+Project-URL: Issues, https://github.com/medeirosdev/TrueEntropy-PyLib/issues
+Project-URL: Changelog, https://github.com/medeirosdev/TrueEntropy-PyLib/blob/main/CHANGELOG.md
+Author: TrueEntropy Contributors
+License-Expression: MIT
+License-File: LICENSE
+Keywords: chaos,cryptography,entropy,hardware-random,random,rng,security,true-random
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: psutil>=5.8.0
+Requires-Dist: requests>=2.25.0
+Description-Content-Type: text/markdown
+
+# TrueEntropy 🎲
+
+[![PyPI version](https://badge.fury.io/py/trueentropy.svg)](https://badge.fury.io/py/trueentropy)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+**True randomness from real-world entropy sources.**
+
+TrueEntropy harvests chaos from the physical world to generate truly random numbers. Unlike pseudo-random number generators (PRNGs) that use deterministic algorithms, TrueEntropy collects entropy from:
+
+- **CPU Timing Jitter** - Nanosecond variations in code execution
+- **Network Latency** - The "weather" of internet infrastructure  
+- **System State** - RAM, processes, and hardware fluctuations
+- **External APIs** - Seismic activity (USGS), cryptocurrency prices
+- **Weather Data** - Temperature, humidity, pressure from OpenWeatherMap/wttr.in
+- **Quantum Randomness** - Atmospheric noise (random.org) and quantum vacuum fluctuations (ANU QRNG)
+
+All entropy sources are mixed using SHA-256 cryptographic hashing, ensuring uniform distribution and unpredictability.
+
+## Installation
+
+```bash
+pip install trueentropy
+```
+
+## Quick Start
+
+```python
+import trueentropy
+
+# Generate a random float [0.0, 1.0)
+value = trueentropy.random()
+print(f"Random float: {value}")
+
+# Generate a random integer in range [1, 100]
+number = trueentropy.randint(1, 100)
+print(f"Random integer: {number}")
+
+# Random boolean (coin flip)
+coin = trueentropy.randbool()
+print(f"Coin flip: {'Heads' if coin else 'Tails'}")
+
+# Random choice from a sequence
+colors = ["red", "green", "blue", "yellow"]
+color = trueentropy.choice(colors)
+print(f"Random color: {color}")
+
+# Generate random bytes
+secret = trueentropy.randbytes(32)
+print(f"Random bytes: {secret.hex()}")
+
+# Check entropy health
+health = trueentropy.health()
+print(f"Entropy health: {health['score']}/100 ({health['status']})")
+```
+
+## Background Collector
+
+For applications requiring continuous randomness, start the background collector:
+
+```python
+import trueentropy
+
+# Start collecting entropy every 2 seconds
+trueentropy.start_collector(interval=2.0)
+
+# ... your application code ...
+
+# Generate random numbers (pool is continuously filled)
+for _ in range(1000):
+    value = trueentropy.random()
+
+# Stop when done
+trueentropy.stop_collector()
+```
+
+## Advanced Features
+
+### Async Support
+
+```python
+import asyncio
+from trueentropy import aio
+
+async def main():
+    value = await aio.random()
+    uuid = await aio.random_uuid()
+    password = await aio.random_password(16)
+
+asyncio.run(main())
+```
+
+### Pool Persistence
+
+Save and restore entropy pool state between runs:
+
+```python
+from trueentropy import get_pool
+from trueentropy.persistence import save_pool, load_pool
+
+# Save current pool state
+save_pool(get_pool(), "entropy_state.bin")
+
+# Later: restore the pool
+pool = load_pool("entropy_state.bin")
+```
+
+### Multiple Pools
+
+Isolated entropy pools for different purposes:
+
+```python
+from trueentropy.pools import PoolManager
+
+manager = PoolManager()
+manager.create("crypto")   # For security-critical operations
+manager.create("gaming")   # For game mechanics
+
+secure_bytes = manager.randbytes("crypto", 32)
+dice_roll = manager.randint("gaming", 1, 6)
+```
+
+### Cython Acceleration
+
+Optional C-level performance (10-50x faster for some operations):
+
+```bash
+pip install -e ".[cython]"
+python setup.py build_ext --inplace
+```
+
+```python
+from trueentropy.accel import is_accelerated
+print(is_accelerated())  # True if compiled
+```
+
+## Entropy Sources
+
+### Timing Jitter
+Measures nanosecond variations in CPU execution time. The operating system's scheduler introduces unpredictable delays that are impossible to reproduce.
+
+### Network Latency  
+Pings multiple servers (Cloudflare, Google) and measures response times. Network congestion, routing changes, and physical distance create natural randomness.
+
+### System State
+Samples volatile system metrics:
+- Available RAM (changes constantly)
+- Number of running processes
+- CPU usage percentages
+- System uptime with high precision
+
+### External APIs
+Fetches real-world data:
+- **USGS Earthquake API** - Latest seismic magnitude readings
+- **Cryptocurrency prices** - Bitcoin/Ethereum prices with high precision
+
+### Weather Data
+Collects meteorological data from multiple cities:
+- Temperature, feels-like, min/max
+- Humidity and atmospheric pressure
+- Wind speed and direction
+- Cloud coverage and visibility
+- Supports OpenWeatherMap (with API key) or wttr.in (no key required)
+
+### Quantum Randomness
+True random numbers from quantum phenomena:
+- **random.org** - Atmospheric noise from radio receivers
+- **ANU QRNG** - Quantum vacuum fluctuations (fallback)
+
+## API Reference
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `random()` | Returns float in [0.0, 1.0) |
+| `randint(a, b)` | Returns integer in [a, b] |
+| `randbool()` | Returns True or False |
+| `choice(seq)` | Returns random element from sequence |
+| `randbytes(n)` | Returns n random bytes |
+| `shuffle(seq)` | Shuffles sequence in-place |
+| `sample(seq, k)` | Returns k unique elements from sequence |
+
+### Distributions
+
+| Function | Description |
+|----------|-------------|
+| `uniform(a, b)` | Float uniformly distributed in [a, b] |
+| `gauss(mu, sigma)` | Gaussian/normal distribution |
+| `triangular(low, high, mode)` | Triangular distribution |
+| `exponential(lambd)` | Exponential distribution |
+| `weighted_choice(seq, weights)` | Weighted random selection |
+
+### Generators
+
+| Function | Description |
+|----------|-------------|
+| `random_uuid()` | UUID v4 (e.g., `f47ac10b-58cc-4372-...`) |
+| `random_token(length, encoding)` | Hex or base64 token |
+| `random_password(length, ...)` | Secure password with configurable charset |
+
+### Management Functions
+
+| Function | Description |
+|----------|-------------|
+| `health()` | Returns entropy pool health status |
+| `start_collector(interval)` | Starts background entropy collection |
+| `stop_collector()` | Stops background collection |
+| `feed(data)` | Manually feed entropy into the pool |
+
+## How It Works
+
+```
++-------------------------------------------------------------+
+|                    ENTROPY HARVESTERS                        |
+|  +----------+ +----------+ +----------+ +--------------+    |
+|  |  Timing  | | Network  | |  System  | |   External   |    |
+|  |  Jitter  | | Latency  | |  State   | |     APIs     |    |
+|  +----+-----+ +----+-----+ +----+-----+ +------+-------+    |
+|       |            |            |              |            |
+|       +------------+-----+------+--------------+            |
+|                          v                                  |
+|                   +-----------+                             |
+|                   |   MIXER   |  SHA-256 Hashing            |
+|                   | (Whitening)|  Avalanche Effect          |
+|                   +-----+-----+                             |
+|                         v                                   |
+|              +-----------------------+                      |
+|              |     ENTROPY POOL      |  4096 bits           |
+|              |   (Accumulated State) |  Thread-safe         |
+|              +-----------+-----------+                      |
+|                          v                                  |
+|                   +-----------+                             |
+|                   | EXTRACTOR |  Secure extraction          |
+|                   |   (Tap)   |  Depletion protection       |
+|                   +-----+-----+                             |
+|                         v                                   |
+|         +---------------+--------------+                    |
+|         v               v              v                    |
+|   +----------+    +----------+    +----------+              |
+|   |  Float   |    | Integer  |    |  Bytes   |              |
+|   | [0.0,1.0)|    |  [a, b]  |    |    n     |              |
+|   +----------+    +----------+    +----------+              |
++-------------------------------------------------------------+
+```
+
+## Security Considerations
+
+- **Not a CSPRNG replacement**: While TrueEntropy uses cryptographic primitives, it's designed for applications needing real-world randomness, not as a replacement for `secrets` module in security contexts.
+- **Network dependency**: Some entropy sources require network access. The library gracefully degrades when sources are unavailable.
+- **Rate limiting**: External APIs may have rate limits. Use the background collector for sustained generation.
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+
+```bash
+# Clone the repository
+git clone https://github.com/medeirosdev/TrueEntropy-PyLib.git
+cd TrueEntropy-PyLib
+
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+ruff check src/
+black --check src/
+mypy src/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Author
+
+**Guilherme de Medeiros** - UNICAMP  
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/guilhermedemedeiros/)
+
+## Acknowledgments
+
+Inspired by:
+- Linux `/dev/random` and the entropy pool concept
+- [random.org](https://random.org) - Atmospheric noise randomness
+- Hardware random number generators (HRNGs)
+
+---
+
+**TrueEntropy** - *Because the universe is the best random number generator.*
