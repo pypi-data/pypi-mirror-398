@@ -1,0 +1,91 @@
+################################################################################
+# KOPI-DOCKA ONE-SHOT BACKUP SERVICE
+################################################################################
+#
+# This is an alternative service unit for one-time backup runs.
+# Unlike kopi-docka.service (which runs as a daemon), this unit executes
+# a single backup operation and exits.
+#
+# USE CASES:
+#   - Manual backup runs: systemctl start kopi-docka-backup.service
+#   - Integration with cron or other schedulers
+#   - Testing backups: systemctl start kopi-docka-backup.service
+#   - Ad-hoc backups before system changes
+#
+# WHEN TO USE THIS VS kopi-docka.service:
+#   - Use kopi-docka.timer + kopi-docka.service for scheduled automatic backups
+#   - Use kopi-docka-backup.service for manual or custom-scheduled backups
+#
+# INSTALLATION:
+#   Run: sudo kopi-docka admin service write-units
+#   Then: sudo systemctl daemon-reload
+#
+# USAGE:
+#   Start backup: sudo systemctl start kopi-docka-backup.service
+#   Check status: sudo systemctl status kopi-docka-backup.service
+#   View logs: sudo journalctl -u kopi-docka-backup.service
+#
+################################################################################
+
+[Unit]
+# Service description shown in systemctl status
+Description=Kopi-Docka One-Shot Backup
+
+# Link to documentation
+Documentation=https://github.com/TZERO78/kopi-docka
+
+# Start only after Docker is available
+After=docker.service
+
+# Requires Docker to be running
+Requires=docker.service
+
+[Service]
+# Type=oneshot means this service runs once and exits
+# Unlike Type=notify (used in kopi-docka.service), this doesn't need to
+# signal readiness or stay running
+Type=oneshot
+
+# Command to execute - runs a single backup operation
+ExecStart=/usr/bin/env kopi-docka backup
+
+# Logging configuration - send all output to systemd journal
+StandardOutput=journal
+StandardError=journal
+
+# Tag for journal logs - use same identifier as main service for consistency
+SyslogIdentifier=kopi-docka
+
+################################################################################
+# SECURITY HARDENING (Subset)
+#
+# This service uses a subset of security settings compared to the daemon
+# service since it's short-lived and one-shot.
+################################################################################
+
+# Prevent privilege escalation
+NoNewPrivileges=true
+
+# Disable private /tmp - we need access to real /tmp for temporary files during backup
+PrivateTmp=no
+
+# Protect system directories from modification
+# ProtectSystem=full makes /usr, /boot, /efi read-only
+# Everything else remains writable - perfect for backup services that need
+# filesystem access to various locations (Kopia config, cache, etc.)
+ProtectSystem=full
+
+# Read-only home directories
+ProtectHome=read-only
+
+# Set default umask for created files
+UMask=0077
+
+# Note: We don't use CapabilityBoundingSet, RestrictAddressFamilies, etc.
+# for the one-shot service to keep it simpler. The daemon service has
+# full hardening since it runs continuously.
+
+[Install]
+# Optional: Enable this service to run at boot (not common for one-shot backups)
+# Usually you don't enable this - just run it manually when needed
+# WantedBy=multi-user.target
