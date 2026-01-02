@@ -1,0 +1,202 @@
+Metadata-Version: 2.4
+Name: mp-hfs
+Version: 0.1.21
+Summary: HuggingFace Space Worker 分布式调度系统
+Home-page: https://github.com/rally82-2/ai-dev
+Author: Rally82
+Author-email: rally82@example.com
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: redis>=4.0.0
+Requires-Dist: requests>=2.25.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: pyyaml>=5.4.0
+Requires-Dist: tabulate>=0.8.9
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# HFS v2 - HuggingFace Space Worker 分布式调度系统
+
+基于 Redis 的分布式 Worker 调度系统，用于管理 HuggingFace Space 资源池。
+
+## 特性
+
+- ✅ **分布式调度** - 多 Worker 并发，自动负载均衡
+- ✅ **状态管理** - 原子操作（Lua 脚本），保证一致性
+- ✅ **健康检查** - 自动检测崩溃、超时、孤儿资源
+- ✅ **账号管理** - 多账号池，自动选择、cooldown、评分
+- ✅ **Space 轮换** - 自动创建、绑定、轮换、复用
+- ✅ **场景配置** - 内置多种场景，支持自定义
+- ✅ **Admin CLI** - 命令行管理工具
+
+## 快速开始
+
+### 1. 安装
+
+```bash
+pip install mp-hfs
+```
+
+### 2. 配置环境（可选）
+
+CLI 已内置默认 Redis URL，可直接使用。如需自定义：
+
+```bash
+export HFS_REDIS_URL="redis://:password@host:port/db"
+```
+
+### 3. 初始化账号池
+
+```bash
+# 添加账号
+hfs-admin account create "hf_xxxxx" --max-spaces=6
+
+# 查看账号
+hfs-admin account list
+```
+
+参考 [使用指南](docs/USER_GUIDE.md#3-初始化账号池)
+
+### 4. 创建项目
+
+创建 `my-project.yaml`：
+
+```yaml
+project:
+  id: "my-project"
+  scene: "production"
+  required_nodes: 3
+  
+  start_script:
+    type: inline
+    inline: "python -m my_app"
+
+nodes:
+  ids: ["node-1", "node-2", "node-3"]
+  # 或不指定，自动生成：my-project-1, my-project-2, my-project-3
+```
+
+初始化：
+
+```bash
+hfs-admin project init my-project.yaml
+hfs-admin project bootstrap my-project
+```
+
+### 5. 监控
+
+```bash
+# 查看节点状态
+hfs-admin node list --project my-project
+
+# 查看 Space 状态
+hfs-admin space list --project my-project
+
+# 健康检查
+hfs-admin health check
+```
+
+## 场景配置
+
+| 场景 | 运行超时 | 部署间隔 | 适用场景 |
+|------|----------|----------|----------|
+| `dev_test` | 5分钟 | 30秒 | 开发测试 |
+| `short_task` | 30分钟 | 3分钟 | 短任务 |
+| `long_task` | 1小时 | 5分钟 | 长任务 |
+| `production` | 6-10小时随机 | 10分钟 | 生产环境（默认） |
+
+详见 [场景配置文档](docs/SCENE_CONFIG.md)
+
+## 文档
+
+### 用户文档
+- [使用指南](docs/USER_GUIDE.md) - 快速上手、配置、监控
+- [场景配置](docs/SCENE_CONFIG.md) - 场景详解、自定义配置
+- [Admin CLI](docs/ADMIN_CLI.md) - 命令行工具
+- [真实部署案例](docs/REAL_DEPLOYMENT.md) - 生产环境实践
+
+### 设计文档
+- [架构设计](docs/design/ARCH.md) - 系统架构
+- [数据模型](docs/design/DATA.md) - Redis 数据结构
+- [状态机](docs/design/STATE.md) - 状态转换
+- [健康检查](docs/design/HEALTH.md) - 故障检测
+
+### 开发文档
+- [开发计划](docs/dev/PLAN.md) - Phase 划分
+- [Phase 2-4](docs/dev/) - 各阶段任务
+
+### 测试文档
+- [E2E 测试](docs/test/E2E_REVIEW.md) - 端到端测试
+- [部署测试](docs/test/DEPLOYMENT_TEST.md) - 部署验证
+- [测试报告](docs/test/TEST_REPORT.md) - 测试结果
+
+## 架构
+
+```
+┌─────────────┐
+│   Redis     │  ← 状态存储
+└──────┬──────┘
+       │
+   ┌───┴────┐
+   │        │
+┌──▼──┐  ┌─▼───┐
+│Worker│  │Worker│  ← 独立进程
+└──┬──┘  └─┬───┘
+   │       │
+┌──▼───────▼──┐
+│  Scheduler  │  ← 调度器
+└─────────────┘
+```
+
+## 核心模块
+
+- **state.py** - 状态机 + 原子操作（Lua 脚本）
+- **health.py** - 健康检查（崩溃检测、一致性验证）
+- **policy.py** - 策略配置（场景、命名）
+- **worker.py** - Worker 主循环（心跳、进程管理）
+- **scheduler.py** - 调度器（分配、轮换、创建）
+- **account.py** - 账号管理（选择、cooldown、评分）
+- **hf.py** - HuggingFace API 封装
+
+## 开发
+
+### 本地开发
+
+```bash
+git clone <repo>
+cd v2
+pip install -e .
+pytest tests/ -v
+```
+
+### 测试
+
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定模块
+pytest tests/test_state.py -v
+pytest tests/test_worker.py -v
+pytest tests/test_scheduler.py -v
+```
+
+## 许可
+
+MIT License
