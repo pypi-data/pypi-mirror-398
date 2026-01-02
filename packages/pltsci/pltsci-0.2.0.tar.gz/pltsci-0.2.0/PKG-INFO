@@ -1,0 +1,175 @@
+Metadata-Version: 2.4
+Name: pltsci
+Version: 0.2.0
+Summary: A utility library for matplotlib plotting configuration
+Author-email: Muxkin <muxkin@foxmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Muxkin
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/muxkin/pltsci
+Project-URL: Bug Tracker, https://github.com/muxkin/pltsci/issues
+Project-URL: Source Code, https://github.com/muxkin/pltsci
+Keywords: matplotlib,plotting,visualization
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: numpy>=1.20.0
+Dynamic: license-file
+
+# PltSci
+
+一个用于简化 matplotlib 绘图参数设置的 Python 工具库。
+
+## 安装
+
+```bash
+pip install pltsci
+```
+
+## 快速开始
+
+**示例：创建一个全宽的科学绘图**
+
+```python
+from pltsci import whole_plot_set, set_ticks, cm
+import matplotlib.pyplot as plt
+import numpy as np
+
+# 设置全局绘图参数
+whole_plot_set()  # 全宽图片参数设置
+fig, ax = plt.subplots(figsize=(15 * cm, 10 * cm), dpi=300)  # 创建图形 (使用厘米单位)
+
+# 创建示例数据
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+ax.plot(x, y, label="$y=\\sin(x)$")
+
+# 设置坐标轴范围和刻度
+set_ticks(ax, xrange=(0, 10, 2), yrange=(-1.5, 1.5, 0.5))
+
+# 添加标签和图例
+ax.set_xlabel("x", fontsize=12)
+ax.set_ylabel("y", fontsize=12)
+ax.legend()
+
+plt.tight_layout()
+fig.savefig("examples/whole_plot.svg", bbox_inches="tight")
+```
+
+结果：
+
+![whole_plot_example](examples/whole_plot.svg)
+
+**示例：创建一个半宽的科学绘图**
+
+```python
+from pltsci import whole_plot_set, half_plot_set, set_ticks, cm
+import matplotlib.pyplot as plt
+import numpy as np
+
+# 设置全局绘图参数
+whole_plot_set()  # 全宽图片参数设置，即使是用半宽图，也建议先调用此函数设置全局参数
+fig, ax = plt.subplots(figsize=(7 * cm, 5 * cm), dpi=300)  # 创建图形 (使用厘米单位)
+half_plot_set(ax)  # 半宽图片参数设置
+
+# 创建示例数据
+x = np.linspace(0, 10, 100)
+y = np.exp(x)
+
+ax.plot(x, y, label="$y=e^x$")
+
+# 设置坐标轴范围和刻度
+set_ticks(ax, xrange=(0, 10, 2), yrange=(0, 22000, 5000))
+
+# 添加标签和图例
+ax.set_xlabel("x", fontsize=10)
+ax.set_ylabel("y", fontsize=10)
+ax.legend(fontsize=8)
+
+plt.tight_layout()
+fig.savefig("examples/half_plot.svg", bbox_inches="tight")
+# fig.savefig("examples/half_plot.jpg", bbox_inches="tight", dpi=1200) # 位图记得设置高分辨率
+```
+
+结果：
+
+![half_plot_example](examples/half_plot.svg)
+
+## API 参考
+
+### `whole_plot_set(font=None, math_font="stix")`
+
+设置全局绘图参数，包括字体、刻度方向、图例样式等。
+
+- `font`: 字体列表，默认为 `["Times New Roman", "SimSun"]`
+- `math_font`: 数学公式字体，默认为 `"stix"`
+
+### `set_ticks(ax, xrange=None, yrange=None)`
+
+设置坐标轴范围和刻度。
+
+- `ax`: matplotlib 轴对象
+- `xrange`: x轴范围，格式为 `(xmin, xmax, xstep)`
+- `yrange`: y轴范围，格式为 `(ymin, ymax, ystep)`
+- `majorMaxNLocator`: 主刻度最大数量，默认为None
+- `minorLocator`: 每两个主刻度之间的次刻度数量，默认为 2
+- `have_x_major`: 是否显示 x 轴主刻度，默认为 True
+- `have_y_major`: 是否显示 y 轴主刻度，默认为 True
+- `have_x_label`: 是否显示 x 轴刻度值，默认为 True
+- `have_y_label`: 是否显示 y 轴刻度值，默认为 True
+
+### `half_plot_set(ax)`
+
+设置坐标轴线宽和刻度样式，适用于密集布局的图表。
+
+- `ax`: matplotlib 轴对象
+
+### `cm`
+
+厘米到英寸转换工具。
+
+```python
+# 两种使用方式
+fig, ax = plt.subplots(figsize=(15 * cm, 10 * cm))
+# 或者
+fig, ax = plt.subplots(figsize=(cm(15), cm(10)))
+```
+
+## 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件。
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
