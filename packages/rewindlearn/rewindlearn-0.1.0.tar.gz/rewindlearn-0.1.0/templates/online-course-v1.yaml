@@ -1,0 +1,277 @@
+template_id: online-course
+name: Online Course Session
+version: "1.0"
+description: |
+  Process online course recordings into comprehensive study materials.
+  Generates summary, timeline, friction points, coverage gaps,
+  learning resources, action items, and video clip markers.
+
+inputs:
+  required:
+    - transcript
+  optional:
+    - chat_log
+    - slides
+
+processing:
+  tasks:
+    # Independent tasks (run in parallel)
+    - name: session_summary
+      prompt_template: |
+        Analyze this course session transcript and create a comprehensive summary.
+
+        **Course:** {course_name}
+        **Session:** {session_number}
+
+        **Transcript:**
+        {transcript}
+
+        **Chat Log (if available):**
+        {chat_log}
+
+        Create a structured summary with:
+        1. **Session Overview** (2-3 sentences capturing the main focus)
+        2. **Key Topics Covered** (bullet points with brief explanations)
+        3. **Main Takeaways** (3-5 actionable insights)
+        4. **Prerequisites Mentioned** (what students should know beforehand)
+        5. **Next Steps/Homework** (assignments or preparation for next session)
+
+        Use markdown formatting. Be concise but comprehensive.
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.3
+        max_tokens: 2500
+      dependencies: []
+      output_format: markdown
+
+    - name: concept_timeline
+      prompt_template: |
+        Create a chronological timeline of concepts taught in this session.
+
+        **Transcript:**
+        {transcript}
+
+        For each major concept, provide:
+        - **Timestamp** (from transcript, format: HH:MM:SS)
+        - **Concept Name** (clear, searchable title)
+        - **Description** (1-2 sentences explaining the concept)
+        - **Difficulty** (Beginner / Intermediate / Advanced)
+
+        Format as a markdown table:
+        | Timestamp | Concept | Description | Difficulty |
+        |-----------|---------|-------------|------------|
+
+        Include ALL substantive teaching moments. Skip breaks and off-topic chat.
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.2
+        max_tokens: 2500
+      dependencies: []
+      output_format: markdown
+
+    - name: concept_chunks
+      prompt_template: |
+        Extract video clip boundaries for each teachable concept.
+
+        **Transcript:**
+        {transcript}
+
+        Output ONLY CSV format with these columns:
+        concept,description,start_time,end_time
+
+        Rules:
+        - Each clip should be 3-7 minutes long
+        - Use exact timestamps from transcript (HH:MM:SS format)
+        - Concept names should be search-friendly (use underscores, no spaces)
+        - Description explains what the student will learn
+        - Skip breaks, introductions, and off-topic discussions
+        - Number concepts with 2-digit prefix: 01_, 02_, etc.
+
+        Example:
+        concept,description,start_time,end_time
+        01_HTTP_Request_Basics,Learn how to construct HTTP requests with headers,00:05:30,00:10:45
+        02_API_Authentication,Understand OAuth2 flow and token management,00:10:45,00:17:20
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.1
+        max_tokens: 2000
+      dependencies: []
+      output_format: csv
+
+    # Dependent tasks (run after dependencies complete)
+    - name: friction_analysis
+      prompt_template: |
+        Based on the session content, identify potential student friction points.
+
+        **Session Summary:**
+        {session_summary}
+
+        **Chat Log:**
+        {chat_log}
+
+        Analyze and provide:
+
+        ## Potential Confusion Points
+        - Concepts that may need more explanation
+        - Technical terms that weren't clearly defined
+        - Steps that were glossed over too quickly
+
+        ## Questions from Chat
+        - Extract actual questions from the chat log
+        - Note which were answered vs. unanswered
+
+        ## Pace Issues
+        - Sections that moved too fast
+        - Areas with unnecessary repetition
+
+        ## Missing Prerequisites
+        - Knowledge assumed but not covered
+        - Links to prerequisite materials needed
+
+        ## Recommendations for Instructor
+        - Specific improvements for next session
+        - Additional examples that would help
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.4
+        max_tokens: 2000
+      dependencies:
+        - session_summary
+      output_format: markdown
+
+    - name: coverage_gaps
+      prompt_template: |
+        Analyze what topics were NOT covered that students might expect.
+
+        **Session Summary:**
+        {session_summary}
+
+        **Concept Timeline:**
+        {concept_timeline}
+
+        Identify:
+
+        ## Related Topics Not Covered
+        - Topics closely related to what was taught
+        - Why they might be important
+        - Suggested resources to learn them
+
+        ## Depth Gaps
+        - Areas where the session went broad but not deep
+        - Advanced aspects left unexplored
+
+        ## Practical Applications Missing
+        - Real-world use cases not demonstrated
+        - Industry practices not mentioned
+
+        ## Suggested Follow-up Topics
+        - Natural next steps for learning
+        - Topics for future sessions
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.4
+        max_tokens: 1500
+      dependencies:
+        - session_summary
+        - concept_timeline
+      output_format: markdown
+
+    - name: learning_resources
+      prompt_template: |
+        Curate learning resources for students based on the session content.
+
+        **Concept Timeline:**
+        {concept_timeline}
+
+        **Coverage Gaps:**
+        {coverage_gaps}
+
+        For each major concept and gap, provide:
+
+        ## Official Documentation
+        - Links to official docs for tools/frameworks mentioned
+        - Specific relevant sections
+
+        ## Tutorials & Guides
+        - Video tutorials (YouTube, courses)
+        - Written tutorials (blogs, guides)
+        - Interactive tutorials (playgrounds, sandboxes)
+
+        ## Books & Papers
+        - Relevant chapters from recommended books
+        - Academic papers for deep understanding
+
+        ## Practice Resources
+        - Coding exercises
+        - Project ideas
+        - Challenges and competitions
+
+        ## Community Resources
+        - Forums and discussion groups
+        - Discord/Slack communities
+        - Stack Overflow tags
+
+        Format with clear categories and working URLs where possible.
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.5
+        max_tokens: 2000
+      dependencies:
+        - concept_timeline
+        - coverage_gaps
+      output_format: markdown
+
+    - name: action_items
+      prompt_template: |
+        Extract actionable items for students from this session.
+
+        **Session Summary:**
+        {session_summary}
+
+        **Friction Analysis:**
+        {friction_analysis}
+
+        Create a prioritized action list:
+
+        ## Immediate (Before Next Session)
+        - [ ] Tasks to complete right away
+        - [ ] Homework assignments mentioned
+        - [ ] Setup or installation needed
+
+        ## Short-term (This Week)
+        - [ ] Practice exercises
+        - [ ] Reading materials
+        - [ ] Projects to start
+
+        ## Long-term (This Month)
+        - [ ] Deeper learning goals
+        - [ ] Portfolio projects
+        - [ ] Skills to develop
+
+        ## Questions to Research
+        - Unanswered questions from the session
+        - Topics to explore independently
+
+        Include time estimates where helpful.
+      llm_config:
+        model: anthropic/claude-sonnet-4
+        temperature: 0.3
+        max_tokens: 1500
+      dependencies:
+        - session_summary
+        - friction_analysis
+      output_format: markdown
+
+outputs:
+  deliverables:
+    - session_summary
+    - concept_timeline
+    - concept_chunks
+    - friction_analysis
+    - coverage_gaps
+    - learning_resources
+    - action_items
+  formats:
+    - markdown
+    - csv
+  naming_pattern: "{course_name}-S{session_number:02d}-{deliverable}"
