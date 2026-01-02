@@ -1,0 +1,177 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# See configuration details in https://github.com/pypa/setuptools_scm
+
+[project]
+name = "mkv-episode-matcher"
+description = "The MKV Episode Matcher is a tool for identifying TV series episodes from MKV files and renaming the files accordingly."
+dynamic = ["version"]
+readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+authors = [
+  { name = "Jsakkos", email = "jonathansakkos@gmail.com" },
+]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "chardet>=5.2.0",
+    "configparser>=7.1.0",
+    "ffmpeg>=1.4",
+    "librosa>=0.10.2",
+    "loguru>=0.7.2",
+    "nemo-toolkit[asr]>=2.0.0",
+    "opensubtitlescom>=0.1.5",
+    "rapidfuzz>=3.10.1",
+    "requests>=2.32.3",
+    "rich[jupyter]>=13.9.4",
+    "soundfile>=0.12.1",
+    "tmdb-client>=0.0.1",
+    "torch>=2.5.1",
+    "torchaudio>=2.5.1",
+    "torchvision>=0.20.1",
+    "typer>=0.9.0",
+    "flet[all]>=0.80.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "ty>=0.0.7",
+]
+[project.optional-dependencies]
+cu128 = [
+  "torch>=2.9.1; sys_platform != 'darwin'",
+  "torchvision>=0.24.1; sys_platform != 'darwin'",
+]
+nemo = [
+  "nemo_toolkit[asr]>=2.0.0",
+]
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+torchvision = [
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+[project.urls]
+Documentation = "https://github.com/Jsakkos/mkv-episode-matcher#readme"
+Issues = "https://github.com/Jsakkos/mkv-episode-matcher/issues"
+Source = "https://github.com/Jsakkos/mkv-episode-matcher"
+
+[tool.setuptools.packages.find]
+include = ["mkv_episode_matcher*"]
+
+[project.scripts]
+mkv-match = "mkv_episode_matcher.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=6.0.0",
+    "pytest>=8.3.3",
+    "ruff>=0.8.0",
+    "matplotlib>=3.9.4",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.2.0",
+    "pyyaml>=6.0.3",
+    "pandas>=2.3.3",
+    "seaborn>=0.13.2",
+    "psutil>=7.0.0",
+    "ipykernel>=7.1.0",
+    "pyinstaller>=6.17.0",
+]
+
+
+[tool.ruff.format]
+preview = true
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+preview = true
+extend-select = ["C901"]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",  # pep8-naming
+    "YTT",  # flake8-2020
+    #"S",  # flake8-bandit
+]
+ignore = ["E501","E402","S101","S113","E741","UP008"]  # Line length is handled by formatter
+
+[tool.ruff.lint.extend-per-file-ignores]
+"docs/.hooks/*" = ["INP001", "T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["foo", "bar"]
+
+[tool.coverage.run]
+source_pkgs = ["mkv_episode_matcher", "tests"]
+branch = true
+parallel = true
+omit = [
+  "mkv-episode-matcher/mkv_episode_matcher/__init__.py",
+]
+
+[tool.coverage.paths]
+tests = ["tests", "*/mkv_episode_matcher/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "pass",
+]
+show_missing = true
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+pythonpath = ["."]
+addopts = "-ra -q --cov=mkv_episode_matcher --cov-report=term-missing"
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Flet build configuration for desktop executables
+[tool.flet]
+org = "com.jsakkos"
+product = "MKV Episode Matcher"
+description = "Intelligent TV episode identification and renaming"
+author = "Jsakkos"
+version = "1.0.0"
+company = "Jsakkos"
+copyright = "Copyright © 2025 Jsakkos"
+
+# Build settings
+[tool.flet.build]
+include_packages = [
+    "mkv_episode_matcher",
+    "nemo", 
+    "torch",
+    "librosa",
+    "soundfile",
+    "rapidfuzz",
+    "rich",
+    "loguru",
+    "typer"
+]
+
+
+
