@@ -1,0 +1,312 @@
+Metadata-Version: 2.4
+Name: reverse-api-engineer
+Version: 0.2.7
+Summary: A tool to capture browser traffic for API reverse engineering
+Project-URL: Homepage, https://github.com/kalil0321/reverse-api-engineer
+Project-URL: Repository, https://github.com/kalil0321/reverse-api-engineer
+Project-URL: Issues, https://github.com/kalil0321/reverse-api-engineer/issues
+Author-email: Kalil <kalil0321@users.noreply.github.com>
+License: MIT
+License-File: LICENSE
+Keywords: api,browser,claude,har,playwright,reverse-engineering
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.11
+Requires-Dist: aiohttp>=3.12.15
+Requires-Dist: anthropic>=0.40.0
+Requires-Dist: brotli>=1.2.0
+Requires-Dist: claude-agent-sdk>=0.1.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: playwright-stealth>=1.0.0
+Requires-Dist: playwright>=1.40.0
+Requires-Dist: questionary>=2.0.0
+Requires-Dist: requests>=2.32.5
+Requires-Dist: rich>=13.0.0
+Provides-Extra: agent
+Requires-Dist: stagehand; extra == 'agent'
+Description-Content-Type: text/markdown
+
+<div align="center">
+  <img src="assets/reverse-api-banner.svg" alt="Reverse API Engineer Banner">
+</div>
+
+# Reverse API Engineer
+
+[![PyPI version](https://badge.fury.io/py//reverse-api-engineer.svg)](https://badge.fury.io/py/reverse-api-engineer)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+CLI tool that captures browser traffic and automatically generates production-ready Python API clients. No more manual reverse engineering—just browse, capture, and get clean API code.
+
+![Reverse API Engineer Demo](assets/reverse-api-engineer.gif)
+
+## Table of Contents
+
+- [Features](#-features)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Usage Modes](#-usage-modes)
+  - [Manual Mode](#manual-mode)
+  - [Engineer Mode](#engineer-mode)
+  - [Agent Mode](#agent-mode)
+- [Configuration](#-configuration)
+  - [Model Selection](#model-selection)
+  - [Agent Configuration](#agent-configuration)
+  - [SDK Selection](#sdk-selection)
+- [CLI Commands](#-cli-commands)
+- [Examples](#-examples)
+- [Development](#-development)
+- [Contributing](#-contributing)
+
+## ✨ Features
+
+- 🌐 **Browser Automation**: Built on Playwright with stealth mode for realistic browsing
+- 🤖 **Autonomous Agent Mode**: Fully automated browser interaction using AI agents (browser-use, stagehand)
+- 📊 **HAR Recording**: Captures all network traffic in HTTP Archive format
+- 🧠 **AI-Powered Generation**: Uses Claude 4.5 to analyze traffic and generate clean Python code
+- 🔌 **Multi-SDK Support**: Native integration with Claude and OpenCode SDKs
+- 💻 **Interactive CLI**: Minimalist terminal interface with mode cycling (Shift+Tab)
+- 📦 **Production Ready**: Generated scripts include error handling, type hints, and documentation
+- 💾 **Session History**: All runs saved locally with full message logs
+- 💰 **Cost Tracking**: Detailed token usage and cost estimation with cache support
+
+### Limitations
+
+- This tool executes code locally using Claude Code—please monitor output
+- Some websites employ advanced bot-detection that may limit capture or require manual interaction
+
+## 🚀 Installation
+
+### Using uv (recommended)
+```bash
+# Basic installation
+uv tool install reverse-api-engineer
+
+# With agent mode support (includes browser-use with HAR recording)
+uv tool install 'reverse-api-engineer[agent]' --with 'browser-use @ git+https://github.com/browser-use/browser-use.git@49a345fb19e9f12befc5cc1658e0033873892455'
+```
+
+### Using pip
+```bash
+# Basic installation
+pip install reverse-api-engineer
+
+# With agent mode support
+pip install 'reverse-api-engineer[agent]'
+pip install git+https://github.com/browser-use/browser-use.git@49a345fb19e9f12befc5cc1658e0033873892455
+```
+
+### Post-installation
+Install Playwright browsers:
+```bash
+playwright install chromium
+```
+
+## 🚀 Quick Start
+
+Launch the interactive CLI:
+```bash
+reverse-api-engineer
+```
+
+The CLI has three modes (cycle with **Shift+Tab**):
+- **manual**: Browser capture + AI generation
+- **engineer**: Re-process existing captures
+- **agent**: Autonomous AI browser agent
+
+Example workflow:
+```bash
+$ reverse-api-engineer
+> fetch all apple jobs from their careers page
+
+# Browser opens, navigate and interact
+# Close browser when done
+# AI generates production-ready API client
+
+# Scripts saved to: ./scripts/apple_jobs_api/
+```
+
+## 📖 Usage Modes
+
+### Manual Mode
+
+Full pipeline with manual browser interaction:
+
+1. Start the CLI: `reverse-api-engineer`
+2. Enter task description (e.g., "Fetch Apple job listings")
+3. Optionally provide starting URL
+4. Browse and interact with the website
+5. Close browser when done
+6. AI automatically generates the API client
+
+**Output locations:**
+- `~/.reverse-api/runs/scripts/{run_id}/` (permanent storage)
+- `./scripts/{descriptive_name}/` (local copy with readable name)
+
+### Engineer Mode
+
+Re-run AI generation on a previous capture:
+```bash
+# Switch to engineer mode (Shift+Tab) and enter run_id
+# Or use command line:
+reverse-api-engineer engineer <run_id>
+```
+
+### Agent Mode
+
+Fully automated browser interaction using AI agents:
+
+1. Install with agent support (see [Installation](#-installation))
+2. Start CLI and switch to agent mode (Shift+Tab)
+3. Enter task description (e.g., "Click on the first job listing")
+4. Optionally provide starting URL
+5. Agent automatically navigates and interacts
+6. HAR captured automatically
+7. Optionally generate API client
+
+**Note:** Requires browser-use from the specific git commit shown in installation instructions (includes HAR recording support).
+
+## 🔧 Configuration
+
+Settings stored in `~/.reverse-api/config.json`:
+```json
+{
+  "model": "claude-sonnet-4-5",
+  "sdk": "claude",
+  "agent_provider": "browser-use",
+  "agent_model": "bu-llm",
+  "output_dir": null
+}
+```
+
+### Model Selection
+
+Choose from Claude 4.5 models for API generation:
+- **Sonnet 4.5** (default): Balanced performance and cost
+- **Opus 4.5**: Maximum capability for complex APIs
+- **Haiku 4.5**: Fastest and most economical
+
+Change in `/settings` or via CLI:
+```bash
+reverse-api-engineer manual --model claude-sonnet-4-5
+```
+
+### Agent Configuration
+
+Configure AI agents for autonomous browser automation.
+
+**Agent Providers:**
+- **browser-use** (default): Supports Browser-Use LLM, OpenAI, and Google models
+- **stagehand**: Supports OpenAI and Anthropic Computer Use models
+
+**Agent Models:**
+
+**Browser-Use Provider:**
+- `bu-llm` (default) - Requires `BROWSER_USE_API_KEY`
+- `openai/gpt-4`, `openai/gpt-3.5-turbo` - Requires `OPENAI_API_KEY`
+- `google/gemini-pro`, `google/gemini-1.5-pro` - Requires `GOOGLE_API_KEY`
+
+**Stagehand Provider (Computer Use only):**
+- `openai/computer-use-preview-2025-03-11` - Requires `OPENAI_API_KEY`
+- `anthropic/claude-sonnet-4-5-20250929` - Requires `ANTHROPIC_API_KEY`
+- `anthropic/claude-haiku-4-5-20251001` - Requires `ANTHROPIC_API_KEY`
+- `anthropic/claude-opus-4-5-20251101` - Requires `ANTHROPIC_API_KEY`
+
+**Setting API Keys:**
+```bash
+export BROWSER_USE_API_KEY="your-api-key"  # For Browser-Use
+export OPENAI_API_KEY="your-api-key"       # For OpenAI models
+export ANTHROPIC_API_KEY="your-api-key"    # For Anthropic models
+export GOOGLE_API_KEY="your-api-key"       # For Google models
+```
+
+Change in `/settings` → "agent provider" and "agent model"
+
+### SDK Selection
+
+- **Claude** (default): Direct integration with Anthropic's Claude API
+- **OpenCode**: Uses OpenCode SDK (requires OpenCode running locally)
+
+Change in `/settings` or edit `config.json` directly.
+
+## 💻 CLI Commands
+
+Use these slash commands while in the CLI:
+- `/settings` - Configure model, agent, SDK, and output directory
+- `/history` - View past runs with costs
+- `/messages <run_id>` - View detailed message logs
+- `/help` - Show all commands
+- `/exit` - Quit
+
+## 💡 Examples
+
+### Example: Reverse Engineering a Job Board API
+
+```bash
+$ reverse-api-engineer
+> fetch all apple jobs from their careers page
+
+# Browser opens, you navigate and interact
+# Close browser when done
+
+# AI generates:
+# - api_client.py (full API implementation)
+# - README.md (documentation)
+# - example_usage.py (usage examples)
+
+# Scripts copied to: ./scripts/apple_jobs_api/
+```
+
+Generated `api_client.py` includes:
+- Authentication handling
+- Clean function interfaces
+- Type hints and docstrings
+- Error handling
+- Production-ready code
+
+## 🛠️ Development
+
+### Setup
+```bash
+git clone https://github.com/kalil0321/reverse-api-engineer.git
+cd reverse-api-engineer
+uv sync
+```
+
+### Run locally
+```bash
+uv run reverse-api-engineer
+```
+
+### Build
+```bash
+./scripts/clean_build.sh
+```
+
+## 🗺️ Roadmap
+
+- ✅ **Claude SDK** - Integration with Claude Code
+- ✅ **OpenCode SDK** - Integration with OpenCode
+- 🔄 **Codex SDK** - Codex SDK support
+
+## 🔐 Requirements
+
+- Python 3.11+
+- Claude Code / OpenCode (for reverse engineering)
+- Playwright browsers installed
+- API key for agent mode (see [Agent Configuration](#agent-configuration))
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
