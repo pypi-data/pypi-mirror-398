@@ -1,0 +1,430 @@
+# Aibrix Setup - vLLM Deployment Infrastructure
+# 
+# This file sets up the infrastructure needed for vLLM (Aibrix) deployments:
+# 1. Envoy Gateway configuration for HTTP routing
+# 2. Aibrix Activator service for request-based autoscaling (KPA)
+# 3. HTTP route mirroring for prewarming vLLM models
+# 4. Lua script for extracting model names from OpenAI-compatible requests
+#
+# The activator tracks incoming requests and provides metrics to scale
+# vLLM deployments based on demand (requests per second).
+
+# This file is kept separate from apoxy setup files because it is 
+# only used in actual clusters, not in the test kind clusters.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-gateway-config
+  namespace: envoy-gateway-system
+data:
+  envoy-gateway.yaml: |
+    apiVersion: gateway.envoyproxy.io/v1alpha1
+    kind: EnvoyGateway
+    provider:
+      type: Kubernetes
+    gateway:
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+    extensionApis:
+      enableEnvoyPatchPolicy: true
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aibrix-activator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aibrix-activator
+  namespace: aibrix-activator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aibrix-activator
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aibrix-activator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aibrix-activator
+subjects:
+- kind: ServiceAccount
+  name: aibrix-activator
+  namespace: aibrix-activator
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: activator-code
+  namespace: aibrix-activator
+data:
+  activator.py: |
+    import os, time, json
+    from collections import defaultdict, deque
+    from fastapi import FastAPI, Request
+    from fastapi.responses import PlainTextResponse, JSONResponse
+    import asyncio
+    from kubernetes import client, config
+
+    NAMESPACE = os.getenv("NAMESPACE", "default")
+    WINDOW_SEC = int(os.getenv("WINDOW_SEC", "30"))        # demand lookback
+    CAPACITY_RPS = float(os.getenv("CAPACITY_RPS", "1.0")) # per-replica capacity
+    MIN_WAKE = int(os.getenv("MIN_REPLICA_ON_WAKE", "1"))
+    MAX_REPLICAS = int(os.getenv("MAX_REPLICAS", "8"))
+    CLEANUP_INTERVAL = int(os.getenv("CLEANUP_INTERVAL", "300"))  # 5 minutes
+
+    app = FastAPI()
+    events = defaultdict(deque)  # key=(ns,model) -> deque[timestamps]
+
+    # Initialize Kubernetes client
+    try:
+        config.load_incluster_config()
+        k8s_apps_v1 = client.AppsV1Api()
+    except:
+        k8s_apps_v1 = None
+
+    def _prune(q, now):
+        while q and now - q[0] > WINDOW_SEC: q.popleft()
+
+    def _bump(ns, model):
+        now = time.time()
+        q = events[(ns, model)]
+        q.append(now)
+        _prune(q, now)
+
+    def _desired(ns, model):
+        now = time.time()
+        q = events[(ns, model)]
+        _prune(q, now)
+        rps = len(q) / max(WINDOW_SEC, 1)
+        if len(q) == 0: return 0
+        # Convert demand to desired replicas
+        import math
+        d = max(MIN_WAKE, math.ceil(rps / max(CAPACITY_RPS, 1e-6)))
+        return max(0, min(d, MAX_REPLICAS))
+
+    def _extract_model(headers, body_bytes):
+        # Prefer header (OpenAI-compatible)
+        m = headers.get("model") or headers.get("x-model")
+        if m: return m
+        # Try JSON body
+        try:
+            j = json.loads(body_bytes or b"{}")
+            if isinstance(j, dict):
+                # OpenAI schema: {"model": "...", ...}
+                if "model" in j and isinstance(j["model"], str):
+                    return j["model"]
+        except Exception:
+            pass
+        return None
+
+    def _get_existing_deployments():
+        """Get list of existing Aibrix deployments from Kubernetes"""
+        if not k8s_apps_v1:
+            return set()
+        try:
+            deployments = k8s_apps_v1.list_namespaced_deployment(
+                namespace=NAMESPACE,
+                label_selector="model.aibrix.ai/name"
+            )
+            return {d.metadata.name for d in deployments.items}
+        except Exception:
+            return set()
+
+    def _cleanup_stale_entries():
+        """Remove entries for deployments that no longer exist"""
+        if not k8s_apps_v1:
+            return
+        try:
+            existing_deployments = _get_existing_deployments()
+            # Remove entries for deployments that no longer exist
+            keys_to_remove = []
+            for (ns, model) in list(events.keys()):
+                if ns == NAMESPACE and model not in existing_deployments:
+                    keys_to_remove.append((ns, model))
+            
+            for key in keys_to_remove:
+                del events[key]
+                print(f"Cleaned up stale entry for deployment: {key[1]}")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+
+    async def _cleanup_task():
+        """Background task to periodically clean up stale entries"""
+        while True:
+            await asyncio.sleep(CLEANUP_INTERVAL)
+            _cleanup_stale_entries()
+
+    @app.on_event("startup")
+    async def startup_event():
+        """Start background cleanup task"""
+        asyncio.create_task(_cleanup_task())
+
+    # Mirror endpoints (same as your API paths); quick 204 response
+    @app.post("/v1/completions")
+    @app.post("/v1/chat/completions")
+    async def mirrored(request: Request):
+        body = await request.body()
+        model = _extract_model(request.headers, body)
+        if model:
+            _bump(NAMESPACE, model)
+        return JSONResponse({"ok": True}, status_code=204)
+
+    # Catch-all POST (safety net if your gateway uses different paths)
+    @app.post("/{full_path:path}")
+    async def mirrored_generic(request: Request, full_path: str):
+        body = await request.body()
+        model = _extract_model(request.headers, body)
+        if model:
+            _bump(NAMESPACE, model)
+        return JSONResponse({"ok": True}, status_code=204)
+
+    # Prometheus-friendly aggregate endpoint: export ALL (ns, model)
+    @app.get("/metrics", response_class=PlainTextResponse)
+    async def metrics_all():
+        lines = []
+        # Idiomatic names
+        lines.append("# HELP vllm_deployment_replicas Number of suggested replicas.")
+        lines.append("# TYPE vllm_deployment_replicas gauge")
+        lines.append("# HELP vllm_observed_rps Incoming requests per second.")
+        lines.append("# TYPE vllm_observed_rps gauge")
+        now = time.time()
+        for (ns, model), q in list(events.items()):
+            _prune(q, now)
+            rps = len(q) / max(WINDOW_SEC, 1)
+            d = _desired(ns, model)
+            lines.append(f'vllm_deployment_replicas{{namespace="{ns}",model_name="{model}"}} {d}')
+            lines.append(f'vllm_observed_rps{{namespace="{ns}",model_name="{model}"}} {rps:.6f}')
+        # (Optional) keep legacy names with colons for back-compat
+        lines.append("# HELP vllm:deployment_replicas Number of suggested replicas.")
+        lines.append("# TYPE vllm:deployment_replicas gauge")
+        lines.append("# HELP vllm:observed_rps Incoming requests per second.")
+        lines.append("# TYPE vllm:observed_rps gauge")
+        now = time.time()
+        for (ns, model), q in list(events.items()):
+            _prune(q, now)
+            rps = len(q) / max(WINDOW_SEC, 1)
+            d = _desired(ns, model)
+            lines.append(f'vllm:deployment_replicas{{namespace="{ns}",model_name="{model}"}} {d}')
+            lines.append(f'vllm:observed_rps{{namespace="{ns}",model_name="{model}"}} {rps:.6f}')
+        return "\n".join(lines) + "\n"
+
+
+    # Metrics for KPA and Debugging
+    @app.get("/metrics/{ns}/{model}", response_class=PlainTextResponse)
+    async def metrics(ns: str, model: str):
+        d = _desired(ns, model)
+        now = time.time()
+        q = events[(ns, model)]
+        _prune(q, now)
+        rps = len(q) / max(WINDOW_SEC, 1)
+        return (
+            "# HELP vllm:deployment_replicas Number of suggested replicas.\n"
+            "# TYPE vllm:deployment_replicas gauge\n"
+            f'vllm:deployment_replicas{{namespace="{ns}",model_name="{model}"}} {d}\n'
+            "# HELP vllm:observed_rps Incoming requests per second.\n"
+            "# TYPE vllm:observed_rps gauge\n"
+            f'vllm:observed_rps{{namespace="{ns}",model_name="{model}"}} {rps:.2f}\n'
+        )
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aibrix-activator
+  namespace: aibrix-activator
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: aibrix-activator } }
+  template:
+    metadata: { labels: { app: aibrix-activator } }
+    spec:
+      containers:
+      - name: activator
+        image: python:3.11-slim
+        command: ["bash","-lc"]
+        args:
+          - |
+            pip install fastapi uvicorn kubernetes >/dev/null && \
+            uvicorn activator:app --host 0.0.0.0 --port 8080
+        env:
+        - { name: NAMESPACE, value: "default" }
+        - { name: WINDOW_SEC, value: "30" }
+        - { name: CAPACITY_RPS, value: "1.0" }
+        - { name: MIN_REPLICA_ON_WAKE, value: "1" }
+        - { name: MAX_REPLICAS, value: "8" }
+        - { name: CLEANUP_INTERVAL, value: "300" }
+        ports: [{containerPort: 8080}]
+        volumeMounts:
+        - { name: code, mountPath: /app/activator.py, subPath: activator.py }
+        workingDir: /app
+      serviceAccountName: aibrix-activator
+      volumes:
+      - name: code
+        configMap: { name: activator-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aibrix-activator
+  namespace: aibrix-activator
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+  labels:
+    app: aibrix-activator
+    prometheus-discovery: "true"
+spec:
+  selector: { app: aibrix-activator }
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aibrix-activator
+  namespace: prometheus
+  labels:
+    app: aibrix-activator
+spec:
+  selector:
+    matchLabels:
+      app: aibrix-activator
+  namespaceSelector:
+    matchNames:
+    - aibrix-activator
+  endpoints:
+  - port: http
+    path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-deployments
+  namespace: prometheus
+  labels:
+    app: vllm-deployments
+spec:
+  selector:
+    matchLabels:
+      prometheus-discovery: "true"
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: serve
+    path: /metrics
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-httproute-to-activator
+  namespace: aibrix-activator
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: aibrix-system
+  to:
+  - group: ""
+    kind: Service
+    name: aibrix-activator
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: activator-mirror-sink
+  namespace: aibrix-system
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: aibrix-eg
+    namespace: aibrix-system
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /__activator_sink__
+    backendRefs:
+    - name: aibrix-activator
+      namespace: aibrix-activator
+      port: 8080
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: prewarm-completions-lua
+  namespace: aibrix-system
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: aibrix-eg
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.listener.v3.Listener"
+      name: "aibrix-system/aibrix-eg/http"
+      operation:
+        op: add
+        path: "/default_filter_chain/filters/0/typed_config/http_filters/0"
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inlineCode: |
+              function envoy_on_request(handle)
+                local path = handle:headers():get(":path") or ""
+                if string.find(path, "^/v1/completions") or string.find(path, "^/v1/chat/completions") then
+                  -- Try to get model from header first
+                  local model = handle:headers():get("model") or ""
+                  
+                  -- If no model in header, try to extract from JSON body
+                  if model == "" then
+                    local ct = handle:headers():get("content-type") or ""
+                    if string.find(ct:lower(), "application/json") then
+                      local body = handle:body()
+                      if body and body:length() > 0 then
+                        local raw = body:getBytes(0, math.min(body:length(), 1024))
+                        -- Simple regex to extract model from JSON: "model":"value"
+                        local model_match = raw:match('"model"%s*:%s*"([^"]+)"')
+                        if model_match then
+                          model = model_match
+                        end
+                      end
+                    end
+                  end
+                  
+                  -- Only proceed if we have a model
+                  if model ~= "" then
+                    -- fire-and-forget wake signal; very short timeout
+                    pcall(function()
+                      handle:httpCall(
+                        "httproute/aibrix-system/activator-mirror-sink/rule/0",
+                        {
+                          [":method"] = "POST",
+                          [":path"] = "/v1/completions",
+                          [":authority"] = "aibrix-activator.aibrix-activator.svc.cluster.local",
+                          ["content-type"] = "application/json",
+                          ["model"] = model
+                        },
+                        "{}",
+                        5 -- ms
+                      )
+                    end)
+                  end
+                end
+              end
