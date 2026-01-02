@@ -1,0 +1,141 @@
+{
+  "protocol_name": "sepsis_screening_and_management",
+  "protocol_version": "2024.1",
+  "applies_to": ["adult_inpatient"],
+  "description": "qSOFA-based sepsis screening and Sepsis-3 management bundle",
+
+  "screening_criteria": {
+    "description": "qSOFA Score >= 2 triggers sepsis pathway",
+    "criteria": [
+      {
+        "parameter": "systolic_bp",
+        "condition": "<=",
+        "value": 100,
+        "points": 1,
+        "description": "Hypotension (SBP <= 100 mmHg)"
+      },
+      {
+        "parameter": "respiratory_rate",
+        "condition": ">=",
+        "value": 22,
+        "points": 1,
+        "description": "Tachypnea (RR >= 22/min)"
+      },
+      {
+        "parameter": "mental_status",
+        "condition": "altered",
+        "value": null,
+        "points": 1,
+        "description": "Altered mental status (GCS < 15)"
+      }
+    ],
+    "threshold": 2
+  },
+
+  "interventions": [
+    {
+      "order": 1,
+      "action": "obtain_blood_cultures",
+      "timing": "before_antibiotics",
+      "required": true,
+      "parameters": {
+        "specimen_count": 2,
+        "sites": "peripheral"
+      }
+    },
+    {
+      "order": 2,
+      "action": "administer_broad_spectrum_antibiotics",
+      "timing": "within_1_hour",
+      "required": true,
+      "parameters": {
+        "note": "Choice based on suspected source and local antibiogram"
+      }
+    },
+    {
+      "order": 3,
+      "action": "measure_lactate",
+      "timing": "within_1_hour",
+      "required": true,
+      "parameters": {
+        "repeat_if": ">2mmol/L"
+      }
+    },
+    {
+      "order": 4,
+      "action": "administer_iv_fluids",
+      "timing": "within_3_hours",
+      "required": true,
+      "parameters": {
+        "volume": "30ml_per_kg",
+        "fluid_type": "crystalloid"
+      }
+    },
+    {
+      "order": 5,
+      "action": "reassess_after_fluids",
+      "timing": "after_fluid_bolus",
+      "required": true,
+      "parameters": {
+        "assess": ["BP", "HR", "mental_status", "urine_output"]
+      }
+    },
+    {
+      "order": 6,
+      "action": "measure_lactate_repeat",
+      "timing": "if_initial_elevated",
+      "required": false,
+      "parameters": {
+        "condition": "if_lactate_>2mmol/L",
+        "timing": "within_2_to_4_hours"
+      }
+    }
+  ],
+
+  "monitoring_requirements": {
+    "vitals_frequency": "every_15_minutes",
+    "lactate_repeat": "if_initial_>2mmol/L",
+    "reassessment": "hourly_until_stable",
+    "continuous_monitoring": ["HR", "BP", "O2_sat"]
+  },
+
+  "escalation_criteria": {
+    "description": "When to activate rapid response or ICU consult",
+    "if": [
+      "lactate_>4mmol/L",
+      "hypotension_despite_fluids",
+      "respiratory_failure",
+      "altered_mental_status_worsening",
+      "multi_organ_dysfunction"
+    ],
+    "then": "activate_rapid_response_team"
+  },
+
+  "documentation_requirements": [
+    "time_criteria_met",
+    "qSOFA_score",
+    "time_blood_cultures_obtained",
+    "time_antibiotics_given",
+    "antibiotic_choice_and_rationale",
+    "lactate_level_initial",
+    "lactate_level_repeat",
+    "fluid_volume_administered",
+    "time_fluid_administration_complete",
+    "reassessment_findings",
+    "escalation_if_needed"
+  ],
+
+  "expected_outcomes": {
+    "mortality_reduction": "Early intervention reduces mortality",
+    "length_of_stay": "Faster stabilization reduces ICU days",
+    "compliance_target": ">90% bundle completion"
+  },
+
+  "evidence_base": {
+    "guidelines": "Surviving Sepsis Campaign 2021",
+    "references": [
+      "Singer M, et al. JAMA. 2016;315(8):801-810",
+      "Rhodes A, et al. Intensive Care Med. 2017;43:304-377"
+    ]
+  }
+}

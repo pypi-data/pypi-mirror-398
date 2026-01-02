@@ -1,0 +1,93 @@
+{
+  "protocol_name": "cardiac_monitoring",
+  "protocol_version": "2024.1",
+  "applies_to": ["cardiac_patients", "post_mi", "heart_failure"],
+  "description": "Cardiac monitoring for decompensation and arrhythmias",
+
+  "screening_criteria": {
+    "description": "Signs of cardiac decompensation",
+    "criteria": [
+      {
+        "parameter": "hr",
+        "condition": ">",
+        "value": 120,
+        "points": 1,
+        "description": "Tachycardia"
+      },
+      {
+        "parameter": "systolic_bp",
+        "condition": "<",
+        "value": 90,
+        "points": 1,
+        "description": "Hypotension"
+      },
+      {
+        "parameter": "o2_sat",
+        "condition": "<",
+        "value": 90,
+        "points": 1,
+        "description": "Hypoxemia"
+      },
+      {
+        "parameter": "respiratory_rate",
+        "condition": ">",
+        "value": 24,
+        "points": 1,
+        "description": "Tachypnea"
+      }
+    ],
+    "threshold": 2
+  },
+
+  "interventions": [
+    {
+      "order": 1,
+      "action": "obtain_12_lead_ecg",
+      "timing": "immediately",
+      "required": true
+    },
+    {
+      "order": 2,
+      "action": "administer_oxygen",
+      "timing": "immediately",
+      "required": true,
+      "parameters": {"target_o2_sat": ">94%"}
+    },
+    {
+      "order": 3,
+      "action": "notify_cardiologist",
+      "timing": "within_15_minutes",
+      "required": true
+    },
+    {
+      "order": 4,
+      "action": "obtain_cardiac_markers",
+      "timing": "within_30_minutes",
+      "required": true
+    }
+  ],
+
+  "monitoring_requirements": {
+    "vitals_frequency": "continuous",
+    "reassessment": "every_15_minutes",
+    "continuous_monitoring": ["HR", "BP", "O2_sat", "cardiac_rhythm"]
+  },
+
+  "escalation_criteria": {
+    "if": [
+      "ventricular_tachycardia",
+      "systolic_bp_<80",
+      "o2_sat_<88",
+      "chest_pain_unrelieved"
+    ],
+    "then": "activate_code_team"
+  },
+
+  "documentation_requirements": [
+    "ecg_findings",
+    "time_oxygen_started",
+    "cardiologist_notification",
+    "troponin_levels",
+    "rhythm_changes"
+  ]
+}
