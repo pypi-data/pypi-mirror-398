@@ -1,0 +1,188 @@
+Metadata-Version: 2.4
+Name: fastapi-databoard
+Version: 0.1.0
+Summary: A database administration dashboard for FastAPI applications
+Home-page: https://github.com/Bittu2903/fastapi-databoard
+Author: Your Name
+Author-email: Bittu Singh <bittusinghtech@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/Bittu2903/fastapi-databoard
+Project-URL: Documentation, https://github.com/Bittu2903/fastapi-databoard#readme
+Project-URL: Repository, https://github.com/Bittu2903/fastapi-databoard
+Project-URL: Bug Tracker, https://github.com/Bittu2903/fastapi-databoard/issues
+Keywords: fastapi,admin,dashboard,database,sqlalchemy,crud
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: FastAPI
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: jinja2>=3.0.0
+Provides-Extra: async
+Requires-Dist: asyncpg>=0.27.0; extra == "async"
+Provides-Extra: postgres
+Requires-Dist: psycopg2-binary>=2.9.0; extra == "postgres"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: uvicorn>=0.23.0; extra == "dev"
+Dynamic: author
+Dynamic: home-page
+Dynamic: requires-python
+
+# FastAPI DataBoard
+
+A beautiful, intuitive database administration dashboard for FastAPI applications. Similar to Django Admin but designed specifically for FastAPI with support for both synchronous and asynchronous SQLAlchemy engines.
+
+
+
+## Features
+
+* ✨ **Auto-Discovery**: Automatically discovers all tables in your database.
+* 📊 **Beautiful UI**: Clean, modern interface with a responsive layout.
+* 🔍 **Query Console**: Execute custom SQL queries (SELECT, UPDATE, DELETE) directly from the browser.
+* ✏️ **Full CRUD**: Create, Read, Update, and Delete records via intuitive modals.
+* 📄 **Smart Pagination**: Built-in pagination handled at the database level.
+* 🔄 **Dual Support**: Fully compatible with `create_engine` (Sync) and `create_async_engine` (Async).
+
+---
+
+## Installation
+
+```bash
+pip install fastapi-databoard
+
+```
+
+**For PostgreSQL support:**
+
+```bash
+# For Async (asyncpg)
+pip install fastapi-databoard[async] asyncpg
+
+# For Sync (psycopg2)
+pip install psycopg2-binary
+
+```
+
+---
+
+## Quick Start Examples
+
+DataBoard adapts to your engine type automatically.
+
+### Asynchronous Setup (main.py)
+
+Ideal for modern FastAPI apps using `asyncpg`.
+
+```python
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import create_async_engine
+from fastapi_databoard import DataBoard, DataBoardConfig
+
+app = FastAPI()
+
+DATABASE_URL = "postgresql+asyncpg://postgres:12345@localhost:5432/postgres"
+engine = create_async_engine(DATABASE_URL)
+
+config = DataBoardConfig(
+    title="Databoard",
+    mount_path="/databoard",
+    page_size=50,
+    enable_query_execution=True,
+    enable_edit=True,
+    enable_delete=True,
+    enable_create=True,
+)
+
+databoard = DataBoard(engine=engine, config=config)
+databoard.mount(app)
+
+```
+
+### Synchronous Setup (main2.py)
+
+Ideal for standard applications using `psycopg2`.
+
+```python
+from fastapi import FastAPI
+from sqlalchemy import create_engine
+from fastapi_databoard import DataBoard, DataBoardConfig
+
+app = FastAPI()
+
+DATABASE_URL = "postgresql+psycopg2://postgres:12345@localhost:5432/postgres"
+engine = create_engine(DATABASE_URL)
+
+config = DataBoardConfig(
+    title="Databoard",
+    mount_path="/databoard",
+    page_size=50,
+    enable_query_execution=True,
+    enable_edit=True,
+    enable_delete=True,
+    enable_create=True,
+)
+
+databoard = DataBoard(engine=engine, config=config)
+databoard.mount(app)
+
+```
+
+---
+
+## Configuration Reference
+
+You can customize the dashboard behavior using the `DataBoardConfig` class:
+
+| Property | Default | Description |
+| --- | --- | --- |
+| **title** | `"DataBoard"` | Title shown in sidebar and browser tab. |
+| **mount_path** | `"/databoard"` | The URL path to access the UI. |
+| **page_size** | `50` | Number of records displayed per page. |
+| **enable_query_execution** | `True` | Shows the SQL console for raw queries. |
+| **enable_edit** | `True` | Allows editing existing table records. |
+| **enable_delete** | `True` | Allows deleting records from the UI. |
+| **enable_create** | `True` | Shows the "+ New Record" button. |
+
+---
+
+## Usage Guide
+
+### Browsing Tables
+
+Select a table from the sidebar. The dashboard fetches the schema and data dynamically.
+
+### Executing Raw SQL
+
+Use the **Query Console** at the top.
+
+* **SELECT**: Results will populate the main data table. To keep "Edit" and "Delete" icons active, ensure you include the table's Primary Key in your column selection.
+* **INSERT/UPDATE/DELETE**: The UI will report the number of affected rows.
+
+### Record Management
+
+* Click the **Pencil Icon** (edit) to open the update modal.
+* Click the **Trash Icon** (delete) to remove a row.
+* Click **+ New Record** to manually insert data.
+
+---
+
+## Security
+
+> [!WARNING]
+> **Security Risk**: DataBoard provides full access to your database. In production environments, always protect the mount path using FastAPI Dependencies (e.g., OAuth2, API Keys, or Basic Auth).
+
+---
