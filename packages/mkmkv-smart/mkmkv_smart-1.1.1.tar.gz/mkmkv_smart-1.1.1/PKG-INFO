@@ -1,0 +1,665 @@
+Metadata-Version: 2.4
+Name: mkmkv-smart
+Version: 1.1.1
+Summary: 智能视频字幕合并工具
+Author-email: Sunn Yao <sunyour@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/cnsunyour/mkmkv-smart
+Project-URL: Repository, https://github.com/cnsunyour/mkmkv-smart
+Project-URL: Issues, https://github.com/cnsunyour/mkmkv-smart/issues
+Project-URL: Changelog, https://github.com/cnsunyour/mkmkv-smart/blob/main/CHANGELOG.md
+Keywords: mkvmerge,subtitle,video,mkv,fuzzy-matching
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Multimedia :: Video
+Classifier: Topic :: Utilities
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: rapidfuzz>=3.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: langdetect>=1.0.9
+Requires-Dist: scipy>=1.9.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Provides-Extra: audio
+Requires-Dist: faster-whisper>=1.0.0; extra == "audio"
+
+# mkmkv-smart
+
+智能视频字幕合并工具 - 基于先进的模糊匹配算法,自动匹配视频和字幕文件并合并为 MKV 容器。
+
+## ✨ 特性
+
+- 🎯 **智能匹配**: 使用 rapidfuzz 多算法混合策略,准确匹配视频和字幕
+- 🌐 **多语言支持**: 自动识别和处理多语言字幕,支持语言优先级
+  - 支持标准语言代码 (zh-hans, zh-hant, en, ja, ko 等)
+  - 兼容常见别名 (CHS/CHT, GB/Big5 等)
+- 🔍 **语言自动检测**: 智能检测字幕语言,支持简繁体中文区分
+  - 支持 SRT、ASS、VTT 字幕格式
+  - 自动处理多种文件编码 (UTF-8, GBK, Big5 等)
+  - 可选自动重命名功能
+- 🎵 **音频语言检测** (可选): 使用 AI 模型检测音轨语言
+  - 基于 Faster-Whisper 高精度模型
+  - 支持 99+ 种语言
+  - 需要单独安装：`pip install mkmkv-smart[audio]`
+- ⚙️ **灵活配置**: 支持 YAML 配置文件和命令行参数
+- 🎨 **美观输出**: 使用 Rich 库提供彩色表格和进度显示
+- 🔍 **干运行模式**: 预览匹配结果,无需实际执行
+- 📦 **批量处理**: 一次处理整个目录的视频和字幕
+
+## 📋 需求
+
+### Python 版本
+- **基础功能**: Python 3.8+ (包括 3.14) ✅
+  - 智能匹配、字幕检测、批量处理等核心功能
+- **音频检测功能**: Python 3.8 - 3.13 ⚠️
+  - **Python 3.14 暂不支持**: 依赖 `onnxruntime` 尚未发布 Python 3.14 支持
+  - **推荐版本**: Python 3.11 或 3.12（ML 生态系统支持最好）
+
+### 系统依赖
+- mkvtoolnix (提供 `mkvmerge` 命令)
+
+### 安装 mkvtoolnix
+
+**macOS:**
+```bash
+brew install mkvtoolnix
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install mkvtoolnix
+```
+
+**Windows:**
+从 [MKVToolNix 官网](https://mkvtoolnix.download/) 下载安装
+
+## 🚀 安装
+
+### 方法 1: 从源码安装
+
+```bash
+# 克隆仓库
+git clone https://github.com/cnsunyour/mkmkv-smart.git
+cd mkmkv-smart
+
+# 安装基础功能（支持所有 Python 版本 3.8+）
+pip install -e .
+
+# 或安装开发依赖
+pip install -e ".[dev]"
+
+# 可选：安装音频检测功能（需要 ~500MB，包括 PyTorch）
+# ⚠️ 注意：Python 3.14 暂不支持，建议使用 Python 3.11-3.13
+pip install -e ".[audio]"
+```
+
+### 方法 2: 使用 pip (发布后)
+
+```bash
+# 基础安装（支持所有 Python 版本）
+pip install mkmkv-smart
+
+# 包含音频检测功能（Python 3.8-3.13）
+pip install mkmkv-smart[audio]
+```
+
+## 📖 使用方法
+
+### 基本用法
+
+```bash
+# 预览匹配结果(干运行)
+mkmkv-smart --dry-run ~/Downloads
+
+# 执行合并(输出到源目录)
+mkmkv-smart ~/Downloads
+
+# 指定输出目录
+mkmkv-smart ~/Downloads ~/Movies
+```
+
+### 高级用法
+
+```bash
+# 自定义相似度阈值
+mkmkv-smart --threshold 40 ~/Downloads
+
+# 指定匹配方法
+mkmkv-smart --method token_set ~/Downloads
+
+# 使用配置文件
+mkmkv-smart --config config.yaml ~/Downloads
+
+# 检测视频音轨语言（需要安装 audio 功能）
+mkmkv-smart --detect-audio-language ~/Downloads
+
+# 指定音频检测模型
+mkmkv-smart --detect-audio-language --audio-model medium ~/Downloads
+
+# 组合使用
+mkmkv-smart --dry-run --threshold 35 --config config.yaml ~/Downloads ~/Movies
+```
+
+### 命令行参数
+
+```
+位置参数:
+  source                源目录(包含视频和字幕文件)
+  output                输出目录(可选,默认为源目录)
+
+可选参数:
+  -h, --help            显示帮助信息
+  -n, --dry-run         干运行模式:只显示匹配结果,不实际执行
+  -t, --threshold       相似度阈值(0-100,默认: 30)
+  -m, --method          匹配方法(默认: hybrid)
+                        可选: token_set, token_sort, partial, hybrid
+  -c, --config          配置文件路径
+  --detect-audio-language
+                        自动检测视频音轨语言(需要安装: pip install mkmkv-smart[audio])
+  --audio-model {tiny,base,small,medium,large}
+                        音频检测模型大小(默认从配置文件读取，配置默认: small)
+  --set-audio-language  将检测到的音轨语言信息写入 MKV 文件
+  --keep-embedded-subtitles
+                        合并外部字幕时保留视频中的嵌入字幕
+  --track-order         指定轨道顺序(格式: 0:0,0:1,1:0)
+                        0 = 视频文件, 1+ = 字幕文件
+                        示例: 0:0,0:1,1:0,2:0 (视频轨0, 音轨1, 字幕1, 字幕2)
+  -v, --version         显示版本信息
+```
+
+## ⚙️ 配置文件
+
+创建 `config.yaml`:
+
+```yaml
+# 匹配配置
+match:
+  threshold: 30.0        # 相似度阈值
+  method: hybrid         # 匹配方法
+  keep_year: true        # 保留年份
+  keep_episode: true     # 保留剧集编号
+
+# 语言配置
+language:
+  priority:              # 语言优先级
+    - zh-hans            # 简体中文
+    - zh-hant            # 繁体中文
+    - zh                 # 中文
+    - en                 # 英文
+    - ja                 # 日文
+    - ko                 # 韩文
+
+# 输出配置
+output:
+  default_charset: UTF-8 # 默认字幕编码
+
+# 语言检测配置
+language_detection:
+  enabled: true          # 是否启用自动语言检测（默认启用）
+  min_confidence: 0.8    # 最小置信度阈值
+  min_chars: 100         # 最小文本长度（字符数）
+
+# 音频检测配置（可选功能）
+audio_detection:
+  enabled: false         # 是否启用音频检测
+  model_size: small      # 模型大小: tiny, base, small, medium, large
+  device: cpu            # 设备: cpu, cuda
+  compute_type: int8     # 计算类型: int8, float16, float32
+  min_confidence: 0.7    # 最小置信度阈值
+  max_duration: 30       # 提取音频的最大长度（秒）
+  smart_sampling: true   # 智能多点采样
+  max_attempts: 3        # 非智能模式下的最大重试次数
+```
+
+生成默认配置:
+
+```bash
+python -m mkmkv_smart.config
+```
+
+## 📝 使用示例
+
+### 示例 1: 电影匹配
+
+**文件结构:**
+```
+Downloads/
+├── The.Matrix.1999.1080p.BluRay.x264.mp4
+├── The.Matrix.1999.zh-hans.srt
+├── The.Matrix.1999.zh-hant.srt
+└── The.Matrix.1999.en.srt
+```
+
+**命令:**
+```bash
+mkmkv-smart --dry-run ~/Downloads
+```
+
+**输出:**
+```
+智能匹配模式
+[ 干运行 - 不会实际执行 ]
+源目录: /Users/xxx/Downloads
+找到 1 个视频文件
+找到 3 个字幕文件
+
+匹配结果:
+======================================================================
+
+视频: The.Matrix.1999.1080p.BluRay.x264.mp4
+  规范化: the matrix 1999
+
+语言     字幕文件                              相似度
+───────────────────────────────────────────────────────
+zh-hans  The.Matrix.1999.zh-hans.srt          100.0%
+zh-hant  The.Matrix.1999.zh-hant.srt          100.0%
+en       The.Matrix.1999.en.srt               100.0%
+
+======================================================================
+总计: 1 个文件
+可处理: 1 个文件
+```
+
+### 示例 2: 剧集匹配
+
+**文件结构:**
+```
+Series/
+├── Breaking.Bad.S01E01.720p.WEB-DL.mp4
+├── Breaking.Bad.S01E02.720p.WEB-DL.mp4
+├── Breaking.Bad.S01E01.zh.srt
+├── Breaking.Bad.S01E01.en.srt
+├── Breaking.Bad.S01E02.zh.srt
+└── Breaking.Bad.S01E02.en.srt
+```
+
+**命令:**
+```bash
+mkmkv-smart ~/Series ~/Series/Output
+```
+
+**结果:**
+每集视频会自动匹配对应的字幕,输出到指定目录。
+
+### 示例 3: 不同发布组匹配
+
+即使视频和字幕来自不同发布组,也能正确匹配:
+
+```
+Movie.2024.1080p.BluRay.x264-GROUP1.mp4
+Movie.2024.1080p.WEB-DL.H264-GROUP2.zh.srt
+```
+
+因为规范化会去除发布组标签,所以可以成功匹配。
+
+### 示例 4: CHS/CHT 语言代码支持
+
+**支持常见的中文字幕命名方式:**
+
+```
+Movie.2024.1080p.mp4
+Movie.2024.CHS.srt       # 简体中文 (自动识别为 zh-hans)
+Movie.2024.CHT.srt       # 繁体中文 (自动识别为 zh-hant)
+Movie.2024.GB.srt        # 国标简体 (自动识别为 zh-hans)
+Movie.2024.Big5.srt      # Big5 繁体 (自动识别为 zh-hant)
+```
+
+**命令:**
+```bash
+mkmkv-smart --dry-run ~/Downloads
+```
+
+**输出:**
+```
+视频: Movie.2024.1080p.mp4
+
+语言     字幕文件                   相似度
+─────────────────────────────────────────
+zh-hans  Movie.2024.CHS.srt        100.0%
+zh-hant  Movie.2024.CHT.srt        100.0%
+```
+
+所有这些别名会自动映射到标准的语言代码:
+- `CHS`, `GB` → `zh-hans` (简体中文)
+- `CHT`, `Big5` → `zh-hant` (繁体中文)
+
+**查看完整示例:**
+```bash
+python examples/chs_cht_example.py
+```
+
+### 示例 5: 自动语言检测
+
+当字幕文件名中**没有语言代码**时，程序会自动检测并重命名字幕文件（通过配置文件中的 `language_detection.enabled` 控制，默认启用）：
+
+**文件结构:**
+```
+Downloads/
+├── Movie.2024.1080p.mp4
+├── Movie.2024.subtitle1.srt     # 无语言标识
+├── Movie.2024.subtitle2.srt     # 无语言标识
+└── Movie.2024.en.srt             # 已有语言标识
+```
+
+**命令 (干运行预览):**
+```bash
+mkmkv-smart --dry-run ~/Downloads
+```
+
+**输出:**
+```
+将重命名: Movie.2024.subtitle1.srt → Movie.2024.subtitle1.zh-hans.srt (zh-hans, 99.21%)
+将重命名: Movie.2024.subtitle2.srt → Movie.2024.subtitle2.zh-hant.srt (zh-hant, 98.75%)
+将自动识别并重命名 2 个字幕文件
+```
+
+**自动重命名并合并:**
+```bash
+mkmkv-smart ~/Downloads
+```
+
+**结果:**
+```
+✓ Movie.2024.subtitle1.srt → Movie.2024.subtitle1.zh-hans.srt (zh-hans, 99.21%)
+✓ Movie.2024.subtitle2.srt → Movie.2024.subtitle2.zh-hant.srt (zh-hant, 98.75%)
+
+已自动识别并重命名 2 个字幕文件
+```
+
+重命名后的字幕会自动匹配到视频文件进行合并。
+
+**支持的语言检测:**
+- ✅ 简体中文 (zh-hans)
+- ✅ 繁体中文 (zh-hant) - 包含简繁体区分
+- ✅ 英文 (en)
+- ✅ 日文 (ja)
+- ✅ 韩文 (ko)
+- ✅ 等 50+ 种语言
+
+**支持的字幕格式:**
+- ✅ SRT (.srt)
+- ✅ ASS (.ass)
+- ✅ VTT (.vtt)
+
+**支持的文件编码:**
+- UTF-8, GBK, Big5, UTF-16 等
+
+### 示例 6: 音频语言检测
+
+当视频文件的音轨**没有语言标签**时，可以使用音频语言检测功能：
+
+**前置条件:**
+```bash
+# 安装音频检测功能
+pip install mkmkv-smart[audio]
+```
+
+**文件结构:**
+```
+Downloads/
+├── Movie.2024.1080p.mkv      # 音轨无语言标签
+└── Movie.2024.zh-hans.srt
+```
+
+**命令:**
+```bash
+mkmkv-smart --detect-audio-language ~/Downloads
+```
+
+**输出:**
+```
+音频语言检测模式
+使用模型: small
+注意: 首次使用会自动下载模型，可能需要几分钟
+
+检测: Movie.2024.1080p.mkv
+  音轨 0: ja (置信度: 98.75%)
+
+成功检测 1 个视频的音轨语言
+```
+
+**支持的模型:**
+| 模型 | 大小 | 准确率 | 速度（CPU） | 推荐场景 |
+|------|------|--------|------------|----------|
+| tiny | 39MB | ⭐⭐⭐ | 快速 | 快速检测 |
+| base | 142MB | ⭐⭐⭐⭐ | 中等 | 平衡选择 |
+| **small** | 466MB | ⭐⭐⭐⭐⭐ | 中等 | **默认推荐** |
+| medium | 1.5GB | ⭐⭐⭐⭐⭐ | 较慢 | 高精度需求 |
+| large | 2.9GB | ⭐⭐⭐⭐⭐ | 慢 | 最高精度 |
+
+**支持的语言:**
+- ✅ 中文、英文、日文、韩文
+- ✅ 等 99+ 种语言
+
+**性能说明:**
+- CPU: 30秒音频约需 3-5 秒处理（small 模型）
+- GPU: 30秒音频约需 2-3 秒处理（需要 CUDA）
+- 只提取前 30 秒音频进行检测
+
+## 🧪 匹配算法
+
+mkmkv-smart 使用多种模糊匹配算法:
+
+### 1. Token Set Ratio
+最适合处理包含不同标签的文件名:
+```
+Video: "Movie 2024 1080p BluRay x264"
+Sub:   "Movie 2024 zh-hans"
+→ 提取共同词: {Movie, 2024}
+→ 相似度: 100%
+```
+
+### 2. Token Sort Ratio
+适合词序不同的情况:
+```
+Video: "2024 Movie Name"
+Sub:   "Movie Name 2024"
+→ 排序后比较
+→ 相似度: 100%
+```
+
+### 3. Partial Ratio
+适合部分匹配:
+```
+Video: "Movie Complete Edition 2024"
+Sub:   "Movie 2024"
+→ 部分字符串匹配
+→ 相似度: 90%
+```
+
+### 4. Ratio
+标准编辑距离算法:
+```
+Video: "Movie 2024 BluRay"
+Sub:   "Movie 2024 WEB-DL"
+→ Levenshtein 距离计算
+→ 适合相似但不完全相同的文件名
+```
+
+### 5. WRatio
+加权比率算法（自动选择最优策略）:
+```
+综合考虑多种因素：
+- 字符串长度差异
+- 词序重要性
+- 部分匹配权重
+→ 自适应选择最佳算法
+```
+
+### 6. Hybrid (默认)
+综合以上算法,取最高分:
+```python
+score = max([
+    token_set_ratio(v, s),
+    token_sort_ratio(v, s),
+    partial_ratio(v, s) * 0.9
+])
+```
+
+### 7. 全局最优分配算法
+
+mkmkv-smart 使用**匈牙利算法（Hungarian Algorithm）**实现全局最优字幕分配:
+
+**问题**: 当多个视频和多个字幕匹配时，如何确保总体匹配质量最高？
+
+**传统贪心算法的问题**:
+```
+视频A ←→ 字幕1: 90%
+视频A ←→ 字幕2: 85%
+视频B ←→ 字幕1: 88%
+视频B ←→ 字幕2: 70%
+
+贪心: A→字幕1 (90%), B 无匹配
+总分: 90%
+```
+
+**全局最优分配**:
+```
+使用匈牙利算法求解:
+A→字幕2 (85%) + B→字幕1 (88%)
+总分: 173% ✅ 更优
+```
+
+**算法特点**:
+- ✅ 确保总体相似度最大化，避免局部次优
+- ✅ 每个字幕最多分配一次，避免冲突
+- ✅ 按语言分组独立求解，提高匹配精度
+- ✅ 低于阈值的匹配自动过滤
+
+## 🔧 开发
+
+### 设置开发环境
+
+```bash
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# 或
+venv\Scripts\activate     # Windows
+
+# 安装开发依赖
+pip install -e ".[dev]"
+```
+
+### 运行测试
+
+```bash
+# 运行所有测试
+pytest
+
+# 运行并显示覆盖率
+pytest --cov=src/mkmkv_smart --cov-report=term-missing
+
+# 生成 HTML 覆盖率报告
+pytest --cov=src/mkmkv_smart --cov-report=html
+open htmlcov/index.html
+
+# 或使用脚本
+./run_tests.sh
+```
+
+### 代码格式化
+
+```bash
+# 格式化代码
+black src/ tests/
+
+# 类型检查
+mypy src/
+```
+
+## 📊 性能对比
+
+与原 Bash 版本对比:
+
+| 特性 | Bash 版本 | Python 版本 |
+|------|-----------|-------------|
+| 匹配算法 | Jaccard 相似度 | Hybrid (多算法) |
+| 匹配准确度 | ~50% | ~95% |
+| 多语言支持 | ❌ | ✅ |
+| 配置文件 | ❌ | ✅ |
+| 干运行模式 | ❌ | ✅ |
+| 进度显示 | 简单 | Rich 美化 |
+| 批量处理 | ✅ | ✅ |
+
+## 🆚 与 Bash 脚本对比
+
+本项目是原 Bash 脚本工具集的 Python 重写版本，专注于**外部字幕文件匹配**功能。
+
+### 功能覆盖情况
+
+| 功能类型 | Bash 脚本 | Python 实现 | 说明 |
+|---------|---------|-----------|------|
+| 外部字幕匹配 | `mkmkv.sh`, `mkmkv_smart.sh` | ✅ **已实现** | Python 版本功能更强 |
+| 内部字幕重排 | `mkmkv_繁简英.sh` 等 4 个脚本 | ✅ **已实现** | 使用 `--track-order` 参数重排内部轨道 |
+| 音轨调整 | `mkmkv_调整音轨.sh` | ✅ **已实现** | 使用 `--track-order` 参数重排音轨顺序 |
+
+### 使用场景区分
+
+**使用 Python 版本** (mkmkv-smart) 当：
+- ✅ 你有独立的 `.srt` / `.ass` 字幕文件需要合并
+- ✅ 文件名不规范，需要智能匹配
+- ✅ 需要批量处理多个视频
+- ✅ 需要配置文件管理复杂规则
+- ✅ 需要自定义轨道顺序（`--track-order` 参数）
+- ✅ 需要自动语言检测和优先级排序
+
+**继续使用 Bash 脚本** 当：
+- ✅ 需要快速的一次性操作
+- ✅ 不想安装 Python 依赖
+
+详细功能对比请查看：[FEATURE_COMPARISON.md](docs/FEATURE_COMPARISON.md)
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request!
+
+### 开发流程
+
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
+### 代码规范
+
+- 使用 Black 格式化代码
+- 添加类型注解
+- 编写单元测试
+- 更新文档
+
+## 📄 许可证
+
+MIT License
+
+## 🙏 致谢
+
+- [rapidfuzz](https://github.com/maxbachmann/RapidFuzz) - 高性能模糊匹配库
+- [SciPy](https://scipy.org/) - 科学计算库（匈牙利算法实现）
+- [Rich](https://github.com/Textualize/rich) - 美化终端输出
+- [MKVToolNix](https://mkvtoolnix.download/) - MKV 容器工具
+- [langdetect](https://github.com/Mimino666/langdetect) - 语言检测库
+- [Faster-Whisper](https://github.com/SYSTRAN/faster-whisper) - 高性能音频语言检测
+
+## 📮 联系
+
+项目链接: https://github.com/cnsunyour/mkmkv-smart
+
+---
+
+**注意**: 此工具仅用于合法拥有的视频和字幕文件。请遵守版权法律。
