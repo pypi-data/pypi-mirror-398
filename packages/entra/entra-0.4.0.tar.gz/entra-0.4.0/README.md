@@ -1,0 +1,424 @@
+# entra
+
+[![License BSD-3](https://img.shields.io/pypi/l/entra.svg?color=green)](https://github.com/Kapoorlabs-CAPED/entra/raw/main/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/entra.svg?color=green)](https://pypi.org/project/entra)
+[![Python Version](https://img.shields.io/pypi/pyversions/entra.svg?color=green)](https://python.org)
+[![codecov](https://codecov.io/gh/Kapoorlabs-CAPED/entra/branch/main/graph/badge.svg)](https://codecov.io/gh/Kapoorlabs-CAPED/entra)
+
+Divergence-free tensor basis functions for incompressible vector field representation and entropy-conserving transformations.
+
+----------------------------------
+
+## Overview
+
+This package implements a method for constructing **divergence-free vector basis functions** by applying a differential operator to Gaussian radial basis functions (RBFs). The resulting basis functions are ideal for representing incompressible vector fields and entropy-conserving transformations.
+
+## Theoretical Foundation
+
+### Maximum Entropy Principle
+
+A fundamental theorem in information theory states that **among all distributions with a given covariance matrix, the Gaussian distribution has maximum entropy**. This package exploits a corollary of this theorem: by minimizing the covariance determinant of a point distribution using volume-preserving transformations, we can transform any distribution towards a Gaussian.
+
+### Why Divergence-Free?
+
+Divergence-free vector fields are **volume-preserving** (incompressible). When we use divergence-free basis functions to define a transformation:
+
+- The Jacobian determinant equals 1 everywhere
+- Total volume is conserved
+- **Entropy is conserved** under the transformation
+
+This allows us to iteratively minimize the covariance determinant while preserving the fundamental entropy of the distribution, effectively reshaping any distribution into a Gaussian form.
+
+### The Divergence-Free Operator
+
+The construction of divergence-free vector fields from scalar RBFs uses the differential operator discovered by Lowitzsch [1]:
+
+**Ô = -I∇² + ∇∇ᵀ**
+
+When applied to a scalar function φ(x), this operator produces a D×D matrix where each column is a divergence-free vector field.
+
+## References
+
+[1] S. Lowitzsch, *Approximation and Interpolation Employing Divergence-Free Radial Basis Functions With Applications*, PhD thesis, Department of Mathematics, Texas A&M University, 2002.
+
+## Algorithm Flowchart
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DIVERGENCE-FREE BASIS PIPELINE                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────┐
+    │  INPUT PARAMETERS                       │
+    │  • D: dimension                         │
+    │  • δx: grid spacing                     │
+    │  • n: points per dimension              │
+    │  • σ = 0.7 × δx: RBF width             │
+    └────────────────────┬────────────────────┘
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STEP 1: GRID SAMPLING                  ║
+    ║  VectorSampler                          ║
+    ╠═════════════════════════════════════════╣
+    ║  Sample J = n^D points on regular grid  ║
+    ║                                         ║
+    ║  x_{i} = x_center + i × δx              ║
+    ║                                         ║
+    ║  Output: eval_points (J, D)             ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STEP 2: CHOOSE L CENTERS               ║
+    ╠═════════════════════════════════════════╣
+    ║  Select L center points c_1, ..., c_L   ║
+    ║  for basis functions                    ║
+    ║                                         ║
+    ║  Output: centers (L, D)                 ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STEP 3: SCALAR BASIS FUNCTIONS         ║
+    ║  ScalarBasis                            ║
+    ╠═════════════════════════════════════════╣
+    ║  Gaussian RBF for each center:          ║
+    ║                                         ║
+    ║  φ_l(x) = exp(-||x - c_l||² / 2σ²)     ║
+    ║                                         ║
+    ║  Output: φ values (J, L)                ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STEP 4: APPLY TENSOR OPERATOR          ║
+    ║  TensorBasis                            ║
+    ╠═════════════════════════════════════════╣
+    ║  Apply Ô = -I∇² + ∇∇ᵀ to each φ_l      ║
+    ║                                         ║
+    ║  Φ_l(x) = Ô φ_l(x)                      ║
+    ║                                         ║
+    ║  Output: Φ values (J, L, D, D)          ║
+    ║          ───────────────────            ║
+    ║          D×D matrix at each point       ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STEP 5: EXTRACT COLUMN VECTOR FIELDS   ║
+    ╠═════════════════════════════════════════╣
+    ║  Each column d of Φ is a vector field:  ║
+    ║                                         ║
+    ║  V_d = Φ[:, :, d]  shape: (J, D)        ║
+    ║                                         ║
+    ║  For D=2:                               ║
+    ║  • Column 0: V_0 = [Φ_00, Φ_10]ᵀ       ║
+    ║  • Column 1: V_1 = [Φ_01, Φ_11]ᵀ       ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STEP 6: VERIFY DIVERGENCE-FREE         ║
+    ╠═════════════════════════════════════════╣
+    ║  Compute divergence of each column:     ║
+    ║                                         ║
+    ║  div(V_d) = ∂V_{d,x}/∂x + ∂V_{d,y}/∂y  ║
+    ║                                         ║
+    ║  Each column should satisfy:            ║
+    ║  div(V_d) ≈ 0                           ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ┌─────────────────────────────────────────┐
+    │  OUTPUT                                 │
+    │  • D divergence-free vector fields      │
+    │    per center (L × D total)             │
+    │  • Each field has J discrete values     │
+    └─────────────────────────────────────────┘
+```
+
+## Covariance Optimization Algorithm
+
+The optimization proceeds in two stages to transform any distribution towards Gaussian form while conserving entropy.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    COVARIANCE OPTIMIZATION PIPELINE                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────┐
+    │  INPUT                                  │
+    │  • Points: (J, D) array                 │
+    │  • σ: RBF width parameter               │
+    │  • Target: H(uniform) = ln(V)           │
+    └────────────────────┬────────────────────┘
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STAGE 1: TENSOR BASIS OPTIMIZATION     ║
+    ║  (L × D parameters)                     ║
+    ╠═════════════════════════════════════════╣
+    ║                                         ║
+    ║  1. Build tensor basis Φ (J, L, D, D)   ║
+    ║                                         ║
+    ║  2. Define transformation:              ║
+    ║     y' = y + Σ_l Φ_l(y) · c_l           ║
+    ║     where c_l ∈ ℝ^D (L×D params)        ║
+    ║                                         ║
+    ║  3. Levenberg-Marquardt optimization:   ║
+    ║     minimize det(Cov(y'))               ║
+    ║                                         ║
+    ║  4. Collapse to effective basis:        ║
+    ║     V_l = Φ_l · c_l  →  (J, L, D)       ║
+    ║                                         ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ╔═════════════════════════════════════════╗
+    ║  STAGE 2: OUTER LOOP REFINEMENT         ║
+    ║  (L parameters per round)               ║
+    ╠═════════════════════════════════════════╣
+    ║                                         ║
+    ║  For each outer round (typically 5):    ║
+    ║                                         ║
+    ║  1. Define scalar-weighted transform:   ║
+    ║     y' = y + Σ_l α_l V_l                ║
+    ║     where α_l ∈ ℝ (L scalar params)     ║
+    ║                                         ║
+    ║  2. Optimize: minimize det(Cov(y'))     ║
+    ║                                         ║
+    ║  3. Update basis: V_l ← α_l V_l         ║
+    ║                                         ║
+    ║  4. Transform points: y ← y'            ║
+    ║                                         ║
+    ║  5. Repeat with updated points & basis  ║
+    ║                                         ║
+    ╚════════════════════┬════════════════════╝
+                         │
+                         ▼
+    ┌─────────────────────────────────────────┐
+    │  OUTPUT                                 │
+    │  • Transformed points (J, D)            │
+    │  • H(Gaussian) ≈ H(uniform) = Target    │
+    │  • Distribution → Gaussian form         │
+    └─────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────┐
+    │  CONVERGENCE CRITERION                  │
+    │                                         │
+    │  Gap = H(Gaussian) - H(uniform) → 0     │
+    │                                         │
+    │  When gap ≈ 0, the distribution has     │
+    │  been successfully Gaussianized while   │
+    │  preserving the original entropy.       │
+    └─────────────────────────────────────────┘
+```
+
+### Why Two Stages?
+
+**Stage 1** uses `L × D` parameters (matrix-valued coefficients) for maximum flexibility in finding the initial transformation direction. This explores a larger parameter space but is computationally expensive.
+
+**Stage 2** uses only `L` parameters (scalar coefficients) per round. Each round operates on the transformed points from the previous round, allowing incremental refinements that compound across rounds. The effective basis adapts at each round, capturing increasingly fine-grained displacement patterns.
+
+## Full Optimization Example
+
+```python
+import numpy as np
+from entra import (
+    VectorSampler, TensorBasis, Transformation,
+    CovarianceMinimizer, EffectiveTransformation,
+    EffectiveCovarianceMinimizer,
+    shannon_entropy_gaussian, shannon_entropy_uniform
+)
+
+# Generate 2D uniform distribution (20×20 = 400 points)
+sampler = VectorSampler(center=[0.0, 0.0], delta_x=1, num_points_per_dim=20)
+points = sampler.sample()
+
+# Create centers along axes
+centers = np.array([[i, 0], [-i, 0], [0, i], [0, -i]]
+                   for i in range(10)).reshape(-1, 2)
+
+# Target entropy
+target_H = shannon_entropy_uniform(points)
+print(f"Target H(uniform): {target_H:.4f} nats")
+
+# ============================================================
+# STAGE 1: Tensor Basis Optimization
+# ============================================================
+sigma = 4.0  # Optimized RBF width
+basis = TensorBasis(centers, sigma=sigma)
+transformation = Transformation(basis)
+minimizer = CovarianceMinimizer(transformation, points)
+
+# Get initial coefficients and optimize
+x = transformation.get_coefficients_flat().copy()
+n_params = len(x)
+lam, eps, tol = 1.0, 1e-7, 1e-12
+
+for iteration in range(1000):
+    r = minimizer.residuals_for_lm(x)
+
+    # Numerical Jacobian
+    J_mat = np.zeros((len(r), n_params))
+    for i in range(n_params):
+        x_plus = x.copy()
+        x_plus[i] += eps
+        J_mat[:, i] = (minimizer.residuals_for_lm(x_plus) - r) / eps
+
+    # LM update
+    JTJ = J_mat.T @ J_mat
+    JTr = J_mat.T @ r
+    delta = np.linalg.solve(JTJ + lam * np.eye(n_params), -JTr)
+
+    x_new = x + delta
+    if minimizer.objective_logdet(x_new) < minimizer.objective_logdet(x):
+        improvement = abs(minimizer.objective_logdet(x) - minimizer.objective_logdet(x_new))
+        x = x_new
+        lam *= 0.1
+        if improvement < tol:
+            break
+    else:
+        lam *= 10.0
+
+transformation.set_coefficients_flat(x)
+stage1_points = transformation.transform(points)
+
+cov = np.cov(stage1_points, rowvar=False)
+print(f"After Stage 1: H(Gaussian) = {shannon_entropy_gaussian(cov):.4f}")
+
+# ============================================================
+# STAGE 2: Outer Loop Refinement (5 rounds)
+# ============================================================
+current_basis = transformation.get_updated_basis(points)
+current_points = stage1_points.copy()
+
+for round_num in range(1, 6):
+    eff_transform = EffectiveTransformation(current_basis, current_points)
+    eff_minimizer = EffectiveCovarianceMinimizer(eff_transform)
+
+    result = eff_minimizer.optimize(max_iterations=1000, tolerance=1e-10)
+
+    current_points = eff_transform.transform()
+    current_basis = eff_transform.get_updated_basis()
+
+    cov = np.cov(current_points, rowvar=False)
+    H = shannon_entropy_gaussian(cov)
+    gap = H - target_H
+    print(f"Round {round_num}: H(Gaussian) = {H:.4f}, Gap = {gap:+.4f}")
+
+print(f"\nFinal gap: {gap:+.4f} nats (target: 0)")
+```
+
+### Example Results
+
+**Initial uniform distribution (before transformation):**
+
+![Initial Distribution](results/round_00_initial.png)
+
+**Final Gaussian distribution (after 5 outer loop rounds):**
+
+![Final Distribution](results/round_06_outer5.png)
+
+**Optimization history showing convergence:**
+
+![Optimization History](results/csv_optimization_history.png)
+
+## Mathematical Details
+
+For the complete mathematical formulation including:
+- Grid sampling formulas
+- Gaussian RBF definitions
+- Tensor operator derivation
+- Proof of divergence-free property
+- Discrete divergence computation
+
+See **[docs/equations.rst](docs/equations.rst)**
+
+## API Reference
+
+### Classes
+
+| Class | Description |
+|-------|-------------|
+| `VectorSampler` | Sample points on a regular D-dimensional grid |
+| `ScalarBasis` | Gaussian RBF scalar basis functions |
+| `TensorBasis` | Apply tensor operator to produce D×D matrix basis |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `divergence(V, dx, grid_shape)` | Compute divergence of vector field (signed sum) |
+| `divergence_components(V, dx, grid_shape)` | Get individual ∂V_d/∂x_d terms (signed) |
+| `gradient_component(f, dx, axis, grid_shape)` | Compute ∂f/∂x_axis for scalar field |
+| `is_divergence_free(V, dx, grid_shape)` | Check if field is divergence-free |
+| `tensor_basis_column_divergence(Phi, dx, grid_shape)` | Divergence of all tensor basis columns |
+| `verify_tensor_basis_divergence_free(Phi, dx, grid_shape)` | Verify all columns are divergence-free |
+
+**Note:** All divergence computations preserve signs. Use `divergence_components()` to see how
+individual terms (which may be positive or negative) sum to give the total divergence.
+
+## Shape Conventions
+
+| Symbol | Meaning |
+|--------|---------|
+| D | Dimension of space |
+| J | Number of evaluation points (grid points) |
+| L | Number of basis function centers |
+
+| Array | Shape | Description |
+|-------|-------|-------------|
+| `eval_points` | (J, D) | Evaluation grid points |
+| `centers` | (L, D) | Basis function centers |
+| `ScalarBasis.evaluate()` | (J, L) | Scalar basis values |
+| `TensorBasis.evaluate()` | (J, L, D, D) | Tensor basis matrices |
+| `divergence()` | (J,) | Divergence at each point |
+
+## Examples
+
+See the `notebooks/` directory for Jupyter notebook examples:
+- `2d_vector_field_example.ipynb` - 2D visualization of tensor basis columns
+
+See the `scripts/` directory for standalone demos:
+- `basis_pipeline_demo.py` - Full pipeline with shape verification
+
+## Installation
+
+You can install `entra` via [pip]:
+
+    pip install entra
+
+To install latest development version:
+
+    pip install git+https://github.com/Kapoorlabs-CAPED/entra.git
+
+## Contributing
+
+Contributions are very welcome. Tests can be run with [tox], please ensure
+the coverage at least stays the same before you submit a pull request.
+
+## License
+
+Distributed under the terms of the [BSD-3] license,
+"entra" is free and open source software
+
+## Issues
+
+If you encounter any problems, please [file an issue] along with a detailed description.
+
+[pip]: https://pypi.org/project/pip/
+[caped]: https://github.com/Kapoorlabs-CAPED
+[Cookiecutter]: https://github.com/audreyr/cookiecutter
+[@caped]: https://github.com/Kapoorlabs-CAPED
+[MIT]: http://opensource.org/licenses/MIT
+[BSD-3]: http://opensource.org/licenses/BSD-3-Clause
+[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
+[GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
+[Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
+[Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
+[cookiecutter-template]: https://github.com/Kapoorlabs-CAPED/cookiecutter-template
+[file an issue]: https://github.com/Kapoorlabs-CAPED/entra/issues
+[tox]: https://tox.readthedocs.io/en/latest/
+[PyPI]: https://pypi.org/
