@@ -1,0 +1,161 @@
+"""Centralized prompt templates for GenAI calls.
+
+# Internal; no stability guarantees
+
+Each builder returns a PromptInfo with the prompt text, a semantic version, and
+an opaque content hash to aid logging and reproducibility.
+"""
+
+# NOTE: For any changes to GenAI prompts or behavior, follow LLM_DEV_GUIDE.md.
+
+import hashlib
+
+from pydantic import BaseModel
+
+
+class PromptInfo(BaseModel):
+    """Structured metadata for a prompt template.
+
+    Frozen/immutable to ensure prompts are treated as value objects and can be
+    safely logged and hashed without mutation.
+    """
+
+    kind: str
+    version: str
+    text: str
+    digest: str
+
+    model_config = {"frozen": True}
+
+
+def _hash_prompt(kind: str, version: str, text: str) -> str:
+    """Return a short SHA1-based digest for a prompt triple."""
+    h = hashlib.sha1()
+    h.update(kind.encode("utf-8"))
+    h.update(version.encode("utf-8"))
+    h.update(text.encode("utf-8"))
+    return h.hexdigest()[:12]
+
+
+def morphosyntax_prompt(lang_or_dialect_name: str, normalized_text: str) -> PromptInfo:
+    """Build the morphosyntax prompt.
+
+    Rules emphasize strict UD tags, no commentary, and TSV in a code block.
+    """
+    kind: str = "morphosyntax"
+    version: str = "1.0"
+    text: str = (
+        f"For the following {lang_or_dialect_name} text, tokenize the text and return one line per token. "
+        "For each token, provide the FORM, LEMMA, UPOS, and FEATS fields following Universal Dependencies (UD) guidelines.\n\n"
+        "Rules:\n"
+        "- Always use strict UD morphological tags (not a simplified system).\n"
+        "- Split off enclitics and contractions as separate tokens.\n"
+        "- Always include punctuation as separate tokens with UPOS=PUNCT and FEATS=_.\n"
+        "- For uncertain, rare, or dialectal forms, always provide the most standard dictionary lemma and supply a best‑effort UD tag. Do not skip any tokens.\n"
+        '- Separate UD features with a pipe ("|"). Do not use a semi‑colon or other characters.\n'
+        "- Preserve the spelling of the text exactly as given (including diacritics, breathings, and subscripts). Do not normalize.\n"
+        "- If a lemma or feature is uncertain, still provide the closest standard form and UD features. Never leave fields blank and never ask for clarification.\n"
+        "- If full accuracy is not possible, always provide a best‑effort output without asking for clarification.\n"
+        "- Never request to perform the task in multiple stages; always deliver the final TSV in one step.\n"
+        "- Do not ask for confirmation, do not explain your reasoning, and do not include any commentary. Output only the TSV table.\n"
+        "- Always output all fields: FORM, LEMMA, UPOS, FEATS, LEMMA_CONF, UPOS_CONF, FEATS_CONF.\n"
+        "- Confidence fields must be floats in [0,1] or '_' if unknown.\n"
+        "- The result must be a markdown code block containing only a tab‑delimited table (TSV) with the header row:\n\n"
+        "FORM\tLEMMA\tUPOS\tFEATS\tLEMMA_CONF\tUPOS_CONF\tFEATS_CONF\n\n"
+        f"Text:\n\n{normalized_text}\n"
+    )
+    return PromptInfo(
+        kind=kind, version=version, text=text, digest=_hash_prompt(kind, version, text)
+    )
+
+
+def dependency_prompt_from_tokens(token_table: str) -> PromptInfo:
+    """Build a dependency prompt using an existing token table.
+
+    The table must be TSV with header: INDEX, FORM, UPOS, FEATS.
+    """
+    kind: str = "dependency-tokens"
+    version: str = "1.0"
+    text: str = (
+        "Using the following tokens with UPOS and FEATS, produce a dependency parse as TSV with exactly three columns: FORM, HEAD, DEPREL.\n\n"
+        "Rules:\n"
+        "- Use strict UD dependency relations only (e.g., nsubj, obj, obl:tmod, root).\n"
+        "- Do not change, split, merge, or reorder tokens. Use the tokens as given.\n"
+        "- HEAD refers to the 1-based index of the head token in the given token order (0 for root).\n"
+        "- Include HEAD_CONF and DEPREL_CONF as floats in [0,1] or '_' if unknown.\n"
+        "- Output must be a Markdown code block containing only a tab‑delimited table with the header: FORM\tHEAD\tDEPREL\tHEAD_CONF\tDEPREL_CONF.\n\n"
+        f"Tokens:\n\n{token_table}\n\n"
+        "Output only the dependency table."
+    )
+    return PromptInfo(
+        kind=kind, version=version, text=text, digest=_hash_prompt(kind, version, text)
+    )
+
+
+def dependency_prompt_from_text(lang_or_dialect_name: str, sentence: str) -> PromptInfo:
+    """Build a dependency prompt when no token table is available."""
+    kind: str = "dependency-text"
+    version: str = "1.0"
+    text: str = (
+        f"For the following {lang_or_dialect_name} text, first tokenize the sentence. "
+        "For each token, output a TSV row with exactly three columns: FORM, HEAD, DEPREL.\n\n"
+        "Rules:\n"
+        "- Use strict UD dependency relations only (e.g., nsubj, obj, obl:tmod, root).\n"
+        "- HEAD is 1‑based index of the token's head in this sentence (0 for root).\n"
+        "- Include HEAD_CONF and DEPREL_CONF as floats in [0,1] or '_' if unknown.\n"
+        "- Output must be a Markdown code block with the header: FORM\tHEAD\tDEPREL\tHEAD_CONF\tDEPREL_CONF.\n\n"
+        f"Text:\n\n{sentence}\n"
+    )
+    return PromptInfo(
+        kind=kind, version=version, text=text, digest=_hash_prompt(kind, version, text)
+    )
+
+
+def enrichment_prompt(
+    lang_or_dialect_name: str,
+    token_table: str,
+    ipa_mode: str,
+) -> PromptInfo:
+    """Build the enrichment prompt that consumes morph+dependency tokens."""
+    kind: str = "enrichment"
+    version: str = "1.3"
+    text: str = (
+        f"Using the following {lang_or_dialect_name} tokens (with lemma, UPOS, FEATS, HEAD, DEPREL), add enrichment fields without changing the tokens.\n\n"
+        "Return a single JSON object inside a markdown code block with keys `tokens` and `idioms`.\n"
+        f"- Each entry in `tokens` must include: index (1-based, matching the table), gloss (with optional dictionary/context), lemma_translations (list with optional probabilities), "
+        f"ipa (use pronunciation mode {ipa_mode} and provide `value`), orthography (syllables list, stress or accent class, phonology_trace of rules), idiom_span_ids (if part of an idiom), "
+        "and pedagogy (short learner-facing notes such as case usage or disambiguation hints).\n"
+        "- Optionally include `confidence` with keys gloss, lemma_translations, ipa, orthography, pedagogy as floats in [0,1]. Omit or use null if unknown.\n"
+        "- `gloss.dictionary` MUST be a single string (not a list). If there are multiple senses, join with '; ' or put alternates in `gloss.alternatives`.\n"
+        '- `orthography.stress` MUST be a single string (e.g., "unstressed"), not a dict or object.\n'
+        "- `idioms` is a list of span objects with: id, token_indices (1-based indices matching the table), phrase_gloss (single string, not a dict), kind (idiom/fixed-expression/particle-chain), and confidence.\n"
+        "- Do not re-tokenize or change morphological/dep decisions. If uncertain, provide best-effort alternatives with probabilities.\n\n"
+        f"Tokens:\n\n{token_table}\n\n"
+        "Output only the JSON payload."
+    )
+    return PromptInfo(
+        kind=kind, version=version, text=text, digest=_hash_prompt(kind, version, text)
+    )
+
+
+def translation_prompt(
+    lang_or_dialect_name: str,
+    target_language: str,
+    context: str,
+) -> PromptInfo:
+    """Build a translation prompt that leverages prior annotations."""
+    kind: str = "translation"
+    version: str = "1.1"
+    text: str = (
+        f"Translate the following {lang_or_dialect_name} sentence into {target_language}. "
+        "Use the provided morphosyntax, dependency relations, glosses, lemma translations, idiom hints, and pedagogy notes instead of translating from scratch. "
+        "Rely on those annotations as much as possible; adjust only when a gloss or valence appears inaccurate.\n\n"
+        "Return a JSON object inside a markdown code block with:\n"
+        "- `translation`: the final fluent translation.\n"
+        f"- `notes`: 1-3 sentences (in {target_language}) highlighting difficult or non-obvious decisions (e.g., idioms, ambiguous morphology, pragmatic nuance).\n"
+        "- `confidence`: float in [0,1] for overall translation confidence (or null if unknown).\n\n"
+        f"Context:\n\n{context}\n"
+    )
+    return PromptInfo(
+        kind=kind, version=version, text=text, digest=_hash_prompt(kind, version, text)
+    )
