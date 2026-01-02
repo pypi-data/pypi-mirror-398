@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <nav class="flex items-center gap-2 text-sm mb-2">
+                <a href="/jobs" class="text-slate-400 hover:text-white transition-colors">Jobs</a>
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                <span class="text-white">Compare</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-white">Compare Jobs</h1>
+            <p class="text-slate-400 text-sm mt-1">Side-by-side comparison of {{ jobs|length }} monitoring sessions</p>
+        </div>
+        <a href="/jobs" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Jobs
+        </a>
+    </div>
+
+    {% if jobs|length < 2 %}
+    <!-- Job Selection UI -->
+    <div class="glass-card rounded-xl p-6" x-data="{ 
+        selectedJobs: [],
+        toggleJob(jobId) {
+            if (this.selectedJobs.includes(jobId)) {
+                this.selectedJobs = this.selectedJobs.filter(id => id !== jobId);
+            } else if (this.selectedJobs.length < 4) {
+                this.selectedJobs.push(jobId);
+            }
+        },
+        goCompare() {
+            if (this.selectedJobs.length >= 2) {
+                window.location.href = '/compare?jobs=' + this.selectedJobs.join(',');
+            }
+        }
+    }">
+        <div class="text-center mb-6">
+            <svg class="w-16 h-16 mx-auto text-purple-500/50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <h2 class="text-xl font-semibold text-white mb-2">Select Jobs to Compare</h2>
+            <p class="text-slate-400 text-sm">Choose 2-4 completed jobs for side-by-side comparison</p>
+        </div>
+        
+        <!-- Selection hint -->
+        <div x-show="selectedJobs.length > 0 && selectedJobs.length < 2" 
+             class="mb-4 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2 text-center">
+            Select <span x-text="2 - selectedJobs.length"></span> more job(s) to compare
+        </div>
+        
+        {% if all_jobs %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+            {% for job in all_jobs %}
+            <button @click="toggleJob('{{ job.id }}')"
+                    class="p-4 rounded-lg border text-left transition-all"
+                    :class="selectedJobs.includes('{{ job.id }}') 
+                        ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30' 
+                        : 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600'">
+                <div class="flex items-center gap-3">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                         :class="selectedJobs.includes('{{ job.id }}') ? 'bg-purple-500 border-purple-500' : 'border-slate-600'">
+                        <svg x-show="selectedJobs.includes('{{ job.id }}')" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="font-medium text-white truncate">{{ job.name or job.replication_group_id }}</div>
+                        <div class="text-xs text-slate-500">{{ job.created_at.strftime('%Y-%m-%d %H:%M') }} · {{ job.total_commands|format_number }} cmds</div>
+                    </div>
+                </div>
+            </button>
+            {% endfor %}
+        </div>
+        
+        <div class="flex justify-center">
+            <button @click="goCompare()" 
+                    :disabled="selectedJobs.length < 2"
+                    class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all"
+                    :class="selectedJobs.length >= 2 
+                        ? 'bg-purple-500 text-white hover:bg-purple-600' 
+                        : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Compare <span x-show="selectedJobs.length > 0">(<span x-text="selectedJobs.length"></span>)</span>
+            </button>
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <p class="text-slate-500 mb-4">No completed jobs available for comparison</p>
+            <a href="/" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-redis-500/20 text-redis-400 hover:bg-redis-500/30 transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Create New Job
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    
+    <!-- Overview Cards -->
+    <div class="grid grid-cols-{{ jobs|length }} gap-4">
+        {% for job in jobs %}
+        <div class="glass-card rounded-xl p-4 border-t-4 
+                    {% if loop.index == 1 %}border-t-purple-500{% elif loop.index == 2 %}border-t-emerald-500{% elif loop.index == 3 %}border-t-amber-500{% else %}border-t-cyan-500{% endif %}">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-3 h-3 rounded-full 
+                            {% if loop.index == 1 %}bg-purple-500{% elif loop.index == 2 %}bg-emerald-500{% elif loop.index == 3 %}bg-amber-500{% else %}bg-cyan-500{% endif %}"></div>
+                <h3 class="font-semibold text-white truncate">{{ job.name or job.replication_group_id }}</h3>
+            </div>
+            <div class="text-xs text-slate-500 mb-2 font-mono">{{ job.id[:8] }}...</div>
+            <div class="text-xs text-slate-400">{{ job.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Metrics Comparison Table -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-700/50">
+            <h2 class="text-lg font-semibold text-white">Key Metrics</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="bg-slate-800/50">
+                        <th class="text-left text-sm font-medium text-slate-400 px-4 py-3">Metric</th>
+                        {% for job in jobs %}
+                        <th class="text-right text-sm font-medium px-4 py-3 
+                                   {% if loop.index == 1 %}text-purple-400{% elif loop.index == 2 %}text-emerald-400{% elif loop.index == 3 %}text-amber-400{% else %}text-cyan-400{% endif %}">
+                            {{ job.name or job.replication_group_id[:15] }}
+                        </th>
+                        {% endfor %}
+                        <th class="text-right text-sm font-medium text-slate-500 px-4 py-3">Diff</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-4 py-3 text-slate-300">Total Commands</td>
+                        {% for job in jobs %}
+                        <td class="px-4 py-3 text-right font-mono text-white">{{ job.total_commands|format_number }}</td>
+                        {% endfor %}
+                        <td class="px-4 py-3 text-right font-mono text-sm">
+                            {% if jobs|length == 2 %}
+                            {% set diff = jobs[0].total_commands - jobs[1].total_commands %}
+                            <span class="{% if diff > 0 %}text-emerald-400{% elif diff < 0 %}text-red-400{% else %}text-slate-500{% endif %}">
+                                {% if diff > 0 %}+{% endif %}{{ diff|format_number }}
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-4 py-3 text-slate-300">Duration</td>
+                        {% for job in jobs %}
+                        <td class="px-4 py-3 text-right font-mono text-white">{{ job.duration_seconds }}s</td>
+                        {% endfor %}
+                        <td class="px-4 py-3"></td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-4 py-3 text-slate-300">Commands/sec</td>
+                        {% for job in jobs %}
+                        <td class="px-4 py-3 text-right font-mono text-white">
+                            {{ (job.total_commands / job.duration_seconds)|round(1) if job.duration_seconds > 0 else 0 }}
+                        </td>
+                        {% endfor %}
+                        <td class="px-4 py-3 text-right font-mono text-sm">
+                            {% if jobs|length == 2 %}
+                            {% set rate1 = (jobs[0].total_commands / jobs[0].duration_seconds) if jobs[0].duration_seconds > 0 else 0 %}
+                            {% set rate2 = (jobs[1].total_commands / jobs[1].duration_seconds) if jobs[1].duration_seconds > 0 else 0 %}
+                            {% set diff = rate1 - rate2 %}
+                            <span class="{% if diff > 0 %}text-emerald-400{% elif diff < 0 %}text-red-400{% else %}text-slate-500{% endif %}">
+                                {% if diff > 0 %}+{% endif %}{{ diff|round(1) }}
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-4 py-3 text-slate-300">Shards</td>
+                        {% for job in jobs %}
+                        <td class="px-4 py-3 text-right font-mono text-white">{{ stats[job.id].shard_count }}</td>
+                        {% endfor %}
+                        <td class="px-4 py-3"></td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-4 py-3 text-slate-300">Unique Keys</td>
+                        {% for job in jobs %}
+                        <td class="px-4 py-3 text-right font-mono text-white">{{ stats[job.id].unique_keys|format_number }}</td>
+                        {% endfor %}
+                        <td class="px-4 py-3 text-right font-mono text-sm">
+                            {% if jobs|length == 2 %}
+                            {% set diff = stats[jobs[0].id].unique_keys - stats[jobs[1].id].unique_keys %}
+                            <span class="{% if diff > 0 %}text-emerald-400{% elif diff < 0 %}text-red-400{% else %}text-slate-500{% endif %}">
+                                {% if diff > 0 %}+{% endif %}{{ diff|format_number }}
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-4 py-3 text-slate-300">Unique Patterns</td>
+                        {% for job in jobs %}
+                        <td class="px-4 py-3 text-right font-mono text-white">{{ stats[job.id].unique_patterns|format_number }}</td>
+                        {% endfor %}
+                        <td class="px-4 py-3 text-right font-mono text-sm">
+                            {% if jobs|length == 2 %}
+                            {% set diff = stats[jobs[0].id].unique_patterns - stats[jobs[1].id].unique_patterns %}
+                            <span class="{% if diff > 0 %}text-emerald-400{% elif diff < 0 %}text-red-400{% else %}text-slate-500{% endif %}">
+                                {% if diff > 0 %}+{% endif %}{{ diff|format_number }}
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Command Distribution Comparison -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-700/50">
+            <h2 class="text-lg font-semibold text-white">Command Distribution</h2>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-{{ jobs|length }} gap-6">
+                {% for job in jobs %}
+                {% set job_idx = loop.index %}
+                <div>
+                    <h3 class="text-sm font-medium mb-3 
+                               {% if job_idx == 1 %}text-purple-400{% elif job_idx == 2 %}text-emerald-400{% elif job_idx == 3 %}text-amber-400{% else %}text-cyan-400{% endif %}">
+                        {{ job.name or job.replication_group_id[:15] }}
+                    </h3>
+                    <div class="space-y-2">
+                        {% for cmd in stats[job.id].top_commands[:8] %}
+                        <div class="flex items-center gap-3">
+                            <div class="w-16 text-xs text-slate-400 font-mono truncate">{{ cmd.command }}</div>
+                            <div class="flex-1 h-5 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full 
+                                            {% if job_idx == 1 %}bg-purple-500{% elif job_idx == 2 %}bg-emerald-500{% elif job_idx == 3 %}bg-amber-500{% else %}bg-cyan-500{% endif %}"
+                                     style="width: {{ (cmd.count / stats[job.id].top_commands[0].count * 100)|round(1) }}%"></div>
+                            </div>
+                            <div class="w-16 text-xs text-slate-400 text-right">{{ cmd.count|format_number }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Patterns Comparison -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-700/50">
+            <h2 class="text-lg font-semibold text-white">Top Key Patterns</h2>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-{{ jobs|length }} gap-6">
+                {% for job in jobs %}
+                <div>
+                    <h3 class="text-sm font-medium mb-3 
+                               {% if loop.index == 1 %}text-purple-400{% elif loop.index == 2 %}text-emerald-400{% elif loop.index == 3 %}text-amber-400{% else %}text-cyan-400{% endif %}">
+                        {{ job.name or job.replication_group_id[:15] }}
+                    </h3>
+                    <div class="space-y-2">
+                        {% for pattern in stats[job.id].top_patterns[:6] %}
+                        <div class="p-2 bg-slate-800/50 rounded-lg">
+                            <div class="text-xs font-mono text-white truncate mb-1" title="{{ pattern.pattern }}">{{ pattern.pattern }}</div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-500">{{ pattern.count|format_number }} cmds</span>
+                                <span class="text-slate-400">{{ ((pattern.count / job.total_commands) * 100)|round(1) }}%</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Shard Distribution Chart -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-700/50">
+            <h2 class="text-lg font-semibold text-white">Shard Distribution (Commands per Shard)</h2>
+        </div>
+        <div class="p-4">
+            <canvas id="shardCompareChart" height="300"></canvas>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('shardCompareChart').getContext('2d');
+        
+        // Collect all unique shard names
+        const allShards = new Set();
+        const jobData = {};
+        
+        {% for job in jobs %}
+        jobData['{{ job.id }}'] = {
+            name: '{{ job.name or job.replication_group_id[:15] }}',
+            shards: {
+                {% for shard in stats[job.id].shard_distribution %}
+                '{{ shard.shard_name }}': {{ shard.count }},
+                {% endfor %}
+            }
+        };
+        Object.keys(jobData['{{ job.id }}'].shards).forEach(s => allShards.add(s));
+        {% endfor %}
+        
+        const shardLabels = Array.from(allShards).sort();
+        const colors = ['rgb(168, 85, 247)', 'rgb(16, 185, 129)', 'rgb(251, 191, 36)', 'rgb(6, 182, 212)'];
+        
+        const datasets = [];
+        let colorIdx = 0;
+        for (const [jobId, data] of Object.entries(jobData)) {
+            datasets.push({
+                label: data.name,
+                data: shardLabels.map(s => data.shards[s] || 0),
+                backgroundColor: colors[colorIdx % colors.length] + '80',
+                borderColor: colors[colorIdx % colors.length],
+                borderWidth: 1
+            });
+            colorIdx++;
+        }
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: shardLabels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#94a3b8' }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#64748b' },
+                        grid: { color: '#1e293b' }
+                    },
+                    y: {
+                        ticks: { color: '#64748b' },
+                        grid: { color: '#1e293b' }
+                    }
+                }
+            }
+        });
+    });
+    </script>
+    
+    {% endif %}
+</div>
+{% endblock %}
+
