@@ -1,0 +1,161 @@
+Metadata-Version: 2.4
+Name: qtype
+Version: 0.1.9
+Summary: DSL for Generative AI Prototyping
+Author-email: Lou Kratz <lou.kratz+qtype@bazaarvoice.com>
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/bazaarvoice/qtype
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: jsonschema>=4.24.0
+Requires-Dist: pydantic>=2.12.4
+Requires-Dist: pyyaml>=6.0.2
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: openai>=1.93.0
+Requires-Dist: fsspec>=2025.5.1
+Requires-Dist: mkdocs-awesome-pages-plugin>=2.10.1
+Requires-Dist: pip-system-certs>=5.2
+Requires-Dist: openapi3-parser>=1.1.21
+Requires-Dist: pydantic-yaml>=1.6.0
+Requires-Dist: google-cloud-aiplatform>=1.120.0
+Provides-Extra: interpreter
+Requires-Dist: aiostream>=0.7.1; extra == "interpreter"
+Requires-Dist: arize-phoenix-otel>=0.12.1; extra == "interpreter"
+Requires-Dist: boto3>=1.34.0; extra == "interpreter"
+Requires-Dist: datasets>=4.4.1; extra == "interpreter"
+Requires-Dist: diskcache>=5.6.3; extra == "interpreter"
+Requires-Dist: docling>=2.55.1; extra == "interpreter"
+Requires-Dist: docx2txt>=0.9; extra == "interpreter"
+Requires-Dist: fastapi>=0.116.1; extra == "interpreter"
+Requires-Dist: jsonpath-ng>=1.7.0; extra == "interpreter"
+Requires-Dist: langfuse>=3.9.0; extra == "interpreter"
+Requires-Dist: llama-index-embeddings-bedrock>=0.5.2; extra == "interpreter"
+Requires-Dist: llama-index-embeddings-openai>=0.3.1; extra == "interpreter"
+Requires-Dist: llama-index-llms-bedrock-converse>=0.10.5; extra == "interpreter"
+Requires-Dist: llama-index-llms-bedrock>=0.3.8; extra == "interpreter"
+Requires-Dist: llama-index-llms-vertex>=0.6.1; extra == "interpreter"
+Requires-Dist: llama-index-postprocessor-bedrock-rerank>=0.5.1; extra == "interpreter"
+Requires-Dist: llama-index-readers-huggingface-fs>=0.4.1; extra == "interpreter"
+Requires-Dist: llama-index-vector-stores-qdrant>=0.8.6; extra == "interpreter"
+Requires-Dist: llama-index>=0.12.45; extra == "interpreter"
+Requires-Dist: openinference-instrumentation-llama-index>=4.3.4; extra == "interpreter"
+Requires-Dist: opensearch-py>=2.7.0; extra == "interpreter"
+Requires-Dist: opentelemetry-exporter-otlp>=1.35.0; extra == "interpreter"
+Requires-Dist: opentelemetry-sdk>=1.35.0; extra == "interpreter"
+Requires-Dist: pandas>=2.2.3; extra == "interpreter"
+Requires-Dist: psycopg2-binary>=2.9.10; extra == "interpreter"
+Requires-Dist: pyarrow>=21.0.0; extra == "interpreter"
+Requires-Dist: pyathena[sqlalchemy]>=3.18.0; extra == "interpreter"
+Requires-Dist: python-magic>=0.4.27; extra == "interpreter"
+Requires-Dist: s3fs>=2025.7.0; extra == "interpreter"
+Requires-Dist: sqlalchemy>=2.0.42; extra == "interpreter"
+Requires-Dist: uvicorn[standard]>=0.35.0; extra == "interpreter"
+Dynamic: license-file
+
+# QType
+
+**QType is a domain-specific language (DSL) for rapid prototyping of AI applications.**  
+It is designed to help developers define modular, composable AI systems using a structured YAML-based specification. QType supports models, prompts, tools, retrievers, and flow orchestration, and is extensible for code generation or live interpretation.
+
+---
+
+## 🚀 Quick Start
+
+Install QType:
+
+```bash
+pip install qtype[interpreter]
+```
+
+Create a file `hello_world.qtype.yaml` that answers a question:
+```yaml
+id: hello_world
+flows:
+  - id: chat_example
+    description: A simple chat flow with OpenAI
+    mode: Chat
+    steps:
+      - id: llm_inference_step
+        model: 
+          id: gpt-4
+          provider: openai
+          auth: 
+            id: openai_auth
+            type: api_key
+            api_key: ${OPENAI_KEY}
+        system_message: |
+          You are a helpful assistant.
+        inputs:
+          - id: user_message
+            type: ChatMessage
+        outputs:
+          - id: response
+            type: ChatMessage
+```
+
+Put your openai api key into your `.env` file:
+```
+echo "OPENAI_KEY=sk...." >> .env
+```
+
+Validate it's semantic correctness:
+
+```bash
+qtype validate hello_world.qtype.yaml 
+```
+
+You should see:
+
+```
+INFO: ✅ Schema validation successful.
+INFO: ✅ Model validation successful.
+INFO: ✅ Language validation successful
+INFO: ✅ Semantic validation successful
+```
+
+Launch the interpreter:
+
+```bash
+qtype serve hello_world.qtype.yaml`
+```
+
+
+And go to [http://localhost:8000/ui](http://localhost:8000/ui) to see the user interface for your application:
+
+![Example UI](docs/example_ui.png)
+
+
+---
+
+See the [full docs](https://bazaarvoice.github.io/qtype/) for more examples and guides.
+
+
+
+## 🤝 Contributing
+
+Contributions welcome! Please follow the instructions in the [contribution guide](https://bazaarvoice.github.io/qtype/contributing/).
+
+## 📄 License
+
+This project is licensed under the **MIT License**.  
+See the [LICENSE](./LICENSE) file for details.
+
+---
+
+## 🧠 Philosophy
+
+QType is built around modularity, traceability, and rapid iteration. It aims to empower developers to quickly scaffold ideas into usable AI applications without sacrificing maintainability or control.
+
+Stay tuned for upcoming features like:
+- Integrated OpenTelemetry tracing
+- Validation via LLM-as-a-judge
+- UI hinting via input display types
+- Flow state switching and conditional routing
+
+---
+
+Happy hacking with QType! 🛠️
+
+
+[![Generate JSON Schema](https://github.com/bazaarvoice/qtype/actions/workflows/github_workflows_generate-schema.yml/badge.svg)](https://github.com/bazaarvoice/qtype/actions/workflows/github_workflows_generate-schema.yml) [![Publish to PyPI](https://github.com/bazaarvoice/qtype/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/bazaarvoice/qtype/actions/workflows/publish-pypi.yml)
