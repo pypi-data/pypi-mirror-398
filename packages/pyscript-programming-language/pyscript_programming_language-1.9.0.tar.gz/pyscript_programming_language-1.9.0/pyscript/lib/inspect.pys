@@ -1,0 +1,46 @@
+import _pyscript
+import sys
+
+func iscontext(object) {
+    return isinstance(object, _pyscript.context.PysContext)
+}
+
+func issymtab(object) {
+    return isinstance(object, _pyscript.symtab.PysSymbolTable)
+}
+
+func iscode(object) {
+    return isinstance(object, _pyscript.objects.PysCode)
+}
+
+func isfunction(object) {
+    return isinstance(object, _pyscript.objects.PysFunction)
+}
+
+func ispyfunction(object) {
+    return isinstance(object, _pyscript.objects.PysPythonFunction)
+}
+
+getcontext = sys.getcontext
+getsymtab = _pyscript.objects.PysPythonFunction(func(pyfunc) => pyfunc.__code__.context.symbol_table)
+func getcode(fn) {
+    if (not (isfunction(fn) or ispyfunction(fn))) {
+        throw TypeError("getcode(): fn must be PysPythonFunction or PysFunction")
+    }
+    code = getattr(fn, '__code__', None)
+    if (not iscode(code)) {
+        throw TypeError("getcode(): fn has no valid __code__ attribute")
+    }
+    return fn.__code__
+}
+
+__all__ = (
+    'iscontext',
+    'issymtab',
+    'iscode',
+    'isfunction',
+    'ispyfunction',
+    'getcontext',
+    'getsymtab',
+    'getcode'
+)

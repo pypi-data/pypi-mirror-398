@@ -1,0 +1,28 @@
+import sys
+
+if (sys.platform == 'win32') {
+    from msvcrt import getch
+}
+else {
+    from termios import tcgetattr, tcsetattr, TCSADRAIN
+    from tty import setraw
+
+    fileno = sys.stdin.fileno
+    read = sys.stdin.read
+
+    func getch() {
+        fileDescriptor = fileno()
+        oldSettings = tcgetattr(fileDescriptor)
+
+        try {
+            setraw(fileno())
+            return read(1).encode()
+        } finally {
+            tcsetattr(fileDescriptor, TCSADRAIN, oldSettings)
+        }
+    }
+}
+
+__all__ = (
+    'getch',
+)

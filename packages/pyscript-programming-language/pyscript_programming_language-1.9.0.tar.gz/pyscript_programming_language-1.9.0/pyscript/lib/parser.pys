@@ -1,0 +1,168 @@
+import _pyscript  # get a core from PyScript module (pyscript.core)
+
+# tokens offset
+DOUBLE = _pyscript.constants.DOUBLE
+TRIPLE = _pyscript.constants.TRIPLE
+WITH_EQUAL = _pyscript.constants.WITH_EQUAL
+SPECIAL = _pyscript.constants.SPECIAL
+
+# constants
+TOKENS = _pyscript.constants.TOKENS
+KEYWORDS = _pyscript.constants.KEYWORDS
+
+# flags
+DEFAULT = _pyscript.constants.DEFAULT
+HIGHLIGHT = _pyscript.constants.HIGHLIGHT
+REVERSE_POW_XOR = _pyscript.constants.REVERSE_POW_XOR
+
+# highlight formatter
+HLFMT_HTML = _pyscript.highlight.HLFMT_HTML
+HLFMT_ANSI = _pyscript.highlight.HLFMT_ANSI
+HLFMT_BBCODE = _pyscript.highlight.HLFMT_BBCODE
+
+@_pyscript.utils.decorators.immutable
+@_pyscript.utils.decorators.inheritable
+class Parser {
+
+    __slots__ = ('_compiled', 'source', 'file', 'flags')
+
+    func __init__(self, source, flags=DEFAULT) {
+
+        # source is a list of tokens
+        if (isinstance(source, tuple)) {
+            if (not source)
+                throw ValueError("Parser(): source got empty tuple")
+
+            for (i, token of enumerate(source)) {
+                if (not isinstance(token, _pyscript.token.PysToken))
+                    throw TypeError("Parser(): source must be tuple of tokens")
+                if (token.type in (TOKENS['COMMENT'], TOKENS['NONE']))
+                    throw ValueError("Parser(): source token with comment or none token is invalid")
+            }
+
+            file = source[0].position.file
+            compiled = 'tokenize'
+        }
+
+        # source is an AST
+        elif (isinstance(source, _pyscript.nodes.PysNode)) {
+            file = source.position.file
+            compiled = 'ast'
+        }
+
+        # source is an object that is supported and converted to a buffer
+        else {
+            file = _pyscript.buffer.PysFileBuffer(source)
+            compiled = 'none'
+        }
+
+        if (not isinstance(flags, int))
+            throw TypeError("Parser(): flags must be integer")
+
+        _pyscript.utils.generic.setimuattr(self, 'source', source)
+        _pyscript.utils.generic.setimuattr(self, 'flags', flags)
+        _pyscript.utils.generic.setimuattr(self, 'file', file)
+        _pyscript.utils.generic.setimuattr(self, '_compiled', compiled)
+    }
+
+    func tokenize(self) {
+        if (self._compiled == 'tokenize')
+            return self.source
+        elif (self._compiled == 'ast')
+            throw TypeError("tokenize(): cannot tokenize AST source")
+
+        lexer = _pyscript.lexer.PysLexer(
+            file=self.file,
+            flags=self.flags
+        )
+
+        tokens, error = lexer.make_tokens()
+        if (error)
+            throw error.exception
+
+        return tokens
+    }
+
+    func ast(self, mode='exec') {
+        if (mode not in ('exec', 'eval'))
+            throw ValueError("ast(): mode must be 'exec' or 'eval'")
+
+        if (self._compiled == 'tokenize')
+            tokens = self.source
+        elif (self._compiled == 'ast')
+            return self.source
+        else
+            tokens = self.tokenize()
+
+        parser = _pyscript.parser.PysParser(
+            tokens=tokens,
+            flags=self.flags
+        )
+
+        ast = parser.parse(mode == 'exec' ? None : parser.expr)
+        if (ast.error)
+            throw ast.error.exception
+
+        return ast.node
+    }
+
+    func analyze(self, mode='exec') {
+        if (self._compiled == 'ast')
+            ast = self.source
+        else
+            ast = self.ast(mode=mode)
+
+        analyzer = _pyscript.analyzer.PysAnalyzer(
+            node=ast,
+            flags=self.flags
+        )
+
+        error = analyzer.analyze()
+        if (error)
+            throw error.exception
+    }
+
+    func highlight(self, format=None, max_bracket_level=3) {
+        # this function only supports direct source buffers
+        return _pyscript.highlight.pys_highlight(
+            source=self.file,
+            format=format,
+            max_bracket_level=max_bracket_level
+        )
+    }
+
+}
+
+# wrap functions
+
+func tokenize(source, flags=DEFAULT)
+    return Parser(source, flags).tokenize()
+
+func ast(source, mode='exec', flags=DEFAULT)
+    return Parser(source, flags).ast(mode=mode)
+
+func analyze(source, mode='exec', flags=DEFAULT)
+    return Parser(source, flags).analyze(mode=mode)
+
+func highlight(source, format=None, max_bracket_level=3)
+    return Parser(source).highlight(format=format, max_bracket_level=max_bracket_level)
+
+__all__ = (
+    'DOUBLE',
+    'TRIPLE',
+    'WITH_EQUAL',
+    'SPECIAL',
+    'TOKENS',
+    'KEYWORDS',
+    'DEFAULT',
+    'HIGHLIGHT',
+    'REVERSE_POW_XOR',
+    'HLFMT_HTML',
+    'HLFMT_ANSI',
+    'HLFMT_BBCODE',
+    'Parser',
+    'tokenize',
+    'ast',
+    'analyze',
+    'highlight'
+)

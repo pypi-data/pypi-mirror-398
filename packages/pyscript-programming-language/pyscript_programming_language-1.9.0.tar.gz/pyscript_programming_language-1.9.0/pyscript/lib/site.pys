@@ -1,0 +1,58 @@
+import os
+import sys
+import explorer
+
+from '_pyscript>utils>module' import get_module_name_from_path, get_module_path
+from '_pyscript>utils>path' import normpath
+
+func removeduppath() {
+    known_paths = set()
+    path = []
+
+    for (dir of sys.path) {
+        dir = normpath(dir)
+        if (dir not in known_paths) {
+            path.append(dir)
+            known_paths.add(dir)
+        }
+    }
+
+    sys.path[:] = path
+    return known_paths
+}
+
+func getsitepackages() {
+    packages = []
+
+    for (package of os.listdir(sys.site_packages_path)) {
+        path = get_module_path(normpath(sys.site_packages_path, package, absolute=False))
+        if (path is not None) {
+            packages.append(get_module_name_from_path(package))
+        }
+    }
+
+    return packages
+}
+
+func addpackage(path) {
+    path = get_module_path(normpath(path, absolute=False))
+    if (path is None) {
+        throw ModuleNotFoundError("module package is invalid")
+    }
+    explorer.copy(path, sys.site_packages_path)
+}
+
+func removepackage(name) {
+    path = get_module_path(normpath(sys.site_packages_path, name, absolute=False))
+    if (path is None) {
+        throw ModuleNotFoundError("No module named {!r}".format(name))
+    }
+    explorer.remove(path)
+}
+
+__all__ = (
+    'removeduppath',
+    'getsitepackages',
+    'addpackage',
+    'removepackage'
+)
