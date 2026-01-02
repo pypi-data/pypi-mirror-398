@@ -1,0 +1,1914 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2021-2025
+"""
+Constants used by aiohomematic.
+
+Public API of this module is defined by __all__.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, IntEnum, StrEnum
+import inspect
+import os
+import re
+import sys
+from types import MappingProxyType
+from typing import Any, Final, NamedTuple, Required, TypedDict
+
+VERSION: Final = "2025.12.51"
+
+# Detect test speedup mode via environment
+_TEST_SPEEDUP: Final = (
+    bool(os.getenv("AIOHOMEMATIC_TEST_SPEEDUP")) or ("PYTEST_CURRENT_TEST" in os.environ) or ("pytest" in sys.modules)
+)
+
+# default
+DEFAULT_DELAY_NEW_DEVICE_CREATION: Final = False
+DEFAULT_ENABLE_DEVICE_FIRMWARE_CHECK: Final = False
+DEFAULT_ENABLE_PROGRAM_SCAN: Final = True
+DEFAULT_ENABLE_SYSVAR_SCAN: Final = True
+DEFAULT_IGNORE_CUSTOM_DEVICE_DEFINITION_MODELS: Final[frozenset[str]] = frozenset()
+DEFAULT_INCLUDE_INTERNAL_PROGRAMS: Final = False
+DEFAULT_INCLUDE_INTERNAL_SYSVARS: Final = True
+DEFAULT_LOCALE: Final = "en"
+DEFAULT_MAX_READ_WORKERS: Final = 1
+DEFAULT_MAX_WORKERS: Final = 1
+DEFAULT_MULTIPLIER: Final = 1.0
+DEFAULT_OPTIONAL_SETTINGS: Final[tuple[OptionalSettings | str, ...]] = ()
+DEFAULT_PROGRAM_MARKERS: Final[tuple[DescriptionMarker | str, ...]] = ()
+DEFAULT_SESSION_RECORDER_START_FOR_SECONDS: Final = 180
+DEFAULT_STORAGE_DIRECTORY: Final = "aiohomematic_storage"
+DEFAULT_SYSVAR_MARKERS: Final[tuple[DescriptionMarker | str, ...]] = ()
+DEFAULT_TLS: Final = False
+DEFAULT_UN_IGNORES: Final[frozenset[str]] = frozenset()
+DEFAULT_USE_GROUP_CHANNEL_FOR_COVER_STATE: Final = True
+DEFAULT_VERIFY_TLS: Final = False
+DEFAULT_INCLUDE_DEFAULT_DPS: Final = True
+
+
+class TimeoutConfig(NamedTuple):
+    """
+    Configuration for various timeout and interval settings.
+
+    All values are in seconds unless otherwise noted.
+    """
+
+    reconnect_initial_delay: float = 0.5 if _TEST_SPEEDUP else 2
+    """Initial delay before first reconnect attempt (default: 2s)."""
+
+    reconnect_max_delay: float = 1 if _TEST_SPEEDUP else 120
+    """Maximum delay between reconnect attempts after exponential backoff (default: 120s)."""
+
+    reconnect_backoff_factor: float = 2
+    """Multiplier for exponential backoff on reconnect attempts (default: 2)."""
+
+    reconnect_initial_cooldown: float = 0.5 if _TEST_SPEEDUP else 30
+    """Initial cool-down period after connection loss before starting TCP checks (default: 30s)."""
+
+    reconnect_tcp_check_timeout: float = 1 if _TEST_SPEEDUP else 60
+    """Maximum time to wait for TCP port to become available before giving up (default: 60s)."""
+
+    reconnect_tcp_check_interval: float = 0.5 if _TEST_SPEEDUP else 5
+    """Interval between TCP port checks during reconnection (default: 5s)."""
+
+    reconnect_warmup_delay: float = 0.5 if _TEST_SPEEDUP else 15
+    """
+    Warmup delay after first successful RPC check before attempting init (default: 15s).
+
+    After TCP port becomes available and first listMethods succeeds, this delay allows
+    CCU services to fully stabilize. A second listMethods call verifies stability before
+    init() is attempted.
+    """
+
+    callback_warn_interval: float = (1 if _TEST_SPEEDUP else 15) * 40
+    """Interval before warning about missing callback events (default: 600s = 10min)."""
+
+    rpc_timeout: float = 5 if _TEST_SPEEDUP else 60
+    """Default timeout for RPC calls (default: 60s)."""
+
+
+DEFAULT_TIMEOUT_CONFIG: Final = TimeoutConfig()
+
+
+class ScheduleTimerConfig(NamedTuple):
+    """
+    Configuration for scheduler intervals and timeouts.
+
+    All values are in seconds.
+    """
+
+    connection_checker_interval: int = 1 if _TEST_SPEEDUP else 15
+    """Interval between connection health checks (default: 15s)."""
+
+    device_firmware_check_interval: int = 21600  # 6h
+    """Interval for periodic device firmware update checks (default: 6h)."""
+
+    device_firmware_delivering_check_interval: int = 3600  # 1h
+    """Interval for checking firmware delivery progress (default: 1h)."""
+
+    device_firmware_updating_check_interval: int = 300  # 5m
+    """Interval for checking firmware update progress (default: 5m)."""
+
+    master_poll_after_send_intervals: tuple[int, ...] = (5,)
+    """Interval for polling HM master after sending commands (default: 5s)."""
+
+    metrics_refresh_interval: int = 60
+    """Interval for refreshing metrics hub sensors (default: 60s)."""
+
+    periodic_refresh_interval: int = 15
+    """Interval for periodic data refresh (default: 15s)."""
+
+    sys_scan_interval: int = 30
+    """Interval for system variable and program scans (default: 30s)."""
+
+    system_update_check_interval: int = 14400  # 4h
+    """Interval for periodic system update checks (default: 4h)."""
+
+    system_update_progress_check_interval: int = 30  # 30s
+    """Interval for checking system update progress during active update (default: 30s)."""
+
+    system_update_progress_timeout: int = 1800  # 30min
+    """Timeout for system update monitoring (default: 30min)."""
+
+
+DEFAULT_SCHEDULE_TIMER_CONFIG: Final = ScheduleTimerConfig()
+
+# Default encoding for json service calls, persistent cache
+UTF_8: Final = "utf-8"
+# Default encoding for xmlrpc service calls and script files
+ISO_8859_1: Final = "iso-8859-1"
+
+BIDCOS_DEVICE_CHANNEL_DUMMY: Final = 999
+
+# Password can be empty.
+# Allowed characters: A-Z, a-z, 0-9, .!$():;#-
+# The CCU WebUI also supports ÄäÖöÜüß, but these characters are not supported by the XmlRPC servers
+CCU_PASSWORD_PATTERN: Final = re.compile(r"[A-Za-z0-9.!$():;#-]{0,}")
+# Pattern is bigger than needed
+CHANNEL_ADDRESS_PATTERN: Final = re.compile(r"^[0-9a-zA-Z-]{5,20}:[0-9]{1,3}$")
+DEVICE_ADDRESS_PATTERN: Final = re.compile(r"^[0-9a-zA-Z-]{5,20}$")
+
+HOSTNAME_PATTERN: Final = re.compile(
+    r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(?:\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$"
+)
+IPV4_PATTERN: Final = re.compile(
+    r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+)
+IPV6_PATTERN: Final = re.compile(r"^\[?[0-9a-fA-F:]+\]?$")
+
+HTMLTAG_PATTERN: Final = re.compile(r"<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});")
+SCHEDULER_PROFILE_PATTERN: Final = re.compile(
+    r"^P[1-6]_(ENDTIME|TEMPERATURE)_(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)_([1-9]|1[0-3])$"
+)
+SCHEDULER_TIME_PATTERN: Final = re.compile(r"^(([0-1]{0,1}[0-9])|(2[0-4])):[0-5][0-9]")
+WEEK_PROFILE_PATTERN: Final = re.compile(r".*WEEK_PROFILE$")
+
+ALWAYS_ENABLE_SYSVARS_BY_ID: Final[frozenset[str]] = frozenset({"40", "41"})
+RENAME_SYSVAR_BY_NAME: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "${sysVarAlarmMessages}": "ALARM_MESSAGES",
+        "${sysVarPresence}": "PRESENCE",
+        "${sysVarServiceMessages}": "SERVICE_MESSAGES",
+    }
+)
+
+ADDRESS_SEPARATOR: Final = ":"
+BLOCK_LOG_TIMEOUT: Final = 60
+CONTENT_PATH: Final = "cache"
+CONF_PASSWORD: Final = "password"
+CONF_USERNAME: Final = "username"
+
+DATETIME_FORMAT: Final = "%d.%m.%Y %H:%M:%S"
+DATETIME_FORMAT_MILLIS: Final = "%d.%m.%Y %H:%M:%S.%f'"
+DEVICE_DESCRIPTIONS_DIR: Final = "export_device_descriptions"
+DUMMY_SERIAL: Final = "SN0815"
+FILE_DEVICES: Final = "homematic_devices"
+FILE_PARAMSETS: Final = "homematic_paramsets"
+FILE_SESSION_RECORDER: Final = "homematic_session_recorder"
+FILE_NAME_TS_PATTERN: Final = "%Y%m%d_%H%M%S"
+SUB_DIRECTORY_CACHE: Final = "cache"
+SUB_DIRECTORY_SESSION: Final = "session"
+HUB_PATH: Final = "hub"
+IDENTIFIER_SEPARATOR: Final = "@"
+INIT_DATETIME: Final = datetime.strptime("01.01.1970 00:00:00", DATETIME_FORMAT)
+IP_ANY_V4: Final = "0.0.0.0"
+JSON_SESSION_AGE: Final = 90
+
+# Login rate limiting constants
+LOGIN_MAX_FAILED_ATTEMPTS: Final = 10
+LOGIN_INITIAL_BACKOFF_SECONDS: Final = 1.0
+LOGIN_MAX_BACKOFF_SECONDS: Final = 60.0
+LOGIN_BACKOFF_MULTIPLIER: Final = 2.0
+
+# Retry logic constants for transient network errors
+RETRY_MAX_ATTEMPTS: Final = 3
+RETRY_INITIAL_BACKOFF_SECONDS: Final = 0.5
+RETRY_MAX_BACKOFF_SECONDS: Final = 30.0
+RETRY_BACKOFF_MULTIPLIER: Final = 2.0
+
+KWARGS_ARG_CUSTOM_ID: Final = "custom_id"
+KWARGS_ARG_DATA_POINT: Final = "data_point"
+LAST_COMMAND_SEND_CACHE_CLEANUP_THRESHOLD: Final = 100  # Cleanup when cache size exceeds this
+LAST_COMMAND_SEND_STORE_TIMEOUT: Final = 60
+
+# Resource limits for internal collections
+COMMAND_CACHE_MAX_SIZE: Final = 500  # Maximum entries in command cache
+COMMAND_CACHE_WARNING_THRESHOLD: Final = 400  # Log warning when approaching limit
+PING_PONG_CACHE_MAX_SIZE: Final = 100  # Maximum entries in ping/pong cache per interface
+LOCAL_HOST: Final = "127.0.0.1"
+MAX_CACHE_AGE: Final = 10
+MAX_CONCURRENT_HTTP_SESSIONS: Final = 3
+MAX_WAIT_FOR_CALLBACK: Final = 60
+NO_CACHE_ENTRY: Final = "NO_CACHE_ENTRY"
+PARAMSET_DESCRIPTIONS_DIR: Final = "export_paramset_descriptions"
+PATH_JSON_RPC: Final = "/api/homematic.cgi"
+PING_PONG_MISMATCH_COUNT: Final = 15
+PING_PONG_MISMATCH_COUNT_TTL: Final = 300
+PORT_ANY: Final = 0
+
+# Backend detection ports
+# Format: (non-TLS port, TLS port)
+DETECTION_PORT_BIDCOS_RF: Final = (2001, 42001)
+DETECTION_PORT_HMIP_RF: Final = (2010, 42010)
+DETECTION_PORT_BIDCOS_WIRED: Final = (2000, 42000)
+DETECTION_PORT_VIRTUAL_DEVICES: Final = (9292, 49292)
+DETECTION_PORT_JSON_RPC: Final = ((80, False), (443, True))  # (port, tls)
+
+# Default JSON-RPC ports
+DEFAULT_JSON_RPC_PORT: Final = 80
+DEFAULT_JSON_RPC_TLS_PORT: Final = 443
+
+HUB_ADDRESS: Final = "hub"
+INSTALL_MODE_ADDRESS: Final = "install_mode"
+PROGRAM_ADDRESS: Final = "program"
+REGA_SCRIPT_PATH: Final = "../rega_scripts"
+REPORT_VALUE_USAGE_DATA: Final = "reportValueUsageData"
+REPORT_VALUE_USAGE_VALUE_ID: Final = "PRESS_SHORT"
+SYSVAR_ADDRESS: Final = "sysvar"
+TIMEOUT: Final = 5 if _TEST_SPEEDUP else 60  # default timeout for a connection
+UN_IGNORE_WILDCARD: Final = "all"
+WAIT_FOR_CALLBACK: Final[int | None] = None
+
+# Scheduler sleep durations (used by central scheduler loop)
+SCHEDULER_NOT_STARTED_SLEEP: Final = 0.2 if _TEST_SPEEDUP else 10
+SCHEDULER_LOOP_SLEEP: Final = 0.2 if _TEST_SPEEDUP else 5
+
+# Path
+HUB_SET_PATH_ROOT: Final = "hub/set"
+HUB_STATE_PATH_ROOT: Final = "hub/status"
+PROGRAM_SET_PATH_ROOT: Final = "program/set"
+PROGRAM_STATE_PATH_ROOT: Final = "program/status"
+SET_PATH_ROOT: Final = "device/set"
+STATE_PATH_ROOT: Final = "device/status"
+SYSVAR_SET_PATH_ROOT: Final = "sysvar/set"
+SYSVAR_STATE_PATH_ROOT: Final = "sysvar/status"
+VIRTDEV_SET_PATH_ROOT: Final = "virtdev/set"
+VIRTDEV_STATE_PATH_ROOT: Final = "virtdev/status"
+
+# Metric sensor names
+METRICS_SENSOR_SYSTEM_HEALTH_NAME: Final = "System Health"
+METRICS_SENSOR_CONNECTION_LATENCY_NAME: Final = "Connection Latency"
+METRICS_SENSOR_LAST_EVENT_AGE_NAME: Final = "Last Event Age"
+INBOX_SENSOR_NAME: Final = "Inbox"
+
+
+class Backend(StrEnum):
+    """Enum with supported aiohomematic backends."""
+
+    CCU = "CCU"
+    HOMEGEAR = "Homegear"
+    PYDEVCCU = "PyDevCCU"
+
+
+class CCUType(StrEnum):
+    """
+    Enum with CCU types.
+
+    CCU: Original CCU2/CCU3 hardware and debmatic (CCU clone).
+    OPENCCU: OpenCCU - modern variants with online update check.
+    """
+
+    CCU = "CCU"
+    OPENCCU = "OpenCCU"
+    UNKNOWN = "Unknown"
+
+
+class SystemEventType(StrEnum):
+    """Enum with aiohomematic system events."""
+
+    DELETE_DEVICES = "deleteDevices"
+    DEVICES_CREATED = "devicesCreated"
+    DEVICES_DELAYED = "devicesDelayed"
+    ERROR = "error"
+    HUB_REFRESHED = "hubDataPointRefreshed"
+    LIST_DEVICES = "listDevices"
+    NEW_DEVICES = "newDevices"
+    REPLACE_DEVICE = "replaceDevice"
+    RE_ADDED_DEVICE = "readdedDevice"
+    UPDATE_DEVICE = "updateDevice"
+
+
+class CallSource(StrEnum):
+    """Enum with sources for calls."""
+
+    HA_INIT = "ha_init"
+    HM_INIT = "hm_init"
+    MANUAL_OR_SCHEDULED = "manual_or_scheduled"
+
+
+class ServiceScope(StrEnum):
+    """
+    Enum defining the scope of service methods.
+
+    Used by @inspector and @bind_collector decorators to control whether
+    a method is exposed as a service method (lib_service attribute).
+
+    Values:
+        EXTERNAL: Methods intended for external consumers (e.g., Home Assistant).
+            These are user-invokable commands like turn_on, turn_off, set_temperature.
+            Methods with this scope appear in service_method_names.
+        INTERNAL: Infrastructure methods for library operation.
+            These are internal methods like load_data_point_value, fetch_*_data.
+            Methods with this scope do NOT appear in service_method_names.
+    """
+
+    EXTERNAL = "external"
+    INTERNAL = "internal"
+
+
+class CalculatedParameter(StrEnum):
+    """Enum with calculated Homematic parameters."""
+
+    APPARENT_TEMPERATURE = "APPARENT_TEMPERATURE"
+    DEW_POINT = "DEW_POINT"
+    DEW_POINT_SPREAD = "DEW_POINT_SPREAD"
+    ENTHALPY = "ENTHALPY"
+    FROST_POINT = "FROST_POINT"
+    OPERATING_VOLTAGE_LEVEL = "OPERATING_VOLTAGE_LEVEL"
+    VAPOR_CONCENTRATION = "VAPOR_CONCENTRATION"
+
+
+class ProfileKey(StrEnum):
+    """Enum for custom data point definitions."""
+
+    ADDITIONAL_DPS = "additional_dps"
+    ALLOW_UNDEFINED_GENERIC_DPS = "allow_undefined_generic_dps"
+    DEFAULT_DPS = "default_dps"
+    DEVICE_DEFINITIONS = "device_definitions"
+    DEVICE_GROUP = "device_group"
+    FIELDS = "fields"
+    INCLUDE_DEFAULT_DPS = "include_default_dps"
+    PRIMARY_CHANNEL = "primary_channel"
+    REPEATABLE_FIELDS = "repeatable_fields"
+    SECONDARY_CHANNELS = "secondary_channels"
+    STATE_CHANNEL = "state_channel"
+    VISIBLE_FIELDS = "visible_fields"
+    VISIBLE_REPEATABLE_FIELDS = "visible_repeatable_fields"
+
+
+class ChannelOffset(IntEnum):
+    """
+    Semantic channel offsets relative to the primary channel.
+
+    Used in profile definitions to reference channels by their semantic role
+    rather than magic numbers.
+    """
+
+    STATE = -1
+    """State channel offset (e.g., ACTIVITY_STATE for covers)."""
+
+    SENSOR = -2
+    """Sensor channel offset (e.g., WATER_FLOW for irrigation)."""
+
+    CONFIG = -5
+    """Configuration channel offset (e.g., for WGTC thermostat)."""
+
+
+class CentralState(StrEnum):
+    """
+    Central State Machine states for overall system health orchestration.
+
+    This enum defines the states for the Central State Machine which
+    orchestrates the overall system state based on individual client states.
+
+    State Machine
+    -------------
+    ```
+    STARTING ──► INITIALIZING ──► RUNNING ◄──► DEGRADED
+                      │              │            │
+                      │              ▼            ▼
+                      │          RECOVERING ◄────┘
+                      │              │
+                      │              ├──► RUNNING (all recovered)
+                      │              ├──► DEGRADED (partial recovery)
+                      │              └──► FAILED (max retries)
+                      │
+                      └──► FAILED (critical init error)
+
+    STOPPED ◄── (from any state via stop())
+    ```
+
+    Valid Transitions
+    -----------------
+    - STARTING → INITIALIZING, STOPPED
+    - INITIALIZING → RUNNING, DEGRADED, FAILED, STOPPED
+    - RUNNING → DEGRADED, RECOVERING, STOPPED
+    - DEGRADED → RUNNING, RECOVERING, FAILED, STOPPED
+    - RECOVERING → RUNNING, DEGRADED, FAILED, STOPPED
+    - FAILED → RECOVERING, STOPPED
+    - STOPPED → (terminal)
+    """
+
+    STARTING = "starting"
+    """Central is being created."""
+
+    INITIALIZING = "initializing"
+    """Clients are being initialized."""
+
+    RUNNING = "running"
+    """Normal operation - all clients connected."""
+
+    DEGRADED = "degraded"
+    """Limited operation - at least one client not connected."""
+
+    RECOVERING = "recovering"
+    """Active recovery in progress."""
+
+    FAILED = "failed"
+    """Critical error - manual intervention required."""
+
+    STOPPED = "stopped"
+    """Central has been stopped."""
+
+
+class FailureReason(StrEnum):
+    """
+    Reason for a failure state in state machines.
+
+    This enum provides detailed failure categorization for FAILED states
+    in both ClientStateMachine and CentralStateMachine, enabling integrations
+    to distinguish between different error types and show appropriate messages.
+
+    Usage
+    -----
+    When transitioning to a FAILED state, specify the failure reason:
+
+    ```python
+    state_machine.transition_to(
+        target=ClientState.FAILED,
+        reason="Authentication failed",
+        failure_reason=FailureReason.AUTH,
+    )
+    ```
+
+    The integration can then check the failure reason:
+
+    ```python
+    if central.state_machine.failure_reason == FailureReason.AUTH:
+        show_auth_error_dialog()
+    elif central.state_machine.failure_reason == FailureReason.NETWORK:
+        show_connection_error_dialog()
+    ```
+    """
+
+    NONE = "none"
+    """No failure - normal operation."""
+
+    AUTH = "auth"
+    """Authentication/authorization failure (wrong credentials)."""
+
+    NETWORK = "network"
+    """Network connectivity issue (host unreachable, connection refused)."""
+
+    INTERNAL = "internal"
+    """Internal backend error (CCU internal error)."""
+
+    TIMEOUT = "timeout"
+    """Operation timed out."""
+
+    CIRCUIT_BREAKER = "circuit_breaker"
+    """Circuit breaker is open due to repeated failures."""
+
+    UNKNOWN = "unknown"
+    """Unknown or unclassified error."""
+
+
+class CommandRxMode(StrEnum):
+    """Enum for Homematic rx modes for commands."""
+
+    BURST = "BURST"
+    WAKEUP = "WAKEUP"
+
+
+class DataOperationResult(Enum):
+    """Enum with data operation results."""
+
+    LOAD_FAIL = 0
+    LOAD_SUCCESS = 1
+    SAVE_FAIL = 10
+    SAVE_SUCCESS = 11
+    NO_LOAD = 20
+    NO_SAVE = 21
+
+
+class DataPointCategory(StrEnum):
+    """Enum with data point types."""
+
+    ACTION = "action"
+    ACTION_SELECT = "action_select"
+    BINARY_SENSOR = "binary_sensor"
+    BUTTON = "button"
+    CLIMATE = "climate"
+    COVER = "cover"
+    EVENT = "event"
+    HUB_BINARY_SENSOR = "hub_binary_sensor"
+    HUB_BUTTON = "hub_button"
+    HUB_NUMBER = "hub_number"
+    HUB_SELECT = "hub_select"
+    HUB_SENSOR = "hub_sensor"
+    HUB_SWITCH = "hub_switch"
+    HUB_TEXT = "hub_text"
+    HUB_UPDATE = "hub_update"
+    LIGHT = "light"
+    LOCK = "lock"
+    NUMBER = "number"
+    SELECT = "select"
+    SENSOR = "sensor"
+    SIREN = "siren"
+    SWITCH = "switch"
+    TEXT = "text"
+    TEXT_DISPLAY = "text_display"
+    UNDEFINED = "undefined"
+    UPDATE = "update"
+    VALVE = "valve"
+
+
+class DataPointKey(NamedTuple):
+    """Key for data points."""
+
+    interface_id: str
+    channel_address: str
+    paramset_key: ParamsetKey
+    parameter: str
+
+
+class DataPointUsage(StrEnum):
+    """Enum with usage information."""
+
+    CDP_PRIMARY = "ce_primary"
+    CDP_SECONDARY = "ce_secondary"
+    CDP_VISIBLE = "ce_visible"
+    DATA_POINT = "data_point"
+    EVENT = "event"
+    NO_CREATE = "no_create"
+
+
+class ParameterStatus(StrEnum):
+    """
+    Status values for paired *_STATUS parameters.
+
+    These indicate the validity/quality of the associated parameter value.
+    HmIP devices use string-based ENUMs for status parameters.
+    Note: Some *_STATUS parameters (LED_STATUS, BACKLIGHT_AT_STATUS, etc.)
+    have different value semantics and should not use this enum.
+    """
+
+    NORMAL = "NORMAL"
+    """Value is valid and within expected range."""
+
+    UNKNOWN = "UNKNOWN"
+    """Value is unknown (device hasn't reported yet, or communication issue)."""
+
+    OVERFLOW = "OVERFLOW"
+    """Value exceeds the maximum expected range."""
+
+    UNDERFLOW = "UNDERFLOW"
+    """Value is below the minimum expected range."""
+
+    ERROR = "ERROR"
+    """Measurement error occurred."""
+
+    INVALID = "INVALID"
+    """Value is invalid."""
+
+    UNUSED = "UNUSED"
+    """Parameter is not used."""
+
+    EXTERNAL = "EXTERNAL"
+    """Value is from an external source."""
+
+
+class DescriptionMarker(StrEnum):
+    """Enum with default description markers."""
+
+    HAHM = "HAHM"
+    HX = "HX"
+    INTERNAL = "INTERNAL"
+    MQTT = "MQTT"
+
+
+class DeviceFirmwareState(StrEnum):
+    """Enum with Homematic device firmware states."""
+
+    UNKNOWN = "UNKNOWN"
+    UP_TO_DATE = "UP_TO_DATE"
+    LIVE_UP_TO_DATE = "LIVE_UP_TO_DATE"
+    NEW_FIRMWARE_AVAILABLE = "NEW_FIRMWARE_AVAILABLE"
+    LIVE_NEW_FIRMWARE_AVAILABLE = "LIVE_NEW_FIRMWARE_AVAILABLE"
+    DELIVER_FIRMWARE_IMAGE = "DELIVER_FIRMWARE_IMAGE"
+    LIVE_DELIVER_FIRMWARE_IMAGE = "LIVE_DELIVER_FIRMWARE_IMAGE"
+    READY_FOR_UPDATE = "READY_FOR_UPDATE"
+    DO_UPDATE_PENDING = "DO_UPDATE_PENDING"
+    PERFORMING_UPDATE = "PERFORMING_UPDATE"
+    BACKGROUND_UPDATE_NOT_SUPPORTED = "BACKGROUND_UPDATE_NOT_SUPPORTED"
+
+
+class DeviceProfile(StrEnum):
+    """Enum for device profiles."""
+
+    IP_BUTTON_LOCK = "IPButtonLock"
+    IP_COVER = "IPCover"
+    IP_DIMMER = "IPDimmer"
+    IP_DRG_DALI = "IPDRGDALI"
+    IP_FIXED_COLOR_LIGHT = "IPFixedColorLight"
+    IP_GARAGE = "IPGarage"
+    IP_HDM = "IPHdm"
+    IP_IRRIGATION_VALVE = "IPIrrigationValve"
+    IP_LOCK = "IPLock"
+    IP_RGBW_LIGHT = "IPRGBW"
+    IP_SIMPLE_FIXED_COLOR_LIGHT = "IPSimpleFixedColorLight"
+    IP_SIMPLE_FIXED_COLOR_LIGHT_WIRED = "IPSimpleFixedColorLightWired"
+    IP_SIREN = "IPSiren"
+    IP_SIREN_SMOKE = "IPSirenSmoke"
+    IP_SOUND_PLAYER = "IPSoundPlayer"
+    IP_SOUND_PLAYER_LED = "IPSoundPlayerLed"
+    IP_SWITCH = "IPSwitch"
+    IP_TEXT_DISPLAY = "IPTextDisplay"
+    IP_THERMOSTAT = "IPThermostat"
+    IP_THERMOSTAT_GROUP = "IPThermostatGroup"
+    RF_BUTTON_LOCK = "RFButtonLock"
+    RF_COVER = "RfCover"
+    RF_DIMMER = "RfDimmer"
+    RF_DIMMER_COLOR = "RfDimmer_Color"
+    RF_DIMMER_COLOR_FIXED = "RfDimmer_Color_Fixed"
+    RF_DIMMER_COLOR_TEMP = "RfDimmer_Color_Temp"
+    RF_DIMMER_WITH_VIRT_CHANNEL = "RfDimmerWithVirtChannel"
+    RF_LOCK = "RfLock"
+    RF_SIREN = "RfSiren"
+    RF_SWITCH = "RfSwitch"
+    RF_THERMOSTAT = "RfThermostat"
+    RF_THERMOSTAT_GROUP = "RfThermostatGroup"
+    SIMPLE_RF_THERMOSTAT = "SimpleRfThermostat"
+
+
+class DeviceTriggerEventType(StrEnum):
+    """Enum with aiohomematic event types."""
+
+    DEVICE_ERROR = "homematic.device_error"
+    IMPULSE = "homematic.impulse"
+    KEYPRESS = "homematic.keypress"
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class EventData:
+    """Data for device trigger events."""
+
+    interface_id: str
+    model: str
+    device_address: str
+    channel_no: int | None
+    parameter: str
+    value: Any = None
+
+
+class Field(Enum):
+    """Enum for fields."""
+
+    ACOUSTIC_ALARM_ACTIVE = "acoustic_alarm_active"
+    ACOUSTIC_ALARM_SELECTION = "acoustic_alarm_selection"
+    ACOUSTIC_NOTIFICATION_SELECTION = "acoustic_notification_selection"
+    ACTIVE_PROFILE = "active_profile"
+    ACTIVITY_STATE = "activity_state"
+    AUTO_MODE = "auto_mode"
+    BOOST_MODE = "boost_mode"
+    BURST_LIMIT_WARNING = "burst_limit_warning"
+    BUTTON_LOCK = "button_lock"
+    CHANNEL_COLOR = "channel_color"
+    COLOR = "color"
+    COLOR_BEHAVIOUR = "color_behaviour"
+    COLOR_LEVEL = "color_temp"
+    COLOR_TEMPERATURE = "color_temperature"
+    COMBINED_PARAMETER = "combined_parameter"
+    COMFORT_MODE = "comfort_mode"
+    CONCENTRATION = "concentration"
+    CONTROL_MODE = "control_mode"
+    CURRENT = "current"
+    DEVICE_OPERATION_MODE = "device_operation_mode"
+    DIRECTION = "direction"
+    DISPLAY_DATA_ALIGNMENT = "display_data_alignment"
+    DISPLAY_DATA_BACKGROUND_COLOR = "display_data_background_color"
+    DISPLAY_DATA_ICON = "display_data_icon"
+    DISPLAY_DATA_TEXT_COLOR = "display_data_text_color"
+    DISPLAY_DATA_COMMIT = "display_data_commit"
+    DISPLAY_DATA_ID = "display_data_id"
+    DISPLAY_DATA_STRING = "display_data_string"
+    DOOR_COMMAND = "door_command"
+    DOOR_STATE = "door_state"
+    DURATION = "duration"
+    DURATION_UNIT = "duration_unit"
+    DURATION_VALUE = "duration_value"
+    DUTYCYCLE = "dutycycle"
+    DUTY_CYCLE = "duty_cycle"
+    EFFECT = "effect"
+    ENERGY_COUNTER = "energy_counter"
+    ERROR = "error"
+    FREQUENCY = "frequency"
+    GROUP_LEVEL = "group_level"
+    GROUP_LEVEL_2 = "group_level_2"
+    GROUP_STATE = "group_state"
+    HEATING_COOLING = "heating_cooling"
+    HEATING_VALVE_TYPE = "heating_valve_type"
+    HUE = "hue"
+    HUMIDITY = "humidity"
+    INHIBIT = "inhibit"
+    INTERVAL = "interval"
+    LEVEL = "level"
+    LEVEL_2 = "level_2"
+    LEVEL_COMBINED = "level_combined"
+    LOCK_STATE = "lock_state"
+    LOCK_TARGET_LEVEL = "lock_target_level"
+    LOWBAT = "lowbat"
+    LOWERING_MODE = "lowering_mode"
+    LOW_BAT = "low_bat"
+    LOW_BAT_LIMIT = "low_bat_limit"
+    MANU_MODE = "manu_mode"
+    MIN_MAX_VALUE_NOT_RELEVANT_FOR_MANU_MODE = "min_max_value_not_relevant_for_manu_mode"
+    ON_TIME_UNIT = "on_time_unit"
+    ON_TIME_VALUE = "on_time_value"
+    ON_TIME_LIST = "on_time_list_1"
+    OPEN = "open"
+    OPERATING_VOLTAGE = "operating_voltage"
+    OPERATION_MODE = "channel_operation_mode"
+    OPTICAL_ALARM_ACTIVE = "optical_alarm_active"
+    OPTICAL_ALARM_SELECTION = "optical_alarm_selection"
+    OPTIMUM_START_STOP = "optimum_start_stop"
+    PARTY_MODE = "party_mode"
+    POWER = "power"
+    PROGRAM = "program"
+    RAMP_TIME_TO_OFF_UNIT = "ramp_time_to_off_unit"
+    RAMP_TIME_TO_OFF_VALUE = "ramp_time_to_off_value"
+    RAMP_TIME_UNIT = "ramp_time_unit"
+    RAMP_TIME_VALUE = "ramp_time_value"
+    REPETITIONS = "repetitions"
+    RSSI_DEVICE = "rssi_device"
+    RSSI_PEER = "rssi_peer"
+    SABOTAGE = "sabotage"
+    SATURATION = "saturation"
+    SECTION = "section"
+    SETPOINT = "setpoint"
+    SET_POINT_MODE = "set_point_mode"
+    SMOKE_DETECTOR_ALARM_STATUS = "smoke_detector_alarm_status"
+    SMOKE_DETECTOR_COMMAND = "smoke_detector_command"
+    SOUNDFILE = "soundfile"
+    STATE = "state"
+    STOP = "stop"
+    SWITCH_MAIN = "switch_main"
+    SWITCH_V1 = "vswitch_1"
+    SWITCH_V2 = "vswitch_2"
+    TEMPERATURE = "temperature"
+    TEMPERATURE_MAXIMUM = "temperature_maximum"
+    TEMPERATURE_MINIMUM = "temperature_minimum"
+    TEMPERATURE_OFFSET = "temperature_offset"
+    VALVE_STATE = "valve_state"
+    VOLTAGE = "voltage"
+    WEEK_PROGRAM_POINTER = "week_program_pointer"
+
+
+class Flag(IntEnum):
+    """Enum with Homematic flags."""
+
+    VISIBLE = 1
+    INTERNAL = 2
+    TRANSFORM = 4  # not used
+    SERVICE = 8
+    STICKY = 10  # This might be wrong. Documentation says 0x10 # not used
+
+
+class ForcedDeviceAvailability(StrEnum):
+    """Enum with aiohomematic event types."""
+
+    FORCE_FALSE = "forced_not_available"
+    FORCE_TRUE = "forced_available"
+    NOT_SET = "not_set"
+
+
+class InternalCustomID(StrEnum):
+    """Enum for Homematic internal custom IDs."""
+
+    DEFAULT = "cid_default"
+    LINK_PEER = "cid_link_peer"
+    MANU_TEMP = "cid_manu_temp"
+
+
+class Manufacturer(StrEnum):
+    """Enum with aiohomematic system events."""
+
+    EQ3 = "eQ-3"
+    HB = "Homebrew"
+    MOEHLENHOFF = "Möhlenhoff"
+
+
+class Operations(IntEnum):
+    """Enum with Homematic operations."""
+
+    NONE = 0  # not used
+    READ = 1
+    WRITE = 2
+    EVENT = 4
+
+
+class OptionalSettings(StrEnum):
+    """Enum with aiohomematic optional settings."""
+
+    ENABLE_LINKED_ENTITY_CLIMATE_ACTIVITY = "ENABLE_LINKED_ENTITY_CLIMATE_ACTIVITY"
+    SR_DISABLE_RANDOMIZE_OUTPUT = "SR_DISABLE_RANDOMIZED_OUTPUT"
+    SR_RECORD_SYSTEM_INIT = "SR_RECORD_SYSTEM_INIT"
+
+
+class Parameter(StrEnum):
+    """Enum with Homematic parameters."""
+
+    ACOUSTIC_ALARM_ACTIVE = "ACOUSTIC_ALARM_ACTIVE"
+    ACOUSTIC_ALARM_SELECTION = "ACOUSTIC_ALARM_SELECTION"
+    ACOUSTIC_NOTIFICATION_SELECTION = "ACOUSTIC_NOTIFICATION_SELECTION"
+    ACTIVE_PROFILE = "ACTIVE_PROFILE"
+    ACTIVITY_STATE = "ACTIVITY_STATE"
+    ACTUAL_HUMIDITY = "ACTUAL_HUMIDITY"
+    ACTUAL_TEMPERATURE = "ACTUAL_TEMPERATURE"
+    AUTO_MODE = "AUTO_MODE"
+    BATTERY_STATE = "BATTERY_STATE"
+    BOOST_MODE = "BOOST_MODE"
+    BURST_LIMIT_WARNING = "BURST_LIMIT_WARNING"
+    BUTTON_LOCK = "BUTTON_LOCK"
+    CHANNEL_COLOR = "CHANNEL_COLOR"
+    CHANNEL_LOCK = "CHANNEL_LOCK"
+    CHANNEL_OPERATION_MODE = "CHANNEL_OPERATION_MODE"
+    COLOR = "COLOR"
+    COLOR_BEHAVIOUR = "COLOR_BEHAVIOUR"
+    COLOR_TEMPERATURE = "COLOR_TEMPERATURE"
+    COMBINED_PARAMETER = "COMBINED_PARAMETER"
+    COMFORT_MODE = "COMFORT_MODE"
+    CONCENTRATION = "CONCENTRATION"
+    CONFIG_PENDING = "CONFIG_PENDING"
+    CONTROL_MODE = "CONTROL_MODE"
+    CURRENT = "CURRENT"
+    CURRENT_ILLUMINATION = "CURRENT_ILLUMINATION"
+    DEVICE_OPERATION_MODE = "DEVICE_OPERATION_MODE"
+    DIRECTION = "DIRECTION"
+    DIRT_LEVEL = "DIRT_LEVEL"
+    DISPLAY_DATA_ALIGNMENT = "DISPLAY_DATA_ALIGNMENT"
+    DISPLAY_DATA_BACKGROUND_COLOR = "DISPLAY_DATA_BACKGROUND_COLOR"
+    DISPLAY_DATA_ICON = "DISPLAY_DATA_ICON"
+    DISPLAY_DATA_TEXT_COLOR = "DISPLAY_DATA_TEXT_COLOR"
+    DISPLAY_DATA_COMMIT = "DISPLAY_DATA_COMMIT"
+    DISPLAY_DATA_ID = "DISPLAY_DATA_ID"
+    DISPLAY_DATA_STRING = "DISPLAY_DATA_STRING"
+    DOOR_COMMAND = "DOOR_COMMAND"
+    DOOR_STATE = "DOOR_STATE"
+    DURATION_UNIT = "DURATION_UNIT"
+    DURATION_VALUE = "DURATION_VALUE"
+    DUTYCYCLE = "DUTYCYCLE"
+    DUTY_CYCLE = "DUTY_CYCLE"
+    EFFECT = "EFFECT"
+    ENERGY_COUNTER = "ENERGY_COUNTER"
+    ENERGY_COUNTER_FEED_IN = "ENERGY_COUNTER_FEED_IN"
+    ERROR = "ERROR"
+    ERROR_JAMMED = "ERROR_JAMMED"
+    FREQUENCY = "FREQUENCY"
+    GLOBAL_BUTTON_LOCK = "GLOBAL_BUTTON_LOCK"
+    HEATING_COOLING = "HEATING_COOLING"
+    HEATING_VALVE_TYPE = "HEATING_VALVE_TYPE"
+    HUE = "HUE"
+    HUMIDITY = "HUMIDITY"
+    ILLUMINATION = "ILLUMINATION"
+    INTERVAL = "INTERVAL"
+    LED_STATUS = "LED_STATUS"
+    LEVEL = "LEVEL"
+    LEVEL_2 = "LEVEL_2"
+    LEVEL_COMBINED = "LEVEL_COMBINED"
+    LEVEL_SLATS = "LEVEL_SLATS"
+    LOCK_STATE = "LOCK_STATE"
+    LOCK_TARGET_LEVEL = "LOCK_TARGET_LEVEL"
+    LOWBAT = "LOWBAT"
+    LOWERING_MODE = "LOWERING_MODE"
+    LOW_BAT = "LOW_BAT"
+    LOW_BAT_LIMIT = "LOW_BAT_LIMIT"
+    MANU_MODE = "MANU_MODE"
+    MASS_CONCENTRATION_PM_10_24H_AVERAGE = "MASS_CONCENTRATION_PM_10_24H_AVERAGE"
+    MASS_CONCENTRATION_PM_1_24H_AVERAGE = "MASS_CONCENTRATION_PM_1_24H_AVERAGE"
+    MASS_CONCENTRATION_PM_2_5_24H_AVERAGE = "MASS_CONCENTRATION_PM_2_5_24H_AVERAGE"
+    MIN_MAX_VALUE_NOT_RELEVANT_FOR_MANU_MODE = "MIN_MAX_VALUE_NOT_RELEVANT_FOR_MANU_MODE"
+    MOTION = "MOTION"
+    MOTION_DETECTION_ACTIVE = "MOTION_DETECTION_ACTIVE"
+    ON_TIME = "ON_TIME"
+    ON_TIME_LIST_1 = "ON_TIME_LIST_1"
+    OPEN = "OPEN"
+    OPERATING_VOLTAGE = "OPERATING_VOLTAGE"
+    OPTICAL_ALARM_ACTIVE = "OPTICAL_ALARM_ACTIVE"
+    OPTICAL_ALARM_SELECTION = "OPTICAL_ALARM_SELECTION"
+    OPTIMUM_START_STOP = "OPTIMUM_START_STOP"
+    PARTY_MODE = "PARTY_MODE"
+    PARTY_MODE_SUBMIT = "PARTY_MODE_SUBMIT"
+    PARTY_TIME_END = "PARTY_TIME_END"
+    PARTY_TIME_START = "PARTY_TIME_START"
+    PONG = "PONG"
+    POWER = "POWER"
+    PRESS = "PRESS"
+    PRESS_CONT = "PRESS_CONT"
+    PRESS_LOCK = "PRESS_LOCK"
+    PRESS_LONG = "PRESS_LONG"
+    PRESS_LONG_RELEASE = "PRESS_LONG_RELEASE"
+    PRESS_LONG_START = "PRESS_LONG_START"
+    PRESS_SHORT = "PRESS_SHORT"
+    PRESS_UNLOCK = "PRESS_UNLOCK"
+    PROGRAM = "PROGRAM"
+    RAMP_TIME = "RAMP_TIME"
+    RAMP_TIME_TO_OFF_UNIT = "RAMP_TIME_TO_OFF_UNIT"
+    RAMP_TIME_TO_OFF_VALUE = "RAMP_TIME_TO_OFF_VALUE"
+    RAMP_TIME_UNIT = "RAMP_TIME_UNIT"
+    RAMP_TIME_VALUE = "RAMP_TIME_VALUE"
+    REPETITIONS = "REPETITIONS"
+    RESET_MOTION = "RESET_MOTION"
+    RSSI_DEVICE = "RSSI_DEVICE"
+    RSSI_PEER = "RSSI_PEER"
+    SABOTAGE = "SABOTAGE"
+    SATURATION = "SATURATION"
+    SECTION = "SECTION"
+    SENSOR = "SENSOR"
+    SENSOR_ERROR = "SENSOR_ERROR"
+    SEQUENCE_OK = "SEQUENCE_OK"
+    SETPOINT = "SETPOINT"
+    SET_POINT_MODE = "SET_POINT_MODE"
+    SET_POINT_TEMPERATURE = "SET_POINT_TEMPERATURE"
+    SET_TEMPERATURE = "SET_TEMPERATURE"
+    SMOKE_DETECTOR_ALARM_STATUS = "SMOKE_DETECTOR_ALARM_STATUS"
+    SMOKE_DETECTOR_COMMAND = "SMOKE_DETECTOR_COMMAND"
+    SMOKE_LEVEL = "SMOKE_LEVEL"
+    SOUNDFILE = "SOUNDFILE"
+    STATE = "STATE"
+    STATUS = "STATUS"
+    STICKY_UN_REACH = "STICKY_UNREACH"
+    STOP = "STOP"
+    SUNSHINE_DURATION = "SUNSHINEDURATION"
+    TEMPERATURE = "TEMPERATURE"
+    TEMPERATURE_MAXIMUM = "TEMPERATURE_MAXIMUM"
+    TEMPERATURE_MINIMUM = "TEMPERATURE_MINIMUM"
+    TEMPERATURE_OFFSET = "TEMPERATURE_OFFSET"
+    TIME_OF_OPERATION = "TIME_OF_OPERATION"
+    UN_REACH = "UNREACH"
+    UPDATE_PENDING = "UPDATE_PENDING"
+    VALVE_STATE = "VALVE_STATE"
+    VOLTAGE = "VOLTAGE"
+    WATER_FLOW = "WATER_FLOW"
+    WATER_VOLUME = "WATER_VOLUME"
+    WATER_VOLUME_SINCE_OPEN = "WATER_VOLUME_SINCE_OPEN"
+    WEEK_PROGRAM_POINTER = "WEEK_PROGRAM_POINTER"
+    WIND_DIRECTION = "WIND_DIRECTION"
+    WIND_DIRECTION_RANGE = "WIND_DIRECTION_RANGE"
+    WIND_SPEED = "WIND_SPEED"
+    WORKING = "WORKING"
+
+
+class ParamsetKey(StrEnum):
+    """Enum with paramset keys."""
+
+    CALCULATED = "CALCULATED"
+    DUMMY = "DUMMY"
+    LINK = "LINK"
+    MASTER = "MASTER"
+    SERVICE = "SERVICE"
+    VALUES = "VALUES"
+
+
+class ProductGroup(StrEnum):
+    """Enum with Homematic product groups."""
+
+    HM = "BidCos-RF"
+    HMIP = "HmIP-RF"
+    HMIPW = "HmIP-Wired"
+    HMW = "BidCos-Wired"
+    UNKNOWN = "unknown"
+    VIRTUAL = "VirtualDevices"
+
+
+class RegaScript(StrEnum):
+    """Enum with Homematic rega scripts."""
+
+    ACCEPT_DEVICE_IN_INBOX = "accept_device_in_inbox.fn"
+    CREATE_BACKUP_START = "create_backup_start.fn"
+    CREATE_BACKUP_STATUS = "create_backup_status.fn"
+    FETCH_ALL_DEVICE_DATA = "fetch_all_device_data.fn"
+    GET_BACKEND_INFO = "get_backend_info.fn"
+    GET_INBOX_DEVICES = "get_inbox_devices.fn"
+    GET_PROGRAM_DESCRIPTIONS = "get_program_descriptions.fn"
+    GET_SERIAL = "get_serial.fn"
+    GET_SERVICE_MESSAGES = "get_service_messages.fn"
+    GET_SYSTEM_UPDATE_INFO = "get_system_update_info.fn"
+    GET_SYSTEM_VARIABLE_DESCRIPTIONS = "get_system_variable_descriptions.fn"
+    SET_PROGRAM_STATE = "set_program_state.fn"
+    SET_SYSTEM_VARIABLE = "set_system_variable.fn"
+    TRIGGER_FIRMWARE_UPDATE = "trigger_firmware_update.fn"
+
+
+class RPCType(StrEnum):
+    """Enum with Homematic rpc types."""
+
+    XML_RPC = "xmlrpc"
+    JSON_RPC = "jsonrpc"
+
+
+class Interface(StrEnum):
+    """Enum with Homematic interfaces."""
+
+    BIDCOS_RF = "BidCos-RF"
+    BIDCOS_WIRED = "BidCos-Wired"
+    CCU_JACK = "CCU-Jack"
+    CUXD = "CUxD"
+    HMIP_RF = "HmIP-RF"
+    VIRTUAL_DEVICES = "VirtualDevices"
+
+
+class PingPongMismatchType(StrEnum):
+    """Enum for PING/PONG mismatch event types."""
+
+    PENDING = "pending"  # PING sent but no PONG received
+    UNKNOWN = "unknown"  # PONG received without matching PING
+
+
+class ParameterType(StrEnum):
+    """Enum for Homematic parameter types."""
+
+    ACTION = "ACTION"  # Usually buttons, send Boolean to trigger
+    BOOL = "BOOL"
+    DUMMY = "DUMMY"
+    ENUM = "ENUM"
+    FLOAT = "FLOAT"
+    INTEGER = "INTEGER"
+    STRING = "STRING"
+    EMPTY = ""
+
+
+class ProxyInitState(Enum):
+    """Enum with proxy handling results."""
+
+    INIT_FAILED = 0
+    INIT_SUCCESS = 1
+    DE_INIT_FAILED = 4
+    DE_INIT_SUCCESS = 8
+    DE_INIT_SKIPPED = 16
+
+
+class ClientState(StrEnum):
+    """
+    Client connection lifecycle states.
+
+    State Machine
+    -------------
+    The client follows this state machine:
+
+    ```
+    CREATED ─────► INITIALIZING ─────► INITIALIZED
+                        │                    │
+                        │ (failure)          │
+                        ▼                    ▼
+                     FAILED           CONNECTING ◄────┐
+                        ▲                    │        │
+                        │                    │        │ (re-connect)
+                        │ (failure)          │        │
+                        │                    ▼        │
+                        └───────────── CONNECTED     │
+                                            │        │
+                              ┌─────────────┼────────┼──┐
+                              │             │        │  │
+                              ▼             ▼        │  ▼
+                       DISCONNECTED   RECONNECTING──┘ STOPPING
+                              │             │            │
+                              └─────────────┘            ▼
+                                                     STOPPED
+    ```
+
+    Valid Transitions
+    -----------------
+    - CREATED → INITIALIZING
+    - INITIALIZING → INITIALIZED | FAILED
+    - INITIALIZED → CONNECTING
+    - CONNECTING → CONNECTED | FAILED
+    - CONNECTED → DISCONNECTED | RECONNECTING | STOPPING
+    - DISCONNECTED → CONNECTING | RECONNECTING | STOPPING
+    - RECONNECTING → CONNECTED | DISCONNECTED | FAILED | CONNECTING
+    - STOPPING → STOPPED
+    - FAILED → INITIALIZING (retry)
+    """
+
+    CREATED = "created"
+    INITIALIZING = "initializing"
+    INITIALIZED = "initialized"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    RECONNECTING = "reconnecting"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
+class RpcServerType(StrEnum):
+    """Enum for Homematic rpc server types."""
+
+    XML_RPC = "xml_rpc"
+    NONE = "none"
+
+
+class RxMode(IntEnum):
+    """Enum for Homematic rx modes."""
+
+    UNDEFINED = 0
+    ALWAYS = 1
+    BURST = 2
+    CONFIG = 4
+    WAKEUP = 8
+    LAZY_CONFIG = 16
+
+
+class ServiceMessageType(IntEnum):
+    """Enum for CCU service message types (AlType)."""
+
+    GENERIC = 0
+    STICKY = 1
+    CONFIG_PENDING = 2
+
+
+class SourceOfDeviceCreation(StrEnum):
+    """Enum with source of device creation."""
+
+    CACHE = "CACHE"
+    INIT = "INIT"
+    MANUAL = "MANUAL"
+    NEW = "NEW"
+    REFRESH = "REFRESH"
+
+
+class HubValueType(StrEnum):
+    """Enum for Homematic hub value types."""
+
+    ALARM = "ALARM"
+    FLOAT = "FLOAT"
+    INTEGER = "INTEGER"
+    LIST = "LIST"
+    LOGIC = "LOGIC"
+    NUMBER = "NUMBER"
+    STRING = "STRING"
+
+
+CLICK_EVENTS: Final[frozenset[Parameter]] = frozenset(
+    {
+        Parameter.PRESS,
+        Parameter.PRESS_CONT,
+        Parameter.PRESS_LOCK,
+        Parameter.PRESS_LONG,
+        Parameter.PRESS_LONG_RELEASE,
+        Parameter.PRESS_LONG_START,
+        Parameter.PRESS_SHORT,
+        Parameter.PRESS_UNLOCK,
+    }
+)
+
+DEVICE_ERROR_EVENTS: Final[tuple[Parameter, ...]] = (Parameter.ERROR, Parameter.SENSOR_ERROR)
+
+DATA_POINT_EVENTS: Final[frozenset[DeviceTriggerEventType]] = frozenset(
+    {
+        DeviceTriggerEventType.IMPULSE,
+        DeviceTriggerEventType.KEYPRESS,
+    }
+)
+
+
+type DP_KEY_VALUE = tuple[DataPointKey, Any]
+type SYSVAR_TYPE = bool | float | int | str | None
+
+HMIP_FIRMWARE_UPDATE_IN_PROGRESS_STATES: Final[frozenset[DeviceFirmwareState]] = frozenset(
+    {
+        DeviceFirmwareState.DO_UPDATE_PENDING,
+        DeviceFirmwareState.PERFORMING_UPDATE,
+    }
+)
+
+HMIP_FIRMWARE_UPDATE_READY_STATES: Final[frozenset[DeviceFirmwareState]] = frozenset(
+    {
+        DeviceFirmwareState.READY_FOR_UPDATE,
+        DeviceFirmwareState.DO_UPDATE_PENDING,
+        DeviceFirmwareState.PERFORMING_UPDATE,
+    }
+)
+
+IMPULSE_EVENTS: Final[frozenset[Parameter]] = frozenset({Parameter.SEQUENCE_OK})
+
+KEY_CHANNEL_OPERATION_MODE_VISIBILITY: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {
+        Parameter.STATE: frozenset({"BINARY_BEHAVIOR"}),
+        Parameter.PRESS_LONG: frozenset({"KEY_BEHAVIOR", "SWITCH_BEHAVIOR"}),
+        Parameter.PRESS_LONG_RELEASE: frozenset({"KEY_BEHAVIOR", "SWITCH_BEHAVIOR"}),
+        Parameter.PRESS_LONG_START: frozenset({"KEY_BEHAVIOR", "SWITCH_BEHAVIOR"}),
+        Parameter.PRESS_SHORT: frozenset({"KEY_BEHAVIOR", "SWITCH_BEHAVIOR"}),
+    }
+)
+
+BLOCKED_CATEGORIES: Final[tuple[DataPointCategory, ...]] = (
+    DataPointCategory.ACTION,
+    DataPointCategory.ACTION_SELECT,
+)
+
+HUB_CATEGORIES: Final[tuple[DataPointCategory, ...]] = (
+    DataPointCategory.HUB_BINARY_SENSOR,
+    DataPointCategory.HUB_BUTTON,
+    DataPointCategory.HUB_NUMBER,
+    DataPointCategory.HUB_SELECT,
+    DataPointCategory.HUB_SENSOR,
+    DataPointCategory.HUB_SWITCH,
+    DataPointCategory.HUB_TEXT,
+    DataPointCategory.HUB_UPDATE,
+)
+
+CATEGORIES: Final[tuple[DataPointCategory, ...]] = (
+    DataPointCategory.ACTION_SELECT,
+    DataPointCategory.BINARY_SENSOR,
+    DataPointCategory.BUTTON,
+    DataPointCategory.CLIMATE,
+    DataPointCategory.COVER,
+    DataPointCategory.EVENT,
+    DataPointCategory.LIGHT,
+    DataPointCategory.LOCK,
+    DataPointCategory.NUMBER,
+    DataPointCategory.SELECT,
+    DataPointCategory.SENSOR,
+    DataPointCategory.SIREN,
+    DataPointCategory.SWITCH,
+    DataPointCategory.TEXT,
+    DataPointCategory.TEXT_DISPLAY,
+    DataPointCategory.UPDATE,
+    DataPointCategory.VALVE,
+)
+
+PRIMARY_CLIENT_CANDIDATE_INTERFACES: Final[frozenset[Interface]] = frozenset(
+    {
+        Interface.HMIP_RF,
+        Interface.BIDCOS_RF,
+        Interface.BIDCOS_WIRED,
+    }
+)
+
+RELEVANT_INIT_PARAMETERS: Final[frozenset[Parameter]] = frozenset(
+    {
+        Parameter.CONFIG_PENDING,
+        Parameter.STICKY_UN_REACH,
+        Parameter.UN_REACH,
+    }
+)
+
+INTERFACES_SUPPORTING_FIRMWARE_UPDATES: Final[frozenset[Interface]] = frozenset(
+    {
+        Interface.BIDCOS_RF,
+        Interface.BIDCOS_WIRED,
+        Interface.HMIP_RF,
+    }
+)
+
+INTERFACES_REQUIRING_XML_RPC: Final[frozenset[Interface]] = frozenset(
+    {
+        Interface.BIDCOS_RF,
+        Interface.BIDCOS_WIRED,
+        Interface.HMIP_RF,
+        Interface.VIRTUAL_DEVICES,
+    }
+)
+
+
+INTERFACES_SUPPORTING_RPC_CALLBACK: Final[frozenset[Interface]] = frozenset(INTERFACES_REQUIRING_XML_RPC)
+
+
+INTERFACES_REQUIRING_JSON_RPC_CLIENT: Final[frozenset[Interface]] = frozenset(
+    {
+        Interface.CUXD,
+        Interface.CCU_JACK,
+    }
+)
+
+DEFAULT_INTERFACES_REQUIRING_PERIODIC_REFRESH: Final[frozenset[Interface]] = frozenset(
+    INTERFACES_REQUIRING_JSON_RPC_CLIENT - INTERFACES_REQUIRING_XML_RPC
+)
+
+INTERFACE_RPC_SERVER_TYPE: Final[Mapping[Interface, RpcServerType]] = MappingProxyType(
+    {
+        Interface.BIDCOS_RF: RpcServerType.XML_RPC,
+        Interface.BIDCOS_WIRED: RpcServerType.XML_RPC,
+        Interface.HMIP_RF: RpcServerType.XML_RPC,
+        Interface.VIRTUAL_DEVICES: RpcServerType.XML_RPC,
+        Interface.CUXD: RpcServerType.NONE,
+        Interface.CCU_JACK: RpcServerType.NONE,
+    }
+)
+
+LINKABLE_INTERFACES: Final[frozenset[Interface]] = frozenset(
+    {
+        Interface.BIDCOS_RF,
+        Interface.BIDCOS_WIRED,
+        Interface.HMIP_RF,
+    }
+)
+
+
+DEFAULT_USE_PERIODIC_SCAN_FOR_INTERFACES: Final = True
+
+IGNORE_FOR_UN_IGNORE_PARAMETERS: Final[frozenset[Parameter]] = frozenset(
+    {
+        Parameter.CONFIG_PENDING,
+        Parameter.STICKY_UN_REACH,
+        Parameter.UN_REACH,
+    }
+)
+
+
+# Ignore Parameter on initial load that end with
+_IGNORE_ON_INITIAL_LOAD_PARAMETERS_END_RE: Final = re.compile(r".*(_ERROR)$")
+# Ignore Parameter on initial load that start with
+_IGNORE_ON_INITIAL_LOAD_PARAMETERS_START_RE: Final = re.compile(r"^(ERROR_|RSSI_)")
+_IGNORE_ON_INITIAL_LOAD_PARAMETERS: Final[frozenset[Parameter]] = frozenset(
+    {
+        Parameter.DUTY_CYCLE,
+        Parameter.DUTYCYCLE,
+        Parameter.LOW_BAT,
+        Parameter.LOWBAT,
+        Parameter.OPERATING_VOLTAGE,
+    }
+)
+
+_CLIMATE_SOURCE_ROLES: Final[tuple[str, ...]] = ("CLIMATE",)
+_CLIMATE_TARGET_ROLES: Final[tuple[str, ...]] = ("CLIMATE", "SWITCH", "LEVEL")
+_CLIMATE_TRANSMITTER_RE: Final = re.compile(r"(?:CLIMATE|HEATING).*(?:TRANSMITTER|TRANSCEIVER)")
+_CLIMATE_RECEIVER_RE: Final = re.compile(r"(?:CLIMATE|HEATING).*(?:TRANSCEIVER|RECEIVER)")
+
+
+def get_link_source_categories(
+    *, source_roles: tuple[str, ...], channel_type_name: str
+) -> tuple[DataPointCategory, ...]:
+    """Return the channel sender roles."""
+    result: set[DataPointCategory] = set()
+    has_climate = False
+    if _CLIMATE_TRANSMITTER_RE.search(channel_type_name):
+        result.add(DataPointCategory.CLIMATE)
+        has_climate = True
+
+    if not has_climate and source_roles and any("CLIMATE" in role for role in source_roles):
+        result.add(DataPointCategory.CLIMATE)
+
+    return tuple(result)
+
+
+def get_link_target_categories(
+    *, target_roles: tuple[str, ...], channel_type_name: str
+) -> tuple[DataPointCategory, ...]:
+    """Return the channel receiver roles."""
+    result: set[DataPointCategory] = set()
+    has_climate = False
+    if _CLIMATE_RECEIVER_RE.search(channel_type_name):
+        result.add(DataPointCategory.CLIMATE)
+        has_climate = True
+
+    if (
+        not has_climate
+        and target_roles
+        and any(cl_role in role for role in target_roles for cl_role in _CLIMATE_TARGET_ROLES)
+    ):
+        result.add(DataPointCategory.CLIMATE)
+
+    return tuple(result)
+
+
+RECEIVER_PARAMETERS: Final[frozenset[Parameter]] = frozenset(
+    {
+        Parameter.LEVEL,
+        Parameter.STATE,
+    }
+)
+
+
+def check_ignore_parameter_on_initial_load(*, parameter: str) -> bool:
+    """Check if a parameter matches common wildcard patterns."""
+    return (
+        bool(_IGNORE_ON_INITIAL_LOAD_PARAMETERS_START_RE.match(parameter))
+        or bool(_IGNORE_ON_INITIAL_LOAD_PARAMETERS_END_RE.match(parameter))
+        or parameter in _IGNORE_ON_INITIAL_LOAD_PARAMETERS
+    )
+
+
+# Ignore Parameter on initial load that start with
+_IGNORE_ON_INITIAL_LOAD_MODEL_START_RE: Final = re.compile(r"^(HmIP-SWSD)")
+_IGNORE_ON_INITIAL_LOAD_MODEL: Final = ("HmIP-SWD",)
+_IGNORE_ON_INITIAL_LOAD_MODEL_LOWER: Final = tuple(model.lower() for model in _IGNORE_ON_INITIAL_LOAD_MODEL)
+
+
+def check_ignore_model_on_initial_load(*, model: str) -> bool:
+    """Check if a model matches common wildcard patterns."""
+    return (
+        bool(_IGNORE_ON_INITIAL_LOAD_MODEL_START_RE.match(model))
+        or model.lower() in _IGNORE_ON_INITIAL_LOAD_MODEL_LOWER
+    )
+
+
+# virtual remotes s
+VIRTUAL_REMOTE_MODELS: Final[tuple[str, ...]] = (
+    "HM-RCV-50",
+    "HMW-RCV-50",
+    "HmIP-RCV-50",
+)
+
+VIRTUAL_REMOTE_ADDRESSES: Final[tuple[str, ...]] = (
+    "BidCoS-RF",
+    "BidCoS-Wir",
+    "HmIP-RCV-1",
+)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class HubData:
+    """Dataclass for hub data points."""
+
+    legacy_name: str
+    enabled_default: bool = False
+    description: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ProgramData(HubData):
+    """Dataclass for programs."""
+
+    pid: str
+    is_active: bool
+    is_internal: bool
+    last_execute_time: str
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class SystemVariableData(HubData):
+    """Dataclass for system variables."""
+
+    vid: str
+    value: SYSVAR_TYPE
+    data_type: HubValueType | None = None
+    extended_sysvar: bool = False
+    max_value: float | int | None = None
+    min_value: float | int | None = None
+    unit: str | None = None
+    values: tuple[str, ...] | None = None
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class InstallModeData:
+    """Dataclass for install mode data points."""
+
+    name: str
+    interface: Interface
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class SystemInformation:
+    """
+    System information of the backend.
+
+    CCU types:
+    - CCU: Original CCU2/CCU3 hardware and debmatic (CCU clone)
+    - OPENCCU: OpenCCU (modern variants)
+    """
+
+    available_interfaces: tuple[str, ...] = field(default_factory=tuple)
+    auth_enabled: bool | None = None
+    https_redirect_enabled: bool | None = None
+    serial: str | None = None
+    # Backend info fields
+    version: str = ""
+    hostname: str = ""
+    ccu_type: CCUType = CCUType.UNKNOWN
+
+    @property
+    def supports_backup(self) -> bool:
+        """Return True if backend supports online firmware update checks."""
+        return self.ccu_type == CCUType.OPENCCU
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class InboxDeviceData:
+    """Dataclass for inbox devices."""
+
+    device_id: str
+    address: str
+    name: str
+    device_type: str
+    interface: str
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ServiceMessageData:
+    """Dataclass for service messages."""
+
+    msg_id: str
+    name: str
+    timestamp: str
+    msg_type: int
+    address: str = ""
+    device_name: str = ""
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class SystemUpdateData:
+    """Dataclass for system update information."""
+
+    current_firmware: str
+    available_firmware: str
+    update_available: bool
+    check_script_available: bool = False
+
+
+class BackupStatus(StrEnum):
+    """Enum with backup status values."""
+
+    IDLE = "idle"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class BackupStatusData:
+    """Dataclass for backup status information."""
+
+    status: BackupStatus
+    file_path: str = ""
+    filename: str = ""
+    size: int = 0
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class BackupData:
+    """Dataclass for backup download result."""
+
+    filename: str
+    content: bytes
+
+
+class ParameterData(TypedDict, total=False):
+    """Typed dict for parameter data."""
+
+    DEFAULT: Any
+    FLAGS: int
+    ID: str
+    MAX: Any
+    MIN: Any
+    OPERATIONS: int
+    SPECIAL: Mapping[str, Any]
+    TYPE: ParameterType
+    UNIT: str
+    VALUE_LIST: Iterable[Any]
+
+
+class DeviceDescription(TypedDict, total=False):
+    """Typed dict for device descriptions."""
+
+    TYPE: Required[str]
+    ADDRESS: Required[str]
+    PARAMSETS: Required[list[str]]
+    SUBTYPE: str | None
+    CHILDREN: list[str]
+    PARENT: str | None
+    FIRMWARE: str | None
+    AVAILABLE_FIRMWARE: str | None
+    UPDATABLE: bool
+    FIRMWARE_UPDATE_STATE: str | None
+    FIRMWARE_UPDATABLE: bool | None
+    INTERFACE: str | None
+    RX_MODE: int | None
+    LINK_SOURCE_ROLES: str | None
+    LINK_TARGET_ROLES: str | None
+    # RF_ADDRESS: int | None
+    # PARENT_TYPE: str | None
+    # INDEX: int | None
+    # AES_ACTIVE: int | None
+    # VERSION: Required[int]
+    # FLAGS: Required[int]
+    # DIRECTION: int | None
+    # GROUP: str | None
+    # TEAM: str | None
+    # TEAM_TAG: str | None
+    # TEAM_CHANNELS: list
+    # ROAMING: int | None
+
+
+# Interface default ports mapping
+_INTERFACE_DEFAULT_PORTS: Final[dict[str, tuple[int, int]]] = {
+    "BidCos-RF": DETECTION_PORT_BIDCOS_RF,
+    "BidCos-Wired": DETECTION_PORT_BIDCOS_WIRED,
+    "HmIP-RF": DETECTION_PORT_HMIP_RF,
+    "VirtualDevices": DETECTION_PORT_VIRTUAL_DEVICES,
+}
+
+
+def get_interface_default_port(*, interface: Interface | str, tls: bool) -> int | None:
+    """
+    Get the default port for an interface based on TLS setting.
+
+    Args:
+        interface: The interface (Interface enum or string value).
+        tls: Whether TLS is enabled.
+
+    Returns:
+        The default port number, or None if the interface has no default port
+        (e.g., CCU-Jack, CUxD which don't use XML-RPC ports).
+
+    Example:
+        >>> get_interface_default_port(Interface.HMIP_RF, tls=False)
+        2010
+        >>> get_interface_default_port(Interface.HMIP_RF, tls=True)
+        42010
+        >>> get_interface_default_port(Interface.CCU_JACK, tls=True)
+        None
+
+    """
+    interface_key = interface.value if isinstance(interface, Interface) else interface
+    if ports := _INTERFACE_DEFAULT_PORTS.get(interface_key):
+        return ports[1] if tls else ports[0]
+    return None
+
+
+def get_json_rpc_default_port(*, tls: bool) -> int:
+    """
+    Get the default JSON-RPC port based on TLS setting.
+
+    Args:
+        tls: Whether TLS is enabled.
+
+    Returns:
+        The default JSON-RPC port (443 for TLS, 80 for non-TLS).
+
+    """
+    return DEFAULT_JSON_RPC_TLS_PORT if tls else DEFAULT_JSON_RPC_PORT
+
+
+def is_interface_default_port(*, interface: Interface | str, port: int) -> bool:
+    """
+    Check if a port is a default port (TLS or non-TLS) for the given interface.
+
+    Args:
+        interface: The interface (Interface enum or string value).
+        port: The port number to check.
+
+    Returns:
+        True if the port is either the TLS or non-TLS default for this interface.
+
+    """
+    interface_key = interface.value if isinstance(interface, Interface) else interface
+    if ports := _INTERFACE_DEFAULT_PORTS.get(interface_key):
+        return port in ports
+    return False
+
+
+# Define public API for this module
+__all__ = tuple(
+    sorted(
+        name
+        for name, obj in globals().items()
+        if not name.startswith("_")
+        and (
+            name.isupper()  # constants like VERSION, patterns, defaults
+            or inspect.isclass(obj)  # Enums, dataclasses, TypedDicts, NamedTuple classes
+            or inspect.isfunction(obj)  # module functions
+        )
+        and (
+            getattr(obj, "__module__", __name__) == __name__
+            if not isinstance(obj, int | float | str | bytes | tuple | frozenset | dict)
+            else True
+        )
+    )
+)
+
+
+class AstroType(IntEnum):
+    """Enum for astro event types."""
+
+    SUNRISE = 0
+    SUNSET = 1
+
+
+class ScheduleActorChannel(IntEnum):
+    """Enum for target actor channels (bitwise)."""
+
+    CHANNEL_1_1 = 1
+    CHANNEL_1_2 = 2
+    CHANNEL_1_3 = 4
+    CHANNEL_2_1 = 8
+    CHANNEL_2_2 = 16
+    CHANNEL_2_3 = 32
+    CHANNEL_3_1 = 64
+    CHANNEL_3_2 = 128
+    CHANNEL_3_3 = 256
+    CHANNEL_4_1 = 512
+    CHANNEL_4_2 = 1024
+    CHANNEL_4_3 = 2048
+    CHANNEL_5_1 = 4096
+    CHANNEL_5_2 = 8192
+    CHANNEL_5_3 = 16384
+    CHANNEL_6_1 = 32768
+    CHANNEL_6_2 = 65536
+    CHANNEL_6_3 = 131072
+    CHANNEL_7_1 = 262144
+    CHANNEL_7_2 = 524288
+    CHANNEL_7_3 = 1048576
+    CHANNEL_8_1 = 2097152
+    CHANNEL_8_2 = 4194304
+    CHANNEL_8_3 = 8388608
+
+
+class ScheduleCondition(IntEnum):
+    """Enum for schedule trigger conditions."""
+
+    FIXED_TIME = 0
+    ASTRO = 1
+
+
+class ScheduleField(StrEnum):
+    """Enum for switch schedule field names."""
+
+    ASTRO_OFFSET = "ASTRO_OFFSET"
+    ASTRO_TYPE = "ASTRO_TYPE"
+    CONDITION = "CONDITION"
+    DURATION_BASE = "DURATION_BASE"
+    DURATION_FACTOR = "DURATION_FACTOR"
+    FIXED_HOUR = "FIXED_HOUR"
+    FIXED_MINUTE = "FIXED_MINUTE"
+    LEVEL = "LEVEL"
+    LEVEL_2 = "LEVEL_2"
+    RAMP_TIME_BASE = "RAMP_TIME_BASE"
+    RAMP_TIME_FACTOR = "RAMP_TIME_FACTOR"
+    TARGET_CHANNELS = "TARGET_CHANNELS"
+    WEEKDAY = "WEEKDAY"
+
+
+class ScheduleSlotType(StrEnum):
+    """Enum for climate item type."""
+
+    ENDTIME = "ENDTIME"
+    STARTTIME = "STARTTIME"
+    TEMPERATURE = "TEMPERATURE"
+
+
+class ScheduleProfile(StrEnum):
+    """Enum for climate profiles."""
+
+    P1 = "P1"
+    P2 = "P2"
+    P3 = "P3"
+    P4 = "P4"
+    P5 = "P5"
+    P6 = "P6"
+
+
+class TimeBase(IntEnum):
+    """Enum for duration base units."""
+
+    MS_100 = 0  # 100 milliseconds
+    SEC_1 = 1  # 1 second
+    SEC_5 = 2  # 5 seconds
+    SEC_10 = 3  # 10 seconds
+    MIN_1 = 4  # 1 minute
+    MIN_5 = 5  # 5 minutes
+    MIN_10 = 6  # 10 minutes
+    HOUR_1 = 7  # 1 hour
+
+
+class WeekdayInt(IntEnum):
+    """Enum for weekdays (bitwise)."""
+
+    SUNDAY = 1
+    MONDAY = 2
+    TUESDAY = 4
+    WEDNESDAY = 8
+    THURSDAY = 16
+    FRIDAY = 32
+    SATURDAY = 64
+
+
+class WeekdayStr(StrEnum):
+    """Enum for climate week days."""
+
+    MONDAY = "MONDAY"
+    TUESDAY = "TUESDAY"
+    WEDNESDAY = "WEDNESDAY"
+    THURSDAY = "THURSDAY"
+    FRIDAY = "FRIDAY"
+    SATURDAY = "SATURDAY"
+    SUNDAY = "SUNDAY"
+
+
+CLIMATE_MAX_SCHEDULER_TIME: Final = "24:00"
+CLIMATE_MIN_SCHEDULER_TIME: Final = "00:00"
+CLIMATE_RELEVANT_SLOT_TYPES: Final = ("endtime", "temperature")
+
+
+class ScheduleSlot(TypedDict):
+    """
+    A single time slot in a climate schedule.
+
+    Each slot defines when a temperature period ends and what temperature to maintain.
+    Climate devices use 13 slots per weekday, with unused slots filled with "24:00".
+
+    Attributes:
+        endtime: End time in "HH:MM" format (e.g., "06:00", "24:00")
+        temperature: Target temperature in degrees Celsius
+
+    Example:
+        {"endtime": "06:00", "temperature": 18.0}
+
+    """
+
+    endtime: str
+    temperature: float
+
+
+ClimateWeekdaySchedule = dict[int, ScheduleSlot]
+"""Schedule slots for a single weekday, keyed by slot number (1-13)."""
+
+ClimateProfileSchedule = dict[WeekdayStr, ClimateWeekdaySchedule]
+"""Schedule for all weekdays in a profile."""
+
+ClimateScheduleDict = dict[ScheduleProfile, ClimateProfileSchedule]
+"""Complete schedule with all profiles (P1-P6)."""
+CLIMATE_SCHEDULE_SLOT_IN_RANGE: Final = range(1, 14)
+CLIMATE_SCHEDULE_SLOT_RANGE: Final = range(1, 13)
+CLIMATE_SCHEDULE_TIME_RANGE: Final = range(1441)
+
+
+class SimpleSchedulePeriod(TypedDict):
+    """
+    A single temperature period in a simple schedule.
+
+    Uses lowercase string keys for JSON serialization compatibility with custom cards.
+
+    Attributes:
+        starttime: Start time in "HH:MM" format (e.g., "06:00")
+        endtime: End time in "HH:MM" format (e.g., "22:00")
+        temperature: Target temperature in degrees Celsius
+
+    """
+
+    starttime: str
+    endtime: str
+    temperature: float
+
+
+class SimpleWeekdaySchedule(TypedDict):
+    """
+    Schedule for a single weekday with base temperature and heating periods.
+
+    Attributes:
+        base_temperature: Default temperature when no period is active
+        periods: List of temperature periods with start/end times
+
+    Example:
+        {
+            "base_temperature": 18.0,
+            "periods": [
+                {"starttime": "06:00", "endtime": "08:00", "temperature": 21.0},
+                {"starttime": "17:00", "endtime": "22:00", "temperature": 21.0}
+            ]
+        }
+
+    """
+
+    base_temperature: float
+    periods: list[SimpleSchedulePeriod]
+
+
+# Type aliases for higher-level structures
+SimpleProfileSchedule = dict[WeekdayStr, SimpleWeekdaySchedule]
+"""Schedule for all weekdays in a profile."""
+
+SimpleScheduleDict = dict[ScheduleProfile, SimpleProfileSchedule]
+"""Complete schedule with all profiles."""
+
+DEFAULT_CLIMATE_FILL_TEMPERATURE: Final = 18.0
+DEFAULT_SCHEDULE_GROUP = dict[ScheduleField, Any]
+DEFAULT_SCHEDULE_DICT = dict[int, DEFAULT_SCHEDULE_GROUP]
+RAW_SCHEDULE_DICT = dict[str, float | int]
+SCHEDULE_PATTERN: Final = re.compile(r"^\d+_WP_")
