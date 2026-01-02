@@ -1,0 +1,125 @@
+# TreeMapper
+
+> Extends [../CLAUDE.md](../CLAUDE.md)
+
+[![PyPI](https://img.shields.io/pypi/v/treemapper)](https://pypi.org/project/treemapper/)
+[![Downloads](https://img.shields.io/pypi/dm/treemapper)](https://pypi.org/project/treemapper/)
+[![License](https://img.shields.io/github/license/nikolay-e/treemapper)](https://github.com/nikolay-e/treemapper/blob/main/LICENSE)
+
+**Export your codebase for AI/LLM context in one command.**
+
+```bash
+pip install treemapper
+treemapper . -o context.yaml   # paste into ChatGPT/Claude
+```
+
+## Why TreeMapper?
+
+Unlike `tree` or `find`, TreeMapper exports **structure + file contents** in a format optimized for LLM context windows:
+
+```yaml
+name: myproject
+type: directory
+children:
+  - name: main.py
+    type: file
+    content: |
+      def hello():
+          print("Hello, World!")
+  - name: utils/
+    type: directory
+    children:
+      - name: helpers.py
+        type: file
+        content: |
+          def add(a, b):
+              return a + b
+```
+
+## Usage
+
+```bash
+treemapper .                          # YAML to stdout
+treemapper . -o tree.yaml             # save to file
+treemapper . -o -                     # explicit stdout output
+treemapper . --format json            # JSON format
+treemapper . --format text            # tree-style text
+treemapper . --no-content             # structure only (no file contents)
+treemapper . --max-depth 3            # limit directory depth
+treemapper . --max-file-bytes 10000   # skip files larger than 10KB
+treemapper . -i custom.ignore         # custom ignore patterns
+treemapper . --no-default-ignores     # disable .gitignore/.treemapperignore (custom -i still works)
+treemapper . -v 2                     # verbose output (0=ERROR, 1=WARNING, 2=INFO, 3=DEBUG)
+treemapper --version                  # show version
+```
+
+## Python API
+
+```python
+from treemapper import map_directory, to_yaml, to_json, to_text
+
+# Full function signature
+tree = map_directory(
+    path,                              # directory path (str or Path)
+    max_depth=None,                    # limit traversal depth
+    no_content=False,                  # exclude file contents
+    max_file_bytes=None,               # skip files larger than N bytes
+    ignore_file=None,                  # custom ignore file path
+    no_default_ignores=False,          # disable .gitignore/.treemapperignore
+)
+
+# Examples
+tree = map_directory("./myproject")
+tree = map_directory("./src", max_depth=2, no_content=True)
+tree = map_directory(".", max_file_bytes=50000, ignore_file="custom.ignore")
+
+# Serialize to string
+yaml_str = to_yaml(tree)
+json_str = to_json(tree)
+text_str = to_text(tree)
+```
+
+## Ignore Patterns
+
+Respects `.gitignore` and `.treemapperignore` automatically. Use `--no-default-ignores` to include everything.
+
+Features:
+- Hierarchical: nested `.gitignore`/`.treemapperignore` files work at each directory level
+- Negation patterns: `!important.log` un-ignores a file
+- Anchored patterns: `/root_only.txt` matches only in root, `*.log` matches everywhere
+- Output file is always auto-ignored (prevents recursive inclusion)
+
+## Content Placeholders
+
+When file content cannot be read normally, placeholders are used:
+- `<file too large: N bytes>` — file exceeds `--max-file-bytes` limit
+- `<binary file: N bytes>` — file detected as binary (contains null bytes)
+- `<unreadable content: not utf-8>` — file is not valid UTF-8
+- `<unreadable content>` — file cannot be read (permission denied, I/O error)
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest
+pre-commit run --all-files
+```
+
+## Testing
+
+Integration tests only - test against real filesystem. No mocking.
+
+## Architecture
+
+```
+src/treemapper/
+├── cli.py        # argument parsing
+├── ignore.py     # gitignore/treemapperignore handling
+├── tree.py       # directory traversal
+├── writer.py     # YAML/JSON/text output
+└── treemapper.py # main entry point
+```
+
+## License
+
+Apache 2.0
