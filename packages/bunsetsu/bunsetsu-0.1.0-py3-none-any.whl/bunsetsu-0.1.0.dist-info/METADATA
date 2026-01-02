@@ -1,0 +1,298 @@
+Metadata-Version: 2.4
+Name: bunsetsu
+Version: 0.1.0
+Summary: Japanese-optimized semantic text chunking for RAG applications
+Project-URL: Homepage, https://github.com/YUALAB/bunsetsu
+Project-URL: Documentation, https://github.com/YUALAB/bunsetsu#readme
+Project-URL: Repository, https://github.com/YUALAB/bunsetsu
+Project-URL: Issues, https://github.com/YUALAB/bunsetsu/issues
+Author-email: YUA LAB <desk@aquallc.jp>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: japanese,langchain,llamaindex,llm,nlp,rag,semantic-chunking,text-chunking
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: Japanese
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.9
+Provides-Extra: all
+Requires-Dist: fugashi>=1.3.0; extra == 'all'
+Requires-Dist: sudachidict-core>=20240109; extra == 'all'
+Requires-Dist: sudachipy>=0.6.8; extra == 'all'
+Requires-Dist: unidic-lite>=1.0.8; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: mecab
+Requires-Dist: fugashi>=1.3.0; extra == 'mecab'
+Requires-Dist: unidic-lite>=1.0.8; extra == 'mecab'
+Provides-Extra: sudachi
+Requires-Dist: sudachidict-core>=20240109; extra == 'sudachi'
+Requires-Dist: sudachipy>=0.6.8; extra == 'sudachi'
+Description-Content-Type: text/markdown
+
+# Bunsetsu (文節)
+
+[![PyPI version](https://badge.fury.io/py/bunsetsu.svg)](https://badge.fury.io/py/bunsetsu)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+**Japanese-optimized semantic text chunking for RAG applications.**
+
+Unlike general-purpose text splitters, Bunsetsu understands Japanese text structure—no spaces between words, particles that bind phrases, and sentence patterns that differ from English. This results in more coherent chunks and better retrieval accuracy for Japanese RAG systems.
+
+## Why Bunsetsu?
+
+| Feature | Generic Splitters | Bunsetsu |
+|---------|------------------|----------|
+| Japanese word boundaries | ❌ Breaks mid-word | ✅ Respects morphology |
+| Particle handling | ❌ Splits は/が from nouns | ✅ Keeps phrases intact |
+| Sentence detection | ⚠️ Basic (。only) | ✅ Full (。！？、etc.) |
+| Topic boundaries | ❌ Ignores | ✅ Detects は/が patterns |
+| Dependencies | Heavy | Zero by default |
+
+## Installation
+
+```bash
+# Basic installation (zero dependencies)
+pip install bunsetsu
+
+# With MeCab tokenizer (higher accuracy)
+pip install bunsetsu[mecab]
+
+# With Sudachi tokenizer (multiple granularity modes)
+pip install bunsetsu[sudachi]
+
+# All tokenizers
+pip install bunsetsu[all]
+```
+
+## Quick Start
+
+```python
+from bunsetsu import chunk_text
+
+text = """
+人工知能の発展は目覚ましいものがあります。
+特に大規模言語モデルの登場により、自然言語処理の分野は大きく変わりました。
+"""
+
+# Simple semantic chunking
+chunks = chunk_text(text, strategy="semantic", chunk_size=200)
+
+for chunk in chunks:
+    print(f"[{chunk.char_count} chars] {chunk.text[:50]}...")
+```
+
+## Chunking Strategies
+
+### 1. Semantic Chunking (Recommended for RAG)
+
+Splits text based on meaning and topic boundaries:
+
+```python
+from bunsetsu import SemanticChunker
+
+chunker = SemanticChunker(
+    min_chunk_size=100,
+    max_chunk_size=500,
+)
+
+chunks = chunker.chunk(text)
+```
+
+### 2. Fixed-Size with Sentence Awareness
+
+Character-based splitting that respects sentence boundaries:
+
+```python
+from bunsetsu import FixedSizeChunker
+
+chunker = FixedSizeChunker(
+    chunk_size=500,
+    chunk_overlap=50,
+    respect_sentences=True,  # Don't break mid-sentence
+)
+
+chunks = chunker.chunk(text)
+```
+
+### 3. Recursive (Document Structure)
+
+Splits hierarchically by headings, paragraphs, sentences, then clauses:
+
+```python
+from bunsetsu import RecursiveChunker
+
+chunker = RecursiveChunker(
+    chunk_size=500,
+    chunk_overlap=50,
+)
+
+chunks = chunker.chunk(markdown_text)
+```
+
+## Tokenizer Backends
+
+### SimpleTokenizer (Default)
+
+Regex-based, zero dependencies. Good for most use cases:
+
+```python
+from bunsetsu import SimpleTokenizer
+
+tokenizer = SimpleTokenizer()
+tokens = tokenizer.tokenize("日本語のテキスト")
+```
+
+### MeCabTokenizer (High Accuracy)
+
+Uses MeCab via fugashi for proper morphological analysis:
+
+```python
+from bunsetsu import MeCabTokenizer, SemanticChunker
+
+tokenizer = MeCabTokenizer()
+chunker = SemanticChunker(tokenizer=tokenizer)
+```
+
+### SudachiTokenizer (Flexible Granularity)
+
+Supports three tokenization modes (A/B/C):
+
+```python
+from bunsetsu import SudachiTokenizer
+
+# Mode C: Longest unit (compound words kept together)
+tokenizer = SudachiTokenizer(mode="C")
+
+# Mode A: Shortest unit (fine-grained)
+tokenizer = SudachiTokenizer(mode="A")
+```
+
+## Framework Integrations
+
+### LangChain
+
+```python
+from bunsetsu.integrations import LangChainTextSplitter
+from langchain.schema import Document
+
+splitter = LangChainTextSplitter(
+    strategy="semantic",
+    chunk_size=500,
+)
+
+# Split plain text
+chunks = splitter.split_text(text)
+
+# Split Documents
+docs = [Document(page_content=text, metadata={"source": "file.txt"})]
+split_docs = splitter.split_documents(docs)
+```
+
+### LlamaIndex
+
+```python
+from bunsetsu.integrations import LlamaIndexNodeParser
+
+parser = LlamaIndexNodeParser(
+    strategy="semantic",
+    chunk_size=500,
+)
+
+nodes = parser.get_nodes_from_documents(documents)
+```
+
+## API Reference
+
+### chunk_text()
+
+Convenience function for quick chunking:
+
+```python
+chunks = chunk_text(
+    text,
+    strategy="semantic",      # "fixed", "semantic", or "recursive"
+    chunk_size=500,           # Target chunk size
+    chunk_overlap=50,         # Overlap between chunks
+    tokenizer_backend="simple",  # "simple", "mecab", or "sudachi"
+)
+```
+
+### Chunk Object
+
+```python
+chunk.text        # The chunk content
+chunk.start_char  # Start position in original text
+chunk.end_char    # End position in original text
+chunk.char_count  # Number of characters
+chunk.metadata    # Additional metadata dict
+```
+
+### Token Object
+
+```python
+token.surface      # Surface form (as written)
+token.token_type   # TokenType enum (NOUN, VERB, PARTICLE, etc.)
+token.reading      # Reading (if available)
+token.base_form    # Dictionary form (if available)
+token.is_content_word  # True for nouns, verbs, adjectives
+```
+
+## Performance
+
+Benchmarked on a 100KB Japanese document:
+
+| Chunker | Time | Chunks | Avg Size |
+|---------|------|--------|----------|
+| FixedSizeChunker | 12ms | 203 | 492 chars |
+| SemanticChunker (simple) | 45ms | 187 | 534 chars |
+| SemanticChunker (mecab) | 89ms | 192 | 521 chars |
+| RecursiveChunker | 23ms | 198 | 505 chars |
+
+## Design Philosophy
+
+1. **Japanese-first**: Built specifically for Japanese text, not adapted from English
+2. **Zero dependencies by default**: Works out of the box, optional backends for accuracy
+3. **RAG-optimized**: Chunks designed for embedding and retrieval, not just display
+4. **Framework-agnostic**: Core library works standalone, integrations provided separately
+
+## Contributing
+
+Contributions are welcome! Please check [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+```bash
+# Development setup
+git clone https://github.com/YUALAB/bunsetsu.git
+cd bunsetsu
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linter
+ruff check src/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## About
+
+Developed by [YUA LAB](https://github.com/YUALAB) (AQUA LLC), Tokyo.
+
+We build AI agents and RAG systems for enterprise. This library powers our production RAG deployments.
+
+- Website: [aquallc.jp](https://www.aquallc.jp)
+- AI Assistant: [YUA](https://www.aquallc.jp/yua/)
+- Contact: desk@aquallc.jp
