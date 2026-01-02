@@ -1,0 +1,311 @@
+[project]
+name = "sagaz"
+version = "1.0.3"
+description = "Production-ready Saga pattern with DAG support"
+readme = "README.md"
+dependencies = [
+    "python-statemachine>=2.1.0"
+]
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    # Testing
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
+    "pytest-cov==7.0.0",
+    "pytest-xdist>=3.8.0",
+    "pytest-watch>=4.2.0",
+    # Code Quality
+    "ruff>=0.1.6",
+
+    "mypy==1.19.1",
+    "ipython==9.8.0",
+    # Git Hooks (Rust-based pre-commit alternative - faster and more efficient)
+    "prek>=0.2.13",
+    # Security
+    "bandit[toml]>=1.7.5",
+    "pip-audit>=2.6.1",
+    "radon>=6.0.1",
+    "testcontainers>=4.13.3",
+    "pytest-timeout>=2.4.0",
+    # OpenTelemetry (for tracing tests)
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+]
+
+storage = [
+    # Storage backends (optional - install as needed)
+    "asyncpg>=0.30.0",  # PostgreSQL storage
+    "redis>=7.0.0",      # Redis storage  
+]
+
+integration-tests = [
+    # Integration testing with real databases (requires Docker)
+    "testcontainers[kafka,postgres,rabbitmq,redis]>=4.13.0",
+]
+redis = [
+    "redis>=7.1.0",
+]
+postgres = [
+    "asyncpg>=0.31.0",
+]
+kafka = [
+    "aiokafka>=0.12.0",
+]
+rabbitmq = [
+    "aio-pika>=9.0.0",
+]
+tracing = [
+    "opentelemetry-api>=1.39.1",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.39.1",
+    "opentelemetry-sdk>=1.39.1",
+]
+prometheus = [
+    "prometheus-client>=0.23.1",
+]
+
+
+# ============================================================================
+# Build System Configuration
+# ============================================================================
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Explicitly configure package discovery to avoid flat-layout ambiguity
+packages = ["sagaz"]
+
+[tool.setuptools.package-data]
+app = ["py.typed"]
+
+[dependencies]
+python = "^3.11"
+
+# ============================================================================
+# Tool Configurations
+# ============================================================================
+
+[tool.ruff]
+# Same as Black
+line-length = 100
+indent-width = 4
+
+# Python 3.11
+target-version = "py311"
+
+# Exclude patterns
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    "alembic/versions/*.py",
+]
+
+[tool.ruff.lint]
+# Enable pycodestyle (E), Pyflakes (F), isort (I), and more
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "T10", # flake8-debugger
+    "EM",  # flake8-errmsg
+    "ISC", # flake8-implicit-str-concat
+    "ICN", # flake8-import-conventions
+    "PIE", # flake8-pie
+    "T20", # flake8-print
+    "PT",  # flake8-pytest-style
+    "Q",   # flake8-quotes
+    "RSE", # flake8-raise
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "RUF", # Ruff-specific rules
+]
+
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "B008",    # Do not perform function calls in argument defaults (FastAPI Depends)
+    "ARG002",  # Unused method argument (common in interfaces)
+    "ARG001",  # Unused function argument (common in callbacks)
+    "PLR0913", # Too many arguments
+    "PLR2004", # Magic value used in comparison
+    "PLC0415", # Import outside top-level (used for circular import prevention)
+    "DTZ005",  # datetime.now() without timezone (we use timezone aware in production)
+    "G004",    # Logging f-string (more readable than %)
+    "B904",    # Raise without from inside except (sometimes intentional)
+    "PT011",   # pytest.raises too broad (sometimes necessary)
+    "PT001",   # pytest.fixture() vs pytest.fixture (formatter adds parens back)
+    "PT023",   # pytest.mark decorators (formatter adds parens back)
+    "ISC001",  # Implicit string concatenation (conflicts with formatter)
+    "ERA001",  # Commented out code (useful during development)
+    "N802",    # Function name should be lowercase (lazy import factory functions)
+    "B024",    # Abstract base class with no abstract methods (intentional for listeners)
+    "B027",    # Empty method in ABC without abstract decorator (default implementations)
+    "RUF012",  # Mutable class attributes without ClassVar (intentional for configs)
+    "B039",    # ContextVar mutable default (intentional pattern)
+    "SIM105",  # Use contextlib.suppress (explicit try-except more readable)
+    "SIM117",  # Nested with statements (clearer for async db transactions)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sagaz"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow print statements in CLI scripts
+"scripts/*" = ["T20"]
+# Allow unused imports in __init__.py (re-exports)
+"__init__.py" = ["F401", "N802"]
+# Sagaz source - allow specific patterns
+"sagaz/*" = [
+    "F401",     # Unused imports for availability checks
+]
+# Factory files have intentional print_available_* functions
+"sagaz/*/factory.py" = ["T20"]
+"sagaz/*/*/factory.py" = ["T20"]
+# Tests can have magic values, print statements, test-specific patterns
+"tests/*" = [
+    "PLR2004",  # Magic values in tests
+    "T20",      # Print statements for debugging
+    "ARG",      # Unused arguments in fixtures
+    "PT012",    # Multi-statement pytest.raises blocks (common test pattern)
+    "PT017",    # Assertion on exception in except block
+    "B017",     # Blind except for testing immutability/errors
+    "B015",     # Pointless comparison for testing operators
+    "B018",     # Useless attribute access (for coverage)
+    "B023",     # Loop variable binding (common in dynamic test generation)
+    "E402",     # Module level import not at top (docstrings before imports)
+    "E722",     # Bare except (for cleanup in tests)
+    "E741",     # Ambiguous variable name (short names in comprehensions)
+    "N806",     # Variable should be lowercase (mock class names)
+    "F401",     # Unused imports for availability checks
+    "F811",     # Redefinition (test method overrides)
+    "SIM102",   # Nested ifs for clarity
+    "SIM105",   # Try-except-pass for optional operations
+    "SIM117",   # Nested with statements (more readable in tests)
+    "PTH123",   # open() vs Path.open() (simpler in tests)
+    "RUF",      # Ruff-specific rules in tests (regex patterns, etc.)
+]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Respect magic trailing commas
+skip-magic-trailing-comma = false
+
+# Auto-detect line endings
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+ignore_missing_imports = true
+explicit_package_bases = true
+namespace_packages = true
+
+# Exclude patterns
+exclude = [
+    "alembic/",
+    "tests/",
+    ".venv/",
+]
+
+# ============================================================================
+# Pytest Configuration
+# ============================================================================
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Parallel execution with pytest-xdist
+# Run tests with: pytest -n auto --dist=loadgroup (respects xdist_group markers)
+# Use --dist=loadgroup to share containers across tests with same xdist_group
+# addopts = "-n auto --dist=loadgroup"  # Uncomment to enable by default
+
+# Register custom markers
+markers = [
+    "integration: marks tests as integration tests (require Docker/external services)",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "xdist_group(name): marks tests to run on same worker (for shared state)",
+]
+
+# Filter warnings from external libraries
+filterwarnings = [
+    "error",  # Treat warnings as errors by default
+    # Ignore deprecation warnings from testcontainers
+    "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning:testcontainers",
+    # Ignore RuntimeWarning from statemachine library
+    "ignore:coroutine 'sleep' was never awaited:RuntimeWarning:statemachine",
+    # Ignore RuntimeWarning from stdlib (caused by statemachine)
+    "ignore:coroutine 'sleep' was never awaited:RuntimeWarning",
+    # Ignore unawaited AsyncMock coroutines from our tests
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning",
+    # Ignore unknown mark warning during collection (marker is registered but order matters)
+    "ignore::pytest.PytestUnknownMarkWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+# ============================================================================
+# Coverage Configuration
+# ============================================================================
+
+[tool.coverage.run]
+source = ["sagaz"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+omit = [
+    "*/tests/*",
+    "*/examples/*",
+    "*/__init__.py",
+    "sagaz/__init__.py",
+    "sagaz/*/__init__.py",
+    "examples/*",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
