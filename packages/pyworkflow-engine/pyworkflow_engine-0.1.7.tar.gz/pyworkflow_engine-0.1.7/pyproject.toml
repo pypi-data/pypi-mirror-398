@@ -1,0 +1,255 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyworkflow-engine"
+version = "0.1.7"
+description = "A Python implementation of durable, event-sourced workflows inspired by Vercel Workflow"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "PyWorkflow Contributors"}
+]
+keywords = ["workflow", "durable", "event-sourcing", "celery", "async", "orchestration"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Distributed Computing",
+    "Framework :: Celery",
+]
+
+dependencies = [
+    # Core dependencies
+    "celery>=5.3.0,<6.0.0",
+    "cloudpickle>=3.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "loguru>=0.7.0",
+
+    # CLI dependencies
+    "click>=8.0.0",
+    "inquirerpy>=0.3.4; python_version < '4.0'",
+
+    # Utilities
+    "httpx>=0.25.0",
+    "python-dateutil>=2.8.0",
+    "filelock>=3.12.0",
+    "pyyaml>=6.0.0",
+    "croniter>=2.0.0",
+]
+
+[project.optional-dependencies]
+# Storage backends
+redis = [
+    "redis>=5.0.0",
+    "celery[redis]>=5.3.0,<6.0.0",  # Redis broker + storage
+]
+
+sqlite = [
+    "aiosqlite>=0.19.0",
+]
+
+postgres = [
+    "asyncpg>=0.29.0",
+]
+
+# AWS runtime support
+aws = [
+    "aws-durable-execution-sdk-python>=0.1.0",
+]
+dynamodb = [
+    "aiobotocore>=2.5.0",
+]
+
+# All storage backends
+all = [
+    "redis>=5.0.0",
+    "celery[redis]>=5.3.0,<6.0.0",
+    "aiosqlite>=0.19.0",
+    "asyncpg>=0.29.0",
+    "aws-durable-execution-sdk-python>=0.1.0",
+]
+
+# Development dependencies
+dev = [
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-celery>=0.0.0",
+    "pytest-mock>=3.12.0",
+    "moto[dynamodb]>=5.0.0",  # AWS mocking for DynamoDB tests
+
+    # Code quality
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+
+    # Type stubs
+    "types-redis>=4.6.0",
+    "types-python-dateutil>=2.8.0",
+    "types-PyYAML>=6.0.0",
+
+    # Monitoring (optional)
+    "flower>=2.0.0",  # Celery web UI
+
+    # Include all storage backends for development
+    "redis>=5.0.0",
+    "celery[redis]>=5.3.0,<6.0.0",
+    "aiosqlite>=0.19.0",
+    "asyncpg>=0.29.0",
+]
+
+[project.urls]
+Homepage = "https://docs.pyworkflow.dev"
+Documentation = "https://docs.pyworkflow.dev"
+Repository = "https://github.com/QualityUnit/pyworkflow"
+Issues = "https://github.com/QualityUnit/pyworkflow/issues"
+
+[project.scripts]
+pyworkflow = "pyworkflow.cli:main"
+
+[tool.setuptools]
+packages = {find = {}}
+
+[tool.setuptools.package-data]
+pyworkflow = ["py.typed"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow-running tests",
+]
+
+[tool.coverage.run]
+source = ["pyworkflow"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "W191",  # indentation contains tabs
+    "ARG001",  # unused function argument (often needed for callbacks/interfaces)
+    "ARG002",  # unused method argument (often needed for callbacks/interfaces)
+    "B904",  # raise from - can be noisy, not always necessary
+    "E402",  # module level import not at top (often intentional for conditional imports)
+    "B027",  # empty method in abstract class (intentional for optional overrides)
+    "SIM102",  # nested if - sometimes clearer than combined condition
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Unused imports in __init__.py
+"examples/**/*.py" = ["E402", "F841"]  # Examples may have non-standard structure
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false  # Too strict for yaml.safe_load and similar
+warn_unused_configs = true
+disallow_untyped_defs = false  # Allow untyped defs for gradual typing
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false  # Don't warn about unused ignores during transition
+warn_no_return = true
+follow_imports = "normal"
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "celery.*",
+    "croniter.*",
+    "redis.*",
+    "asyncpg.*",
+    "aiosqlite.*",
+    "aiobotocore.*",
+    "botocore.*",
+    "InquirerPy.*",
+    "prompt_toolkit.*",
+    "yaml.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pyworkflow.celery.tasks",
+    "pyworkflow.aws.handler",
+]
+disallow_untyped_defs = false
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["pyworkflow"]
