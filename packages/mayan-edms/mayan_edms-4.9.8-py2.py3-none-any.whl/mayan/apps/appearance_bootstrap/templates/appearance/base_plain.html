@@ -1,0 +1,62 @@
+{% load i18n %}
+
+{% load appearance_tags %}
+{% load common_tags %}
+{% load navigation_tags %}
+
+{% spaceless %}
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+    <head>
+        {% include 'appearance/partials/meta.html' %}
+        <title>
+            {% block base_title %}
+                {% block title %}{% endblock %} :: {% block project_name %}{% common_get_project_title %}{% endblock %}
+            {% endblock base_title %}
+        </title>
+
+        <style id="style-javascript"></style>
+        {% appearance_app_templates template_name='head' %}
+
+        {% block stylesheets %}{% endblock %}
+
+        <style>
+            {% appearance_get_user_theme_stylesheet user=request.user %}
+        </style>
+
+        <script>
+            // Detect if we are inside of an AJAX content container
+            // and break free as this is supposed to be a top level
+            // template.
+            const currentHash = window.location.hash;
+            if (currentHash.length) {
+                const fragment = currentHash.substring(1);
+
+                try {
+                    const url = new URL(fragment, window.location.origin);
+                    const isHttp = (url.protocol === 'http:' || url.protocol === 'https:');
+                    const isSameOrigin = (url.origin === window.location.origin);
+                    const isExpectedFragment = (fragment.startsWith('/') && !fragment.startsWith('//'));
+
+                    // Only allow same-origin HTTP(S) URLs that look like
+                    // the expected partial-navigation fragments.
+                    if (isHttp && isSameOrigin && isExpectedFragment) {
+                        window.location = url;
+                    } else {
+                        // Drop unexpected fragments instead of navigating.
+                        history.replaceState({}, '', window.location.pathname + window.location.search);
+                    }
+                } catch (error) {
+                    // Drop unexpected fragments instead of navigating.
+                    history.replaceState({}, '', window.location.pathname + window.location.search);
+                }
+            }
+        </script>
+    </head>
+    <body id="body-plain">
+        {% block content %}{% endblock %}
+    </body>
+</html>
+
+{% endspaceless %}
