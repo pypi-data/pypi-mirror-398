@@ -1,0 +1,315 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2021-2025
+"""
+Base implementation for calculated data points deriving values from other data points.
+
+Public API of this module is defined by __all__.
+"""
+
+from __future__ import annotations
+
+import contextlib
+from datetime import datetime
+import logging
+from typing import Final, Unpack, cast
+
+from aiohomematic.const import (
+    INIT_DATETIME,
+    CalculatedParameter,
+    CallSource,
+    DataPointKey,
+    DataPointUsage,
+    Operations,
+    ParameterType,
+    ParamsetKey,
+)
+from aiohomematic.decorators import inspector
+from aiohomematic.interfaces.model import CallbackDataPointProtocol, ChannelProtocol, GenericDataPointProtocolAny
+from aiohomematic.model.custom import definition as hmed
+from aiohomematic.model.custom.mixins import StateChangeArgs
+from aiohomematic.model.data_point import BaseDataPoint
+from aiohomematic.model.generic import DpDummy
+from aiohomematic.model.support import (
+    DataPointNameData,
+    DataPointPathData,
+    PathData,
+    generate_unique_id,
+    get_data_point_name_data,
+)
+from aiohomematic.property_decorators import DelegatedProperty, Kind, hm_property, state_property
+from aiohomematic.type_aliases import ParamType, UnsubscribeCallback
+
+_LOGGER: Final = logging.getLogger(__name__)
+
+# Key type for calculated data point dictionary
+type _DataPointKey = tuple[str, ParamsetKey | None]
+
+
+class CalculatedDataPoint[ParameterT: ParamType](BaseDataPoint, CallbackDataPointProtocol):
+    """Base class for calculated data point."""
+
+    __slots__ = (
+        "_cached_dpk",
+        "_data_points",
+        "_default",
+        "_max",
+        "_min",
+        "_multiplier",
+        "_operations",
+        "_service",
+        "_type",
+        "_unit",
+        "_unsubscribe_callbacks",
+        "_values",
+        "_visible",
+    )
+
+    _calculated_parameter: CalculatedParameter = None  # type: ignore[assignment]
+
+    def __init__(
+        self,
+        *,
+        channel: ChannelProtocol,
+    ) -> None:
+        """Initialize the data point."""
+        self._unsubscribe_callbacks: list[UnsubscribeCallback] = []
+        unique_id = generate_unique_id(
+            config_provider=channel.device.config_provider,
+            address=channel.address,
+            parameter=self._calculated_parameter,
+            prefix="calculated",
+        )
+        super().__init__(
+            channel=channel,
+            unique_id=unique_id,
+            is_in_multiple_channels=hmed.is_multi_channel_device(model=channel.device.model, category=self.category),
+        )
+        self._data_points: Final[dict[_DataPointKey, GenericDataPointProtocolAny]] = {}
+        self._type: ParameterType = None  # type: ignore[assignment]
+        self._values: tuple[str, ...] | None = None
+        self._max: ParameterT = None  # type: ignore[assignment]
+        self._min: ParameterT = None  # type: ignore[assignment]
+        self._default: ParameterT = None  # type: ignore[assignment]
+        self._visible: bool = True
+        self._service: bool = False
+        self._operations: int = 5
+        self._unit: str | None = None
+        self._multiplier: float = 1.0
+        self._post_init()
+
+    def __del__(self) -> None:
+        """Clean up subscriptions when the object is garbage collected."""
+        with contextlib.suppress(Exception):
+            self.unsubscribe_from_data_point_updated()
+
+    @staticmethod
+    def is_relevant_for_model(*, channel: ChannelProtocol) -> bool:
+        """Return if this calculated data point is relevant for the channel."""
+        return False
+
+    _relevant_data_points: Final = DelegatedProperty[tuple[GenericDataPointProtocolAny, ...]](
+        path="_readable_data_points"
+    )
+    default: Final = DelegatedProperty[ParameterT](path="_default")
+    hmtype: Final = DelegatedProperty[ParameterType](path="_type")
+    max: Final = DelegatedProperty[ParameterT](path="_max", kind=Kind.CONFIG)
+    min: Final = DelegatedProperty[ParameterT](path="_min", kind=Kind.CONFIG)
+    multiplier: Final = DelegatedProperty[float](path="_multiplier")
+    parameter: Final = DelegatedProperty[str](path="_calculated_parameter")
+    service: Final = DelegatedProperty[bool](path="_service")
+    unit: Final = DelegatedProperty[str | None](path="_unit", kind=Kind.CONFIG)
+    values: Final = DelegatedProperty[tuple[str, ...] | None](path="_values", kind=Kind.CONFIG)
+    visible: Final = DelegatedProperty[bool](path="_visible")
+
+    @property
+    def _readable_data_points(self) -> tuple[GenericDataPointProtocolAny, ...]:
+        """Returns the list of readable data points."""
+        return tuple(dp for dp in self._data_points.values() if dp.is_readable)
+
+    @property
+    def _relevant_values_data_points(self) -> tuple[GenericDataPointProtocolAny, ...]:
+        """Returns the list of relevant VALUES data points. To be overridden by subclasses."""
+        return tuple(dp for dp in self._readable_data_points if dp.paramset_key == ParamsetKey.VALUES)
+
+    @property
+    def _should_publish_data_point_updated_callback(self) -> bool:
+        """Check if a data point has been updated or refreshed."""
+        if self.published_event_recently:  # pylint: disable=using-constant-test
+            return False
+
+        if (relevant_values_data_point := self._relevant_values_data_points) is not None and len(
+            relevant_values_data_point
+        ) <= 1:
+            return True
+
+        return all(dp.published_event_recently for dp in relevant_values_data_point)
+
+    @property
+    def data_point_name_postfix(self) -> str:
+        """Return the data point name postfix."""
+        return ""
+
+    @property
+    def has_data_points(self) -> bool:
+        """Return if there are data points."""
+        return len(self._data_points) > 0
+
+    @property
+    def is_readable(self) -> bool:
+        """Return, if data_point is readable."""
+        return bool(self._operations & Operations.READ)
+
+    @property
+    def is_refreshed(self) -> bool:
+        """Return if all relevant data_point have been refreshed (received a value)."""
+        return all(dp.is_refreshed for dp in self._relevant_data_points)
+
+    @property
+    def is_status_valid(self) -> bool:
+        """Return if all relevant data points have valid status."""
+        return all(dp.is_status_valid for dp in self._relevant_data_points)
+
+    @property
+    def is_writable(self) -> bool:
+        """Return, if data_point is writable."""
+        return bool(self._operations & Operations.WRITE)
+
+    @property
+    def paramset_key(self) -> ParamsetKey:
+        """Return paramset_key name."""
+        return ParamsetKey.CALCULATED
+
+    @property
+    def state_uncertain(self) -> bool:
+        """Return, if the state is uncertain."""
+        return any(dp.state_uncertain for dp in self._relevant_data_points)
+
+    @property
+    def supports_events(self) -> bool:
+        """Return, if data_point is supports events."""
+        return bool(self._operations & Operations.EVENT)
+
+    @state_property
+    def modified_at(self) -> datetime:
+        """Return the latest last update timestamp."""
+        modified_at: datetime = INIT_DATETIME
+        for dp in self._readable_data_points:
+            if (data_point_modified_at := dp.modified_at) and data_point_modified_at > modified_at:
+                modified_at = data_point_modified_at
+        return modified_at
+
+    @state_property
+    def refreshed_at(self) -> datetime:
+        """Return the latest last refresh timestamp."""
+        refreshed_at: datetime = INIT_DATETIME
+        for dp in self._readable_data_points:
+            if (data_point_refreshed_at := dp.refreshed_at) and data_point_refreshed_at > refreshed_at:
+                refreshed_at = data_point_refreshed_at
+        return refreshed_at
+
+    @hm_property(cached=True)
+    def dpk(self) -> DataPointKey:
+        """Return data_point key value."""
+        return DataPointKey(
+            interface_id=self._device.interface_id,
+            channel_address=self._channel.address,
+            paramset_key=ParamsetKey.CALCULATED,
+            parameter=self._calculated_parameter,
+        )
+
+    def is_state_change(self, **kwargs: Unpack[StateChangeArgs]) -> bool:
+        """
+        Check if the state changes due to kwargs.
+
+        If the state is uncertain, the state should also marked as changed.
+        """
+        if self.state_uncertain:
+            return True
+        _LOGGER.debug("NO_STATE_CHANGE: %s", self.name)
+        return False
+
+    @inspector(re_raise=False)
+    async def load_data_point_value(self, *, call_source: CallSource, direct_call: bool = False) -> None:
+        """Initialize the data point values."""
+        for dp in self._readable_data_points:
+            await dp.load_data_point_value(call_source=call_source, direct_call=direct_call)
+        self.publish_data_point_updated_event()
+
+    def unsubscribe_from_data_point_updated(self) -> None:
+        """Unsubscribe from all internal update subscriptions."""
+        for unreg in self._unsubscribe_callbacks:
+            if unreg is not None:
+                unreg()
+        self._unsubscribe_callbacks.clear()
+
+    def _add_data_point[DataPointT: GenericDataPointProtocolAny](
+        self, *, parameter: str, paramset_key: ParamsetKey | None, dpt: type[DataPointT]
+    ) -> DataPointT:
+        """Add a new data point and store it in the dict."""
+        key: _DataPointKey = (parameter, paramset_key)
+        dp = self._resolve_data_point(parameter=parameter, paramset_key=paramset_key)
+        self._data_points[key] = dp
+        return cast(dpt, dp)  # type: ignore[valid-type]
+
+    def _add_device_data_point[DataPointT: GenericDataPointProtocolAny](
+        self,
+        *,
+        channel_address: str,
+        parameter: str,
+        paramset_key: ParamsetKey | None,
+        dpt: type[DataPointT],
+    ) -> DataPointT:
+        """Add a new data point from a different channel and store it in the dict."""
+        key: _DataPointKey = (parameter, paramset_key)
+        if generic_data_point := self._channel.device.get_generic_data_point(
+            channel_address=channel_address, parameter=parameter, paramset_key=paramset_key
+        ):
+            self._data_points[key] = generic_data_point
+            self._unsubscribe_callbacks.append(
+                generic_data_point.subscribe_to_internal_data_point_updated(
+                    handler=self.publish_data_point_updated_event
+                )
+            )
+            return cast(dpt, generic_data_point)  # type: ignore[valid-type]
+        dummy = DpDummy(channel=self._channel, param_field=parameter)
+        self._data_points[key] = dummy
+        return cast(dpt, dummy)  # type: ignore[valid-type]
+
+    def _get_data_point_name(self) -> DataPointNameData:
+        """Create the name for the data point."""
+        return get_data_point_name_data(channel=self._channel, parameter=self._calculated_parameter)
+
+    def _get_data_point_usage(self) -> DataPointUsage:
+        """Generate the usage for the data point."""
+        return DataPointUsage.DATA_POINT
+
+    def _get_path_data(self) -> PathData:
+        """Return the path data of the data_point."""
+        return DataPointPathData(
+            interface=self._device.client.interface,
+            address=self._device.address,
+            channel_no=self._channel.no,
+            kind=self._category,
+        )
+
+    def _get_signature(self) -> str:
+        """Return the signature of the data_point."""
+        return f"{self._category}/{self._channel.device.model}/{self._calculated_parameter}"
+
+    def _post_init(self) -> None:
+        """Post action after initialisation of the data point fields."""
+        _LOGGER.debug(
+            "POST_INIT_DATA_POINT_FIELDS: Post action after initialisation of the data point fields for %s",
+            self.full_name,
+        )
+
+    def _resolve_data_point(self, *, parameter: str, paramset_key: ParamsetKey | None) -> GenericDataPointProtocolAny:
+        """Resolve a data point by parameter and paramset_key, returning DpDummy if not found."""
+        if generic_data_point := self._channel.get_generic_data_point(parameter=parameter, paramset_key=paramset_key):
+            self._unsubscribe_callbacks.append(
+                generic_data_point.subscribe_to_internal_data_point_updated(
+                    handler=self.publish_data_point_updated_event
+                )
+            )
+            return generic_data_point
+        return DpDummy(channel=self._channel, param_field=parameter)
