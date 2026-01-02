@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "powerdns-cli"
+authors = [
+    {name = "Raphael Grieger", email = "r.grieger@hotmail.com"},
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+version = "1.2.1"
+dependencies = [
+    "requests>=2.3.0",
+    "click>=8.3.0",
+    "platformdirs>=4.5.0",
+    "tomli>=2.3.0; python_version < '3.11'"
+]
+description="PowerDNS Authoritative API client"
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "pylint",
+    "flake8",
+    "tox",
+    "bandit",
+    "pytest",
+    "pytest-mock",
+    "isort",
+    "black",
+    "coverage",
+    "tomli"
+]
+
+[project.scripts]
+powerdns-cli = "powerdns_cli.powerdns_cli:main"
+
+[project.urls]
+Homepage = "https://github.com/IamLunchbox/powerdns-cli"
+Issues = "https://github.com/IamLunchbox/powerdns-cli/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pylint.reports]
+score = false
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint."DISABLE"]
+disable = ["too-many-arguments", "too-many-positional-arguments", "unused-argument"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B608",]
+
+[tool.black]
+line-length = 100
+
+[tool.tox]
+env_list = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+[tool.tox.env.lint]
+description = "Linting"
+deps = ["flake8", "pylint", "isort", "black", "tomli"]
+commands = [
+    ["isort", "--diff", "--check-only", "."],
+    ["flake8", "./powerdns_cli"],
+    ["pylint", "./powerdns_cli"],
+    ["black", "--check", "--diff", "./powerdns_cli"],
+]
+ignore_errors = true
+
+[tool.tox.env_run_base]
+description = "Unit tests"
+deps = [".[dev]"]
+commands = [
+    ["pytest", "tests"],
+]
+
+[tool.isort]
+profile = "black"
