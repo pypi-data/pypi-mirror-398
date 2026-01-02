@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Get llvm-profdata from `apt install llvm-20`
+# Must match rust's llvm version or it will crash
+
+# Build instrumented
+cargo clean
+uv cache clean
+uv run --no-sync maturin develop .[pydantic] --release --verbose -- "-Cprofile-generate=${PWD}/scripts/pgo-profiles/pgo_native.profraw" "-Ctarget-cpu=native"
+
+# Clear existing profiles
+rm -rf ./scripts/pgo-profiles; mkdir ./scripts/pgo-profiles; mkdir ./scripts/pgo-profiles/pgo.profraw
+
+# Run profile
+uv run --no-sync ./scripts/profile_workload.py
+
+# Merge profiles
+/usr/lib/llvm-21/bin/llvm-profdata merge -o scripts/pgo-profiles/pgo_native.profdata $(find scripts/pgo-profiles/pgo_native.profraw -name '*.profraw')

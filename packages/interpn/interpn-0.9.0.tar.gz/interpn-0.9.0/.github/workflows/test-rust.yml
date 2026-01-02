@@ -1,0 +1,45 @@
+name: test-rust
+
+on:
+  pull_request:
+    branches: [ "*" ]
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test_rust:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Format
+      run: cargo fmt --check
+
+    - name: Lint
+      run: cargo clippy
+
+    - name: Check semver
+      uses: obi1kenobi/cargo-semver-checks-action@v2
+
+    - name: Run tests
+      run: cargo test
+
+    - name: Run tests with FMA
+      run: cargo test --features=fma
+
+    - name: Test no-std
+      run: |
+        rustup target add thumbv7em-none-eabihf
+        cargo build --target thumbv7em-none-eabihf --no-default-features
+
+    - name: Publish dry-run
+      if: github.ref != 'refs/heads/main'
+      run: cargo publish --dry-run
