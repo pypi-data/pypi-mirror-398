@@ -1,0 +1,55 @@
+# SwarmKit Python SDK
+
+SwarmKit lets you run and orchestrate terminal-based AI agents in secure sandboxes with built-in observability.
+
+## Get Started
+
+1. Get your **SwarmKit API key** at [dashboard.swarmlink.ai](https://dashboard.swarmlink.ai/) (new users: [request access](https://dashboard.swarmlink.ai/request-access) first)
+
+2. Get an **E2B API key** at [e2b.dev](https://e2b.dev) for sandbox execution
+
+3. Install the SDK:
+   ```bash
+   pip install swarmkit
+   ```
+   **Note:** Requires [Node.js 18+](https://nodejs.org/) (the SDK uses a lightweight Node.js bridge).
+
+4. Check out the [official documentation](https://github.com/brandomagnani/swarmkit/tree/main/docs) and [cookbooks](https://github.com/brandomagnani/swarmkit/tree/main/cookbooks) to start shipping with SwarmKit!
+
+## Streaming Events
+
+You can subscribe to streaming events:
+
+- `stdout`: Raw NDJSON output from the agent/CLI (may arrive in chunks).
+- `stderr`: Process stderr (may arrive in chunks).
+- `content`: Parsed ACP-style events (messages, tool calls, plan updates).
+
+### Large Outputs
+
+The Node bridge enforces per-event size limits for responsiveness.
+
+- `stdout`/`stderr` are chunked when very large; your callback receives each chunk normally.
+- `content` events are lossless: if a payload is too large to stream safely, you receive a truncated preview plus a `ref` to a local JSON file containing the full payload.
+
+Example:
+
+```py
+def on_content(evt):
+    if evt.get("truncated") and evt.get("ref"):
+        full_update = open(evt["ref"]["path"], "r", encoding="utf-8").read()
+        # full_update is the original ACP update JSON
+
+swarmkit.on("content", on_content)
+```
+
+## Reporting Bugs
+
+We welcome your feedback. File a [GitHub issue](https://github.com/brandomagnani/swarmkit/issues) to report bugs or request features.
+
+## Connect on Discord
+
+Join the [SwarmKit Developers Discord](https://discord.gg/Q36D8dGyNF) to connect with other developers using SwarmKit. Get help, share feedback, and discuss your projects with the community.
+
+## License
+
+See [LICENSE](https://github.com/brandomagnani/swarmkit/blob/main/LICENSE) for details.
