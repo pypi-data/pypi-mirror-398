@@ -1,0 +1,97 @@
+# To contribute improvements to CI/CD templates, please follow the Development guide at:
+# https://docs.gitlab.com/ee/development/cicd/templates.html
+# This specific template is located at:
+# https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Python.gitlab-ci.yml
+
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/python/tags/
+image: python:$PYTHON_VERSION  # Change image dynamically depending on Python version.
+
+variables:
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  PRE_COMMIT_HOME: "$CI_PROJECT_DIR/.cache/pre-commit"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - .cache/pre-commit
+    - .cache/uv
+    - .venv/
+
+stages:
+  - pre-commit
+  - test
+  - deploy
+
+# Pre-commit job
+pre-commit:
+  stage: pre-commit
+  image: python:3.12
+  before_script:
+    - python --version
+    # Install uv (standalone installer)
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv --version
+    # Create + sync env with dev/extra deps from the pyproject.toml file
+    # The dev tools are listed under [project.optional-dependencies] dev
+    - uv sync --all-extras
+  script:
+    - uv run pre-commit run --all-files
+
+# Define a template for testing with different Python versions
+.test_template: &test_template
+  stage: test
+  before_script:
+    - python --version
+    # Install uv
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv --version
+    - uv sync --all-extras
+  script:
+    - mkdir -p reports/test-results
+    - uv run pytest -v --junitxml=reports/test-results/results.xml
+
+#  artifacts:
+#    paths:
+#      - reports/test-results/
+
+test:python39:
+  <<: *test_template
+  variables:
+    PYTHON_VERSION: "3.9"
+
+test:python310:
+  <<: *test_template
+  variables:
+    PYTHON_VERSION: "3.10"
+
+test:python311:
+  <<: *test_template
+  variables:
+    PYTHON_VERSION: "3.11"
+
+test:python312:
+  <<: *test_template
+  variables:
+    PYTHON_VERSION: "3.12"
+
+#test:python313:
+#  <<: *test_template
+#  variables:
+#    PYTHON_VERSION: "3.13"
+
+
+#pages:
+#  script:
+#    - pip install sphinx sphinx-rtd-theme
+#    - cd doc
+#    - make html
+#    - mv build/html/ ../public/
+#  artifacts:
+#    paths:
+#      - public
+#  rules:
+#    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
