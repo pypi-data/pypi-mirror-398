@@ -1,0 +1,211 @@
+Metadata-Version: 2.4
+Name: cf-mcp-gateway
+Version: 0.2.1
+Summary: Centralized MCP Gateway for Cloudflare services
+Author: Cloudflare MCP Gateway Contributors
+License-Expression: MIT
+License-File: LICENSE
+Keywords: ai,cloudflare,gateway,llm,mcp
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.11
+Requires-Dist: fastmcp>=0.1.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: starlette>=0.38.0
+Requires-Dist: uvicorn>=0.30.0
+Description-Content-Type: text/markdown
+
+# Cloudflare MCP Gateway
+
+A centralized MCP (Model Context Protocol) gateway that aggregates multiple Cloudflare MCP services into a single unified server. Configure which services you need via environment variables and access them all through one MCP connection.
+
+## Features
+
+- **Unified Access**: Single MCP server for multiple Cloudflare services
+- **Configurable Services**: Enable only the services you need via `ENABLED_SERVICES`
+- **Dual Transport Support**: Works with both stdio (Claude Desktop) and streamable HTTP (web clients)
+- **Tool Namespacing**: Automatic prefixing prevents tool name collisions (e.g., `bindings_kv_get`, `radar_scan`)
+- **Graceful Degradation**: Continues operating if some upstream services are unavailable
+
+## Supported Services
+
+| Service ID | Name | Description |
+|------------|------|-------------|
+| `docs` | Documentation | Get up to date reference information on Cloudflare |
+| `bindings` | Workers Bindings | Build Workers applications with storage, AI, and compute primitives |
+| `builds` | Workers Builds | Get insights and manage your Cloudflare Workers Builds |
+| `observability` | Observability | Debug and get insight into your application's logs and analytics |
+| `radar` | Radar | Get global Internet traffic insights, trends, URL scans, and other utilities |
+| `containers` | Containers | Spin up a sandbox development environment |
+| `browser` | Browser Rendering | Fetch web pages, convert them to markdown and take screenshots |
+| `logpush` | Logpush | Get quick summaries for Logpush job health |
+| `ai-gateway` | AI Gateway | Search your logs, get details about the prompts and responses |
+| `autorag` | AutoRAG | List and search documents on your AutoRAGs |
+| `auditlogs` | Audit Logs | Query audit logs and generate reports for review |
+| `dns-analytics` | DNS Analytics | Optimize DNS performance and debug issues based on current set up |
+| `dex` | Digital Experience Monitoring | Get quick insight on critical applications for your organization |
+| `casb` | CASB | Quickly identify any security misconfigurations for SaaS applications |
+| `graphql` | GraphQL Analytics | Get analytics data using Cloudflare's GraphQL API |
+
+## Installation
+
+```bash
+# Using pip
+pip install cf-mcp-gateway
+
+# Using uv
+uv pip install cf-mcp-gateway
+```
+
+## Quick Start
+
+### 1. Get Cloudflare Credentials
+
+You'll need:
+- **API Token**: Create one at [Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
+- **Account ID**: Found in your Cloudflare dashboard URL or account settings
+
+### 2. Configure Environment
+
+Create a `.env` file or set environment variables:
+
+```bash
+# Required
+CLOUDFLARE_API_TOKEN=your-api-token
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+ENABLED_SERVICES=docs,bindings,observability
+
+# Optional
+TRANSPORT=stdio  # or streamable-http
+LOG_LEVEL=info
+```
+
+### 3. Run the Gateway
+
+```bash
+# Using the CLI
+cf-mcp-gateway
+
+# Or as a Python module
+python -m cf_mcp_gateway
+```
+
+## Usage with MCP Clients
+
+### Claude Desktop
+
+Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "cloudflare": {
+      "command": "python",
+      "args": ["-m", "cf_mcp_gateway"],
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "your-api-token",
+        "CLOUDFLARE_ACCOUNT_ID": "your-account-id",
+        "ENABLED_SERVICES": "docs,bindings,observability,radar",
+        "TRANSPORT": "stdio"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to your Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "cloudflare": {
+      "command": "cf-mcp-gateway",
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "your-api-token",
+        "CLOUDFLARE_ACCOUNT_ID": "your-account-id",
+        "ENABLED_SERVICES": "docs,bindings,observability"
+      }
+    }
+  }
+}
+```
+
+### Streamable HTTP (Remote/Web Access)
+
+Start the gateway with HTTP transport:
+
+```bash
+CLOUDFLARE_API_TOKEN=xxx \
+CLOUDFLARE_ACCOUNT_ID=yyy \
+ENABLED_SERVICES=docs,bindings,radar \
+TRANSPORT=streamable-http \
+GATEWAY_HOST=0.0.0.0 \
+GATEWAY_PORT=3000 \
+cf-mcp-gateway
+```
+
+The server exposes:
+- `POST /mcp` - MCP JSON-RPC endpoint
+- `GET /health` - Health check endpoint
+
+## Configuration Reference
+
+### Required Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLOUDFLARE_API_TOKEN` | Your Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+| `ENABLED_SERVICES` | Comma-separated list of service IDs to enable |
+
+### Optional Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TRANSPORT` | `stdio` | Transport mode: `stdio` or `streamable-http` |
+| `GATEWAY_HOST` | `0.0.0.0` | HTTP bind host (streamable-http only) |
+| `GATEWAY_PORT` | `3000` | HTTP port (streamable-http only) |
+| `LOG_LEVEL` | `info` | Logging level: debug, info, warning, error |
+
+## Tool Naming Convention
+
+Tools from upstream services are prefixed with their service ID to avoid collisions:
+
+- `bindings_kv_get` - Get value from KV
+- `bindings_kv_put` - Put value to KV
+- `bindings_r2_list` - List R2 objects
+- `radar_url_scan` - Scan a URL
+- `docs_search` - Search Cloudflare documentation
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────────────────────┐
+│   MCP Client    │────▶│   Cloudflare MCP Gateway        │
+│ (Claude, etc.)  │     │                                 │
+└─────────────────┘     │  ┌─────────────────────────┐    │
+                        │  │   Tool Aggregator       │    │
+                        │  │   - Namespacing         │    │
+                        │  │   - Request routing     │    │
+                        │  └─────────────────────────┘    │
+                        └──────────────┬──────────────────┘
+                                       │
+     ┌─────────────┬─────────────┬─────┴─────┬─────────────┬─────────────┐
+     ▼             ▼             ▼           ▼             ▼             ▼
+┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
+│  docs   │  │bindings │  │  radar  │  │  builds │  │ logpush │  │  ...    │
+└─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘
+```
+
+## License
+
+MIT License - see LICENSE file for details.
