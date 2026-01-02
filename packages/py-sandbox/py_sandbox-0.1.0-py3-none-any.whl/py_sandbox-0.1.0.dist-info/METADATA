@@ -1,0 +1,110 @@
+Metadata-Version: 2.4
+Name: py-sandbox
+Version: 0.1.0
+Summary: Execute untrusted Python code safely with caching and remote loading
+Author: Φ
+License-Expression: MIT
+Keywords: sandbox,security,isolation,execute,safe
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Security
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Dynamic: license-file
+
+# py-sandbox
+
+Execute untrusted Python code safely with isolation, caching, and integrity verification.
+
+## Installation
+
+```bash
+pip install py-sandbox
+```
+
+## Quick Start
+
+```python
+from py_sandbox import run
+
+result = run('''
+x = [1, 2, 3, 4, 5]
+result = sum(x) * 2
+print(f"Calculated: {result}")
+''')
+
+print(result['stdout'])   # "Calculated: 30"
+print(result['result'])   # 30
+print(result['success'])  # True
+```
+
+## Security
+
+Dangerous operations are automatically blocked:
+
+```python
+result = run("import os; os.system('rm -rf /')"  )
+print(result['success'])  # False
+print(result['stderr'])   # "Import 'os' blocked for security"
+```
+
+### Static Analysis
+
+Check code before running:
+
+```python
+from py_sandbox import check
+
+analysis = check("import subprocess; subprocess.call(['ls'])")
+print(analysis['safe'])      # False
+print(analysis['warnings'])  # ['Subprocess access attempt']
+```
+
+## Caching
+
+```python
+from py_sandbox import cache
+
+cache.set("key", {"data": 123}, ttl=3600)
+value = cache.get("key")
+cache.delete("key")
+cache.clear()
+print(cache.stats())
+```
+
+## Integrity Verification
+
+```python
+from py_sandbox import verify
+
+hash = verify.sign("my content")
+assert verify.check("my content", hash)
+```
+
+## Remote Loading
+
+Load modules from authenticated endpoints:
+
+```python
+from py_sandbox import remote
+
+remote.configure(
+    endpoint="https://your-server.com/modules",
+    api_key="your-key"
+)
+
+module = remote.load("module_name")
+```
+
+## Environment Variables
+
+```bash
+export PY_SANDBOX_ENDPOINT="https://your-server.com/modules"
+export PY_SANDBOX_KEY="your-key"
+```
+
+## License
+
+MIT
