@@ -1,0 +1,386 @@
+Metadata-Version: 2.4
+Name: mirage-solana
+Version: 0.1.0
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Rust
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Dist: solana>=0.30.0
+Requires-Dist: solders>=0.18.0
+Requires-Dist: anchorpy>=0.18.0
+Requires-Dist: base58>=2.1.1
+Requires-Dist: pynacl>=1.5.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: web3>=6.0.0
+Requires-Dist: eth-account>=0.9.0
+Requires-Dist: pytest>=7.4.0 ; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0 ; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0 ; extra == 'dev'
+Requires-Dist: black>=23.0.0 ; extra == 'dev'
+Requires-Dist: mypy>=1.0.0 ; extra == 'dev'
+Requires-Dist: ruff>=0.1.0 ; extra == 'dev'
+Requires-Dist: ipython>=8.0.0 ; extra == 'dev'
+Requires-Dist: maturin>=1.4.0 ; extra == 'dev'
+Provides-Extra: dev
+License-File: LICENSE
+Summary: Privacy SDK for Solana with optional x402 payment support - Python interface with Rust cryptographic backbone
+Keywords: solana,privacy,zksnark,zero-knowledge,defi,sdk,x402,payments,cryptography
+Author-email: Mirage Team <dev@mirage-sdk.com>
+License: MIT
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://miragesdk.com
+Project-URL: Documentation, https://miragesdk.com/docs/getting-started/overview
+Project-URL: Repository, https://github.com/miragesolana/mirage-sdk
+Project-URL: Issues, https://github.com/miragesolana/mirage-sdk/issues
+
+# Mirage SDK
+
+> Privacy SDK infrastructure for Solana - Python interface with Rust cryptographic backbone
+
+**Mirage** provides production-ready privacy primitives for Solana applications with optional x402 payment integration for chain-agnostic micropayments.
+
+[![Documentation](https://img.shields.io/badge/docs-miragesdk.com-blue)](https://miragesdk.com/docs/getting-started/overview)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+
+## 🌟 Features
+
+- **Privacy-Preserving Transactions**: zkSNARK-based private transfers on Solana
+- **Multi-Asset Support**: Native SOL and SPL tokens
+- **x402 Payment Integration**: Pay for privacy services using any supported blockchain
+- **Production Ready**: Battle-tested cryptography with comprehensive test coverage
+- **Developer Friendly**: Clean Python API with Rust performance
+
+## 📦 Package Structure
+
+Mirage is a unified Python package with embedded Rust cryptographic backend:
+
+- **Rust Core**: High-performance cryptography (Poseidon, Groth16, Merkle trees) via PyO3
+- **Python SDK**: Clean API for Solana privacy operations with optional x402 support
+- **On-chain Program**: Separate Solana program (Anchor) in `packages/mirage-solana/`
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install mirage-solana
+```
+
+### Basic Usage
+
+```python
+from mirage import PrivacyClient
+from solders.keypair import Keypair
+
+# Initialize client
+client = PrivacyClient(rpc_url="https://api.mainnet-beta.solana.com")
+user_keypair = Keypair()
+
+# Shield assets (deposit into privacy pool)
+secret, commitment = client.shield_assets(
+    amount=1_000_000_000,  # 1 SOL
+    token="SOL",
+    keypair=user_keypair
+)
+
+# Private transfer (requires proof generation)
+tx = await client.private_transfer_async(
+    recipient=recipient_address,
+    amount=500_000_000,  # 0.5 SOL
+    sender_secret=secret,
+    sender_commitment=commitment
+)
+
+# Unshield assets (withdraw from privacy pool)
+tx = client.unshield_assets(
+    commitment=commitment,
+    secret=secret,
+    recipient=user_keypair.pubkey()
+)
+```
+
+### x402 Payment Integration
+
+```python
+from mirage.x402 import X402Client
+
+# Pay for privacy services using Base USDC
+async with X402Client(network="base", wallet_address="0x...") as x402:
+    payment = await x402.pay_for_access(
+        resource_url="https://mirage-api.network/privacy/shield",
+        price_usd=0.01,
+        merchant_address="0xMERCHANT..."
+    )
+
+    # Use privacy features with access token
+    tx = await privacy.shield_assets_async(
+        amount=1_000_000_000,
+        access_token=payment.access_token
+    )
+```
+
+## 🔧 Development
+
+### Prerequisites
+
+- Python 3.12+
+- Rust 1.70+
+- Solana CLI tools
+- Anchor Framework (for Solana program)
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/miragesolana/mirage-sdk.git
+cd mirage-sdk
+
+# Install all packages in development mode
+make install-dev
+
+# Run tests
+make test
+
+# Build all packages
+make build
+```
+
+## 🗺️ Roadmap
+
+### Phase 1: Foundation & Cryptographic Core ✅ (Q3 2025)
+**Status:** COMPLETED
+
+#### Cryptographic Primitives
+- ✅ **BN254 Elliptic Curve**: G1/G2 group operations, pairing-based cryptography
+- ✅ **Poseidon Hash Function**: Optimized for zkSNARKs (t=3, RF=8, RP=57, ~200 constraints/hash)
+- ✅ **Pedersen Commitments**: Perfectly hiding, computationally binding with domain separator `MIRAGE_PROTOCOL_PEDERSEN_H_V1`
+- ✅ **Nothing-Up-My-Sleeve**: H generator derived via domain separation (no trusted setup for commitments)
+
+#### Merkle Tree Implementation
+- ✅ **Depth-20 Poseidon Tree**: Supports ~1,048,576 leaves for privacy pool
+- ✅ **Filled Subtrees Optimization**: O(log n) insertion performance
+- ✅ **Zero-Hash Precomputation**: Efficient empty node handling
+- ✅ **Incremental Updates**: On-chain state synchronization
+
+#### Core Infrastructure
+- ✅ **Rust Core Library**: High-performance cryptography with arkworks-rs ecosystem
+- ✅ **PyO3 Bindings**: Seamless Python-Rust interop for SDK
+- ✅ **Testing Framework**: Comprehensive unit tests for all crypto primitives
+
+---
+
+### Phase 2: Privacy Protocol & zkSNARKs ✅ (Q3-Q4 2025)
+**Status:** COMPLETED
+
+#### Groth16 zkSNARK Circuit
+- ✅ **Transfer Circuit**: ~7,000 R1CS constraints for private transfers
+- ✅ **Public Inputs**: merkle_root (32 bytes), nullifier (32 bytes), new_commitment (32 bytes)
+- ✅ **Private Inputs**: secret, amounts, blinding factors, Merkle path (20 siblings)
+- ✅ **Constraint Breakdown**:
+  - Spending key derivation: ~400 constraints
+  - Input commitment verification: ~500 constraints
+  - Merkle membership proof: ~4,000 constraints (20 Poseidon hashes)
+  - Nullifier derivation: ~400 constraints
+  - Output commitment: ~500 constraints
+  - Range checks: ~1,200 constraints
+
+#### Circuit-Safe Nullifier System
+- ✅ **Two-Step Derivation**: Prevents secret leakage in constraint system
+- ✅ **Step 1**: `spending_key = Poseidon(secret || "MIRAGE_SPENDING_KEY")`
+- ✅ **Step 2**: `nullifier = Poseidon(spending_key || Hash(leaf_index || "MIRAGE_NULLIFIER"))`
+- ✅ **Unlinkability**: Nullifiers cannot be linked to commitments without secret
+
+#### ECDH Note Encryption
+- ✅ **Key Exchange**: Elliptic Curve Diffie-Hellman on BN254 G1
+- ✅ **Symmetric Encryption**: ChaCha20-Poly1305 AEAD (authenticated encryption)
+- ✅ **Encrypted Note Format**: 32 bytes ephemeral key + 48 bytes data + 16 bytes MAC = 96 bytes
+- ✅ **Forward Secrecy**: Ephemeral keys provide forward secrecy
+- ✅ **Recipient Discovery**: Trial decryption for note scanning
+
+#### Privacy Operations
+- ✅ **Shield**: Convert public SOL to private commitments
+- ✅ **Private Transfer**: Zero-knowledge transfer between notes (2-5s proof generation)
+- ✅ **Unshield**: Withdraw to public Solana addresses
+- ✅ **Note Management**: Local storage, scanning, and tracking
+
+---
+
+### Phase 3: Production Launch & Mainnet ✅ (Q4 2025)
+**Status:** COMPLETED • **LIVE ON MAINNET** 🚀
+
+#### Solana On-Chain Program
+- ✅ **Anchor Framework**: Production-grade smart contract (v0.29.0)
+- ✅ **Program ID**: `6p1tzefXSST8j72qcj5EU3pAcY5qSc3HnCfFqc2gWxjM`
+- ✅ **PDA-Based Nullifiers**: Double-spend prevention via Anchor `init` constraint
+- ✅ **30-Root History Buffer**: Front-running protection (~1 minute validity window)
+- ✅ **Groth16 Verification**: ~200k CU (~$0.0002 per proof at $100 SOL)
+- ✅ **Mainnet Deployment**: Audited and battle-tested on production
+
+#### Production SDK
+- ✅ **Unified Python Package**: `pip install mirage-solana` (single command)
+- ✅ **Embedded Rust Backend**: PyO3 + maturin for native performance
+- ✅ **Async/Sync APIs**: Full support for both async and sync operations
+- ✅ **Type Safety**: Comprehensive type hints and Pydantic models
+- ✅ **Test Coverage**: 80+ unit and integration tests passing
+- ✅ **Documentation**: API reference, quickstart guides, examples
+
+#### x402 Payment Integration
+- ✅ **Chain-Agnostic Payments**: HTTP 402 Payment Required protocol
+- ✅ **15+ Supported Networks**: Base, Polygon, Avalanche, Solana, IoTeX, Peaq, Sei, XLayer
+- ✅ **EIP-712 Signatures**: Secure payment authentication for EVM chains
+- ✅ **Gas Abstraction**: Pay Solana fees using other blockchain tokens
+- ✅ **Facilitator Network**: Payment verification and settlement infrastructure
+
+#### Security Hardening
+- ✅ **Front-Running Protection**: 30-root history prevents proof invalidation
+- ✅ **Constant-Time Operations**: Timing attack resistance in cryptographic code
+- ✅ **Circuit Safety**: Two-step nullifier prevents secret exposure
+- ✅ **PDA Constraints**: Solana program uses init constraints for safety
+- ✅ **Secure Randomness**: OsRng for cryptographically secure random generation
+
+#### Infrastructure
+- ✅ **Relayer Protocol**: IP privacy layer with transaction submission service
+- ✅ **Fee Structure**: Default 0.3% (30 basis points), max 5% cap
+- ✅ **Self-Hostable**: Open-source relayer software for censorship resistance
+- ✅ **Build System**: Maturin-based build for Python + Rust distribution
+- ✅ **CI/CD**: Automated testing and deployment pipelines
+
+---
+
+### Phase 4: Multi-Asset Privacy & Ecosystem 🔥 (Q1 2026)
+**Status:** IN PROGRESS • **Priority: SPL Token Support**
+
+#### Core Protocol
+- ⏳ **SPL Token Privacy**: Private transfers for USDC, USDT, BONK, and all SPL tokens
+- ⏳ **Multi-Asset Pools**: Separate privacy pools per token with unified commitment scheme
+- ⏳ **Batch Operations**: Aggregate multiple shields/transfers for 40-50% gas savings
+- ⏳ **Relayer Network v1**: Public relayer marketplace with reputation scoring
+
+#### Ecosystem Integration
+- 📋 **Jupiter Integration**: Private swaps through Jupiter aggregator with MEV protection
+- 📋 **Orca Whirlpools**: Concentrated liquidity positions with hidden amounts
+- 📋 **Marginfi Lending**: Private collateral deposits and anonymous borrowing
+- 📋 **Developer SDK v2**: GraphQL indexer, TypeScript bindings, REST API
+
+#### Tooling & Infrastructure
+- 📋 **Block Explorer**: Privacy-preserving transaction viewer with encrypted note tracking
+- 📋 **Mobile SDK Preview**: React Native proof-of-concept for iOS/Android
+- 📋 **Monitoring Dashboard**: Real-time anonymity set size, pool TVL, relayer health
+
+---
+
+### Phase 5: AI Agent Privacy & x402 Expansion 🤖 (Q1-Q2 2026)
+**Status:** PLANNED • **Focus: Autonomous Privacy**
+
+#### AI Agent Infrastructure
+- 📋 **Agent Privacy SDK**: Pre-built modules for autonomous trading with hidden positions
+- 📋 **Multi-Agent Coordination**: Encrypted state sharing between AI agents via x402 payments
+- 📋 **Agent Wallet System**: Hierarchical deterministic wallets with view-only scanning keys
+- 📋 **Private Order Flow**: Submit trades through encrypted channels to prevent front-running
+
+#### x402 Deep Integration
+- 📋 **Cross-Chain Privacy Payments**: Pay Solana relayer fees using Base USDC, Polygon USDC, etc.
+- 📋 **Service Marketplace**: x402-enabled privacy services (mixing, relaying, compliance)
+- 📋 **Agent-to-Agent Payments**: Private micropayments between autonomous agents
+- 📋 **Gas Abstraction Layer**: Let agents operate without holding SOL for fees
+
+#### MEV Protection Suite
+- 📋 **Private Limit Orders**: Hidden order books with zero-knowledge matching
+- 📋 **Encrypted Mempool**: Submit transactions through relayers with delayed reveal
+- 📋 **JIT Protection**: Just-in-time liquidity shielding for large trades
+- 📋 **Sandwich Attack Prevention**: Circuit-level guarantees against MEV exploitation
+
+---
+
+### Phase 6: Institutional Privacy & Compliance 🏛️ (Q2 2026)
+**Status:** PLANNED • **Focus: Enterprise Adoption**
+
+#### Advanced Privacy Features
+- 📋 **Stealth Addresses**: One-time addresses for recipient unlinkability (BIP47-style)
+- 📋 **Viewing Keys**: Separate scan/spend keys for auditing without spending permission
+- 📋 **Multi-Sig Shielded Wallets**: Threshold signatures for institutional custody
+- 📋 **Time-Locked Reveals**: Commitments that auto-disclose after time period
+
+#### Compliance & Regulatory
+- 📋 **Zero-Knowledge Compliance**: Prove transaction legitimacy without revealing details
+- 📋 **Selective Disclosure**: Share specific transaction data with auditors/regulators
+- 📋 **Range Proofs**: Prove amount > threshold without revealing exact value
+- 📋 **Whitelisted Recipients**: Circuit constraints for approved counterparties
+
+#### DeFi Composability
+- 📋 **Drift Protocol**: Private perpetual positions with hidden leverage
+- 📋 **Kamino Vaults**: Anonymous yield farming strategies
+- 📋 **Phoenix DEX**: Private order book trading
+- 📋 **Sanctum LST**: Private liquid staking positions
+
+#### Developer Experience
+- 📋 **WebAssembly Proofs**: Browser-based proof generation (no backend needed)
+- 📋 **Rust SDK**: Native Rust API for Solana programs
+- 📋 **Privacy-as-a-Service API**: Hosted proving service for mobile/web apps
+- 📋 **Testing Framework**: Local privacy pool for development
+
+---
+
+### Beyond Q2 2026: Vision 🌟
+
+**Cross-Chain Privacy Bridges**
+- Wormhole integration for Ethereum/Polygon private bridging
+- Unified privacy layer across Solana, EVM chains, and Cosmos
+
+**Advanced Cryptography**
+- Recursive SNARKs for unlimited transaction batching
+- Halo2 migration for trustless setup
+- Post-quantum secure privacy primitives
+
+**Decentralized Infrastructure**
+- DHT-based relayer discovery (no central directory)
+- Slashing mechanism for malicious relayers
+- Community-run trusted setup ceremonies
+
+---
+
+**Legend:** ✅ Completed • ⏳ In Progress • 📋 Planned (Next 1-6 months) • 🚀 Live • 🔥 Priority Focus
+
+## 📖 Documentation
+
+- **Getting Started**: [miragesdk.com/docs/getting-started/overview](https://miragesdk.com/docs/getting-started/overview)
+- **API Reference**: [miragesdk.com/docs/api](https://miragesdk.com/docs/api)
+- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Migration Guide**: [MIGRATION.md](MIGRATION.md) (from Veil 0.1.x)
+
+## 🌐 Supported Networks (x402)
+
+Mirage x402 integration supports payments on 15+ blockchains:
+
+**Mainnets**: Base, Polygon, Avalanche, Solana, IoTeX, Peaq, Sei, XLayer
+**Testnets**: Base Sepolia, Polygon Amoy, Avalanche Fuji, Solana Devnet, and more
+
+See [x402 networks documentation](mirage/x402/networks.py) for full list.
+
+## 🛡️ Security
+
+- **Audit Status**: Internal review complete
+- **Bug Bounty**: Coming soon
+- **Security Contact**: security@mirage-sdk.com
+
+**⚠️ Important**: Mirage 0.1.0 (formerly Veil) uses incompatible cryptographic domain separators. See [MIGRATION.md](MIGRATION.md) for details.
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) for details
+
+## 🤝 Contributing
+
+Contributions welcome! Please see our contributing guidelines.
+
+---
+
+**Mirage** - Privacy by design • Built with ❤️ using Rust and Python
+
