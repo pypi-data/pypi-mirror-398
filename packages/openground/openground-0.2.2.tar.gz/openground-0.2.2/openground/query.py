@@ -1,0 +1,209 @@
+import json
+from pathlib import Path
+from typing import Optional
+
+import lancedb
+
+from openground.config import DEFAULT_DB_PATH, DEFAULT_TABLE_NAME
+from openground.embeddings import generate_embeddings
+
+
+def _escape_sql_string(value: str) -> str:
+    """
+    Escape a string value for safe use in LanceDB SQL WHERE clauses.
+
+    This function escapes single quotes and backslashes to prevent SQL injection.
+    Note: LanceDB uses DataFusion which parses SQL, so proper escaping is critical.
+
+    Args:
+        value: The string value to escape
+
+    Returns:
+        Escaped string safe for use in SQL string literals
+    """
+    # Remove null bytes (can cause string truncation in some parsers)
+    value = value.replace("\x00", "")
+    # Escape backslashes first (must be done before escaping quotes)
+    value = value.replace("\\", "\\\\")
+    # Escape single quotes (SQL standard: ' becomes '')
+    value = value.replace("'", "''")
+    return value
+
+
+def search(
+    query: str,
+    db_path: Path = DEFAULT_DB_PATH,
+    table_name: str = DEFAULT_TABLE_NAME,
+    library_name: Optional[str] = None,
+    top_k: int = 10,
+) -> str:
+    """
+    Run a hybrid search (semantic + BM25) against the LanceDB table and return a
+    markdown-friendly summary string.
+
+    Args:
+        query: User query text.
+        db_path: Path to LanceDB storage.
+        table_name: Table name to search.
+        library_name: Optional filter on library name column.
+        top_k: Number of results to return.
+    """
+    db = lancedb.connect(str(db_path))
+    if table_name not in db.table_names():
+        return "Found 0 matches."
+
+    table = db.open_table(table_name)
+
+    query_vec = generate_embeddings([query])[0]
+
+    search_builder = table.search(query_type="hybrid").text(query).vector(query_vec)
+
+    if library_name:
+        safe_name = _escape_sql_string(library_name)
+        search_builder = search_builder.where(f"library_name = '{safe_name}'")
+
+    results = search_builder.limit(top_k).to_list()
+
+    if not results:
+        return "Found 0 matches."
+
+    lines = [f"Found {len(results)} match{'es' if len(results) != 1 else ''}."]
+    for idx, item in enumerate(results, start=1):
+        title = item.get("title") or "(no title)"
+        # Return the full chunk so downstream consumers (LLM) see the whole text.
+        snippet = (item.get("content") or "").strip()
+        source = item.get("url") or "unknown"
+        score = item.get("_distance") or item.get("_score")
+
+        score_str = ""
+        if isinstance(score, (int, float)):
+            score_str = f", score={score:.4f}"
+        elif score:
+            score_str = f", score={score}"
+
+        # Embed tool call hint for fetching full content
+        tool_hint = json.dumps({"tool": "get_full_content", "url": source})
+
+        lines.append(
+            f'{idx}. **{title}**: "{snippet}" (Source: {source}{score_str})\n'
+            f"   To get full page content: {tool_hint}"
+        )
+
+    return "\n".join(lines)
+
+
+def list_libraries(
+    db_path: Path = DEFAULT_DB_PATH, table_name: str = DEFAULT_TABLE_NAME
+) -> list[str]:
+    """
+    Return sorted unique non-null library names from the table.
+    """
+    db = lancedb.connect(str(db_path))
+    if table_name not in db.table_names():
+        return []
+    table = db.open_table(table_name)
+    df = table.to_pandas()
+
+    libraries = df["library_name"].dropna().unique().tolist()
+    return sorted(libraries)
+
+
+def search_libraries(
+    search_term: str,
+    db_path: Path = DEFAULT_DB_PATH,
+    table_name: str = DEFAULT_TABLE_NAME,
+) -> list[str]:
+    """
+    Return sorted unique library names that contain the search term (case-insensitive).
+    Returns a list with a message if no libraries match.
+    """
+    libraries = list_libraries(db_path=db_path, table_name=table_name)
+    term_lower = search_term.lower()
+    filtered = [lib for lib in libraries if term_lower in lib.lower()]
+    if not filtered:
+        return [f"No libraries found matching '{search_term}'."]
+    return filtered
+
+
+def get_full_content(
+    url: str,
+    db_path: Path = DEFAULT_DB_PATH,
+    table_name: str = DEFAULT_TABLE_NAME,
+) -> str:
+    """
+    Retrieve the full content of a document by its URL.
+
+    Args:
+        url: URL of the document to retrieve.
+        db_path: Path to LanceDB storage.
+        table_name: Table name to search.
+
+    Returns:
+        Formatted markdown string with title, source URL, and full content.
+    """
+    db = lancedb.connect(str(db_path))
+    if table_name not in db.table_names():
+        return f"No content found for URL: {url}"
+    table = db.open_table(table_name)
+
+    # Query all chunks for this URL
+    safe_url = _escape_sql_string(url)
+    df = table.search().where(f"url = '{safe_url}'").to_pandas()
+
+    if df.empty:
+        return f"No content found for URL: {url}"
+
+    # Sort by chunk_index and concatenate content
+    df = df.sort_values("chunk_index")
+    full_content = "\n\n".join(df["content"].tolist())
+
+    title = df.iloc[0].get("title", "(no title)")
+    return f"# {title}\n\nSource: {url}\n\n{full_content}"
+
+
+def get_library_stats(
+    library_name: str,
+    db_path: Path = DEFAULT_DB_PATH,
+    table_name: str = DEFAULT_TABLE_NAME,
+) -> dict | None:
+    """Get statistics for a library (chunk count, unique URLs, etc.)."""
+    db = lancedb.connect(str(db_path))
+    if table_name not in db.table_names():
+        return None
+    table = db.open_table(table_name)
+    safe_name = _escape_sql_string(library_name)
+    df = table.search().where(f"library_name = '{safe_name}'").to_pandas()
+
+    if df.empty:
+        return None
+
+    # Get unique titles, filter out None/empty, and take first 5
+    titles = [t for t in df["title"].unique().tolist() if t and str(t).strip()][:5]
+
+    return {
+        "library_name": library_name,
+        "chunk_count": len(df),
+        "unique_urls": df["url"].nunique(),
+        "titles": titles,
+    }
+
+
+def delete_library(
+    library_name: str,
+    db_path: Path = DEFAULT_DB_PATH,
+    table_name: str = DEFAULT_TABLE_NAME,
+) -> int:
+    """Delete all documents for a library. Returns count of deleted rows."""
+    db = lancedb.connect(str(db_path))
+    if table_name not in db.table_names():
+        return 0
+    table = db.open_table(table_name)
+    safe_name = _escape_sql_string(library_name)
+
+    # Get count before deletion
+    df = table.search().where(f"library_name = '{safe_name}'").to_pandas()
+    count = len(df)
+
+    # Delete rows
+    table.delete(f"library_name = '{safe_name}'")
+    return count
