@@ -1,0 +1,172 @@
+name: MCP KQL Server CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [published]
+
+env:
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  lint:
+    name: Lint Codebase
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Install linter
+      run: pip install ruff
+    - name: Run linter
+      run: ruff check .
+
+  build-and-validate:
+    name: Build and Validate Package
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine toml
+    - name: Validate project structure
+      run: |
+        echo "Validating project structure"
+        test -f pyproject.toml && echo "Found pyproject.toml"
+        test -f README.md && echo "Found README.md"
+        test -d mcp_kql_server && echo "Found mcp_kql_server directory"
+        test -f mcp_kql_server/__init__.py && echo "Found package __init__.py"
+        test -f mcp_kql_server/__main__.py && echo "Found package __main__.py"
+        echo "All required files found"
+    - name: Validate version consistency
+      run: |
+        echo "Checking version consistency"
+        PYPROJECT_VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+        echo "pyproject.toml version: $PYPROJECT_VERSION"
+        INIT_VERSION=$(grep -E '^__version__\s*=' mcp_kql_server/__init__.py | sed 's/.*=\s*["'"'"'"]\([^"'"'"']*\)["'"'"'"].*/\1/')
+        echo "__init__.py version: $INIT_VERSION"
+        if [ "$PYPROJECT_VERSION" = "$INIT_VERSION" ]; then
+          echo "All versions are consistent: $PYPROJECT_VERSION"
+        else
+          echo "Version mismatch detected!"
+          echo "pyproject.toml: $PYPROJECT_VERSION"
+          echo "__init__.py: $INIT_VERSION"
+          exit 1
+        fi
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Git tag version: $TAG_VERSION"
+          if [ "$PYPROJECT_VERSION" = "$TAG_VERSION" ]; then
+            echo "Tag version matches package version"
+          else
+            echo "Tag version ($TAG_VERSION) does not match package version ($PYPROJECT_VERSION)"
+            exit 1
+          fi
+        fi
+    - name: Test package build
+      run: |
+        echo "Building package..."
+        python -m build
+        echo "Package built successfully"
+        ls -la dist/
+        echo "Validating built package..."
+        twine check dist/*
+        echo "Package validation passed"
+    - name: Test module execution
+      run: |
+        echo "Testing module installation and import..."
+        pip install dist/*.whl
+        python -c "import mcp_kql_server; print(f'Package imports successfully, version: {mcp_kql_server.__version__}')"
+        echo "Module execution test passed"
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  install-test:
+    name: Installation Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+    - name: Test pip installation
+      run: |
+        echo "Testing pip installation on ${{ matrix.os }} with Python ${{ matrix.python-version }}"
+        python -m pip install --upgrade pip
+        python -m pip install .
+        python -c "import mcp_kql_server; print(f'Installation successful, version: {mcp_kql_server.__version__}')"
+        echo "Installation test passed"
+
+  test-and-coverage:
+    name: Test and Code Coverage
+    runs-on: ubuntu-latest
+    needs: [build-and-validate, install-test, lint]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [build-and-validate]
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')
+    permissions:
+      id-token: write
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        verbose: true
+        skip-existing: true
