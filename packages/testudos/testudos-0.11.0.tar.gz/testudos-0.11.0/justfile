@@ -1,0 +1,32 @@
+# Run all CI checks (lint, type-check, test, dogfood, check-version)
+ci: install lint type-check test dogfood check-version
+
+# Run linting checks (ruff check + format check)
+lint:
+    uv run ruff check src tests
+    uv run ruff format --check src tests
+
+# Run type checking with mypy
+type-check:
+    uv run mypy src
+
+# Run tests with coverage
+test:
+    uv run pytest --cov=src/testudos --cov-report=xml --cov-report=term-missing
+
+# Run testudos on itself (dogfooding)
+dogfood:
+    uv run testudos run --parallel
+
+# Fix linting issues automatically
+fix:
+    uv run ruff check --fix src tests
+    uv run ruff format src tests
+
+# Check version bump and changelog entry
+check-version:
+    uv run scripts/check_version_bump.py
+
+# Install dev dependencies
+install:
+    uv sync --extra dev
