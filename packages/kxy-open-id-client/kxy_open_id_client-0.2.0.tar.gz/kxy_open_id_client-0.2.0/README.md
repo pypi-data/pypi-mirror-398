@@ -1,0 +1,338 @@
+# kxy-open-id-client
+
+Python 客户端库,用于对接 KXY Open ID 服务,实现分布式 ID 分段分配。
+
+## 特性
+
+- 简洁易用的 API
+- 支持同步和异步调用
+- 完整的类型提示支持
+- 详细的错误处理
+- 基于 httpx 的高性能 HTTP 客户端
+
+## 安装
+
+### 使用 pip 安装
+
+```bash
+pip install kxy-open-id-client
+```
+
+### 从源码安装
+
+```bash
+git clone https://github.com/kxy/kxy-open-id-client.git
+cd kxy-open-id-client
+pip install -e .
+```
+
+## 快速开始
+
+### 基础用法(同步)
+
+```python
+from kxy_open_id_client import SegmentClient
+
+# 创建客户端实例
+client = SegmentClient(base_url="http://localhost:5801")
+
+# 分配 ID 段
+segment = client.allocate_segment(
+    system_code="my-system",
+    db_name="my_database",
+    table_name="users",
+    field_name="id",
+    segment_count=10000  # 可选,默认 10000
+)
+
+print(f"分配到的 ID 段: {segment.start} 到 {segment.end}")
+# 输出: 分配到的 ID 段: 1 到 10000
+```
+
+### 异步用法
+
+```python
+import asyncio
+from kxy_open_id_client import SegmentClient
+
+async def main():
+    client = SegmentClient(base_url="http://localhost:5801")
+
+    # 异步分配 ID 段
+    segment = await client.allocate_segment_async(
+        system_code="my-system",
+        db_name="my_database",
+        table_name="orders",
+        field_name="order_id",
+        segment_count=5000
+    )
+
+    print(f"分配到的 ID 段: {segment.start} 到 {segment.end}")
+
+asyncio.run(main())
+```
+
+## 详细用法
+
+### 客户端配置
+
+```python
+from kxy_open_id_client import SegmentClient
+
+client = SegmentClient(
+    base_url="http://localhost:5801",  # 服务地址
+    timeout=30.0,                      # 请求超时时间(秒)
+    verify_ssl=True,                   # 是否验证 SSL 证书
+    headers={                          # 自定义请求头
+        "X-Custom-Header": "value"
+    }
+)
+```
+
+### 错误处理
+
+```python
+from kxy_open_id_client import (
+    SegmentClient,
+    OpenIdAPIError,
+    OpenIdConnectionError,
+    OpenIdTimeoutError
+)
+
+client = SegmentClient(base_url="http://localhost:5801")
+
+try:
+    segment = client.allocate_segment(
+        system_code="my-system",
+        db_name="my_database",
+        table_name="users",
+        field_name="id"
+    )
+except OpenIdAPIError as e:
+    # API 返回错误响应
+    print(f"API 错误 {e.code}: {e.msg}")
+    if e.trace_id:
+        print(f"Trace ID: {e.trace_id}")
+except OpenIdConnectionError as e:
+    # 连接失败
+    print(f"连接错误: {e}")
+except OpenIdTimeoutError as e:
+    # 请求超时
+    print(f"请求超时: {e}")
+```
+
+### ID 生成器(同步,线程安全)
+
+```python
+from kxy_open_id_client import SegmentClient, IdGenerator
+
+# 创建客户端实例
+client = SegmentClient(base_url="http://localhost:5801")
+
+# 创建 ID 生成器(线程安全)
+id_gen = IdGenerator(
+    segment_client=client,
+    system_code="my-system",
+    db_name="my_database",
+    table_name="users",
+    field_name="id",
+    segment_count=10000  # 每次申请的 ID 数量
+)
+
+# 生成 ID(自动管理号段,线程安全)
+for _ in range(5):
+    print(f"Generated ID: {id_gen.next_id()}")
+# 输出: Generated ID: 1, 2, 3, 4, 5
+```
+
+### ID 生成器(异步,协程安全)
+
+```python
+import asyncio
+from kxy_open_id_client import SegmentClient, AsyncIdGenerator
+
+async def main():
+    # 创建客户端实例
+    client = SegmentClient(base_url="http://localhost:5801")
+
+    # 创建异步 ID 生成器(协程安全)
+    id_gen = AsyncIdGenerator(
+        segment_client=client,
+        system_code="my-system",
+        db_name="my_database",
+        table_name="orders",
+        field_name="order_id",
+        segment_count=10000
+    )
+
+    # 异步生成 ID
+    for _ in range(5):
+        id_value = await id_gen.next_id()
+        print(f"Generated ID: {id_value}")
+
+asyncio.run(main())
+```
+
+### 多线程并发使用
+
+```python
+import threading
+from kxy_open_id_client import SegmentClient, IdGenerator
+
+client = SegmentClient(base_url="http://localhost:5801")
+id_gen = IdGenerator(
+    segment_client=client,
+    system_code="my-system",
+    db_name="my_database",
+    table_name="users",
+    field_name="id",
+    segment_count=10000
+)
+
+# 多线程并发生成 ID(线程安全)
+def generate_ids(thread_id: int, count: int):
+    for _ in range(count):
+        id_value = id_gen.next_id()
+        print(f"Thread {thread_id}: Generated ID {id_value}")
+
+threads = []
+for i in range(5):
+    t = threading.Thread(target=generate_ids, args=(i, 10))
+    threads.append(t)
+    t.start()
+
+for t in threads:
+    t.join()
+```
+
+## API 参考
+
+### IdGenerator
+
+线程安全的同步 ID 生成器。
+
+#### `__init__(segment_client, system_code, db_name, table_name, field_name, segment_count=10000)`
+
+创建 ID 生成器实例。
+
+**参数:**
+- `segment_client` (SegmentClient): SegmentClient 实例
+- `system_code` (str): 系统代码
+- `db_name` (str): 数据库名称
+- `table_name` (str): 表名
+- `field_name` (str): 字段名
+- `segment_count` (int): 每次分配的 ID 数量,默认 10000
+
+#### `next_id()`
+
+生成下一个 ID(线程安全)。
+
+**返回:** int - 下一个可用的 ID
+
+**异常:**
+- `OpenIdAPIError`: API 返回错误
+- `OpenIdConnectionError`: 连接失败
+- `OpenIdTimeoutError`: 请求超时
+
+### AsyncIdGenerator
+
+协程安全的异步 ID 生成器。
+
+#### `__init__(segment_client, system_code, db_name, table_name, field_name, segment_count=10000)`
+
+创建异步 ID 生成器实例(参数同 IdGenerator)。
+
+#### `async next_id()`
+
+异步生成下一个 ID(协程安全)。
+
+**返回:** int - 下一个可用的 ID
+
+**异常:** 同 IdGenerator.next_id()
+
+### SegmentClient
+
+#### `__init__(base_url, timeout=30.0, verify_ssl=True, headers=None)`
+
+创建客户端实例。
+
+**参数:**
+- `base_url` (str): KXY Open ID 服务的基础 URL
+- `timeout` (float): 请求超时时间,默认 30 秒
+- `verify_ssl` (bool): 是否验证 SSL 证书,默认 True
+- `headers` (dict): 自定义请求头,可选
+
+#### `allocate_segment(system_code, db_name, table_name, field_name, segment_count=10000)`
+
+同步分配 ID 段。
+
+**参数:**
+- `system_code` (str): 系统代码
+- `db_name` (str): 数据库名称
+- `table_name` (str): 表名
+- `field_name` (str): 字段名
+- `segment_count` (int): 分配的 ID 数量,默认 10000
+
+**返回:** `SegmentResponse` 对象,包含 `start` 和 `end` 属性
+
+**异常:**
+- `OpenIdAPIError`: API 返回错误
+- `OpenIdConnectionError`: 连接失败
+- `OpenIdTimeoutError`: 请求超时
+
+#### `allocate_segment_async(system_code, db_name, table_name, field_name, segment_count=10000)`
+
+异步分配 ID 段(参数和返回值同上)。
+
+### 数据模型
+
+#### SegmentRequest
+- `system_code`: str
+- `db_name`: str
+- `table_name`: str
+- `field_name`: str
+- `segment_count`: int (默认 10000,最大 2^63-1)
+
+#### SegmentResponse
+- `start`: int - 段起始 ID
+- `end`: int - 段结束 ID
+
+#### ApiResponse[T]
+- `code`: int - 状态码 (0 表示成功)
+- `msg`: str - 消息
+- `data`: Optional[T] - 数据
+- `traceId`: Optional[str] - 追踪 ID
+
+## 开发
+
+### 安装开发依赖
+
+```bash
+pip install -e ".[dev]"
+```
+
+### 运行测试
+
+```bash
+pytest
+```
+
+### 代码格式化
+
+```bash
+black kxy_open_id_client
+```
+
+### 类型检查
+
+```bash
+mypy kxy_open_id_client
+```
+
+## 许可证
+
+MIT License
+
+## 相关项目
+
+- [kxy-open-id](https://github.com/kxy/kxy-open-id) - KXY Open ID 服务端
