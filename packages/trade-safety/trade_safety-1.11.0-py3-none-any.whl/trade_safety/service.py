@@ -1,0 +1,347 @@
+"""
+Trade Safety Service for K-pop Merchandise Trading.
+
+This module provides LLM-based safety analysis for K-pop merchandise trades,
+helping international fans overcome language, trust, and information barriers.
+
+The service analyzes trade posts to detect scam signals, explain Korean slang,
+assess price fairness, and provide actionable safety recommendations.
+"""
+
+from __future__ import annotations
+
+import logging
+from urllib.parse import urlparse
+
+from aioia_core.settings import OpenAIAPISettings
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
+from trade_safety.prompts import TRADE_SAFETY_SYSTEM_PROMPT
+from trade_safety.reddit_extract_text_service import RedditService
+from trade_safety.schemas import TradeSafetyAnalysis
+from trade_safety.settings import (
+    ALLOWED_LANGUAGES,
+    RedditAPISettings,
+    TradeSafetyModelSettings,
+    TwitterAPISettings,
+)
+from trade_safety.twitter_extract_text_service import TwitterService
+
+logger = logging.getLogger(__name__)
+
+
+# ==============================================================================
+# Trade Safety Analysis Service
+# ==============================================================================
+
+
+class TradeSafetyService:
+    """
+    Service for analyzing K-pop merchandise trade safety using LLM.
+
+    This service helps international K-pop fans (especially young fans) who face:
+    1. Language Barrier: Korean slang, abbreviations, nuances
+    2. Trust Issues: Unable to verify sellers, authentication photos
+    3. Information Gap: Don't know market prices, can't spot fakes
+    4. No Protection: No refunds, FOMO-driven impulse buys
+
+    The service provides:
+    - Translation and nuance explanation of Korean trade posts
+    - Scam signal detection (risk signals, cautions, safe indicators)
+    - Price fairness analysis with market reference
+    - Actionable safety checklist
+    - Empathetic guidance to reduce FOMO and anxiety
+
+    Example:
+        >>> from aioia_core.settings import OpenAIAPISettings
+        >>> from trade_safety.settings import TradeSafetyModelSettings
+        >>>
+        >>> openai_api = OpenAIAPISettings(api_key="sk-...")
+        >>> model_settings = TradeSafetyModelSettings()
+        >>> service = TradeSafetyService(openai_api, model_settings)
+        >>> analysis = await service.analyze_trade(
+        ...     input_text="급처분 공구 실패해서 양도해요"
+        ... )
+        >>> print(analysis.safe_score)
+        75
+    """
+
+    def __init__(
+        self,
+        openai_api: OpenAIAPISettings,
+        model_settings: TradeSafetyModelSettings,
+        twitter_api: TwitterAPISettings | None = None,
+        reddit_api: RedditAPISettings | None = None,
+        system_prompt: str = TRADE_SAFETY_SYSTEM_PROMPT,
+    ):
+        """
+        Initialize TradeSafetyService with LLM configuration.
+
+        Args:
+            openai_api: OpenAI API settings (api_key)
+            model_settings: Model settings (model name)
+            twitter_api: Twitter API settings (bearer_token). If not provided, will try
+                         TWITTER_BEARER_TOKEN env var via TwitterAPISettings().
+            reddit_api: Reddit API settings (client_id, client_secret). If not provided,
+                        will try REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET env vars.
+            system_prompt: System prompt for trade safety analysis (default: TRADE_SAFETY_SYSTEM_PROMPT)
+
+        Note:
+            Temperature is hardcoded to 0.7 for balanced analytical reasoning.
+            The default system_prompt is provided by the library, but can be overridden
+            with custom prompts (e.g., domain-specific or improved versions).
+        """
+        logger.debug(
+            "Initializing TradeSafetyService with model=%s",
+            model_settings.model,
+        )
+
+        # Use with_structured_output for schema-enforced responses
+        # This uses OpenAI's Structured Outputs (json_schema + strict: true)
+        # which guarantees the response adheres to the Pydantic schema
+        base_model = ChatOpenAI(
+            model=model_settings.model,
+            temperature=0.7,  # Hardcoded - balanced for analytical tasks
+            api_key=openai_api.api_key,  # type: ignore[arg-type]
+            max_retries=5,
+        )
+        self.chat_model = base_model.with_structured_output(
+            TradeSafetyAnalysis,
+            strict=True,  # Enforce enum constraints and schema validation
+        )
+        self.system_prompt = system_prompt
+        self.twitter_service = TwitterService(twitter_api=twitter_api)
+        self.reddit_service = RedditService(reddit_api=reddit_api)
+
+    # ==========================================
+    # Main Analysis Method
+    # ==========================================
+
+    async def analyze_trade(
+        self,
+        input_text: str,
+        output_language: str = "en",
+    ) -> TradeSafetyAnalysis:
+        """
+        Analyze a trade post for safety issues using LLM.
+
+        This method orchestrates the complete analysis workflow:
+        1. Validate input parameters
+        2. Build system and user prompts
+        3. Call LLM for analysis
+        4. Parse and structure the response
+        5. Handle errors with fallback analysis
+
+        Args:
+            input_text: Trade post text or URL to analyze
+            output_language: Language for analysis results (default: "en")
+
+        Returns:
+            TradeSafetyAnalysis: Complete analysis including:
+                - Translation and nuance explanation
+                - Risk signals, cautions, and safe indicators
+                - Price analysis (extracted from input text)
+                - Safety checklist
+                - Safety score (0-100, higher is safer)
+                - Recommendation and emotional support
+
+        Raises:
+            ValueError: If input validation fails
+            Exception: If LLM generation fails unexpectedly
+
+        Example:
+            >>> analysis = await service.analyze_trade(
+            ...     "급처분 ㅠㅠ 공구 실패해서 양도해요"
+            ... )
+            >>> print(f"Safety: {analysis.safe_score}/100")
+            Safety: 75/100
+        """
+        # Step 1: Validate input
+        self._validate_input(input_text, output_language)
+
+        # Step 2: Validate URL
+        is_url = self._is_url(input_text)
+        if is_url:
+            logger.info("URL detected, fetching content from: %s", input_text[:100])
+            content = self._fetch_url_content(input_text)
+            logger.info("Fetched content length: %d chars", len(content))
+        else:
+            logger.info("Text input detected, using as-is")
+            content = input_text
+
+        logger.info(
+            "Starting trade analysis: text_length=%d",
+            len(content),
+        )
+
+        # Step 3: Build prompts
+        system_prompt = self._build_system_prompt()
+        user_prompt = self._build_user_prompt(content, output_language)
+
+        # Step 4: Call LLM with structured output
+        # with_structured_output uses OpenAI's Structured Outputs feature,
+        # which guarantees the response adheres to the TradeSafetyAnalysis schema
+        logger.debug("Calling LLM for trade analysis (%d chars)", len(user_prompt))
+        analysis = await self.chat_model.ainvoke(
+            [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ]
+        )
+
+        # Type narrowing: with_structured_output returns TradeSafetyAnalysis
+        if not isinstance(analysis, TradeSafetyAnalysis):
+            raise TypeError(
+                f"Unexpected response type: {type(analysis)} (expected TradeSafetyAnalysis)"
+            )
+
+        logger.info(
+            "Trade analysis completed successfully: safe_score=%d, signals=%d, cautions=%d, safe=%d",
+            analysis.safe_score,
+            len(analysis.risk_signals),
+            len(analysis.cautions),
+            len(analysis.safe_indicators),
+        )
+
+        return analysis
+
+    # ==========================================
+    # Prompt Building Methods
+    # ==========================================
+
+    def _build_system_prompt(self) -> str:
+        """
+        Build system prompt instructing LLM how to analyze trades.
+
+        The prompt defines:
+        - Role: K-pop merchandise trading safety expert
+        - Target audience: International fans with barriers
+        - Analysis steps: Translation, scam detection, price analysis, checklist
+        - Output format: Structured JSON
+        - Guidelines: Empathetic, empowering, non-judgmental
+
+        Returns:
+            Complete system prompt for LLM (from prompts.py)
+        """
+        return self.system_prompt
+
+    def _build_user_prompt(
+        self,
+        input_text: str,
+        output_language: str,
+    ) -> str:
+        """
+        Build user prompt with trade post content.
+
+        Args:
+            input_text: Trade post text/URL
+            output_language: Language for analysis results
+
+        Returns:
+            The input text to be analyzed
+        """
+        prompt = f"""output_language: {output_language}
+                IMPORTANT: Write ALL field values (translation, nuance_explanation, titles, descriptions, recommendations, emotional_support) in {output_language}. Do NOT mix languages.
+                Trade post to analyze: {input_text}"""
+
+        logger.debug(
+            "Built user prompt: text_length=%d",
+            len(prompt),
+        )
+
+        return prompt
+
+    # ==========================================
+    # Input Validation
+    # ==========================================
+
+    def _validate_input(self, input_text: str, output_language: str) -> None:
+        """
+        Validate input parameters before analysis.
+
+        Args:
+            input_text: Trade post text
+            output_language: Language code for analysis results
+
+        Raises:
+            ValueError: If input validation fails
+        """
+        if output_language.upper() not in ALLOWED_LANGUAGES:
+            error_msg = f"Invalid output_language: {output_language} (allowed: {ALLOWED_LANGUAGES})"
+            logger.error("Validation failed: %s", error_msg)
+            raise ValueError(error_msg)
+
+        if not input_text or not input_text.strip():
+            error_msg = "input_text cannot be empty"
+            logger.error("Validation failed: %s", error_msg)
+            raise ValueError(error_msg)
+
+        if len(input_text) > 10000:  # Reasonable limit for trade posts
+            error_msg = f"input_text too long: {len(input_text)} chars (max 10000)"
+            logger.error("Validation failed: %s", error_msg)
+            raise ValueError(error_msg)
+
+        logger.debug(
+            "Input validation passed: text_length=%d",
+            len(input_text),
+        )
+
+    def _is_url(self, input_text: str) -> bool:
+        """
+        Validate input text is URL?
+
+        Args:
+            input_text: Trade Post text
+
+        Returns:
+
+        """
+        text = input_text.strip()
+
+        # use to urlparse
+        parsed = urlparse(text)
+
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            logger.debug("URL detected: %s", text[:100])
+            return True
+
+        logger.debug("Not a URL, treating as text")
+        return False
+
+    def _fetch_url_content(self, url: str) -> str:
+        """
+        Fetch content from URL.
+
+        Args:
+            url: URL to fetch content from
+
+        Returns:
+            str: Text content from the URL
+
+        Raises:
+            ValueError: If URL fetch fails or returns error status
+        """
+
+        # X(트위터) URL인지 먼저 판별
+        if TwitterService.is_twitter_url(url):
+            logger.info("Detected Twitter/X URL, using TwitterService")
+            return self.twitter_service.fetch_tweet_content(url)
+
+        # Reddit URL인지 판별
+        if RedditService.is_reddit_url(url):
+            logger.info("Detected Reddit URL, using RedditService")
+            metadata = self.reddit_service.fetch_metadata(url)
+            # Combine title and text for analysis
+            content = (
+                f"{metadata.title}\n\n{metadata.text}"
+                if metadata.text
+                else metadata.title
+            )
+            return content
+
+        logger.warning("Unsupported URL type: %s", url)
+        raise ValueError(
+            "Unsupported URL. Currently only Twitter/X and Reddit URLs are supported. "
+            "Please paste the text content directly instead of the URL."
+        )
