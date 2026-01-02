@@ -1,0 +1,6 @@
+from pydantic import BaseModel, Field
+
+
+class Response(BaseModel):
+    status: int = Field(..., description="The status code of the response")
+    data: dict = Field(..., description="The json of the response")

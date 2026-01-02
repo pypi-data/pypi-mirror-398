@@ -1,0 +1,115 @@
+# RevrseAI Python Library
+
+[![pypi](https://img.shields.io/badge/pypi-v0.1.0-blue.svg)](https://pypi.python.org/pypi/revrseai-python)
+
+The RevrseAI Python library provides convenient access to the RevrseAI API from
+applications written in Python. It allows you to generate APIs for any Android
+app using natural language and execute those APIs programmatically.
+
+## Installation
+
+```sh
+pip install revrseai-python
+```
+
+### Requirements
+
+- Python 3.11+
+
+## Usage
+
+The library needs to be configured with your account's API key which is
+available in your RevrseAI Dashboard. Set it directly or use the `REVRSE_AI_API_KEY`
+environment variable:
+
+```python
+from revrseai import RevrseAI
+
+client = RevrseAI("your_api_key")
+```
+
+### Generate an API
+
+Generate an API for any Android app by describing what you want to do:
+
+```python
+from revrseai import RevrseAI
+
+client = RevrseAI("your_api_key")
+
+task = client.generate(
+    "Log into Job Today and get the jobs on my feed",
+    secrets={
+        "username": "your_username",
+        "password": "your_password"
+    }
+)
+
+# Wait for generation to complete
+result = task.wait_till_done()
+
+# Print the generated API documentation
+result.print_markdown_documentation()
+```
+
+### Execute an Endpoint
+
+Execute endpoints using one of three methods:
+
+**By endpoint ID:**
+
+```python
+result = client.execute(
+    endpoint_id="<endpoint_id>",
+    data={"username": "your_username", "password": "your_password"}
+)
+print(result.status)
+print(result.data)
+```
+
+**By task ID and endpoint name:**
+
+```python
+result = client.execute(
+    task_id="<task_id>",
+    endpoint="login",
+    data={"username": "your_username", "password": "your_password"}
+)
+```
+
+**By app name and endpoint:**
+
+```python
+result = client.execute(
+    app="Job Today",
+    endpoint="login",
+    data={"username": "your_username", "password": "your_password"}
+)
+```
+
+### Get App Info
+
+Retrieve information about existing endpoints for an app:
+
+```python
+info = client.info("Job Today")
+
+# Print available endpoints
+info.print_markdown_documentation()
+
+# Execute an endpoint directly
+endpoint = info.endpoints[0]
+result = endpoint.execute(data={"key": "value"})
+```
+
+### Export Documentation
+
+Export generated API documentation to a file:
+
+```python
+task = client.generate("Natural language instructions to perform the task")
+result = task.wait_till_done()
+
+# Export to markdown file
+result.export_markdown_documentation("api_docs.md")
+```
