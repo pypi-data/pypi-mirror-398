@@ -1,0 +1,191 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {% if not general %}
+    {{ model_name_label }}: {{ name }}
+    model.aibrix.ai/port: "{{ ports }}"
+    {% endif %}
+    {{ deployment_name_label }}: "{{ name }}"
+    {{ deployment_user_label }}: "{{ user }}"
+    {{ deployment_accelerator_label }}: "{{ accelerator_type }}"
+    {{ deployment_num_accelerators_label }}: "{{ num_accelerators }}"
+    trainy.ai/has-autoscaler: "{{ autoscaler }}"
+    trainy.ai/konduktor-managed: "true"
+    {% if autoscaler == 'true' %}
+    trainy.ai/original-min-replicas: "{{ min_replicas }}"
+    trainy.ai/original-max-replicas: "{{ max_replicas }}"
+    {% endif %}
+  name: {{ name }}
+  namespace: default
+spec:
+  replicas: {{ min_replicas }}
+  selector:
+    matchLabels:
+      {% if not general %}
+      {{ model_name_label }}: {{ name }}
+      {% endif %}
+      {{ deployment_name_label }}: "{{ name }}"
+  template: {}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {% if not general %}
+    {{ model_name_label }}: {{ name }}
+    {% endif %}
+    prometheus-discovery: "true"
+    {{ deployment_name_label }}: "{{ name }}"
+    {{ deployment_user_label }}: "{{ user }}"
+    trainy.ai/has-autoscaler: "{{ autoscaler }}"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9000"
+  name: {{ name }}
+  namespace: default
+spec:
+  ports:
+    - name: serve
+      port: {{ ports }}
+      protocol: TCP
+      targetPort: {{ ports }}
+    {% if not general %}
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    {% endif %}
+  selector:
+    {% if not general %}
+    {{ model_name_label }}: {{ name }}
+    {% endif %}
+    {{ deployment_name_label }}: "{{ name }}"
+  type: ClusterIP
+
+# AIBRIX PODAUTOSCALER STUFF (KPA)
+{% if not general and autoscaler == 'true' %}
+---
+apiVersion: autoscaling.aibrix.ai/v1alpha1
+kind: PodAutoscaler
+metadata:
+  name: {{ name }}-pa
+  namespace: default
+  labels:
+    {{ model_name_label }}: {{ name }}
+    app.kubernetes.io/name: aibrix
+    app.kubernetes.io/managed-by: kustomize
+    {{ deployment_name_label }}: "{{ name }}"
+    {{ deployment_user_label }}: "{{ user }}"
+spec:
+  scalingStrategy: KPA
+  minReplicas: {{ min_replicas }}
+  maxReplicas: {{ max_replicas }}
+  metricsSources:
+    - metricSourceType: domain
+      protocolType: http
+      endpoint: aibrix-activator.aibrix-activator.svc.cluster.local:8080
+      path: /metrics/default/{{ name }}
+      targetMetric: vllm:deployment_replicas
+      targetValue: "1"
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ name }}
+{% endif %}
+
+# KEDA HTTP ADD-ON STUFF (1 per deployment)
+{% if general %}
+{% if autoscaler == 'true' %}
+# HTTPScaledObject (1 per deployment) - only when autoscaling enabled
+---
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: {{ name }}-httpscaledobject
+  namespace: default
+  labels:
+    {{ deployment_name_label }}: "{{ name }}"
+    {{ deployment_user_label }}: "{{ user }}"
+spec:
+  hosts:
+    - {{ name }}
+  pathPrefixes:
+    - "/"
+    {% if probe_path %}
+    - "{{ probe_path }}"
+    {% endif %}
+  scaleTargetRef:
+    name: "{{ name }}"
+    kind: Deployment
+    apiVersion: apps/v1
+    service: "{{ name }}"
+    port: {{ ports }}
+  replicas:
+    min: {{ min_replicas }}
+    max: {{ max_replicas }}
+  scaledownPeriod: 1200 # 20 minutes
+  scalingMetric:
+    requestRate:
+      targetValue: 4
+      granularity: "1s"
+      window: "30s"
+{% endif %}
+
+# INGRESS (1 per deployment)
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ name }}-ingress
+  labels:
+    {{ deployment_name_label }}: "{{ name }}"
+    {{ deployment_user_label }}: "{{ user }}"
+    trainy.ai/konduktor-managed: "true"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    {% if autoscaler == 'true' %}
+    nginx.ingress.kubernetes.io/upstream-vhost: "{{ name }}"
+    {% endif %}
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: {{ general_base_host }}
+    http:
+      paths:
+      - path: /{{ name }}(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            {% if autoscaler == 'true' %}
+            # Use KEDA interceptor for autoscaling
+            name: keda-proxy
+            port:
+              number: 8080
+            {% else %}
+            # Direct to app service for fixed replicas
+            name: {{ name }}
+            port:
+              number: {{ ports }}
+            {% endif %}
+  # Direct access convenience rule (via LB IP + Host: {{ name }})
+  - host: {{ name }}
+    http:
+      paths:
+      - path: /(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            {% if autoscaler == 'true' %}
+            name: keda-proxy
+            port:
+              number: 8080
+            {% else %}
+            name: {{ name }}
+            port:
+              number: {{ ports }}
+            {% endif %}
+{% endif %}

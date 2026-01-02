@@ -1,0 +1,98 @@
+# Apoxy Setup (Part 2/2) - Deployment Routing
+#
+# This file sets up Apoxy routing for both vLLM and general deployments:
+# 1. TunnelNode for secure tunnel connection
+# 2. Backend for vLLM pointing to Envoy Gateway
+# 3. HTTPRoute for company.trainy.us -> vLLM deployments
+# 4. Backend for general deployments pointing to nginx ingress
+# 5. HTTPRoute for company2.trainy.us -> general deployments
+# 6. KEDA proxy service for HTTP autoscaling
+# 7. 60s timeout for all requests
+#
+# Split into 2 files because:
+# - apoxy-setup.yaml: Core infrastructure (1 per cluster) (needs to be applied first)
+# - apoxy-setup2.yaml: All routing rules for both deployment types
+
+# NOTE: TunnelNode should technically be in the first apoxy-setup.yaml but it
+# needs to be created after the core infrastructure is created, so we put it here.
+apiVersion: core.apoxy.dev/v1alpha
+kind: TunnelNode
+metadata:
+  name: UNIQUE-TEMPNAME
+spec:
+  egressGateway:
+    enabled: true
+---
+# Backend for vLLM deployments
+apiVersion: core.apoxy.dev/v1alpha
+kind: Backend
+metadata:
+  name: UNIQUE-TEMPNAME-backend
+spec:
+  endpoints:
+    - fqdn: envoy-aibrix-system-aibrix-eg-903790dc.envoy-gateway-system.UNIQUE-TEMPNAME.tun.apoxy.net
+---
+# HTTPRoute for vLLM deployments
+apiVersion: gateway.apoxy.dev/v1
+kind: HTTPRoute
+metadata:
+  name: UNIQUE-TEMPNAME-route
+spec:
+  parentRefs:
+    - name: default 
+      kind: Gateway
+      port: 443
+  hostnames:
+    - 'TEMPNAME.trainy.us'
+  rules:
+    - backendRefs:
+      - kind: Backend
+        name: UNIQUE-TEMPNAME-backend
+        port: 80
+      timeouts:
+        request: "60s"
+---
+# Backend for general deployments
+apiVersion: core.apoxy.dev/v1alpha
+kind: Backend
+metadata:
+  name: UNIQUE-TEMPNAME-backend2
+spec:
+  endpoints:
+    - fqdn: keda-ingress-nginx-controller.keda.UNIQUE-TEMPNAME.tun.apoxy.net
+---
+# HTTPRoute for general deployments
+apiVersion: gateway.apoxy.dev/v1
+kind: HTTPRoute
+metadata:
+  name: UNIQUE-TEMPNAME-route2
+spec:
+  parentRefs:
+    - name: default 
+      kind: Gateway
+      port: 443
+  hostnames:
+    - 'TEMPNAME2.trainy.us'
+  rules:
+    - backendRefs:
+      - kind: Backend
+        name: UNIQUE-TEMPNAME-backend2
+        port: 80
+      timeouts:
+        request: "60s"
+
+# KEDA proxy service (1 per cluster) (For general deployments)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keda-proxy
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: keda-add-ons-http-interceptor-proxy.keda
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
