@@ -1,0 +1,530 @@
+{% extends "admin/base.html" %}
+{% block title %}Page Editor{% endblock %}
+
+{% block content %}
+<style>
+    .selected-element {
+        outline: 2px dashed #00f3ff !important;
+        outline-offset: 2px;
+    }
+
+    #visualEditor .terminal-box {
+        background: rgba(5, 5, 5, 0.95);
+        border: 1px solid #222;
+    }
+
+    #visualEditor .border-cyan {
+        border-color: #00f3ff;
+    }
+
+    #visualEditor .border-pink {
+        border-color: #ff0055;
+    }
+
+    #visualEditor .border-green {
+        border-color: #00ff88;
+    }
+
+    #visualEditor .border-red {
+        border-color: #ff4444;
+    }
+
+    #visualEditor .border-yellow {
+        border-color: #ffcc00;
+    }
+
+    #visualEditor .text-cyan {
+        color: #00f3ff;
+    }
+
+    #visualEditor .text-pink {
+        color: #ff0055;
+    }
+
+    #visualEditor .text-green {
+        color: #00ff88;
+    }
+
+    #visualEditor .text-red {
+        color: #ff4444;
+    }
+
+    #visualEditor .text-yellow {
+        color: #ffcc00;
+    }
+
+    .color-btn {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+
+    .color-btn:hover {
+        border-color: white;
+    }
+
+    /* Drag-drop styles */
+    .editor-block {
+        cursor: grab;
+        position: relative;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .editor-block:hover {
+        box-shadow: 0 0 0 2px rgba(0, 243, 255, 0.3);
+    }
+
+    .editor-block.dragging {
+        opacity: 0.4;
+        transform: scale(0.98);
+    }
+
+    .drop-indicator {
+        height: 4px;
+        background: linear-gradient(90deg, #00f3ff, #ff0055);
+        margin: 4px 0;
+        border-radius: 2px;
+        display: none;
+    }
+
+    .drop-indicator.visible {
+        display: block;
+        animation: pulse 0.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse {
+        from {
+            opacity: 0.5;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Insert button styles */
+    .insert-bar {
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.2s;
+        margin: 2px 0;
+    }
+
+    .insert-bar:hover {
+        opacity: 1;
+    }
+
+    .insert-btn {
+        background: #00f3ff;
+        color: black;
+        border: none;
+        border-radius: 12px;
+        padding: 2px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .insert-btn:hover {
+        background: white;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.visible {
+        display: flex;
+    }
+
+    .modal-content {
+        background: #111;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 20px;
+        min-width: 300px;
+    }
+</style>
+
+<div class="mb-6">
+    <div class="flex items-center gap-2 mb-2">
+        <a href="/admin/pages" class="text-white/40 hover:text-white text-xs uppercase tracking-wider">← Back</a>
+    </div>
+    <h1 class="text-2xl font-bold text-white">{{ 'Edit' if page else 'Create' }} Page</h1>
+</div>
+
+<form method="POST" action="/admin/pages/save" id="pageForm">
+    {% if page %}
+    <input type="hidden" name="id" value="{{ page.id }}">
+    {% endif %}
+    <input type="hidden" name="content" id="hiddenContent">
+
+    <div class="grid md:grid-cols-3 gap-6" style="height: calc(100vh - 200px);">
+
+        <!-- Left: Visual Editor -->
+        <div class="md:col-span-2 flex flex-col h-full">
+            <div class="terminal-box p-4 flex-1 flex flex-col overflow-hidden">
+
+                <!-- Page Title -->
+                <div class="mb-4">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Page Title *</label>
+                    <input type="text" name="title" id="titleInput" value="{{ page.title if page else '' }}" required
+                        class="w-full bg-black border border-white/20 text-white px-4 py-3 text-lg focus:border-cyan focus:outline-none"
+                        placeholder="e.g. My Hobbies">
+                </div>
+
+                <!-- Toolbar -->
+                <div class="flex flex-wrap gap-2 mb-3 p-2 bg-white/5 border border-white/10 rounded">
+                    <span class="text-white/40 text-xs uppercase tracking-wider self-center mr-2">Add:</span>
+                    <button type="button" onclick="promptAndAddGrid()"
+                        class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded border border-white/10">⊞
+                        Grid</button>
+                    <button type="button" onclick="addBlockAtEnd('card')"
+                        class="px-3 py-1 bg-cyan/20 hover:bg-cyan/30 text-cyan text-xs rounded border border-cyan/20">Card</button>
+                    <button type="button" onclick="addBlockAtEnd('title')"
+                        class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded border border-white/10">H2
+                        Title</button>
+                    <button type="button" onclick="addBlockAtEnd('text')"
+                        class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded border border-white/10">¶
+                        Text</button>
+                    <button type="button" onclick="addBlockAtEnd('button')"
+                        class="px-3 py-1 bg-amber/20 hover:bg-amber/30 text-amber text-xs rounded border border-amber/20">Button</button>
+                    <div class="flex-1 text-right">
+                        <button type="submit" formaction="/admin/pages/preview" formtarget="_blank"
+                            class="px-3 py-1 bg-amber/20 hover:bg-amber/30 text-amber text-xs rounded border border-amber/20">👁
+                            Preview</button>
+                    </div>
+                </div>
+
+                <div class="text-xs text-gray-500 mb-2">Drag blocks to reorder. Click to edit. Hover between blocks to
+                    insert.</div>
+
+                <!-- Visual Editor -->
+                <div id="visualEditor"
+                    class="flex-1 w-full bg-black border border-white/20 text-white p-6 overflow-y-auto">
+                    {{ page.content|safe if page and page.content else '' }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Sidebar -->
+        <div class="flex flex-col h-full gap-4 overflow-y-auto pr-1">
+
+            <!-- Element Settings Panel -->
+            <div class="terminal-box p-4" id="elementSettings" style="display:none;">
+                <h3 class="text-white font-bold mb-3 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
+                    Element Settings</h3>
+
+                <!-- Text Content -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Text Content</label>
+                    <textarea id="textEditor" rows="3"
+                        class="w-full bg-black border border-white/20 text-white text-sm p-2 focus:border-cyan focus:outline-none resize-y"
+                        placeholder="Edit text..."></textarea>
+                </div>
+
+                <!-- Alignment -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Alignment</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="setAlignment('left')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">Left</button>
+                        <button type="button" onclick="setAlignment('center')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">Center</button>
+                        <button type="button" onclick="setAlignment('right')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">Right</button>
+                    </div>
+                </div>
+
+                <!-- Color -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Text Color</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="setColor('cyan')" class="color-btn"
+                            style="background:#00f3ff;"></button>
+                        <button type="button" onclick="setColor('pink')" class="color-btn"
+                            style="background:#ff0055;"></button>
+                        <button type="button" onclick="setColor('green')" class="color-btn"
+                            style="background:#00ff88;"></button>
+                        <button type="button" onclick="setColor('red')" class="color-btn"
+                            style="background:#ff4444;"></button>
+                        <button type="button" onclick="setColor('yellow')" class="color-btn"
+                            style="background:#ffcc00;"></button>
+                        <button type="button" onclick="setColor('white')" class="color-btn"
+                            style="background:#ffffff;"></button>
+                    </div>
+                </div>
+
+                <!-- Background Color -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Background</label>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="setBgColor('bg-black')" class="color-btn"
+                            style="background:#000000; border:1px solid #333;"></button>
+                        <button type="button" onclick="setBgColor('bg-cyan/20')" class="color-btn"
+                            style="background:rgba(0,243,255,0.2);"></button>
+                        <button type="button" onclick="setBgColor('bg-pink/20')" class="color-btn"
+                            style="background:rgba(255,0,85,0.2);"></button>
+                        <button type="button" onclick="setBgColor('bg-green/20')" class="color-btn"
+                            style="background:rgba(0,255,136,0.2);"></button>
+                        <button type="button" onclick="setBgColor('bg-white/10')" class="color-btn"
+                            style="background:rgba(255,255,255,0.1); border:1px solid #333;"></button>
+                        <button type="button" onclick="setBgColor('bg-transparent')" class="color-btn"
+                            style="background:transparent; border:2px dashed #666;"></button>
+                    </div>
+                </div>
+
+                <!-- Border Color -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Border</label>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="setBorderColor('cyan')" class="color-btn"
+                            style="background:#00f3ff;"></button>
+                        <button type="button" onclick="setBorderColor('pink')" class="color-btn"
+                            style="background:#ff0055;"></button>
+                        <button type="button" onclick="setBorderColor('green')" class="color-btn"
+                            style="background:#00ff88;"></button>
+                        <button type="button" onclick="setBorderColor('yellow')" class="color-btn"
+                            style="background:#ffcc00;"></button>
+                        <button type="button" onclick="setBorderColor('white')" class="color-btn"
+                            style="background:#ffffff;"></button>
+                        <button type="button" onclick="setBorderColor('transparent')" class="color-btn"
+                            style="background:transparent; border:2px dashed #666;"></button>
+                    </div>
+                </div>
+
+                <!-- Grid Card Movement (for elements inside grid) -->
+                <div class="mb-3" id="gridMoveSection" style="display:none;">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Move in Grid</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="moveInGrid('left')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">← Left</button>
+                        <button type="button" onclick="moveInGrid('right')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">Right →</button>
+                    </div>
+                </div>
+
+                <!-- Text Size -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Size</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="setSize('text-sm')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">S</button>
+                        <button type="button" onclick="setSize('text-base')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">M</button>
+                        <button type="button" onclick="setSize('text-xl')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">L</button>
+                        <button type="button" onclick="setSize('text-2xl')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">XL</button>
+                    </div>
+                </div>
+
+                <!-- Style -->
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Style</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="toggleStyle('font-bold')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded font-bold">B</button>
+                        <button type="button" onclick="toggleStyle('italic')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded italic">I</button>
+                    </div>
+                </div>
+
+                <!-- Link -->
+                <div class="mb-3" id="linkInput">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Link URL</label>
+                    <input type="text" id="linkUrl"
+                        class="w-full bg-black border border-white/20 text-white text-sm p-2 focus:border-cyan focus:outline-none"
+                        placeholder="e.g. /about or https://...">
+                    <button type="button" onclick="applyLink()"
+                        class="mt-2 px-3 py-1 bg-cyan/20 hover:bg-cyan/30 text-cyan text-xs rounded">Apply Link</button>
+                    <div class="text-[10px] text-gray-500 mt-1">For cards: wraps in clickable link. For buttons: sets
+                        href.</div>
+                </div>
+
+                <!-- Button Style (for buttons/links) -->
+                <div class="mb-3" id="buttonStyleSection" style="display:none;">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Button Shape</label>
+                    <div class="flex gap-2 mb-2">
+                        <button type="button" onclick="setButtonShape('rounded-none')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs">Rectangle</button>
+                        <button type="button" onclick="setButtonShape('rounded')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">Rounded</button>
+                        <button type="button" onclick="setButtonShape('rounded-full')"
+                            class="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded-full">Pill</button>
+                    </div>
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Button Padding</label>
+                    <div class="flex gap-2 mb-2">
+                        <button type="button" onclick="setButtonPadding('px-2 py-1')"
+                            class="px-2 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">XS</button>
+                        <button type="button" onclick="setButtonPadding('px-4 py-2')"
+                            class="px-2 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">S</button>
+                        <button type="button" onclick="setButtonPadding('px-6 py-3')"
+                            class="px-2 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">M</button>
+                        <button type="button" onclick="setButtonPadding('px-8 py-4')"
+                            class="px-2 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded">L</button>
+                    </div>
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Background</label>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="setButtonBg('bg-cyan')" class="color-btn"
+                            style="background:#00f3ff;"></button>
+                        <button type="button" onclick="setButtonBg('bg-pink')" class="color-btn"
+                            style="background:#ff0055;"></button>
+                        <button type="button" onclick="setButtonBg('bg-green')" class="color-btn"
+                            style="background:#00ff88;"></button>
+                        <button type="button" onclick="setButtonBg('bg-white')" class="color-btn"
+                            style="background:#ffffff;"></button>
+                        <button type="button" onclick="setButtonBg('bg-transparent')" class="color-btn"
+                            style="background:transparent; border:2px dashed #666;"></button>
+                    </div>
+                </div>
+
+                <!-- Add Action Button (for cards) -->
+                <div class="mb-3" id="addButtonSection" style="display:none;">
+                    <button type="button" onclick="addActionButton()"
+                        class="w-full px-3 py-1 bg-cyan/20 hover:bg-cyan/30 text-cyan text-xs rounded border border-cyan/20">+
+                        Add Action Button</button>
+                </div>
+
+                <!-- Add Tag (for skills blocks) -->
+                <div class="mb-3" id="addTagSection" style="display:none;">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Add Skill Tag</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="newTagInput"
+                            class="flex-1 bg-black border border-white/20 text-white px-2 py-1 text-xs focus:border-cyan focus:outline-none"
+                            placeholder="New tag name...">
+                        <button type="button" onclick="addTag()"
+                            class="px-3 py-1 bg-cyan/20 hover:bg-cyan/30 text-cyan text-xs rounded border border-cyan/20">+
+                            Add</button>
+                    </div>
+                    <div class="flex gap-1 mt-2">
+                        <button type="button" onclick="addTagWithColor('cyan')"
+                            class="w-5 h-5 rounded-full bg-cyan/50 border border-cyan/30"></button>
+                        <button type="button" onclick="addTagWithColor('pink')"
+                            class="w-5 h-5 rounded-full bg-pink/50 border border-pink/30"></button>
+                        <button type="button" onclick="addTagWithColor('green')"
+                            class="w-5 h-5 rounded-full bg-green/50 border border-green/30"></button>
+                        <button type="button" onclick="addTagWithColor('yellow')"
+                            class="w-5 h-5 rounded-full bg-yellow/50 border border-yellow/30"></button>
+                    </div>
+                </div>
+
+                <!-- Table Controls (for table blocks) -->
+                <div class="mb-3" id="tableControlsSection" style="display:none;">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Table Controls</label>
+                    <div class="flex gap-2 mb-2">
+                        <button type="button" onclick="addTableRow()"
+                            class="flex-1 px-3 py-1 bg-cyan/20 hover:bg-cyan/30 text-cyan text-xs rounded border border-cyan/20">+
+                            Row</button>
+                        <button type="button" onclick="addTableCol()"
+                            class="flex-1 px-3 py-1 bg-cyan/20 hover:bg-cyan/30 text-cyan text-xs rounded border border-cyan/20">+
+                            Col</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="formatTableHead()"
+                            class="flex-1 px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs rounded border border-purple-500/20">
+                            Header</button>
+                    </div>
+                </div>
+
+                <!-- Delete -->
+                <button type="button" onclick="deleteElement()"
+                    class="w-full mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs rounded border border-red-500/20">🗑
+                    Delete Element</button>
+            </div>
+
+            <!-- Source Code Panel (Collapsible) -->
+            <div class="terminal-box p-4">
+                <div class="flex justify-between items-center cursor-pointer" onclick="toggleSourceCode()">
+                    <h3 class="text-white font-bold text-sm uppercase tracking-wider">Source Code</h3>
+                    <span id="sourceToggleIcon" class="text-white/60 text-xs">▼ Show</span>
+                </div>
+                <div id="sourceCodePanel" class="hidden mt-3">
+                    <textarea id="sourceEditor" rows="8"
+                        class="w-full bg-black border border-white/20 text-green-400 font-mono text-xs p-3 focus:border-cyan focus:outline-none resize-none leading-relaxed"
+                        placeholder="HTML code..."></textarea>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="terminal-box p-4">
+                <h3 class="text-white font-bold mb-3 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
+                    Page Settings</h3>
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Slug *</label>
+                    <input type="text" name="slug" id="slugInput" value="{{ page.slug if page else '' }}" required
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="auto-generated from title">
+                </div>
+                <div class="mb-3">
+                    <label class="block text-white/60 text-xs mb-1 uppercase">Menu Order</label>
+                    <input type="number" name="menu_order" value="{{ page.menu_order if page else 0 }}"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_published" class="accent-cyan h-4 w-4" {% if not page or
+                            page.is_published %}checked{% endif %}>
+                        <span class="text-white text-sm">Published</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="show_in_menu" class="accent-cyan h-4 w-4" {% if not page or
+                            page.show_in_menu %}checked{% endif %}>
+                        <span class="text-white text-sm">Show in Menu</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- SEO Panel -->
+            <div class="terminal-box p-4">
+                <h3 class="text-white font-bold mb-3 text-sm uppercase tracking-wider border-b border-white/10 pb-2">SEO
+                </h3>
+                <textarea name="meta_description" rows="2"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-xs focus:border-cyan focus:outline-none"
+                    placeholder="Meta description...">{{ page.meta_description if page else '' }}</textarea>
+            </div>
+
+            <button type="submit"
+                class="w-full bg-cyan text-black font-bold py-3 hover:bg-white transition-colors uppercase tracking-wider">
+                Save Page
+            </button>
+        </div>
+    </div>
+</form>
+
+<!-- Grid Columns Modal -->
+<div id="gridModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 class="text-white font-bold mb-4">Grid Columns</h3>
+        <div class="mb-4">
+            <label class="block text-white/60 text-xs mb-2 uppercase">Number of Columns</label>
+            <input type="number" id="gridColsModal" value="2" min="1" max="6"
+                class="w-full bg-black border border-white/20 text-white px-3 py-2 text-lg focus:border-cyan focus:outline-none text-center">
+        </div>
+        <div class="flex gap-2">
+            <button type="button" onclick="confirmGrid()" class="flex-1 bg-cyan text-black font-bold py-2 rounded">Add
+                Grid</button>
+            <button type="button" onclick="closeGridModal()"
+                class="flex-1 bg-white/10 text-white font-bold py-2 rounded">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Load page editor JS from authenticated endpoint -->
+<script src="/admin/assets/page-editor.js"></script>
+{% endblock %}
