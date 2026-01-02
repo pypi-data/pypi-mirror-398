@@ -1,0 +1,158 @@
+# asynctor
+![Python Versions](https://img.shields.io/pypi/pyversions/asynctor)
+[![LatestVersionInPypi](https://img.shields.io/pypi/v/asynctor.svg?style=flat)](https://pypi.python.org/pypi/asynctor)
+[![GithubActionResult](https://github.com/waketzheng/asynctor/workflows/ci/badge.svg)](https://github.com/waketzheng/asynctor/actions?query=workflow:ci)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+[![Coverage Status](https://coveralls.io/repos/github/waketzheng/asynctor/badge.svg?branch=main)](https://coveralls.io/github/waketzheng/asynctor?branch=main)
+![Mypy coverage](https://img.shields.io/badge/mypy-100%25-green.svg)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+Some async functions that using anyio, and toolkit for excel read.
+
+## Installation
+
+<div class="termy">
+
+```console
+$ pip install asynctor
+---> 100%
+Successfully installed asynctor
+```
+with extras:
+```shell
+pip install "asynctor[xlsx,redis,fastapi]"
+```
+Or by pdm:
+```bash
+pdm add "asynctor[redis]"
+```
+Or by uv:
+```sh
+uv add asynctor
+```
+Or install the latest from *github*
+```
+uv pip install "asynctor @git+https://github.com/waketzheng/asynctor"
+```
+Or install by ssh
+```
+uv pip install "asynctor[redis] @git+ssh://git@github.com/waketzheng/asynctor.git"
+```
+
+</div>
+
+## Usage
+
+- Async function that compare asyncio but use anyio: `bulk_gather/gather/run`
+```py
+>>> import asynctor
+>>> async def foo():
+...     return 1
+...
+>>> await asynctor.bulk_gather([foo(), foo()], limit=200)
+(1, 1)
+>>> await asynctor.gather(foo(), foo())
+(1, 1)
+>>> asynctor.run(gather(foo(), foo()))
+(1, 1)
+```
+- `run_async`: start a new thread to run async function and get result of it
+```py
+>>> from asynctor import run_async
+>>> async def foo(a=1):
+...     return a
+...
+>>> run_async(foo) == run_async(foo()) == run_async(foo, 1) == 1
+True
+```
+- timeit
+```py
+>>> import time
+>>> import anyio
+>>> from asynctor import timeit
+>>> @timeit
+... async def sleep_test():
+...     await anyio.sleep(3)
+...
+>>> await sleep()
+sleep_test Cost: 3.0 seconds
+
+>>> @timeit
+... def sleep_test2():
+...     time.sleep(3.1)
+...
+>>> sleep_test2()
+sleep_test2 Cost: 3.1 seconds
+>>> with timeit('Sleeping'):
+...     sleep()
+...
+Sleeping Cost: 3.0 seconds
+```
+- AioRedis
+
+*pip install "asynctor[redis]"*
+```py
+from asynctor.contrib.fastapi import AioRedisDep, register_aioredis
+from fastapi import FastAPI
+
+app = FastAPI()
+register_aioredis(app)
+
+@app.get('/')
+async def root(redis: AioRedisDep) -> list[str]:
+    return await redis.keys()
+
+@app.get('/redis')
+async def get_value_from_redis_by_key(redis: AioRedisDep, key: str) -> str:
+    value = await redis.get(key)
+    if not value:
+        return ''
+    return value.decode()
+```
+
+- Async Test Fixtures
+
+*pip install "asynctor[testing]"*
+```py
+import pytest
+from asynctor.testing import anyio_backend_fixture, async_client_fixture
+from httpx import AsyncClient
+
+from main import app
+
+anyio_backend = anyio_backend_fixture()
+client = async_client_fixture(app)
+
+@pytest.mark.anyio
+async def test_api(client: AsyncClient):
+    response = await client.get("/")
+    assert response.status_code == 200
+```
+
+- runserver for fastapi projects
+
+*pip install asynctor fastapi uvicorn*
+```py
+from fastapi import FastAPI
+
+app = FastAPI()
+
+
+def main() -> None:
+    from asynctor.contrib.fastapi import runserver
+
+    runserver(app)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+- Read Excel File
+
+*pandas/openpyxl is required, can be installed with xlsx extra: `pip install "asynctor[xlsx]"`*
+```py
+>>> from asynctor.xlsx import load_xlsx
+>>> await load_xlsx('tests/demo.xlsx')
+[{'Column1': 'row1-\\t%c', 'Column2\nMultiLines': 0, 'Column 3': 1, 4: ''}, {'Column1': 'r2c1\n00', 'Column2\nMultiLines': 'r2 c2', 'Column 3': 2, 4: ''}]
+```
