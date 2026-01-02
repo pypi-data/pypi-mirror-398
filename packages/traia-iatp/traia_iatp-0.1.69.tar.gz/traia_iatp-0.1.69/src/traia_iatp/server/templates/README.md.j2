@@ -1,0 +1,425 @@
+# {{ agent_name }}
+
+{{ agent_description }}
+
+## Overview
+
+This utility agent provides access to {{ mcp_server_name }} capabilities through the A2A (Agent-to-Agent) protocol. It acts as a bridge between AI agents and the {{ mcp_server_name }} MCP server.
+
+## Features
+
+- **A2A Protocol Support**: Full implementation of the A2A protocol for agent communication
+- **{{ mcp_server_name }} Integration**: Direct access to {{ mcp_server_name }} tools and capabilities
+- **HTTP/2 Multiplexing**: High-performance concurrent request handling
+- **SSE Streaming**: Real-time streaming responses for compatible operations
+- **Async Operations**: Built with modern async Python for optimal performance
+- **Docker Support**: Easy deployment with Docker and docker-compose
+- **Health Monitoring**: Built-in health check endpoints
+
+## Quick Start
+
+### Using Docker (Recommended)
+
+1. Copy the environment configuration:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Configure your environment variables in `.env` (especially API keys if needed)
+
+3. Run with Docker:
+   ```bash
+   chmod +x run_local_docker.sh
+   ./run_local_docker.sh
+   ```
+
+   Or with docker-compose:
+   ```bash
+   docker-compose up
+   ```
+
+### Manual Setup
+
+1. Install dependencies:
+   ```bash
+   uv sync
+   ```
+
+2. Copy and configure environment:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. Run the server:
+   ```bash
+   uv run python -m {{ agent_id }}
+   ```
+
+## Configuration
+
+All configuration is managed through environment variables. See `.env.example` for available options:
+
+- `PORT`: Server port (default: 8000)
+- `HOST`: Server host (default: 0.0.0.0)
+- `LLM_MODEL`: Language model to use (default: openai/gpt-4.1)
+- `DEBUG_PROTOCOL`: Enable protocol-level debugging (default: false)
+- `USE_TLS`: Enable TLS/HTTPS (default: false)
+- API keys and other service-specific configuration
+
+## API Endpoints
+
+### A2A Protocol Endpoints
+
+The A2A (Agent-to-Agent) protocol defines a minimal set of endpoints for agent communication:
+
+#### 1. **`POST /a2a`** - Main JSON-RPC Endpoint
+This is the primary endpoint for all A2A communication. The JSON-RPC endpoint is configured at `/a2a` to avoid conflicts with middleware and root path handling.
+
+**Supported Methods:**
+- `message/send` - Send a message to the agent
+- `tasks/get` - Get task status
+- `tasks/list` - List tasks
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "message/send",
+  "id": "msg-123",
+  "params": {
+    "message": {
+      "messageId": "msg-456",
+      "role": "user",
+      "parts": [{"text": "Get BTC price"}]
+    }
+  }
+}
+```
+
+#### 2. **`GET /.well-known/agent-card.json`** - Agent Card
+Returns the agent's capabilities, skills, and metadata following the A2A standard.
+
+**Example Response:**
+```json
+{
+  "name": "{{ agent_id }}",
+  "description": "{{ agent_description }}",
+  "version": "{{ agent_version }}",
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "skills": [...]
+}
+```
+
+#### 3. **`POST /a2a/tasks/subscribe`** - SSE Task Subscription
+Subscribe to real-time updates for a specific task using Server-Sent Events (SSE).
+
+**Request Body:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tasks/sendSubscribe",
+  "params": {
+    "id": "task-id",
+    "historyLength": 0
+  }
+}
+```
+
+#### 4. **`POST /a2a/tasks/resubscribe`** - SSE Task Resubscription
+Resume a subscription to task events, useful for handling connection drops.
+
+### How Streaming Works
+
+**Important:** Streaming uses the SAME endpoint (`/a2a`) as regular requests. The difference is in the request parameters:
+
+**Regular Request:**
+```json
+{
+  "params": {
+    "message": {...},
+    "configuration": null  // or omitted
+  }
+}
+```
+
+**Streaming Request:**
+```json
+{
+  "params": {
+    "message": {...},
+    "configuration": {
+      "output_mode": "text/event-stream"  // This enables streaming!
+    },
+    "metadata": {"streaming": true}
+  }
+}
+```
+
+When the server receives `output_mode: "text/event-stream"`, it:
+1. Returns a task ID immediately
+2. Processes the request asynchronously
+3. Streams results via SSE if the client subscribes to `/a2a/tasks/subscribe`
+
+### What About `/health` and `/info`?
+
+These endpoints are **NOT** part of the A2A protocol standard. The A2A protocol is intentionally minimal, focusing only on agent communication. Health monitoring should be implemented at the infrastructure level (e.g., container orchestration health checks).
+
+## A2A Operation Modes
+
+This utility agent supports two primary operation modes through the A2A protocol:
+
+### 1. Synchronous Mode (JSON-RPC)
+
+For simple request-response patterns:
+
+```python
+import httpx
+
+# Direct JSON-RPC request to root endpoint
+request = {
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "id": "req-123",
+    "params": {
+        "message": {
+            "messageId": "msg-456",
+            "role": "user",
+            "parts": [{"text": "Get BTC price"}]
+        }
+        # Note: no configuration or configuration: null for sync mode
+    }
+}
+
+response = httpx.post("http://localhost:8000/", json=request)
+result = response.json()
+print(result["result"]["parts"][0]["text"])
+```
+
+**How it works:**
+- Client sends a `message/send` request to `/` (root path)
+- No `configuration` parameter or `configuration: null`
+- Server processes the request synchronously
+- Server returns a complete response immediately
+- No task ID, no streaming, no status updates
+
+### 2. Asynchronous Streaming Mode (SSE)
+
+For real-time updates and streaming responses:
+
+```python
+import httpx
+import json
+
+# Step 1: Send streaming request to root endpoint
+request = {
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "id": "req-123",
+    "params": {
+        "message": {
+            "messageId": "msg-456",
+            "role": "user",
+            "parts": [{"text": "Stream market data for BTC"}]
+        },
+        "configuration": {
+            "output_mode": "text/event-stream"  # This enables streaming!
+        }
+    }
+}
+
+response = httpx.post("http://localhost:8000/", json=request)
+result = response.json()
+task_id = result["result"]["id"]  # Get task ID
+
+# Step 2: Subscribe to SSE events
+subscribe_request = {
+    "jsonrpc": "2.0",
+    "method": "tasks/sendSubscribe",
+    "params": {
+        "id": task_id,
+        "historyLength": 0
+    }
+}
+
+# Use SSE client to receive streaming events
+with httpx.stream("POST", "http://localhost:8000/a2a/tasks/subscribe", 
+                  json=subscribe_request) as sse_response:
+    for line in sse_response.iter_lines():
+        if line.startswith("data: "):
+            event_data = json.loads(line[6:])
+            print(f"Event: {event_data}")
+```
+
+**How it works:**
+- Client sends a `message/send` request to `/` with `output_mode: "text/event-stream"`
+- Server returns a `Task` object with an ID immediately
+- Client subscribes to `/a2a/tasks/subscribe` endpoint for SSE events
+- Server streams events: connection, message chunks, status updates, completion
+
+## MCP Server Details
+
+**Server**: {{ mcp_server_name }}
+**URL**: {{ mcp_server_url }}
+**Type**: {{ mcp_server_type }}
+
+### Available Capabilities
+
+{% for capability in mcp_server_capabilities %}
+- {{ capability }}
+{% endfor %}
+
+## Performance Features
+
+### HTTP/2 Multiplexing
+
+The server supports HTTP/2 for improved performance:
+- Multiple concurrent requests over a single TCP connection
+- Reduced latency and overhead
+- Up to 100 concurrent streams per connection
+
+### Thread Pool Execution
+
+CrewAI operations run in a dedicated thread pool:
+- Prevents blocking the async event loop
+- Enables true concurrent request processing
+- 10 worker threads by default
+
+## Debugging
+
+Enable protocol-level debugging for troubleshooting:
+
+```bash
+DEBUG_PROTOCOL=true ./run_local_docker.sh
+```
+
+This will log:
+- HTTP version and protocol details
+- Request/response timing
+- Connection multiplexing information
+- A2A message flow
+
+## Usage Examples
+
+### Basic Request
+
+```python
+import httpx
+
+# Get agent info
+response = httpx.get("http://localhost:8000/.well-known/agent-card.json")
+info = response.json()
+
+# Send a message via A2A (note: endpoint is at root "/", not "/a2a")
+request = {
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+        "message": {
+            "messageId": "msg-123",
+            "role": "user",
+            "parts": [{"text": "Get current BTC price"}]
+        }
+    },
+    "id": 1
+}
+
+response = httpx.post("http://localhost:8000/", json=request)  # Root path!
+result = response.json()
+```
+
+### Using A2A Client Library
+
+```python
+from a2a.client import A2AClient, A2ACardResolver
+import httpx
+
+# Create HTTP/2 enabled client
+httpx_client = httpx.AsyncClient(
+    timeout=httpx.Timeout(30.0),
+    transport=httpx.AsyncHTTPTransport(http2=True)
+)
+
+# Discover agent card
+card_resolver = A2ACardResolver(
+    httpx_client=httpx_client,
+    base_url="http://localhost:8000"
+)
+agent_card = await card_resolver.get_agent_card()
+
+# Create A2A client (note: uses base URL, not /a2a)
+client = A2AClient(
+    httpx_client=httpx_client,
+    agent_card=agent_card,
+    url="http://localhost:8000"  # Root URL, not /a2a!
+)
+
+# Simple request
+response = await client.send_message("What's the BTC/USDT price?")
+print(response.result)
+
+# Streaming request
+streaming_request = {
+    "message": {"role": "user", "parts": [{"text": "Stream market data"}]},
+    "configuration": {"output_mode": "text/event-stream"}
+}
+async for chunk in client.send_message_streaming(streaming_request):
+    print(chunk)
+```
+
+## Development
+
+### Running Tests
+
+```bash
+uv run pytest
+```
+
+### Building Docker Image
+
+```bash
+docker build -t {{ agent_id }} .
+```
+
+## Deployment
+
+This utility agent can be deployed to:
+- Google Cloud Run (recommended for serverless)
+- AWS ECS/Fargate
+- Kubernetes
+- Any container hosting platform
+
+For production deployments, consider:
+- Setting up proper TLS certificates
+- Configuring appropriate resource limits
+- Implementing rate limiting
+- Setting up monitoring and logging
+
+## Troubleshooting
+
+### 503 Service Unavailable
+- Check server logs: `docker logs -f {{ agent_id }}-local`
+- Ensure MCP server is accessible
+- Verify environment variables are set correctly
+
+### Connection Timeouts
+- Default timeout is 60 seconds
+- For long-running operations, use streaming mode
+- Check if CrewAI operations are completing
+
+### HTTP/2 Not Working
+- HTTP/2 requires TLS in most client libraries
+- Use `USE_TLS=true` for HTTPS support
+- Check client HTTP/2 configuration
+
+## License
+
+[Your License Here]
+
+## Support
+
+For issues and questions, please contact [your-support-email] 

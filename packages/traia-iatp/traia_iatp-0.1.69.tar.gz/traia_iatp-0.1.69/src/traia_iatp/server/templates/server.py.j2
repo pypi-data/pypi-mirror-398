@@ -1,0 +1,377 @@
+"""
+{{ agent_name }} - A2A Server Implementation
+
+Auto-generated utility agent that exposes {{ mcp_server_name }} via A2A protocol.
+This is a simplified all-in-one implementation with MCP connection verification.
+"""
+
+import asyncio
+import json
+import logging
+import os
+from typing import Dict, Any, Optional
+from datetime import datetime, timedelta
+from a2a.server.apps import A2AStarletteApplication
+from a2a.server.agent_execution import AgentExecutor, RequestContext
+from a2a.server.events.event_queue import EventQueue
+from a2a.server.tasks import InMemoryTaskStore
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.types import AgentCard, AgentSkill, AgentCapabilities
+from a2a.utils import new_agent_text_message
+import uvicorn
+from crewai import Task
+from fastapi import Request
+import httpx
+
+# Import the MCP agent builder and run function
+from traia_iatp.mcp import MCPServerConfig, MCPAgentBuilder, run_with_mcp_tools, MCPServerInfo
+
+# Import D402 payment support - using Starlette middleware
+from traia_iatp.d402.starlette_middleware import D402PaymentMiddleware
+from traia_iatp.d402.types import TokenAmount, TokenAsset, EIP712Domain, D402Config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load agent configuration
+with open("agent_config.json", "r") as f:
+    config = json.load(f)
+
+# Create MCP configuration
+mcp_config = MCPServerConfig(
+    name=config["mcp_server"]["name"],
+    url=config["mcp_server"]["url"],
+    description=config["mcp_server"]["description"],
+    server_type=config["mcp_server"].get("server_type", "streamable-http"),
+    capabilities=config["mcp_server"].get("capabilities", []),
+    metadata=config["mcp_server"].get("metadata", {})
+)
+
+# Create MCP server info for use with run_with_mcp_tools
+mcp_server_info = MCPServerInfo(
+    id="",  # Not needed for direct usage
+    name=mcp_config.name,
+    url=mcp_config.url,
+    description=mcp_config.description,
+    server_type=mcp_config.server_type,
+    capabilities=mcp_config.capabilities,
+    metadata=mcp_config.metadata,
+    tags=mcp_config.metadata.get("tags", [])
+)
+
+# Get MCP server API key if required
+{% if requires_api_key %}
+# Check for API keys required by the MCP server
+MCP_API_KEY = None
+{% for api_key_name in api_keys %}
+if not MCP_API_KEY and os.getenv("{{ api_key_name }}"):
+    MCP_API_KEY = os.getenv("{{ api_key_name }}")
+    logger.info(f"Using API key from {{ api_key_name }} environment variable")
+{% endfor %}
+
+if not MCP_API_KEY:
+    logger.warning("No API key found for MCP server authentication.")
+    logger.warning("The MCP server requires one of these environment variables to be set:")
+    {% for api_key_name in api_keys %}
+    logger.warning("  - {{ api_key_name }}")
+    {% endfor %}
+{% else %}
+MCP_API_KEY = None
+{% endif %}
+
+# D402 Configuration (if enabled)
+d402_enabled = os.getenv("D402_ENABLED", "false").lower() == "true"
+d402_config = None
+
+if d402_enabled:
+    logger.info("D402 payments enabled")
+    
+    contract_address = os.getenv("UTILITY_AGENT_CONTRACT_ADDRESS")
+    token_address = os.getenv("D402_TOKEN_ADDRESS")
+    token_decimals = int(os.getenv("D402_TOKEN_DECIMALS", "6"))
+    network = os.getenv("D402_NETWORK", "sepolia")
+    facilitator_url = os.getenv("D402_FACILITATOR_URL", "http://localhost:8080")
+    operator_key = os.getenv("UTILITY_AGENT_OPERATOR_PRIVATE_KEY")
+    testing_mode = os.getenv("D402_TESTING_MODE", "false").lower() == "true"
+    
+    if not contract_address:
+        logger.error("D402 enabled but UTILITY_AGENT_CONTRACT_ADDRESS not set!")
+        d402_enabled = False
+    elif not token_address:
+        logger.error("D402 enabled but D402_TOKEN_ADDRESS not set!")
+        d402_enabled = False
+    else:
+        # Calculate token amount from USD price
+        # Example: $0.01 USD with 6 decimals = 10000 (0.01 * 10^6)
+        usd_price = float(os.getenv("D402_PRICE_USD", "0.01"))
+        token_amount = str(int(usd_price * (10 ** token_decimals)))
+        
+        d402_config = D402Config(
+            enabled=True,
+            pay_to_address=contract_address,
+            default_price=TokenAmount(
+                amount=token_amount,
+                asset=TokenAsset(
+                    address=token_address,
+                    decimals=token_decimals,
+                    network=network,
+                    eip712=EIP712Domain(
+                        name="IATPWallet",
+                        version="1"
+                    )
+                )
+            ),
+            facilitator_url=facilitator_url,
+            operator_private_key=operator_key,
+            testing_mode=testing_mode,
+            service_description=config["description"],
+            protected_paths=["*"]  # Protect all A2A endpoints except .well-known
+        )
+        
+        logger.info("="*60)
+        logger.info("💳 D402 Payment Configuration:")
+        logger.info(f"   Price: ${usd_price} USD")
+        logger.info(f"   Token: {token_address}")
+        logger.info(f"   Network: {network}")
+        logger.info(f"   Recipient: {contract_address}")
+        logger.info(f"   Facilitator: {facilitator_url}")
+        logger.info(f"   Testing Mode: {testing_mode}")
+        logger.info("="*60)
+
+
+class {{ class_name }}AgentExecutor(AgentExecutor):
+    """Agent executor for {{ agency_name }} with MCP connection verification."""
+    
+    def __init__(self):
+        self.mcp_config = mcp_config
+        self.mcp_server_info = mcp_server_info
+        self.mcp_connection_verified = False
+        self.mcp_last_check_time = None
+        self.mcp_connection_error = None
+        self.mcp_available_tools = []
+        
+    async def verify_mcp_connection(self) -> bool:
+        """
+        Verify MCP server connection by:
+        1. Fetching server info/tools
+        2. Testing a basic connection
+        
+        Returns:
+            bool: True if connection is healthy, False otherwise
+        """
+        try:
+            logger.info("🔍 Verifying MCP server connection...")
+            logger.info(f"   MCP URL: {self.mcp_config.url}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Try to connect to MCP server
+                try:
+                    # For HTTP MCP servers, try the health endpoint or root
+                    health_url = f"{self.mcp_config.url}/health"
+                    response = await client.get(health_url)
+                    
+                    if response.status_code == 200:
+                        logger.info(f"✅ MCP server health check passed")
+                    else:
+                        logger.warning(f"⚠️  MCP server returned status {response.status_code}")
+                except Exception as health_error:
+                    logger.debug(f"Health endpoint not available: {health_error}")
+                    # Try a basic connection instead
+                    try:
+                        response = await client.get(self.mcp_config.url)
+                        logger.info(f"✅ MCP server is reachable")
+                    except Exception as conn_error:
+                        self.mcp_connection_error = f"Cannot connect to MCP server: {conn_error}"
+                        logger.error(f"❌ {self.mcp_connection_error}")
+                        return False
+                
+                # Try to initialize MCP adapter to get tools
+                try:
+                    from traia_iatp.mcp.traia_mcp_adapter import TraiaMCPAdapter
+                    
+                    adapter = TraiaMCPAdapter(
+                        server_url=self.mcp_config.url,
+                        server_type=self.mcp_config.server_type,
+                        api_key=MCP_API_KEY
+                    )
+                    
+                    # Get available tools
+                    tools = await adapter.list_tools()
+                    self.mcp_available_tools = [tool.name for tool in tools]
+                    
+                    logger.info(f"✅ MCP connection verified successfully")
+                    logger.info(f"   Available tools: {len(self.mcp_available_tools)}")
+                    if self.mcp_available_tools:
+                        logger.info(f"   Tools: {', '.join(self.mcp_available_tools[:5])}")
+                        if len(self.mcp_available_tools) > 5:
+                            logger.info(f"   ... and {len(self.mcp_available_tools) - 5} more")
+                    
+                    # Close the adapter
+                    await adapter.close()
+                    
+                except Exception as adapter_error:
+                    self.mcp_connection_error = f"MCP adapter initialization failed: {adapter_error}"
+                    logger.error(f"❌ {self.mcp_connection_error}")
+                    return False
+            
+            # Connection successful
+            self.mcp_connection_verified = True
+            self.mcp_last_check_time = datetime.now()
+            self.mcp_connection_error = None
+            
+            return True
+            
+        except Exception as e:
+            self.mcp_connection_error = f"MCP verification error: {e}"
+            logger.error(f"❌ {self.mcp_connection_error}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return False
+    
+    async def check_mcp_health(self) -> bool:
+        """
+        Check if MCP connection is healthy.
+        Re-verifies if more than 10 minutes have passed since last check.
+        
+        Returns:
+            bool: True if MCP connection is healthy, False otherwise
+        """
+        # If never checked, verify now
+        if not self.mcp_connection_verified or self.mcp_last_check_time is None:
+            return await self.verify_mcp_connection()
+        
+        # Check if more than 10 minutes have passed
+        time_since_check = datetime.now() - self.mcp_last_check_time
+        if time_since_check > timedelta(minutes=10):
+            logger.info("🔄 10+ minutes since last MCP check, re-verifying...")
+            return await self.verify_mcp_connection()
+        
+        # Still within 10 minute window, use cached status
+        return self.mcp_connection_verified
+    
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """Process a request using the {{ agency_name }} capabilities."""
+        try:
+            # Get the user's request from context
+            request_text = context.get_user_input()
+            if not request_text:
+                await event_queue.enqueue_event(
+                    new_agent_text_message("No user message provided")
+                )
+                return
+            
+            # Get additional context if provided
+            task_context = {}
+            if hasattr(context, 'metadata'):
+                task_context = context.metadata or {}
+            
+            # Create an agent for this request
+            agent = MCPAgentBuilder.create_agent(
+                role=f"{config['name']} Specialist",
+                goal=f"Process the request using {self.mcp_config.name} capabilities",
+                backstory=f"You are an expert at using {self.mcp_config.name}. {self.mcp_config.description}"
+            )
+            
+            # Create a task
+            task = Task(
+                description=request_text,
+                expected_output="The processed result based on the request",
+                agent=agent
+            )
+            
+            # Run with MCP tools
+            result = run_with_mcp_tools(
+                tasks=[task],
+                mcp_server=self.mcp_server_info,
+                inputs=task_context,
+                skip_health_check=True,  # Skip for production usage
+                api_key=MCP_API_KEY  # Pass the API key if available
+            )
+            
+            # Send the result as agent message
+            await event_queue.enqueue_event(
+                new_agent_text_message(str(result))
+            )
+            
+        except Exception as e:
+            logger.error(f"Error processing request: {e}")
+            await event_queue.enqueue_event(
+                new_agent_text_message(f"Error processing request: {str(e)}")
+            )
+
+
+def create_app():
+    """Create the A2A application."""
+    # Create agent skill
+    skill = AgentSkill(
+        id="process_request",
+        name=f"Process request using {config['name']}",
+        description=config["description"],
+        examples=config.get("a2a_config", {}).get("skill_examples", [
+            "Help me with this request",
+            "Process this data"
+        ])
+    )
+    
+    # Create capabilities
+    capabilities = AgentCapabilities(
+        streaming=False,
+        pushNotifications=False,
+        stateTransitionHistory=False
+    )
+    
+    # Create agent card
+    agent_card_dict = {
+        "name": config["agency_id"],
+        "description": config["description"],
+        "url": f"http://0.0.0.0:{os.environ.get('PORT', 8000)}",
+        "version": config["version"],
+        "capabilities": capabilities.model_dump(),
+        "skills": [skill.model_dump()]
+    }
+    
+    # Create agent card from dict
+    agent_card = AgentCard(**agent_card_dict)
+    
+    # Create executor
+    executor = {{ class_name }}AgentExecutor()
+    
+    # Create task store and request handler
+    task_store = InMemoryTaskStore()
+    request_handler = DefaultRequestHandler(
+        agent_executor=executor,
+        task_store=task_store
+    )
+    
+    # Create the A2A application
+    app = A2AStarletteApplication(
+        agent_card=agent_card,
+        http_handler=request_handler
+    )
+    
+    # Add D402 middleware if enabled (using Starlette middleware)
+    if d402_enabled and d402_config:
+        logger.info("💳 Adding D402 payment middleware to A2A application")
+        
+        # Get the underlying Starlette app from A2AStarletteApplication
+        starlette_app = app.app if hasattr(app, 'app') else app
+        
+        # Add D402PaymentMiddleware
+        starlette_app.add_middleware(
+            D402PaymentMiddleware,
+            config=d402_config
+        )
+        
+        logger.info("✅ D402 middleware configured")
+    
+    return app
+
+
+if __name__ == "__main__":
+    # Get port from environment variable (for Cloud Run compatibility)
+    port = int(os.environ.get("PORT", 8000))
+    logger.info(f"Starting {config['name']} on port {port}")
+    
+    # Create and run the app
+    app = create_app()
+    uvicorn.run(app.build(), host="0.0.0.0", port=port) 

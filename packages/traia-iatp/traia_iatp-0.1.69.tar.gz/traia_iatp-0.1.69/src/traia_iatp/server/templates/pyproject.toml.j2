@@ -1,0 +1,78 @@
+[project]
+name = "{{ package_name }}"
+version = "{{ agent_version }}"
+description = "{{ agent_description }}"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "crewai>=0.203.1",
+    "crewai-tools[mcp]>=0.76.0",
+    "agentops>=0.4.21",
+    "a2a-sdk>=0.2.6",
+    "fastmcp>=2.12.5",
+    "hypercorn>=0.17.3",  # HTTP/2 support via h2 dependency
+    "httpx[http2]>=0.28.1",  # HTTP/2 support with http2 extra
+    "starlette>=0.48.0",  # For SSE streaming support
+    "sse-starlette>=3.0.2",  # Server-Sent Events support
+    "pydantic>=2.12.2",
+    "python-dotenv>=1.1.1",
+    "pymongo>=4.15.3",  # Required for MCP registry
+    "traia-iatp>=0.1.69",  # Core IATP functionality with d402 and RPC fallback support
+    "eth-account>=0.11.0",  # For x402 signing
+    "web3>=6.15.0",  # For x402 blockchain interaction
+    {% for dep in additional_dependencies %}
+    "{{ dep }}",
+    {% endfor %}
+]
+
+[project.optional-dependencies]
+grpc = [
+    "grpcio>=1.73.0",
+    "grpcio-tools>=1.71.0",
+    "grpcio-reflection>=1.71.0",
+]
+
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long
+    "B008", # do not perform function calls in argument defaults
+    "C901", # too complex
+]
+
+[tool.ruff.isort]
+known-first-party = ["{{ package_name }}"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true 
