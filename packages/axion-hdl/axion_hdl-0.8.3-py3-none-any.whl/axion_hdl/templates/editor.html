@@ -1,0 +1,802 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Module - {{ module.name }}{% endblock %}
+
+{% block head %}
+<style>
+    /* Enhanced Editor Styles */
+    .reg-row:hover {
+        background-color: rgba(37, 99, 235, 0.03) !important;
+    }
+
+    .reg-row input:focus,
+    .reg-row select:focus {
+        background-color: #fff !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+        outline: none;
+    }
+
+    .input-invalid {
+        border: 1px solid #ef4444 !important;
+        background-color: #fef2f2 !important;
+    }
+
+    .strobe-toggle {
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        transition: all 0.15s;
+        user-select: none;
+    }
+
+    .strobe-toggle.active {
+        background-color: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .strobe-toggle.inactive {
+        background-color: #f1f5f9;
+        color: #94a3b8;
+    }
+
+    .strobe-toggle:hover {
+        transform: scale(1.05);
+    }
+
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.15s;
+    }
+
+    .action-btn:hover {
+        transform: scale(1.1);
+    }
+
+    .addr-badge {
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        background-color: #f1f5f9;
+        border-radius: 4px;
+        color: #475569;
+    }
+
+    .strobe-group {
+        display: flex;
+        gap: 4px;
+    }
+
+    [data-tooltip] {
+        position: relative;
+    }
+
+    [data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e293b;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        z-index: 100;
+    }
+
+    /* Unsaved changes indicator */
+    .unsaved-indicator {
+        display: none;
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        z-index: 1000;
+        animation: pulse 2s infinite;
+    }
+
+    .unsaved-indicator.visible {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.8;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Unsaved Changes Indicator -->
+<div id="unsavedIndicator" class="unsaved-indicator">
+    <i class="bi bi-exclamation-circle"></i>
+    <span>Unsaved changes</span>
+</div>
+
+<!-- Top Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{% if module.is_new %}New Module{% else %}{{
+                    module.name }}{% endif %}</li>
+            </ol>
+        </nav>
+        {% if module.is_new %}
+        <div class="d-flex align-items-center gap-2">
+            <input type="text" id="moduleName" class="form-control form-control-lg fw-bold border-0 p-0"
+                value="new_module" placeholder="module_name" style="font-size: 1.5rem; max-width: 300px;">
+            <span class="badge bg-primary">New</span>
+        </div>
+        {% else %}
+        <h2 class="mb-0 fw-bold text-dark">{{ module.name }}</h2>
+        <small class="text-muted">{{ module.file }}</small>
+        {% endif %}
+    </div>
+    <div>
+        <button onclick="saveChanges()" class="btn btn-primary px-4 shadow-sm fw-medium">
+            <i class="bi bi-save2-fill me-2"></i>{% if module.is_new %}Save As...{% else %}Review & Save{% endif %}
+        </button>
+    </div>
+</div>
+
+<!-- Module Configuration (Compact Top Bar) -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+    <div class="card-body p-4">
+        <form id="moduleForm" class="row g-4 align-items-end">
+            <!-- Base Address -->
+            <div class="col-auto">
+                <label class="form-label text-secondary fw-bold small text-uppercase mb-2">Base Address</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 text-muted font-monospace">0x</span>
+                    <input type="text" name="base_address"
+                        class="form-control border-start-0 ps-0 font-monospace fw-bold"
+                        value="{{ '%04X' % module.base_address if module.base_address else '0000' }}"
+                        pattern="[0-9A-Fa-f]+" placeholder="0000" oninput="recalculateAddresses()" style="width: 80px;">
+                </div>
+            </div>
+
+            <!-- CDC Enable -->
+            <div class="col-auto">
+                <label class="form-label text-secondary fw-bold small text-uppercase mb-2">CDC Sync</label>
+                <div class="form-check form-switch d-flex align-items-center gap-2 mb-0" style="min-height: 38px;">
+                    <input class="form-check-input" type="checkbox" role="switch" id="cdcEnable" {% if
+                        module.cdc_enabled %}checked{% endif %} onchange="toggleCDC()"
+                        style="width: 2.5em; height: 1.25em;">
+                    <label class="form-check-label text-dark" for="cdcEnable">
+                        {% if module.cdc_enabled %}Enabled{% else %}Disabled{% endif %}
+                    </label>
+                </div>
+            </div>
+
+            <!-- CDC Stages (shown when enabled) -->
+            <div class="col-auto" id="cdcSettings" {% if not module.cdc_enabled %}style="display: none;" {% endif %}>
+                <label class="form-label text-secondary fw-bold small text-uppercase mb-2">CDC Stages</label>
+                <input type="number" id="cdcStages" class="form-control fw-bold" value="{{ module.cdc_stages or 2 }}"
+                    min="2" max="5" style="width: 70px;">
+            </div>
+
+            <!-- Source File Info -->
+            <div class="col-auto ms-auto text-end">
+                <label class="form-label text-secondary fw-bold small text-uppercase mb-2">Source</label>
+                <div class="text-muted small font-monospace" style="min-height: 38px; line-height: 38px;">
+                    {{ module.file.split('/')[-1] }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Register Map (Full Width) -->
+<div class="card border-0 shadow-sm rounded-4 bg-white">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+        <h5 class="card-title fw-bold mb-0"><i class="bi bi-table me-2 text-primary"></i>Register Map</h5>
+        <button onclick="addRegister()" class="btn btn-sm btn-light text-primary fw-bold hover-lift" id="addRegBtn">
+            <i class="bi bi-plus-circle-fill me-1"></i> New Register
+        </button>
+    </div>
+
+    <div class="card-body p-0 mt-3">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="regsTable">
+                <thead class="bg-light text-secondary small text-uppercase text-muted border-top border-bottom">
+                    <tr>
+                        <th class="ps-4 py-3" style="width: 8%" data-tooltip="Calculated memory offset">Addr
+                        </th>
+                        <th class="py-3" style="width: 16%">Name</th>
+                        <th class="py-3" style="width: 10%">Width</th>
+                        <th class="py-3" style="width: 8%">Access</th>
+                        <th class="py-3" style="width: 12%">Default</th>
+                        <th class="py-3" style="width: 10%" data-tooltip="Read/Write Strobe signals">Strobes
+                        </th>
+                        <th class="py-3" style="width: 24%">Description</th>
+                        <th class="pe-4 py-3 text-end" style="width: 12%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="regsBody" class="border-top-0">
+                    {% for reg in module.registers %}
+                    {% set width = 32 %}
+                    {% if reg.width %}
+                    {% set width = reg.width %}
+                    {% elif 'vector' in reg.signal_type %}
+                    {% set width = reg.signal_type.split('(')[1].split(' downto')[0] | int + 1 if '(' in
+                    reg.signal_type else 32 %}
+                    {% elif reg.signal_type == 'std_logic' %}
+                    {% set width = 1 %}
+                    {% endif %}
+                    <tr class="reg-row border-bottom-0" data-index="{{ loop.index0 }}">
+                        <td class="ps-4">
+                            <!-- Address Input: Use input for manual editing -->
+                            <input type="text"
+                                class="form-control form-control-sm font-monospace reg-addr-input border-0 bg-transparent text-secondary p-0"
+                                value="0x{{ '%02X' % reg.relative_address_int }}" style="width: 70px;"
+                                data-locked="{{ 'true' if reg.manual_address else 'false' }}"
+                                title="{{ 'Manual Address' if reg.manual_address else 'Auto-calculated' }}"
+                                onchange="onAddressChange(this)">
+                        </td>
+                        <td>
+                            <input type="text" value="{{ reg.reg_name or reg.signal_name }}"
+                                class="form-control font-monospace reg-name-input fw-bold bg-light-subtle border-0"
+                                placeholder="reg_name" oninput="validateName(this)" {% if is_vhdl %}readonly
+                                title="Renaming allowed only for new registers" {% endif %}>
+                        </td>
+                        <td>
+                            <div class="input-group input-group-sm">
+                                <input type="number" value="{{ width }}"
+                                    class="form-control reg-width-input border-0 bg-light-subtle" min="1" max="1024"
+                                    style="width: 50px;" onchange="recalculateAddresses()">
+                            </div>
+                        </td>
+                        <td>
+                            <select
+                                class="form-select form-select-sm reg-access-input fw-bold border-0 bg-light-subtle
+                                        {% if reg.access_mode=='RW' %}text-primary{% elif reg.access_mode=='RO' %}text-success{% else %}text-danger{% endif %}"
+                                onchange="updateAccessColor(this)">
+                                <option value="RW" class="text-primary" {% if reg.access_mode=='RW' %}selected{% endif
+                                    %}>RW</option>
+                                <option value="RO" class="text-success" {% if reg.access_mode=='RO' %}selected{% endif
+                                    %}>RO</option>
+                                <option value="WO" class="text-danger" {% if reg.access_mode=='WO' %}selected{% endif
+                                    %}>WO</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" value="{{ reg.default_value or '0x0' }}"
+                                class="form-control form-control-sm font-monospace reg-default-input border-0 bg-light-subtle text-secondary"
+                                style="width: 70px;" oninput="validateHex(this)">
+                        </td>
+                        <td>
+                            <div class="strobe-group">
+                                <span class="strobe-toggle {{ 'active' if reg.r_strobe else 'inactive' }}"
+                                    onclick="toggleStrobe(this, 'r')" data-tooltip="Read Strobe">
+                                    R
+                                </span>
+                                <span class="strobe-toggle {{ 'active' if reg.w_strobe else 'inactive' }}"
+                                    onclick="toggleStrobe(this, 'w')" data-tooltip="Write Strobe">
+                                    W
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <input type="text" value="{{ reg.description }}"
+                                class="form-control form-control-sm reg-desc-input border-0 bg-transparent"
+                                placeholder="Add description...">
+                        </td>
+                        <td class="pe-4 text-end">
+                            <button onclick="duplicateRow(this)"
+                                class="action-btn btn btn-outline-primary btn-sm border-0 bg-primary-subtle text-primary me-1"
+                                title="Duplicate Register" data-tooltip="Duplicate">
+                                <i class="bi bi-copy"></i>
+                            </button>
+                            <button onclick="deleteRow(this)"
+                                class="action-btn btn btn-outline-danger btn-sm border-0 bg-danger-subtle text-danger"
+                                title="Delete Register" data-tooltip="Delete">
+                                <i class="bi bi-trash-fill"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if not module.registers %}
+        <div class="text-center py-5 text-muted" id="emptyState">
+            <div class="mb-3 p-3 bg-light rounded-circle d-inline-block">
+                <i class="bi bi-layers fs-1 text-secondary"></i>
+            </div>
+            <h5 class="fw-bold text-dark">Empty Register Map</h5>
+            <p class="small">Start building your register interface via the button above.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    // Global state
+    let nextAddr = 0;
+    let hasUnsavedChanges = false;
+    // Note: window.initialState is used globally for test synchronization
+
+    // Get current form state for comparison
+    function getFormState() {
+        try {
+            const regs = [];
+            document.querySelectorAll('.reg-row').forEach(row => {
+                const strobes = row.querySelectorAll('.strobe-toggle');
+                regs.push({
+                    name: row.querySelector('.reg-name-input')?.value || '',
+                    width: row.querySelector('.reg-width-input')?.value || '',
+                    access: row.querySelector('.reg-access-input')?.value || '',
+                    default: row.querySelector('.reg-default-input')?.value || '',
+                    description: row.querySelector('.reg-desc-input')?.value || '',
+                    rStrobe: strobes[0]?.classList.contains('active') || false,
+                    wStrobe: strobes[1]?.classList.contains('active') || false
+                });
+            });
+            return JSON.stringify({
+                baseAddr: document.querySelector('input[name="base_address"]')?.value || '',
+                cdcEnabled: document.getElementById('cdcEnable')?.checked || false,
+                cdcStages: document.getElementById('cdcStages')?.value || '',
+                registers: regs
+            });
+        } catch (e) {
+            console.error("getFormState error:", e);
+            return JSON.stringify({ registers: [] });
+        }
+    }
+    // Helper to get raw address value without decoration if possible, 
+    // but getFormState comparison needs stability.
+    // The previous implementation captured values. My new `getFormState` logic is correct 
+    // BUT `initialState` needs to be set AFTER `recalculateAddresses` potentially fixes up the UI.
+
+    // Also, markAsChanged logic works by comparing json strings.
+    // If I add data-locked attribute, getFormState uses `getAttribute`. 
+    // Wait, getFormState uses `value` and `getAttribute`.
+    // Let's ensure getFormState captures the locked state correctly.
+
+    // Get Register Address (helper)
+    function getRegAddress(row) {
+        return row.querySelector('.reg-addr-input')?.value || '0x0';
+    }
+
+    // Mark as changed
+    function markAsChanged() {
+        if (window.initialState && getFormState() !== window.initialState) {
+            hasUnsavedChanges = true;
+            document.getElementById('unsavedIndicator')?.classList.add('visible');
+        } else {
+            hasUnsavedChanges = false;
+            document.getElementById('unsavedIndicator')?.classList.remove('visible');
+        }
+    }
+
+    // Clear unsaved state
+    function clearUnsavedChanges() {
+        hasUnsavedChanges = false;
+        document.getElementById('unsavedIndicator')?.classList.remove('visible');
+    }
+
+    // Initialize addresses on load (BUT don't overwrite locked ones)
+    // Note: We skip recalculation on load to respect server-rendered values
+    // unless they are missing.
+    // recalculateAddresses(); // REMOVED to respect server values
+
+    // Store initial state
+    window.initialState = getFormState();
+
+    // Use event delegation for all inputs to handle dynamic elements
+    document.addEventListener('input', (e) => {
+        if (e.target.matches('input, textarea')) markAsChanged();
+    });
+    document.addEventListener('change', (e) => {
+        if (e.target.matches('input, select, textarea')) markAsChanged();
+    });
+
+    // Add Enter key to add new register
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            addRegister();
+        }
+    });
+
+    // RE-CAPTURE initial state after brief delay ensuring render stability
+    // AND after recalculateAddresses has potentially settled
+    setTimeout(() => {
+        // Ensure manual address fields from server are locked correctly if needed
+        document.querySelectorAll('.reg-addr-input').forEach(input => {
+            if (input.getAttribute('data-locked') === 'true') {
+                input.classList.add('fw-bold', 'text-dark');
+                input.classList.remove('text-secondary');
+            }
+        });
+        window.initialState = getFormState();
+    }, 200);
+
+
+    function onAddressChange(input) {
+        input.setAttribute('data-locked', 'true');
+        input.title = "Manual Address";
+        input.classList.remove('text-secondary');
+        input.classList.add('fw-bold', 'text-dark');
+        validateHex(input);
+
+        // Trigger ripple effect for subsequent registers
+        recalculateAddresses();
+        markAsChanged();
+    }
+
+    // Warn before leaving page with unsaved changes
+    window.addEventListener('beforeunload', function (e) {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+
+    // Intercept navigation links
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('a[href]');
+        if (link && hasUnsavedChanges && !link.href.includes('/diff')) {
+            if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
+                e.preventDefault();
+            }
+        }
+    });
+
+    function toggleCDC() {
+        const enabled = document.getElementById('cdcEnable').checked;
+        const settings = document.getElementById('cdcSettings');
+        const label = document.querySelector('label[for="cdcEnable"]');
+
+        settings.style.display = enabled ? 'block' : 'none';
+        if (label) {
+            label.textContent = enabled ? 'Enabled' : 'Disabled';
+        }
+        markAsChanged();
+    }
+
+    function updateAccessColor(select) {
+        select.className = 'form-select form-select-sm reg-access-input fw-bold border-0 bg-light-subtle';
+        if (select.value === 'RW') select.classList.add('text-primary');
+        else if (select.value === 'RO') select.classList.add('text-success');
+        else select.classList.add('text-danger');
+        markAsChanged();
+    }
+
+    function toggleStrobe(elem, type) {
+        const isActive = elem.classList.contains('active');
+        elem.classList.remove('active', 'inactive');
+        elem.classList.add(isActive ? 'inactive' : 'active');
+        markAsChanged();
+    }
+
+    function validateName(input) {
+        const val = input.value;
+        const valid = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(val) || val === '';
+        input.classList.toggle('input-invalid', !valid && val !== '');
+        // input event listener handles markAsChanged
+    }
+
+    function validateHex(input) {
+        const val = input.value;
+        const valid = /^(0x)?[0-9A-Fa-f]+$/.test(val) || val === '';
+        input.classList.toggle('input-invalid', !valid && val !== '');
+        // input event listener handles markAsChanged
+    }
+
+    function recalculateAddresses() {
+        const baseAddrInput = document.querySelector('input[name="base_address"]');
+        if (!baseAddrInput) return;
+
+        // Base addr is only for display context, offset calculation is relative
+        let offset = 0;
+
+        document.querySelectorAll('.reg-row').forEach(row => {
+            const widthInput = row.querySelector('.reg-width-input');
+            const addrInput = row.querySelector('.reg-addr-input');
+
+            if (!widthInput || !addrInput) return;
+
+            const isLocked = addrInput.getAttribute('data-locked') === 'true';
+
+            // If locked, use the manual value as the new offset baseline
+            if (isLocked) {
+                // Parse current manual value
+                const manualVal = parseInt(addrInput.value, 16);
+                if (!isNaN(manualVal)) {
+                    offset = manualVal;
+                }
+            } else {
+                // If unlocked, update value
+                addrInput.value = '0x' + offset.toString(16).toUpperCase().padStart(2, '0');
+            }
+
+            const width = parseInt(widthInput.value) || 32;
+            const numWords = Math.ceil(width / 32);
+
+            // Move to next available address
+            offset += numWords * 4;
+        });
+
+        nextAddr = offset;
+    }
+
+    function addRegister() {
+        try {
+            // Remove empty state if present
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) emptyState.remove();
+
+            const tbody = document.getElementById('regsBody');
+            const row = document.createElement('tr');
+            row.className = 'reg-row border-bottom-0 animate__animated animate__fadeIn';
+            row.innerHTML = `
+            <td class="ps-4">
+            <input type="text" 
+                class="form-control form-control-sm font-monospace reg-addr-input border-0 bg-transparent text-secondary p-0"
+                value="0x` + nextAddr.toString(16).toUpperCase().padStart(2, '0') + `"
+                style="width: 70px;"
+                data-locked="false"
+                title="Auto-calculated"
+                onchange="onAddressChange(this)">
+        </td>
+        <td>
+            <input type="text" placeholder="new_reg" class="form-control font-monospace reg-name-input fw-bold bg-light-subtle border-0" oninput="validateName(this)">
+        </td>
+        <td>
+            <div class="input-group input-group-sm">
+                <input type="number" value="32" class="form-control reg-width-input border-0 bg-light-subtle" min="1" max="1024" style="width: 50px;" onchange="recalculateAddresses()">
+            </div>
+        </td>
+        <td>
+            <select class="form-select form-select-sm reg-access-input fw-bold border-0 bg-light-subtle text-primary" onchange="updateAccessColor(this)">
+                <option value="RW" class="text-primary">RW</option>
+                <option value="RO" class="text-success">RO</option>
+                <option value="WO" class="text-danger">WO</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" value="0x0" class="form-control form-control-sm font-monospace reg-default-input border-0 bg-light-subtle text-secondary" style="width: 70px;" oninput="validateHex(this)">
+        </td>
+        <td>
+            <div class="strobe-group">
+                <span class="strobe-toggle inactive" onclick="toggleStrobe(this, 'r')" data-tooltip="Read Strobe">R</span>
+                <span class="strobe-toggle inactive" onclick="toggleStrobe(this, 'w')" data-tooltip="Write Strobe">W</span>
+            </div>
+        </td>
+        <td>
+            <input type="text" placeholder="Description" class="form-control form-control-sm reg-desc-input border-0 bg-transparent">
+        </td>
+        <td class="pe-4 text-end">
+            <button onclick="duplicateRow(this)" class="action-btn btn btn-outline-primary btn-sm border-0 bg-primary-subtle text-primary me-1" title="Duplicate" data-tooltip="Duplicate">
+                <i class="bi bi-copy"></i>
+            </button>
+            <button onclick="deleteRow(this)" class="action-btn btn btn-outline-danger btn-sm border-0 bg-danger-subtle text-danger" title="Delete" data-tooltip="Delete">
+                <i class="bi bi-trash-fill"></i>
+            </button>
+        </td>
+    `;
+            tbody.appendChild(row);
+            recalculateAddresses();
+
+            // Focus the name input
+            const nameInput = row.querySelector('.reg-name-input');
+            if (nameInput) {
+                nameInput.focus();
+                // Force removal of readonly attribute for new registers
+                setTimeout(() => {
+                    nameInput.removeAttribute('readonly');
+                }, 0);
+            }
+
+            markAsChanged();
+        } catch (e) {
+            console.error("addRegister error:", e);
+        }
+    }
+
+    function duplicateRow(btn) {
+        const row = btn.closest('tr');
+        const newRow = row.cloneNode(true);
+        newRow.classList.add('animate__animated', 'animate__fadeIn');
+
+        // Update the name to indicate it's a copy
+        const nameInput = newRow.querySelector('.reg-name-input');
+        nameInput.value = nameInput.value + '_copy';
+
+        row.parentNode.insertBefore(newRow, row.nextSibling);
+        recalculateAddresses();
+        markAsChanged();
+    }
+
+    function deleteRow(btn) {
+        if (confirm('Are you sure you want to delete this register?')) {
+            const row = btn.closest('tr');
+            row.classList.add('animate__animated', 'animate__fadeOutRight');
+            setTimeout(() => {
+                row.remove();
+                recalculateAddresses();
+                markAsChanged();
+            }, 300);
+        }
+    }
+
+    function saveChanges() {
+        // Clear unsaved changes flag to prevent warning when navigating to diff page
+        clearUnsavedChanges();
+
+        const isNew = {% if module.is_new %} true{% else %} false{% endif %};
+
+    // Gather Module Props
+    const cdcEnabled = document.getElementById('cdcEnable').checked;
+    const cdcStages = document.getElementById('cdcStages').value;
+    const baseAddress = document.querySelector('input[name="base_address"]').value;
+    const moduleName = isNew ? document.getElementById('moduleName').value : '{{ module.name }}';
+
+    // Gather Registers
+    const regs = [];
+    document.querySelectorAll('.reg-row').forEach(row => {
+        const strobes = row.querySelectorAll('.strobe-toggle');
+        regs.push({
+            name: row.querySelector('.reg-name-input').value,
+            width: row.querySelector('.reg-width-input').value,
+            access: row.querySelector('.reg-access-input').value,
+            default_value: row.querySelector('.reg-default-input').value,
+            description: row.querySelector('.reg-desc-input').value,
+            r_strobe: strobes[0].classList.contains('active'),
+            w_strobe: strobes[1].classList.contains('active'),
+            // Capture address if manually set
+            address: row.querySelector('.reg-addr-input').value,
+            manual_address: row.querySelector('.reg-addr-input').getAttribute('data-locked') === 'true'
+        });
+    });
+
+    console.log("Saving regs:", regs); // Debug 
+
+    if (isNew) {
+        // For new modules, show file path modal
+        const modal = new bootstrap.Modal(document.getElementById('saveFileModal'));
+        document.getElementById('saveFilePath').value = moduleName + '.json';
+        document.getElementById('saveFormat').value = 'json';
+        modal.show();
+
+        // Store data for when user confirms
+        window._pendingSave = {
+            moduleName: moduleName,
+            regs: regs,
+            properties: {
+                cdc_enabled: cdcEnabled,
+                cdc_stages: parseInt(cdcStages),
+                base_address: baseAddress
+            }
+        };
+    } else {
+        // For existing modules, use diff view
+        const filePath = '{{ module.file }}';
+        fetch('/api/save_diff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                module_name: moduleName,
+                file_path: filePath,
+                properties: {
+                    cdc_enabled: cdcEnabled,
+                    cdc_stages: parseInt(cdcStages),
+                    base_address: baseAddress
+                },
+                registers: regs
+            })
+        }).then(res => res.json()).then(data => {
+            if (data.redirect) window.location.href = data.redirect;
+        }).catch(err => alert('Error saving changes: ' + err));
+    }
+    }
+
+    function confirmSaveFile() {
+        const filePath = document.getElementById('saveFilePath').value;
+        const format = document.getElementById('saveFormat').value;
+        if (!filePath) {
+            alert('Please enter a file path');
+            return;
+        }
+        const data = window._pendingSave;
+        if (data) {
+            saveToFile(filePath, data.moduleName, data.regs, data.properties, format);
+            bootstrap.Modal.getInstance(document.getElementById('saveFileModal')).hide();
+        }
+    }
+
+    function updateFileExtension() {
+        const format = document.getElementById('saveFormat').value;
+        const pathInput = document.getElementById('saveFilePath');
+        let path = pathInput.value;
+        // Replace extension
+        path = path.replace(/\.(json|yaml|yml|xml)$/i, '.' + (format === 'yaml' ? 'yaml' : format));
+        pathInput.value = path;
+    }
+
+    function saveToFile(filePath, moduleName, registers, properties, format) {
+        fetch('/api/save_new_module', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                file_path: filePath,
+                module_name: moduleName,
+                registers: registers,
+                properties: properties,
+                format: format
+            })
+        }).then(res => res.json()).then(data => {
+            if (data.success) {
+                alert('Module saved successfully to: ' + filePath);
+                window.location.href = '/';
+            } else {
+                alert('Error saving module: ' + (data.error || 'Unknown error'));
+            }
+        }).catch(err => alert('Error saving: ' + err));
+    }
+</script>
+
+<!-- Save File Modal -->
+<div class="modal fade" id="saveFileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-code me-2"></i>Save Module</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Format</label>
+                    <select id="saveFormat" class="form-select" onchange="updateFileExtension()">
+                        <option value="json" selected>JSON</option>
+                        <option value="yaml">YAML</option>
+                        <option value="xml">XML</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">File Path</label>
+                    <input type="text" id="saveFilePath" class="form-control font-monospace"
+                        placeholder="/path/to/module.json">
+                    <small class="text-muted">Enter the full path where you want to save the file</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSaveFile()">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
