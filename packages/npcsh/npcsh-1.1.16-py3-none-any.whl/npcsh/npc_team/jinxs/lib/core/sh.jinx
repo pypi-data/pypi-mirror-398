@@ -1,0 +1,28 @@
+jinx_name: sh
+description: Execute bash queries. Should be used to grep for file contents, list directories, explore information to answer user questions more practically. NEVER use ls -R on directories that may contain node_modules, .git, or other large dependency folders - this will exceed token limits. Use targeted ls commands instead.
+inputs:
+  - bash_command
+steps:
+  - name: execute_bash
+    engine: python
+    code: |
+      import subprocess
+      import os
+
+      cmd = {{ bash_command | tojson }}
+      output = ""
+
+      process = subprocess.Popen(
+          cmd,
+          shell=True,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE
+      )
+      stdout, stderr = process.communicate()
+
+      if stderr:
+          output = f"Error: {stderr.decode('utf-8')}"
+      else:
+          output = stdout.decode('utf-8')
+
+
