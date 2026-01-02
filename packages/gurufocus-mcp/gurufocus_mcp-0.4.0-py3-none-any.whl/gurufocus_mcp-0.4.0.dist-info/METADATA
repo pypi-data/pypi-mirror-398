@@ -1,0 +1,346 @@
+Metadata-Version: 2.4
+Name: gurufocus-mcp
+Version: 0.4.0
+Summary: Unofficial MCP server for GuruFocus financial data
+Project-URL: Homepage, https://github.com/u-daveblack/gurufocus-mcp
+Project-URL: Documentation, https://github.com/u-daveblack/gurufocus-mcp#readme
+Project-URL: Repository, https://github.com/u-daveblack/gurufocus-mcp
+Author: David Black
+License-Expression: MIT
+Keywords: ai,finance,gurufocus,llm,mcp,model-context-protocol
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Requires-Dist: fastmcp>=0.4
+Requires-Dist: gurufocus-api
+Requires-Dist: python-toon>=0.1
+Requires-Dist: structlog>=24.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.13; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.24; extra == 'dev'
+Requires-Dist: pytest-cov>=5.0; extra == 'dev'
+Requires-Dist: pytest>=8.0; extra == 'dev'
+Requires-Dist: ruff>=0.8; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Unofficial GuruFocus MCP Server
+
+An MCP (Model Context Protocol) server that exposes GuruFocus financial data to AI assistants like Claude. Built with FastMCP for seamless integration with Claude Desktop and other MCP clients.
+
+## Features
+
+- **15 Analysis Tools**: Stock summaries, valuations, financials, and more
+- **13 Data Resources**: Direct access to formatted financial data via URI templates
+- **5 Analysis Prompts**: Structured frameworks for investment analysis
+- **Multiple Transports**: stdio (Claude Desktop), HTTP/SSE, WebSocket
+- **Error Handling**: Graceful handling of invalid symbols, rate limits, and API errors
+
+## Requirements
+
+- Python 3.11+
+- GuruFocus API token ([Get one here](https://www.gurufocus.com/api.php))
+
+## Installation
+
+```bash
+pip install gurufocus-mcp
+```
+
+Or with uv:
+
+```bash
+uv add gurufocus-mcp
+```
+
+## Quick Start
+
+### 1. Set your API token
+
+```bash
+export GURUFOCUS_API_TOKEN=your-token-here
+```
+
+### 2. Run the server
+
+```bash
+# Default stdio transport (for Claude Desktop)
+gurufocus-mcp
+
+# HTTP transport for web clients
+gurufocus-mcp --transport http --port 8000
+```
+
+## Claude Desktop Integration
+
+Add to your Claude Desktop configuration file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "gurufocus": {
+      "command": "gurufocus-mcp",
+      "env": {
+        "GURUFOCUS_API_TOKEN": "your-token-here"
+      }
+    }
+  }
+}
+```
+
+If using uv or a virtual environment:
+
+```json
+{
+  "mcpServers": {
+    "gurufocus": {
+      "command": "uv",
+      "args": ["run", "gurufocus-mcp"],
+      "env": {
+        "GURUFOCUS_API_TOKEN": "your-token-here"
+      }
+    }
+  }
+}
+```
+
+After adding the configuration, restart Claude Desktop. You should see the GuruFocus tools available in Claude's interface.
+
+## Implementation Status
+
+**Progress: 3 of 52 endpoints (6%)**
+
+See [Implementation Tracker](../../docs/implementation_tracker.md) for full details.
+
+### Implemented Tools
+
+| Tool                   | Description                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| `get_stock_summary`    | Comprehensive overview: price, valuation, GF Score                                    |
+| `get_stock_financials` | Financial statements (income, balance sheet, cash flow) with annual/quarterly support |
+| `get_stock_keyratios`  | Key financial ratios (profitability, liquidity, solvency, growth, valuation)          |
+
+### Planned Tools
+
+| Category               | Tools                                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Stock Analysis         | `get_gf_score`, `get_valuations`, `get_dividends`, `get_insider_trades`, `get_analyst_estimates`, `get_price_history` |
+| Comparison & Screening | `compare_stocks`, `screen_stocks`, `find_undervalued`, `rank_stocks`                                                  |
+| Guru                   | `get_guru_holdings`, `get_guru_trades`, `get_stock_gurus`                                                             |
+
+## Available Resources
+
+Resources provide direct data access via URI templates:
+
+### Stock Resources
+
+```
+gurufocus://stock/{symbol}/summary      - Company overview
+gurufocus://stock/{symbol}/gf-score     - GF Score details
+gurufocus://stock/{symbol}/valuation    - Valuation metrics
+gurufocus://stock/{symbol}/financials   - Financial statements
+gurufocus://stock/{symbol}/ratios       - Key financial ratios
+gurufocus://stock/{symbol}/dividends    - Dividend information
+gurufocus://stock/{symbol}/insiders     - Insider trading
+gurufocus://stock/{symbol}/estimates    - Analyst estimates
+```
+
+### Guru Resources
+
+```
+gurufocus://gurus                       - List of tracked gurus
+gurufocus://guru/{guru_id}/picks        - Guru's portfolio
+gurufocus://guru/{guru_id}/trades       - Guru's recent trades
+gurufocus://stock/{symbol}/gurus        - Gurus holding a stock
+```
+
+## Analysis Prompts
+
+Prompts provide structured frameworks for investment analysis:
+
+| Prompt              | Description                              | Implemented | Tested |
+| ------------------- | ---------------------------------------- | ----------- | ------ |
+| `investment_thesis` | Build a comprehensive investment thesis  | ❌           | ❌      |
+| `dcf_analysis`      | Discounted cash flow valuation guide     | ❌           | ❌      |
+| `moat_analysis`     | Economic moat evaluation framework       | ❌           | ❌      |
+| `risk_assessment`   | Comprehensive risk analysis              | ❌           | ❌      |
+| `guru_consensus`    | Analyze institutional investor sentiment | ❌           | ❌      |
+
+### Using Prompts
+
+In Claude Desktop, you can invoke prompts directly:
+
+```
+Use the investment_thesis prompt for AAPL
+```
+
+Claude will receive a structured framework and use the available tools to complete the analysis.
+
+## Example Conversations
+
+### Basic Stock Analysis
+
+```
+User: What's the GF Score for Apple?
+
+Claude: [Uses get_gf_score tool]
+Apple (AAPL) has a GF Score of 92/100, indicating high quality:
+- Financial Strength: 8/10
+- Profitability Rank: 10/10
+- Growth Rank: 7/10
+- Value Rank: 5/10
+- Momentum Rank: 8/10
+```
+
+### Stock Comparison
+
+```
+User: Compare MSFT, GOOGL, and META on valuation metrics
+
+Claude: [Uses compare_stocks tool]
+Here's a side-by-side comparison...
+```
+
+### Finding Value Opportunities
+
+```
+User: Find undervalued tech stocks with high quality scores
+
+Claude: [Uses find_undervalued tool with sector filter]
+I found 15 technology stocks trading below their GF Value...
+```
+
+### Investment Research
+
+```
+User: Create an investment thesis for NVDA
+
+Claude: [Uses investment_thesis prompt + multiple tools]
+## Investment Thesis: NVIDIA Corporation
+
+### 1. Company Overview
+[Detailed analysis using get_stock_summary]
+
+### 2. Financial Health
+[Analysis using get_financials, get_key_ratios]
+...
+```
+
+## Configuration Options
+
+### Environment Variables
+
+| Variable              | Description              | Default                                  |
+| --------------------- | ------------------------ | ---------------------------------------- |
+| `GURUFOCUS_API_TOKEN` | Your GuruFocus API token | Required                                 |
+| `GURUFOCUS_BASE_URL`  | API base URL             | `https://api.gurufocus.com/public/user/` |
+| `MCP_SERVER_NAME`     | Server name for MCP      | `gurufocus-mcp`                          |
+
+### Command Line Options
+
+```bash
+gurufocus-mcp [OPTIONS]
+
+Options:
+  --transport [stdio|http|sse]  Transport protocol (default: stdio)
+  --port PORT                   HTTP server port (default: 8000)
+  --host HOST                   HTTP server host (default: 127.0.0.1)
+  --help                        Show help message
+```
+
+## Error Handling
+
+The server provides helpful error messages for common issues:
+
+### Invalid Symbol
+```json
+{
+  "error": true,
+  "error_type": "invalid_symbol",
+  "message": "The symbol 'INVALID' was not found or is invalid.",
+  "suggestions": [
+    "Check that the symbol is spelled correctly",
+    "Verify the stock is listed on a supported exchange"
+  ]
+}
+```
+
+### Rate Limiting
+```json
+{
+  "error": true,
+  "error_type": "rate_limit",
+  "message": "API rate limit exceeded. Try again in 60 seconds.",
+  "details": {"retry_after": 60}
+}
+```
+
+### Authentication
+```json
+{
+  "error": true,
+  "error_type": "authentication_error",
+  "message": "API authentication failed. Please check your GuruFocus API token."
+}
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest packages/gurufocus-mcp/tests/ -v
+
+# Run specific test file
+uv run pytest packages/gurufocus-mcp/tests/test_integration.py -v
+```
+
+### Project Structure
+
+```
+gurufocus_mcp/
+├── __init__.py          # Package exports
+├── config.py            # Configuration management
+├── server.py            # MCP server setup
+├── tools.py             # Tool handlers (16 tools)
+├── resources.py         # Resource handlers (14 resources)
+├── prompts.py           # Analysis prompts (6 prompts)
+├── formatters.py        # Markdown formatters
+└── errors.py            # Error handling utilities
+```
+
+## Related Packages
+
+- **gurufocus-api**: Python client library for GuruFocus API
+- **fastmcp**: MCP server framework
+
+## Disclaimer
+
+This project is an unofficial tool and is not affiliated with, endorsed by, or sponsored by **GuruFocus.com, LLC** or any of its subsidiaries.
+
+- **Non-Affiliation**: This software is developed independently and does not represent the views or opinions of GuruFocus.
+- **Trademarks**: "GuruFocus" and the GuruFocus logo are trademarks of GuruFocus.com, LLC.
+- **Data Usage**: Users are responsible for ensuring their use of this tool complies with the GuruFocus [Terms of Use](https://www.gurufocus.com/term-of-use) and any applicable API usage agreements. This tool is provided "as is" and intended for educational and personal use.
+- **No Warranty**: The authors of this software make no warranty as to the accuracy, completeness, or reliability of the data retrieved using this tool.
+- **No Investment Advice**: The information provided by this tool is for informational and educational purposes only and does not constitute investment advice, financial advice, trading advice, or any other sort of advice. You should not treat any of the tool's content as such.
+- **External Methodologies**: References to third-party investment strategies, books, authors, or personalities (e.g., Phil Town, Rule #1, Warren Buffett) are for educational purposes to demonstrate the application of published methodologies. This project is not affiliated with, endorsed by, or sponsored by any referenced individuals or entities. All trademarks belong to their respective owners.
+
+## License
+
+MIT
+
+## Support
+
+- [GuruFocus API Documentation](https://www.gurufocus.com/api.php)
+- [MCP Protocol Specification](https://modelcontextprotocol.io/)
+- [Report Issues](https://github.com/your-org/gurufocus-mcp/issues)
