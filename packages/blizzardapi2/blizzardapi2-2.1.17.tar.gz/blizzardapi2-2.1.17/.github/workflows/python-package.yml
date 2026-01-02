@@ -1,0 +1,107 @@
+# This workflow will install Python dependencies, run tests, lint, and publish beta releases
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python package
+
+on:
+  push:
+    branches: ["main"]
+
+# Add permissions block
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Create virtual environment
+        run: |
+          uv venv
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev]"
+      - name: Configure Git
+        run: |
+          git config --global user.name "lostcol0ny"
+          git config --global user.email "c098os0k@4wrd.cc"
+
+      - name: Build and publish to PyPI
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine setuptools_scm
+          python -m build
+          twine upload dist/* --skip-existing --username __token__ --password ${{ secrets.PYPI_API_TOKEN }} || {
+            echo "Upload failed - version may already exist or filename was previously used"
+            echo "This is expected behavior and won't block the release"
+            exit 0
+          }
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Install GitHub CLI
+        run: |
+          type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Run release script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Debug: Check current version
+          echo "Current package.json version: $(node -p "require('./package.json').version")"
+          echo "Current pyproject.toml version: $(grep 'version = ' pyproject.toml | head -n 1 | cut -d'"' -f2)"
+
+          # Run release-it with CI mode
+          npx release-it --ci || {
+            echo "release-it failed, creating GitHub release manually..."
+            VERSION=$(node -p "require('./package.json').version")
+            gh release create "v$VERSION" --title "Release v$VERSION" --notes "Release v$VERSION"
+          }
