@@ -1,0 +1,324 @@
+Metadata-Version: 2.4
+Name: telegrify
+Version: 1.0.4
+Summary: Simple Telegram notification framework with plugin support
+Author-email: Gemechis Chala <gladsonchala@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/venopyx/telegrify
+Project-URL: Repository, https://github.com/venopyx/telegrify
+Project-URL: Documentation, https://github.com/venopyx/telegrify#readme
+Keywords: telegram,notifications,bot,webhook,fastapi,async
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: FastAPI
+Classifier: Topic :: Communications :: Chat
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: pydantic-settings>=2.1.0
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: jinja2>=3.1.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: click>=8.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.11.0; extra == "dev"
+Requires-Dist: ruff>=0.1.6; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Requires-Dist: build>=1.0.0; extra == "dev"
+Requires-Dist: twine>=4.0.0; extra == "dev"
+Dynamic: license-file
+
+# Telegrify
+
+> Simple, powerful Telegram notification framework with plugin support
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Telegrify receives HTTP webhooks and forwards them as formatted Telegram messages. Perfect for alerts, order notifications, monitoring, CI/CD pipelines, and any system that needs to notify users via Telegram.
+
+## Features
+
+- 🚀 **Simple** - Install, configure, run in under 5 minutes
+- 🔌 **Plugin System** - Custom formatters without touching core code
+- 📱 **All Chat Types** - Private chats, groups, supergroups, channels
+- 📢 **Broadcast** - Send to multiple chats simultaneously
+- 🖼️ **Rich Media** - Single images, photo galleries (up to 10)
+- 🎹 **Inline Keyboards** - Interactive buttons with dynamic templates
+- 🤖 **Command Handlers** - Respond to /start, /help, etc.
+- 🌐 **Environment Variables** - Universal `${VAR}` support in all config fields
+- 🏷️ **Custom Labels** - Map `order_id` → `🆔 Order ID`
+- 🔀 **Field Mapping** - Map nested JSON fields with dot notation
+- 📝 **Jinja2 Templates** - Conditionals, loops, filters
+- 🎨 **Formatters** - Plain text, Markdown, or custom plugins
+- 🔒 **Secure** - API key authentication
+- 🌍 **CORS Ready** - Configurable CORS for web frontends
+- ♻️ **Reliable** - Automatic retries with exponential backoff
+- 🐳 **Docker Ready** - Easy containerized deployment
+
+## Quick Start
+
+### 1. Install
+
+```bash
+pip install telegrify
+```
+
+### 2. Create Project
+
+```bash
+telegrify init my_notifier
+cd my_notifier
+```
+
+### 3. Configure
+
+Edit `config.yaml`:
+
+```yaml
+bot:
+  token: "${TELEGRAM_BOT_TOKEN}"
+
+endpoints:
+  - path: "/notify/orders"
+    chat_id: "-1001234567890"
+    formatter: "plain"
+```
+
+### 4. Run
+
+```bash
+export TELEGRAM_BOT_TOKEN="your-bot-token"
+telegrify run
+```
+
+### 5. Send Notification
+
+```bash
+curl -X POST http://localhost:8000/notify/orders \
+  -H "Content-Type: application/json" \
+  -d '{"message": "New order received!", "order_id": 123}'
+```
+
+## Documentation
+
+- [USAGE.md](docs/USAGE.md) - Complete usage guide with examples
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Guide for contributors
+- [docs/PUBLISHING.md](docs/PUBLISHING.md) - Release and publishing guide
+- [docs/FUTURE.md](docs/FUTURE.md) - Roadmap and planned features
+
+## Configuration Reference
+
+### Bot Configuration
+
+```yaml
+bot:
+  token: "${TELEGRAM_BOT_TOKEN}"  # Bot token (supports env vars)
+  test_mode: false                 # Log instead of sending (for testing)
+  webhook_url: "${WEBHOOK_URL}"    # Public URL for receiving updates
+  webhook_path: "/bot/webhook"     # Webhook endpoint path
+```
+
+### Templates
+
+```yaml
+templates:
+  order_received: |
+    🛒 *New Order \#{{ order_id }}*
+    
+    Customer: {{ customer }}
+    Total: {{ total }}
+```
+
+### Endpoint Configuration
+
+```yaml
+endpoints:
+  - path: "/webhook/orders"        # HTTP endpoint path
+    chat_id: "8345389653"          # Single chat ID
+    chat_ids:                      # Or multiple chat IDs
+      - "8345389653"
+      - "-1001234567890"
+      - "@my_channel"
+    formatter: "markdown"          # plain, markdown, or plugin name
+    template: "order_received"     # Use template instead of formatter
+    parse_mode: "MarkdownV2"       # Telegram parse mode
+    labels:                        # Custom display labels
+      order_id: "🆔 Order"
+      customer: "👤 Customer"
+    field_map:                     # Map incoming fields
+      image_url: "product.photo"   # Supports dot notation
+      image_urls: "product.gallery"
+```
+
+### Server Configuration
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 8000
+  api_key: "${API_KEY}"            # Optional authentication
+  cors_origins: ["*"]              # CORS allowed origins
+
+logging:
+  level: "INFO"                    # DEBUG, INFO, WARNING, ERROR
+```
+
+## Environment Variables
+
+All config fields support `${VAR}` syntax with optional defaults:
+
+```yaml
+bot:
+  token: "${TELEGRAM_BOT_TOKEN}"
+  webhook_url: "${WEBHOOK_URL}"
+
+server:
+  port: "${PORT:-8000}"            # Use PORT or default to 8000
+  cors_origins: ["${CORS_ORIGIN:-*}"]
+```
+
+Create `.env` file:
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token
+WEBHOOK_URL=https://yourapp.onrender.com
+PORT=3000
+```
+
+## CLI Commands
+
+```bash
+telegrify init <name>     # Create new project
+telegrify run             # Start server
+telegrify run --reload    # Start with auto-reload (dev)
+telegrify validate        # Validate config file
+telegrify webhook setup   # Register webhook with Telegram
+telegrify webhook info    # Show webhook status
+telegrify webhook delete  # Remove webhook
+telegrify --version       # Show version
+```
+
+## Custom Plugins
+
+Create `plugins/my_formatter.py`:
+
+```python
+from telegrify import IPlugin
+
+class MyFormatter(IPlugin):
+    @property
+    def name(self):
+        return "my_formatter"
+    
+    def format(self, payload: dict, config: dict) -> str:
+        prefix = config.get("prefix", "📢")
+        return f"{prefix} {payload.get('message', '')}"
+```
+
+Use in config:
+
+```yaml
+endpoints:
+  - path: "/notify"
+    chat_id: "123456789"
+    formatter: "my_formatter"
+    plugin_config:
+      prefix: "🔔 Alert:"
+```
+
+## API Response
+
+Success:
+```json
+{
+  "status": "sent",
+  "message_id": 123,
+  "chat_id": "8345389653"
+}
+```
+
+Error (structured JSON):
+```json
+{
+  "detail": {
+    "error": "invalid_api_key",
+    "message": "Invalid or missing API key"
+  }
+}
+```
+
+Error codes: `invalid_api_key`, `formatter_not_found`, `send_failed`
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/venopyx/telegrify.git
+cd telegrify
+
+# Run the setup script (creates venv, installs dependencies)
+make install
+
+# Or manually:
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+```
+
+### Development Commands
+
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run tests
+make test
+
+# Run linters
+make lint
+
+# Format code
+make format
+
+# Build package
+make build
+
+# Clean build artifacts
+make clean
+```
+
+### Publishing
+
+See [docs/PUBLISHING.md](docs/PUBLISHING.md) for detailed release instructions.
+
+Quick release:
+```bash
+make release version=1.0.4 notes=docs/RELEASE_NOTES.md
+```
+
+## Getting Your Chat ID
+
+1. Message [@userinfobot](https://t.me/userinfobot) on Telegram
+2. Or send a message to your bot and check:
+   ```bash
+   curl https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
