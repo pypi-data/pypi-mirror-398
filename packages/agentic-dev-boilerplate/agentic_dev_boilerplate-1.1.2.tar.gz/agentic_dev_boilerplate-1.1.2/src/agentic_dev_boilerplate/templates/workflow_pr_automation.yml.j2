@@ -1,0 +1,83 @@
+name: PR Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  pr-enrichment:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml requests
+
+      - name: Run PR enrichment
+        env:
+          GITHUB_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+          PR_NUMBER: {% raw %}${{ github.event.pull_request.number }}{% endraw %}
+        run: |
+          python .github/scripts/pr_enrichment.py
+
+  validate-pr-content:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml requests
+
+      - name: Validate PR content
+        env:
+          GITHUB_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+          PR_NUMBER: {% raw %}${{ github.event.pull_request.number }}{% endraw %}
+        run: |
+          python .github/scripts/validate_pr_tasks.py
+
+{% if schema.workflows.commit_signing %}
+  validate-commit-signing:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit signatures
+        run: |
+          # Check that all commits in the PR are signed
+          git log --oneline --show-signature HEAD~{% raw %}${{ github.event.pull_request.commits }}{% endraw %}..HEAD | grep -q "gpg:" || {
+            echo "❌ Some commits are not signed!"
+            echo "Please ensure all commits are signed with: git commit -S"
+            exit 1
+          }
+          echo "✅ All commits are properly signed"
+{% endif %}

@@ -1,0 +1,251 @@
+# {{ schema.project.name }}
+
+{{ schema.project.description }}
+
+{% if schema.project.version %}
+**Version**: {{ schema.project.version }}
+{% endif %}
+
+{% if schema.project.repository %}
+**Repository**: {{ schema.project.repository }}
+{% endif %}
+
+## Overview
+
+This project uses an agentic development workflow with automated:
+- 🤖 Multi-agent task coordination and execution
+- 🔄 PR creation, validation, and enrichment
+- 📋 Intelligent task tracking and status management
+- 🔐 Commit signing enforcement
+- 🚀 CI/CD automation with comprehensive testing
+- 📊 Quality assurance and validation
+
+## Quick Start
+
+### Prerequisites
+
+{% for lang in schema.languages %}
+- **{{ lang.name|title }}** {{ lang.version }}
+{% if lang.package_manager %} ({{ lang.package_manager }}){% endif %}
+{% endfor %}
+- **Git** 2.30+
+{% if schema.git.commit_signing %}- **GPG** (for commit signing){% endif %}
+
+### Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone {{ schema.project.repository }}
+   cd {{ schema.project.name|lower|replace(' ', '-') }}
+   ```
+
+2. **Set up development environment**
+   ```bash
+   python scripts/setup_uv.py
+   ```
+
+3. **Configure git**
+   ```bash
+   python scripts/git_setup.py --setup
+   ```
+
+{% if schema.git.commit_signing %}
+4. **Set up commit signing**
+   ```bash
+   python scripts/setup_gpg.py
+   ```
+{% endif %}
+
+## Development Workflow
+
+### 1. Task Planning
+Use the planner agent to break down features:
+```bash
+# Tasks are tracked in tasking/tracker.yaml
+# Context files are stored in tasking/context/
+```
+
+### 2. Implementation
+- Create feature branches: `git checkout -b feature/task-name`
+- Implement changes following project standards
+- Write tests for new functionality
+
+### 3. Testing & Validation
+```bash
+# Run validation suite
+python scripts/validation_scripts.py
+
+# Run language-specific tests
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+uv run pytest
+{% endif %}
+{% endfor %}
+```
+
+### 4. Create PR
+```bash
+# Create PR with automation
+python scripts/create_pr_local.py
+
+# Or use GitHub CLI
+gh pr create --fill
+```
+
+### 5. Code Review
+- PRs are automatically enriched with labels and milestones
+- Validation runs automatically on PR events
+- Reviews ensure code quality and standards compliance
+
+## Multi-Agent Coordination
+
+This project supports collaborative problem-solving through multi-agent coordination:
+
+### Starting Multi-Agent Sessions
+```bash
+# Solve complex problems with multiple agents
+python scripts/multi_agent_solver.py \
+  --problem "Implement user authentication system" \
+  --agents planner tester debugger deployer \
+  --consensus-threshold 0.8
+```
+
+### Agent Teamwork Features
+- **🤖 Orchestrated Problem Decomposition**: Complex tasks automatically broken down
+- **🔄 Cross-Agent Validation**: Solutions validated by multiple specialized agents
+- **📊 Consensus Building**: Team agreement on optimal solutions
+- **📋 Collaborative Tracking**: Shared progress and status updates
+- **🚀 Coordinated Execution**: Synchronized implementation across agents
+
+### Available Agents
+{% for agent in schema.agents %}
+- **{{ agent.role|title|replace('_', ' ') }}**: {{ agent.scope|join(', ')|title }}
+{% endfor %}
+
+### GitHub Integration
+Label issues or PRs to trigger multi-agent coordination:
+- `testing` → Involves tester agent
+- `debug` → Involves debugger agent
+- `deploy` → Involves deployer agent
+- `infra` → Involves systems engineer and devops specialist
+
+## Project Structure
+
+```
+├── .github/
+│   ├── instructions/          # Agent instruction files
+│   ├── prompts/              # Reusable prompt templates
+│   ├── scripts/              # PR automation scripts
+│   └── workflows/            # GitHub Actions
+├── scripts/                  # Utility scripts
+├── tasking/                  # Task tracking system
+│   ├── tracker.yaml         # Main task tracker
+│   ├── context/             # Task context files
+│   └── plan.md              # Project roadmap
+├── docs/                    # Documentation
+{% for lang in schema.languages %}
+├── src/                     # Source code
+{% if lang.name == 'python' %}
+├── tests/                   # Test files
+├── requirements.txt         # Python dependencies
+{% endif %}
+{% endfor %}
+└── README.md
+```
+
+## Agent System
+
+### Core Agents
+{% for agent in schema.agents %}
+{% if agent.enabled %}
+- **{{ agent.role|title }}**: {{ agent.scope|join(', ')|title }}
+{% endif %}
+{% endfor %}
+
+### Agent Instructions
+Each agent has specialized instructions in `.github/instructions/` that define:
+- Role and responsibilities
+- When to use specific prompts
+- Workflow integration patterns
+- Success metrics
+
+## Quality Assurance
+
+### Automated Validation
+- **PR Automation**: Labels, milestones, issue linking
+- **Code Quality**: Linting, formatting, type checking
+- **Testing**: Unit, integration, and system tests
+- **Security**: Dependency scanning, vulnerability checks
+
+### Manual Reviews
+- Code review requirements
+- Architecture decisions
+- Performance considerations
+- Security implications
+
+## Contributing
+
+1. **Follow the workflow**: Use task tracking and agent coordination
+2. **Write tests**: Ensure adequate test coverage
+3. **Sign commits**: All commits must be GPG signed
+4. **Create PRs**: Use the automated PR creation tools
+
+### Commit Standards
+- Use conventional commit format: `type(scope): description`
+- Sign all commits: `git commit -S`
+- Reference task IDs in commit messages
+
+### PR Requirements
+- Automated validation must pass
+- Appropriate test coverage
+- Documentation updated
+- Task tracker updated
+
+## CI/CD Pipeline
+
+{% if schema.ci_cd.phases %}
+### Pipeline Stages
+{% for phase in schema.ci_cd.phases %}
+- **{{ phase.name|title }}**: {{ phase.jobs|join(', ')|replace('_', ' ') }}
+{% endfor %}
+{% endif %}
+
+### Quality Gates
+{% for check in schema.validation.required_checks %}
+- {{ check|replace('_', ' ')|title }}
+{% endfor %}
+{% if schema.validation.code_coverage_minimum %}
+- Minimum {{ schema.validation.code_coverage_minimum }}% code coverage
+{% endif %}
+
+## Security
+
+{% if schema.security.gpg_signing %}
+- **Commit Signing**: All commits must be GPG signed
+{% endif %}
+{% if schema.security.dependency_scanning %}
+- **Dependencies**: Regular security scanning and updates
+{% endif %}
+{% if schema.security.secret_scanning %}
+- **Secrets**: Automated detection of exposed secrets
+{% endif %}
+
+## Documentation
+
+- **API Docs**: {% if schema.documentation.api_docs %}Generated automatically{% else %}Manual maintenance{% endif %}
+- **User Guides**: Comprehensive setup and usage instructions
+- **Contributing**: Development workflow and standards
+
+## Support
+
+- **Issues**: Use GitHub issues with appropriate labels
+- **Discussions**: Technical discussions and Q&A
+- **Documentation**: Comprehensive guides in `/docs`
+
+## License
+
+{% if schema.project.license %}
+{{ schema.project.license }}
+{% else %}
+See LICENSE file for details.
+{% endif %}

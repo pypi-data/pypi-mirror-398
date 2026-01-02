@@ -1,0 +1,167 @@
+name: Multi-Agent Coordination
+
+on:
+  issues:
+    types: [opened, labeled]
+  pull_request:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      problem_description:
+        description: 'Problem to solve with multi-agent coordination'
+        required: true
+        type: string
+      participating_agents:
+        description: 'Comma-separated list of agents to involve'
+        required: false
+        default: 'planner,tester,debugger'
+        type: string
+      consensus_threshold:
+        description: 'Consensus threshold (0.0-1.0)'
+        required: false
+        default: '0.8'
+        type: string
+
+jobs:
+  coordinate-agents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install -e .
+
+      - name: Extract problem context
+        id: context
+        run: |
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            echo "problem=${{ github.event.issue.body }}" >> $GITHUB_OUTPUT
+            echo "trigger_type=issue" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "problem=${{ github.event.pull_request.body }}" >> $GITHUB_OUTPUT
+            echo "trigger_type=pull_request" >> $GITHUB_OUTPUT
+          else
+            echo "problem=${{ inputs.problem_description }}" >> $GITHUB_OUTPUT
+            echo "trigger_type=manual" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine participating agents
+        id: agents
+        run: |
+          if [ "${{ github.event_name }}" = "issues" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Check issue/PR labels to determine which agents to involve
+            labels="${{ join(github.event.issue.labels.*.name, ',') }}${{ join(github.event.pull_request.labels.*.name, ',') }}"
+            agents="planner"  # Default
+
+            if echo "$labels" | grep -qi "testing\|test"; then
+              agents="$agents,tester"
+            fi
+            if echo "$labels" | grep -qi "debug\|bug\|fix"; then
+              agents="$agents,debugger"
+            fi
+            if echo "$labels" | grep -qi "deploy\|production"; then
+              agents="$agents,deployer"
+            fi
+            if echo "$labels" | grep -qi "infra\|system"; then
+              agents="$agents,systems-engineer,devops-specialist"
+            fi
+          else
+            agents="${{ inputs.participating_agents }}"
+          fi
+          echo "agents=$agents" >> $GITHUB_OUTPUT
+
+      - name: Run Multi-Agent Problem Solver
+        id: solve
+        run: |
+          uv run python scripts/multi_agent_solver.py \
+            --problem "${{ steps.context.outputs.problem }}" \
+            --agents ${{ steps.agents.outputs.agents }} \
+            --consensus-threshold ${{ inputs.consensus_threshold || '0.8' }}
+
+      - name: Generate coordination report
+        run: |
+          cat << EOF > coordination_report.md
+          # Multi-Agent Coordination Report
+
+          ## Problem
+          ${{ steps.context.outputs.problem }}
+
+          ## Participating Agents
+          ${{ steps.agents.outputs.agents }}
+
+          ## Results
+          - Session completed successfully
+          - Consensus reached: ${{ steps.solve.outputs.consensus_reached }}
+          - Average confidence: ${{ steps.solve.outputs.average_confidence }}
+
+          ## Next Steps
+          Based on the multi-agent analysis, the recommended actions are:
+          1. Review the agent findings in the logs
+          2. Implement the consensus solution
+          3. Validate the solution with additional testing
+          EOF
+
+      - name: Upload coordination report
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-agent-coordination-report
+          path: coordination_report.md
+
+      - name: Comment on issue/PR
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('coordination_report.md', 'utf8');
+
+            const comment = `## 🤖 Multi-Agent Coordination Complete
+
+            ${report}
+
+            **View full report:** [Download Coordination Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            if (context.eventName === 'issues') {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } else if (context.eventName === 'pull_request') {
+              await github.rest.pulls.createReviewComment({
+                pull_request_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment,
+                commit_id: context.sha
+              });
+            }
+
+  validate-solution:
+    needs: coordinate-agents
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run validation suite
+        run: |
+          uv venv
+          uv pip install -e .
+          uv run python scripts/validation_scripts.py
+
+      - name: Upload validation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: logs/

@@ -1,0 +1,153 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ schema.project.name|lower|replace(' ', '-') }}"
+version = "{{ schema.project.version or '0.1.0' }}"
+description = "{{ schema.project.description }}"
+readme = "README.md"
+requires-python = ">={{ schema.languages[0].version if schema.languages else '3.11' }}"
+{% if schema.project.license %}
+license = {text = "{{ schema.project.license }}"}
+{% endif %}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
+maintainers = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
+keywords = ["{{ schema.languages|map(attribute='name')|join('", "') }}"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+    "Programming Language :: Python :: {{ lang.version }}",
+{% endif %}
+{% endfor %}
+    "Topic :: Software Development",
+]
+
+dependencies = [
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+{% for dep in lang.get('frameworks', []) %}
+    "{{ dep }}",
+{% endfor %}
+{% for testing_dep in lang.get('testing', []) %}
+    "{{ testing_dep }}",
+{% endfor %}
+{% for linting_dep in lang.get('linting', []) %}
+    "{{ linting_dep }}",
+{% endfor %}
+{% for type_dep in lang.get('type_checking', []) %}
+    "{{ type_dep }}",
+{% endfor %}
+{% endif %}
+{% endfor %}
+]
+
+[project.optional-dependencies]
+dev = [
+{% for lang in schema.languages %}
+{% if lang.name == 'python' %}
+{% for testing_dep in lang.get('testing', []) %}
+    "{{ testing_dep }}",
+{% endfor %}
+{% for linting_dep in lang.get('linting', []) %}
+    "{{ linting_dep }}",
+{% endfor %}
+{% for type_dep in lang.get('type_checking', []) %}
+    "{{ type_dep }}",
+{% endfor %}
+{% endif %}
+{% endfor %}
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+Homepage = "{{ schema.project.repository }}"
+Repository = "{{ schema.project.repository }}"
+{% if schema.documentation.changelog %}
+Changelog = "{{ schema.project.repository }}/blob/{{ schema.git.default_branch }}/CHANGELOG.md"
+{% endif %}
+{% if schema.documentation.contributing_guide %}
+Contributing = "{{ schema.project.repository }}/blob/{{ schema.git.default_branch }}/CONTRIBUTING.md"
+{% endif %}
+
+[tool.black]
+line-length = 88
+target-version = ['py{{ schema.languages[0].version.split(".")[0] + schema.languages[0].version.split(".")[1] if schema.languages else "311" }}']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["{{ schema.project.name|lower|replace(' ', '_') }}"]
+skip = ["__init__.py"]
+
+[tool.mypy]
+python_version = "{{ schema.languages[0].version if schema.languages else '3.11' }}"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = [
+    "tests",
+]
+{% if schema.validation.code_coverage_minimum %}
+[tool.coverage.run]
+source = ["{{ schema.project.name|lower|replace(' ', '_') }}"]
+omit = [
+    "tests/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+{% endif %}

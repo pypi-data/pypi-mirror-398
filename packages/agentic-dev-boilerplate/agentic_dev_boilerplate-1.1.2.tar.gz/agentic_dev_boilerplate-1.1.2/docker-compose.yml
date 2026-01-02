@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  test-agentic-boilerplate:
+    build: .
+    container_name: agentic-boilerplate-test
+    volumes:
+      - .:/app
+      - /tmp/test-results:/tmp/test-results
+    command: >
+      sh -c "
+        echo '🧪 Running comprehensive package tests...' &&
+
+        # Test 1: CLI help
+        echo 'Test 1: CLI help' &&
+        agentic-dev-boilerplate --help > /tmp/test-results/cli-help.txt &&
+
+        # Test 2: Package generation
+        echo 'Test 2: Package generation' &&
+        agentic-dev-boilerplate -s project-schema.yaml -o /tmp/test-results/generated &&
+
+        # Test 3: Agent instruction files exist
+        echo 'Test 3: Agent instructions' &&
+        ls /tmp/test-results/generated/.github/instructions/ | wc -l > /tmp/test-results/agent-count.txt &&
+
+        # Test 4: New agents present
+        echo 'Test 4: New agents present' &&
+        grep -l 'software-engineer\|ai-engineer' /tmp/test-results/generated/.github/instructions/*.md | wc -l > /tmp/test-results/new-agents-count.txt &&
+
+        # Test 5: Python import test
+        echo 'Test 5: Python imports' &&
+        python3 -c 'from agentic_dev_boilerplate.generate_boilerplate import BoilerplateGenerator; print(\"Import successful\")' > /tmp/test-results/import-test.txt &&
+
+        # Test 6: Schema validation
+        echo 'Test 6: Schema validation' &&
+        python3 -c '
+import yaml
+from agentic_dev_boilerplate.generate_boilerplate import BoilerplateGenerator
+with open(\"project-schema.yaml\") as f:
+    schema = yaml.safe_load(f)
+gen = BoilerplateGenerator(\"project-schema.yaml\", \"/tmp/schema-test\")
+assert len(gen.schema[\"agents\"]) == 9
+print(\"Schema validation passed\")
+        ' > /tmp/test-results/schema-test.txt &&
+
+        echo '✅ All tests completed successfully!' &&
+        echo 'Test results saved to /tmp/test-results/'
+      "
