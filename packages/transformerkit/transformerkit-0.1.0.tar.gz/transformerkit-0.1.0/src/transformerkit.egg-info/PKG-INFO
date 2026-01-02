@@ -1,0 +1,422 @@
+Metadata-Version: 2.4
+Name: transformerkit
+Version: 0.1.0
+Summary: A complete implementation of the Transformer architecture in PyTorch
+Home-page: https://github.com/charansoma3001/transformerkit
+Author: Charan Sai Soma
+Author-email: Charan Sai Soma <contact@charansai.dev>
+License: MIT
+Project-URL: Homepage, https://github.com/charansoma3001/transformerkit
+Project-URL: Repository, https://github.com/charansoma3001/transformerkit
+Project-URL: Documentation, https://github.com/charansoma3001/transformerkit#readme
+Keywords: transformer,attention,deep-learning,nlp,pytorch
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Requires-Dist: numpy>=1.24.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.3.0; extra == "docs"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# TransformerKit
+
+[![Tests](https://github.com/charansoma3001/transformerkit/workflows/Tests/badge.svg)](https://github.com/charansoma3001/transformerkit/actions)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+A complete, educational implementation of the Transformer architecture from the paper ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762) in PyTorch.
+
+## Features
+
+✅ **Complete Implementation**: All components from the original Transformer paper  
+✅ **Well-Tested**: Comprehensive test suite with 12+ tests  
+✅ **Production-Ready**: Proper packaging, type hints, and documentation  
+✅ **Educational**: Heavily commented code with clear explanations  
+✅ **Flexible**: Configurable architecture and hyperparameters  
+✅ **Examples Included**: Training scripts and usage demonstrations  
+
+## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/charansoma3001/transformerkit.git
+cd transformerkit
+
+# Install in editable mode
+pip install -e .
+
+# Or install with development dependencies
+pip install -e ".[dev]"
+```
+
+### Using pip (when published)
+
+```bash
+pip install transformerkit
+```
+
+### Requirements
+
+- Python 3.8+
+- PyTorch 2.0+
+- NumPy 1.24+
+
+## Overview
+
+This implementation includes all core components of the Transformer model:
+
+- **Scaled Dot-Product Attention**: The fundamental attention mechanism
+- **Multi-Head Attention**: Parallel attention layers with different learned projections
+- **Positional Encoding**: Sinusoidal position embeddings for sequence order
+- **Encoder Stack**: 6 layers of self-attention and feed-forward networks
+- **Decoder Stack**: 6 layers with masked self-attention and cross-attention
+- **Position-wise Feed-Forward Networks**: Two-layer MLPs with ReLU activation
+
+## Architecture
+
+```
+Input Sequence → Embedding → Positional Encoding →
+                 
+ENCODER (×6 layers)
+├── Multi-Head Self-Attention
+├── Add & Norm
+├── Feed-Forward Network
+└── Add & Norm
+                 ↓
+              Encoder Output
+                 ↓
+DECODER (×6 layers)
+├── Masked Multi-Head Self-Attention
+├── Add & Norm
+├── Multi-Head Cross-Attention (with Encoder Output)
+├── Add & Norm
+├── Feed-Forward Network
+└── Add & Norm
+                 ↓
+    Linear Projection → Output Probabilities
+```
+
+## Files
+
+- **`config.py`**: Model configuration and hyperparameters
+- **`attention.py`**: Attention mechanisms (scaled dot-product and multi-head)
+- **`components.py`**: Core components (positional encoding, feed-forward, layer norm)
+- **`encoder.py`**: Encoder layer and encoder stack
+- **`decoder.py`**: Decoder layer and decoder stack
+- **`transformer.py`**: Complete transformer model
+- **`utils.py`**: Utility functions (masking, decoding, etc.)
+- **`train.py`**: Training script with copy task demonstration
+- **`example.py`**: Usage examples and demonstrations
+
+## Quick Start
+
+### Create and Use a Model
+
+```python
+from transformerkit import create_transformer, TransformerConfig
+import torch
+
+# Create model with default configuration
+model = create_transformer()
+
+# Or customize the configuration
+config = TransformerConfig(
+    d_model=512,
+    n_heads=8,
+    n_layers=6,
+    vocab_size=10000
+)
+model = create_transformer(config)
+
+# Forward pass
+src = torch.randint(0, 10000, (32, 20))  # (batch_size, src_len)
+tgt = torch.randint(0, 10000, (32, 15))  # (batch_size, tgt_len)
+output = model(src, tgt)  # (32, 15, 10000)
+```
+
+### Run Examples
+
+```bash
+# Basic usage examples
+python examples/basic_usage.py
+
+# Train on copy task
+python examples/train_copy_task.py
+- Forward pass through the network
+- Sequence generation with greedy decoding
+- Architecture overview and parameter counts
+
+### Run Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=transformer --cov-report=html
+
+## Usage
+
+### Create a Transformer Model
+
+```python
+from transformerkit import create_transformer
+from transformerkit.config import TransformerConfig
+
+# Use default configuration
+config = TransformerConfig(
+    d_model=512,        # Model dimension
+    n_heads=8,          # Number of attention heads
+    n_layers=6,         # Number of encoder/decoder layers
+    d_ff=2048,          # Feed-forward dimension
+    dropout=0.1,        # Dropout rate
+    vocab_size=10000,   # Vocabulary size
+    max_seq_length=512  # Maximum sequence length
+)
+
+model = create_transformer(config)
+```
+
+### Forward Pass
+
+```python
+import torch
+
+# Create sample input (batch_size, seq_len)
+src = torch.randint(0, 10000, (32, 20))  # Source sequence
+tgt = torch.randint(0, 10000, (32, 15))  # Target sequence
+
+# Forward pass
+output = model(src, tgt)  # Shape: (32, 15, 10000)
+
+# Get predictions
+predictions = output.argmax(dim=-1)
+```
+
+### Generate Sequences
+
+```python
+from transformerkit.utils import greedy_decode, create_padding_mask
+
+# Encode source sequence
+src = torch.tensor([[10, 20, 30, 40, 50]])
+src_mask = create_padding_mask(src)
+
+# Generate with greedy decoding
+generated = greedy_decode(
+    model, src, src_mask,
+    max_len=20,
+    start_idx=1,  # <start> token
+    end_idx=2     # <end> token
+)
+```
+
+## Key Features
+
+### Attention Masking
+
+The implementation supports two types of masking:
+
+1. **Padding Mask**: Prevents attention to padding tokens
+2. **Look-ahead Mask**: Prevents decoder from attending to future positions
+
+```python
+from transformerkit.utils import create_padding_mask, create_target_mask
+
+# Padding mask for encoder
+src_mask = create_padding_mask(src, pad_idx=0)
+
+# Combined mask for decoder (padding + look-ahead)
+tgt_mask = create_target_mask(tgt, pad_idx=0)
+```
+
+### Decoding Strategies
+
+Two decoding strategies are implemented:
+
+- **Greedy Decoding**: Always selects the most likely next token
+- **Beam Search**: Maintains multiple hypotheses for better quality
+
+```python
+from transformerkit.utils import beam_search_decode
+
+# Beam search with width 5
+generated = beam_search_decode(
+    model, src, src_mask,
+    max_len=20,
+    start_idx=1,
+    end_idx=2,
+    beam_width=5
+)
+```
+
+## Model Configuration
+
+The default configuration matches the base model from the paper:
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| d_model | 512 | Model dimension |
+| n_heads | 8 | Number of attention heads |
+| n_layers | 6 | Number of encoder/decoder layers |
+| d_ff | 2048 | Feed-forward hidden dimension |
+| dropout | 0.1 | Dropout rate |
+| max_seq_length | 5000 | Maximum sequence length |
+
+For the "big" model variant, use:
+```python
+config = TransformerConfig(
+    d_model=1024,
+    n_heads=16,
+    n_layers=6,
+    d_ff=4096,
+    dropout=0.3
+)
+```
+
+## Implementation Details
+
+### Positional Encoding
+
+Uses sinusoidal functions as described in the paper:
+
+```
+PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))
+PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+```
+
+### Attention Mechanism
+
+Scaled dot-product attention:
+
+```
+Attention(Q, K, V) = softmax(QK^T / √d_k) V
+```
+
+Multi-head attention applies this in parallel across multiple representation subspaces.
+
+### Layer Normalization
+
+Applied after each sub-layer (post-norm), combined with residual connections:
+
+```
+LayerNorm(x + Sublayer(x))
+```
+
+## Training Tips
+
+1. **Learning Rate**: Use a warmup schedule as in the paper
+2. **Label Smoothing**: Helps prevent overfitting
+3. **Gradient Clipping**: Prevents exploding gradients (max_norm=1.0)
+4. **Batch Size**: Larger batches generally work better (try 32-128)
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Clone and install
+git clone https://github.com/charansoma3001/transformerkit.git
+cd transformerkit
+pip install -e ".[dev]"
+```
+
+### Code Quality
+
+```bash
+# Format code
+black src/ tests/ examples/
+isort src/ tests/ examples/
+
+# Lint
+flake8 src/
+
+# Type check
+mypy src/
+
+# Run tests
+pytest
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
+
+## Project Structure
+
+```
+transformer/
+├── src/transformerkit/    # Main package
+│   ├── __init__.py       # Package exports
+│   ├── config.py         # Configuration
+│   ├── attention.py      # Attention mechanisms
+│   ├── components.py     # Core components
+│   ├── encoder.py        # Encoder implementation
+│   ├── decoder.py        # Decoder implementation
+│   ├── model.py          # Complete transformer
+│   └── utils.py          # Utilities
+├── tests/                # Test suite
+├── examples/             # Usage examples
+├── docs/                 # Documentation
+├── .github/workflows/    # CI/CD
+├── setup.py             # Package setup
+├── pyproject.toml       # Modern packaging config
+└── requirements.txt     # Dependencies
+```
+
+## Documentation
+
+- **[Architecture Guide](docs/architecture.md)**: Detailed explanation of transformer components
+- **[Contributing Guide](CONTRIBUTING.md)**: How to contribute to this project
+- **Examples**: See `examples/` directory for working code
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## References
+
+- [Attention Is All You Need (Vaswani et al., 2017)](https://arxiv.org/abs/1706.03762)
+- [The Annotated Transformer](http://nlp.seas.harvard.edu/2018/04/03/attention.html)
+- [The Illustrated Transformer](http://jalammar.github.io/illustrated-transformer/)
+
+## Citation
+
+If you use this implementation in your research, please cite the original paper:
+
+```bibtex
+@article{vaswani2017attention,
+  title={Attention is all you need},
+  author={Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and Uszkoreit, Jakob and Jones, Llion and Gomez, Aidan N and Kaiser, {\L}ukasz and Polosukhin, Illia},
+  journal={Advances in neural information processing systems},
+  volume={30},
+  year={2017}
+}
+```
+
+## Acknowledgments
+
+This implementation is for educational purposes and follows the architecture described in "Attention Is All You Need" by Vaswani et al.
