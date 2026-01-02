@@ -1,0 +1,218 @@
+[project]
+name = "rmcp"
+version = "0.8.1"
+description = "Comprehensive Model Context Protocol server with 52 statistical analysis tools for Claude Desktop and Claude web, featuring HTTP transport, interactive documentation, and production deployment"
+authors = [{name = "Gaurav Sood", email = "gsood07@gmail.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+keywords = ["mcp", "r", "statistics", "econometrics", "model-context-protocol", "data-analysis", "http", "fastapi", "sse", "configuration", "claude-web", "connector", "anthropic"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: R",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Distributed Computing",
+]
+requires-python = ">=3.11"
+
+dependencies = [
+    "click>=8.1.0",        # CLI interface
+    "jsonschema>=4.0.0",   # Schema validation
+    "psutil>=5.0.0",       # R process management
+    "structlog>=23.1.0",   # Structured logging for MCP observability
+    # subprocess module is built-in for Python 3.8+
+]
+
+[project.optional-dependencies]
+http = [
+    # HTTP transport
+    "fastapi>=0.100.0", 
+    "uvicorn>=0.20.0", 
+    "sse-starlette>=1.6.0", 
+    "httpx>=0.25.0",
+    # Test needs (superset includes what tests require)
+    "pandas>=1.5.0",           # Test Excel file creation
+    "openpyxl>=3.0.0",         # Test Excel support
+]
+all = [
+    # HTTP transport
+    "fastapi>=0.100.0", 
+    "uvicorn>=0.20.0", 
+    "sse-starlette>=1.6.0", 
+    "httpx>=0.25.0",
+    # Test needs (superset includes what tests require)
+    "pandas>=1.5.0",           # Test Excel file creation
+    "openpyxl>=3.0.0",         # Test Excel support
+]
+
+[dependency-groups]
+# Hybrid approach: Docker for R integration, uv for cross-platform Python testing
+dev = [
+    # Development and testing tools
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.21.0", 
+    "pytest-cov>=4.0.0",
+    "ruff>=0.4.0",
+    "pre-commit>=3.8.0",
+    "pydoclint>=0.3.0",
+    "pyright>=1.1.0",
+    # Test scaffolding dependencies (what tests actually import)
+    "httpx>=0.25.0",           # For HTTP transport tests
+    "pandas>=1.5.0",           # For Excel test scenario creation
+    "openpyxl>=3.0.0",         # For Excel test support
+    "numpy>=1.21.0",           # For Docker test validation
+]
+docs = [
+    # Documentation build dependencies
+    "sphinx>=5.0.0",
+    "furo>=2024.0.0",
+    "myst-parser>=0.18.0",
+    # Additional Sphinx extensions used in conf.py
+    "sphinx-copybutton>=0.5.0",
+    # MyST extensions
+    "linkify-it-py>=2.0.0",
+]
+
+[project.scripts]
+rmcp = "rmcp.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/finite-sample/rmcp"
+Repository = "https://github.com/finite-sample/rmcp"
+Documentation = "https://github.com/finite-sample/rmcp#readme"
+Issues = "https://github.com/finite-sample/rmcp/issues"
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+# uv build backend configuration
+[tool.uv.build-backend]
+module-root = "."
+
+# Tool configurations
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+]
+asyncio_mode = "auto"
+# asyncio_default_fixture_loop_scope removed for backwards compatibility with older pytest-asyncio versions
+markers = [
+    "asyncio: marks tests as async",
+    "local: marks tests that require local IDE setup (not run in CI)",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["rmcp", "tests", "docs", "streamlit"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "B904",  # raise ... from err - not needed for our error patterns
+    "E722",  # bare except - allowed in test cleanup
+    "E402",  # module level import not at top - conditional imports needed
+    "B023",  # function definition does not bind loop variable - false positive
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+
+[tool.pydoclint]
+style = "google"
+exclude = [
+    "tests/",
+    "scripts/",
+    "streamlit/",
+]
+require-return-section-when-returning-nothing = false
+check-return-types = false
+check-yield-types = false
+arg-type-hints-in-docstring = false
+
+[tool.pyright]
+include = ["rmcp"]
+exclude = [
+    "tests/",
+    "scripts/",
+    "streamlit/",
+    "**/__pycache__",
+]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+useLibraryCodeForTypes = true
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportUntypedFunctionDecorator = false
+reportUnknownParameterType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+
+[tool.coverage.run]
+source = ["rmcp"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev"]
+extend_exclude = [
+    "scripts/",      # Development scripts have their own dependency scope
+    "streamlit/",    # Streamlit app is optional component
+    "tests/scenarios/test_deployment_scenarios.py",  # Tests all optional deps
+]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["httpx", "pandas", "openpyxl"]  # Test-only dependencies via pandas backend
+DEP003 = ["mcp", "requests", "anthropic"] # Transitive dependencies we import directly
+DEP001 = ["package_whitelist_comprehensive"]  # Internal module
+DEP004 = ["pytest", "numpy"]           # Dev dependencies in scripts/streamlit
+
+[tool.deptry.package_module_name_map]
+structlog = "structlog"
+linkify-it-py = "linkify_it_py"
