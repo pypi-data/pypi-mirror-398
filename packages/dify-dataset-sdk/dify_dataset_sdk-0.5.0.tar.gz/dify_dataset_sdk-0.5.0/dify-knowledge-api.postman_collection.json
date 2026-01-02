@@ -1,0 +1,480 @@
+{
+  "info": {
+    "_postman_id": "dify-knowledge-api-collection",
+    "name": "Dify Knowledge Base API",
+    "description": "Dify 知识库 API 集合，用于管理知识库、文档、分段和元数据。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.dify.ai/v1",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "your_api_key_here",
+      "type": "string"
+    },
+    {
+      "key": "dataset_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "segment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "metadata_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "batch",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Dataset (知识库)",
+      "item": [
+        {
+          "name": "创建空知识库",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"知识库名称\",\n  \"permission\": \"only_me\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets",
+              "host": ["{{base_url}}"],
+              "path": ["datasets"]
+            },
+            "description": "创建一个空的知识库。permission 可选值: only_me, all_team_members"
+          },
+          "response": []
+        },
+        {
+          "name": "获取知识库列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["datasets"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "页码"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "每页数量"
+                }
+              ]
+            },
+            "description": "获取知识库列表，支持分页"
+          },
+          "response": []
+        },
+        {
+          "name": "删除知识库",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}"]
+            },
+            "description": "删除指定的知识库"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Document (文档)",
+      "item": [
+        {
+          "name": "通过文本创建文档",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"文档名称\",\n  \"text\": \"文档内容\",\n  \"indexing_technique\": \"high_quality\",\n  \"process_rule\": {\n    \"mode\": \"automatic\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/document/create_by_text",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "document", "create_by_text"]
+            },
+            "description": "通过文本内容创建文档。indexing_technique: high_quality 或 economy"
+          },
+          "response": []
+        },
+        {
+          "name": "通过文件创建文档",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\"indexing_technique\":\"high_quality\",\"process_rule\":{\"rules\":{\"pre_processing_rules\":[{\"id\":\"remove_extra_spaces\",\"enabled\":true},{\"id\":\"remove_urls_emails\",\"enabled\":true}],\"segmentation\":{\"separator\":\"###\",\"max_tokens\":500}},\"mode\":\"custom\"}}",
+                  "type": "text",
+                  "contentType": "text/plain"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/document/create_by_file",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "document", "create_by_file"]
+            },
+            "description": "通过上传文件创建文档。支持格式: txt, markdown, md, pdf, html, xlsx, docx, csv"
+          },
+          "response": []
+        },
+        {
+          "name": "通过文本更新文档",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"更新后的文档名称\",\n  \"text\": \"更新后的文档内容\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}/update_by_text",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}", "update_by_text"]
+            },
+            "description": "通过文本内容更新已存在的文档"
+          },
+          "response": []
+        },
+        {
+          "name": "通过文件更新文档",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\"name\":\"Dify\",\"indexing_technique\":\"high_quality\",\"process_rule\":{\"rules\":{\"pre_processing_rules\":[{\"id\":\"remove_extra_spaces\",\"enabled\":true},{\"id\":\"remove_urls_emails\",\"enabled\":true}],\"segmentation\":{\"separator\":\"###\",\"max_tokens\":500}},\"mode\":\"custom\"}}",
+                  "type": "text",
+                  "contentType": "text/plain"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}/update_by_file",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}", "update_by_file"]
+            },
+            "description": "通过上传文件更新已存在的文档"
+          },
+          "response": []
+        },
+        {
+          "name": "获取文档嵌入状态",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{batch}}/indexing-status",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{batch}}", "indexing-status"]
+            },
+            "description": "获取文档的嵌入/索引状态和进度"
+          },
+          "response": []
+        },
+        {
+          "name": "获取知识库文档列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents"]
+            },
+            "description": "获取指定知识库中的文档列表"
+          },
+          "response": []
+        },
+        {
+          "name": "删除文档",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}"]
+            },
+            "description": "删除指定的文档"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Segment (分段)",
+      "item": [
+        {
+          "name": "新增分段",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"segments\": [\n    {\n      \"content\": \"分段内容\",\n      \"answer\": \"分段答案（可选）\",\n      \"keywords\": [\"关键词1\", \"关键词2\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}/segments",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}", "segments"]
+            },
+            "description": "向文档中新增分段（Chunks）"
+          },
+          "response": []
+        },
+        {
+          "name": "查询文档分段",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}/segments",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}", "segments"]
+            },
+            "description": "获取文档中的所有分段"
+          },
+          "response": []
+        },
+        {
+          "name": "更新文档分段",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"segment\": {\n    \"content\": \"更新后的分段内容\",\n    \"answer\": \"更新后的答案\",\n    \"keywords\": [\"关键词1\", \"关键词2\"],\n    \"enabled\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}/segments/{{segment_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}", "segments", "{{segment_id}}"]
+            },
+            "description": "更新指定的文档分段"
+          },
+          "response": []
+        },
+        {
+          "name": "删除文档分段",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/{{document_id}}/segments/{{segment_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "{{document_id}}", "segments", "{{segment_id}}"]
+            },
+            "description": "删除指定的文档分段"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Metadata (元数据)",
+      "item": [
+        {
+          "name": "获取知识库元数据列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/metadata",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "metadata"]
+            },
+            "description": "获取知识库的元数据字段列表"
+          },
+          "response": []
+        },
+        {
+          "name": "新增知识库元数据字段",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"string\",\n  \"name\": \"字段名称\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/metadata",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "metadata"]
+            },
+            "description": "新增知识库元数据字段。type 可选值: string, number, time"
+          },
+          "response": []
+        },
+        {
+          "name": "更新知识库元数据字段",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"更新后的字段名称\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/metadata/{{metadata_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "metadata", "{{metadata_id}}"]
+            },
+            "description": "更新知识库元数据字段名称"
+          },
+          "response": []
+        },
+        {
+          "name": "删除知识库元数据字段",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/metadata/{{metadata_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "metadata", "{{metadata_id}}"]
+            },
+            "description": "删除知识库元数据字段"
+          },
+          "response": []
+        },
+        {
+          "name": "启用/禁用内置元数据字段",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/metadata/built-in/{{action}}",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "metadata", "built-in", "{{action}}"],
+              "variable": [
+                {
+                  "key": "action",
+                  "value": "enable",
+                  "description": "操作类型: enable 或 disable"
+                }
+              ]
+            },
+            "description": "启用或禁用知识库元数据中的内置字段"
+          },
+          "response": []
+        },
+        {
+          "name": "修改文档的元数据",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operation_data\": [\n    {\n      \"document_id\": \"{{document_id}}\",\n      \"metadata_list\": [\n        {\n          \"id\": \"{{metadata_id}}\",\n          \"value\": \"元数据值\",\n          \"name\": \"元数据名称\"\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/datasets/{{dataset_id}}/documents/metadata",
+              "host": ["{{base_url}}"],
+              "path": ["datasets", "{{dataset_id}}", "documents", "metadata"]
+            },
+            "description": "批量修改文档的元数据值"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
