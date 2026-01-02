@@ -1,0 +1,163 @@
+# Output Documents
+
+This page documents the helper functions that turn a processed `Doc` into human‑readable or machine‑readable output. Each function is pure (no file I/O) and returns a string; the caller decides how to persist it.
+
+## `format_readers_guide(doc: Doc, *, include_provenance: bool = False, include_confidence: bool = False) -> str`
+
+Render a Markdown “reader’s guide” aimed at students and scholars. The output is UTF‑8 Markdown with headings, blockquotes, and details blocks.
+
+**Structure**
+
+- H1 title from `doc.metadata["title"]` or `doc.metadata["reference"]`, else “Reader’s Guide”.
+- Optional pronunciation line when all enriched words share the same IPA mode.
+- Per sentence:
+  - `## Sentence N`
+  - Blockquote of the sentence surface text (tokens joined with spaces).
+  - `### Word-by-word`
+  - For each word:
+    - `### <surface>`
+    - Italic POS name and bold gloss when available.
+    - Bullets: Lemma, Gloss, Dictionary Gloss (if distinct), Dependency Role (name + code), Governor (1-based index), IPA (with mode), Syllables.
+    - Optional `<details>` blocks for phonology trace and pedagogical notes.
+
+**Example (truncated)**
+
+````markdown
+# Reader's Guide
+**Pronunciation mode:** attic_5c_bce
+
+## Sentence 1
+> ὅτι δὲ τὸν τρόπον τοῦτον
+
+### Word-by-word
+
+### ὅτι
+*subordinating conjunction* · **that / because (subordinating conjunction)**
+- **Lemma:** ὅτι
+- **Gloss:** that / because (subordinating conjunction)
+- **Dependency Role:** marker (`mark`)
+- **Governor:** token 8
+- **IPA (attic_5c_bce):** `/ˈho.ti/`
+- **Syllables:** ὅ-τι
+<details>
+<summary>Phonology</summary>
+- initial rough breathing realised as /h-/ in Attic
+- vowel qualities preserved; no contraction
+- stress on first syllable (acute)
+</details>
+````
+
+Use this when you need a study‑friendly breakdown with enrichment fields (gloss, IPA, orthography, pedagogy).
+
+**Options**
+
+- `include_provenance=True` adds a short provenance section near the top.
+- `include_confidence=True` adds per-token confidence summaries when present.
+
+## `doc_to_feature_table(doc: Doc, *, include_provenance: bool = False, include_confidence: bool = False) -> pa.Table`
+
+Convert a `Doc` into a tidy `pyarrow.Table` with one row per token, combining morphosyntax, dependencies, UD features, and selected metadata.
+
+**Columns**
+
+- Sentence index, global token index, token index in sentence
+- `FORM`, `LEMMA`, `UPOS`, `HEAD`, `DEPREL`
+- Metadata columns (if present on words): e.g., translation, definitions
+- UD feature columns: each UD feature key becomes its own column
+- Dependency extras (if present): governor sentence index, etc.
+
+**Example**
+
+```python
+from cltk.utils.file_outputs import doc_to_feature_table
+table = doc_to_feature_table(doc)
+print(table.schema)
+print(table.to_pandas().head())
+```
+
+Useful for analytics, export to Parquet/CSV, or downstream ML pipelines.
+
+When `include_provenance=True` or `include_confidence=True`, the table gains
+`prov_*` and `conf_*` columns for key fields (lemma, upos, feats, head, deprel).
+
+## `doc_to_conllu(doc: Doc, *, include_provenance: bool = False, include_confidence: bool = False) -> str`
+
+Render a `Doc` as CoNLL‑U v2 text. One sentence per block, 10 tab‑separated fields per token.
+
+**Behavior**
+
+- Uses `doc.sentences` ordering; falls back to `doc.words` if sentences are absent.
+- Writes `ID`, `FORM`, `LEMMA`, `UPOS`, `XPOS`, `FEATS`, `HEAD`, `DEPREL`, `DEPS`, `MISC`.
+- Preserves existing lemmas/UPOS/FEATS/DEPREL/governor; leaves blanks (`_`) when data is missing.
+- `HEAD` is 1‑based; 0 for roots.
+
+**Example**
+
+```
+# sent_id = 1
+# text = ὅτι δὲ τὸν τρόπον τοῦτον
+1	ὅτι	ὅτι	SCONJ	_	_	8	mark	_	_
+2	δὲ	δέ	PART	_	_	8	discourse	_	_
+...
+```
+
+Use this to round‑trip with UD tools, validators, or treebanks. The function is deterministic and does no I/O; write the returned string to disk if needed.
+
+When `include_provenance=True`, the output adds comment lines that embed
+provenance records (`# cltk_provenance_default=...`, `# cltk_prov.<id>=...`).
+When `include_confidence=True`, token confidences appear in the `MISC` column.
+
+## `doc_to_igt_latex(...) -> str` and `doc_to_igt_html(...) -> str`
+
+Render token-level interlinear glossed text (IGT) for each sentence. Both helpers are pure (string return) and keep deterministic ordering and IDs.
+
+**Behavior**
+
+- One table per sentence, with a token row and a gloss/lemma/morph row.
+- Gloss selection priority: `word.enrichment.gloss` → first `lemma_translations` → lemma → token string.
+- Optional translation row per sentence if `sentence_translations` are present.
+
+**Example**
+
+```python
+from cltk.exports import doc_to_igt_latex, doc_to_igt_html
+
+latex = doc_to_igt_latex(doc, include_gloss=True)
+html = doc_to_igt_html(doc, include_morph=True)
+```
+
+## `doc_to_tei_xml(...) -> str`
+
+Produce a TEI‑ish XML document with token annotations in `<w>` elements and dependency arcs in a `<standOff>` section.
+
+**Behavior**
+
+- Tokens are annotated with `lemma`, `pos`, and `msd` (UD features) when available.
+- Dependencies are encoded as `<relation>` entries with stable token IDs.
+- Root dependencies point to a sentence-level root anchor.
+
+**Example**
+
+```python
+from cltk.exports import doc_to_tei_xml
+
+xml = doc_to_tei_xml(doc, include_morph=True, include_translation=True)
+```
+
+## `doc_to_readers_guide_html(...) -> str`
+
+Render a self‑contained HTML reader’s guide with collapsible token cards, tooltips, and inline styling.
+
+**Behavior**
+
+- Each sentence has a surface line, optional translation, and a token strip with hover tooltips.
+- Token cards expose lemma, POS, morphology, gloss, IPA, and dependencies.
+- Output is a single HTML document (no external assets).
+
+**Example**
+
+```python
+from cltk.exports import doc_to_readers_guide_html
+
+html = doc_to_readers_guide_html(doc, include_ipa=True)
+```
