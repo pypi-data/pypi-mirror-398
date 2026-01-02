@@ -1,0 +1,97 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main
+      - development
+  workflow_dispatch:
+
+# Prevent concurrent publishes - never cancel in-progress publish
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    - uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+    - name: Build package
+      run: uv build
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  publish-to-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.ref == 'refs/heads/development'
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/polars-timeseries-utils/
+
+    permissions:
+      id-token: write
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    
+    environment:
+      name: pypi
+      url: https://pypi.org/project/polars-timeseries-utils/
+      
+    permissions:
+      id-token: write
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # github-release:
+  #   name: Create GitHub Release
+  #   needs: publish-to-pypi
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 5
+  
+  #   permissions:
+  #     contents: write
+  
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: Create GitHub Release
+  #     env:
+  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     run: gh release create '${{ github.ref_name }}' --repo '${{ github.repository }}' --notes "Release ${{ github.ref_name }}"
