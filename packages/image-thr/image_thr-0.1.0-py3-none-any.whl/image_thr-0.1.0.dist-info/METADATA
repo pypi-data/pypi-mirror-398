@@ -1,0 +1,237 @@
+Metadata-Version: 2.4
+Name: image-thr
+Version: 0.1.0
+Summary: Image thresholding library
+Project-URL: Homepage, https://github.com/sofo-group/image-thr
+Project-URL: Source, https://github.com/sofo-group/image-thr
+Project-URL: Issues, https://github.com/sofo-group/image-thr/issues
+Author-email: "Sofo-Group, Inc" <info@sofo-group.com>
+License: MIT License
+        
+        Copyright (c) 2025 Sofo-Group, Inc.
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.11
+Requires-Dist: numpy>=2.4.0
+Requires-Dist: opencv-python>=4.11.0.86
+Requires-Dist: scikit-image>=0.26.0
+Requires-Dist: scipy>=1.16.3
+Description-Content-Type: text/markdown
+
+# Image-Thr Library
+
+## Overview
+
+The `image-thr` library is a Python package designed for image processing tasks focused on thresholding grayscale images and detecting contours to identify objects. It is particularly useful for applications involving object detection in visual data, such as computer vision systems for tracking or sizing objects (e.g., UAVs or similar entities in a scene). The library supports various thresholding methods, including a custom Fourier-based approach, and includes utilities for converting pixel measurements to angular degrees and physical sizes in centimeters based on camera parameters and distance.
+
+Key features include:
+- Adaptive thresholding using multiple algorithms (e.g., Otsu, Fourier approximation, entropy-based).
+- Contour detection and bounding box extraction.
+- Clustering of nearby contours to form coherent objects, with optional size filtering.
+- Conversions between pixel coordinates, angular degrees, and real-world sizes.
+
+The library relies on dependencies like NumPy, SciPy, OpenCV (cv2), and scikit-image for core operations.
+
+## Installation
+
+To install the library:
+
+```bash
+pip install image-thr
+```
+
+### Dependencies
+- Python 3.6+
+- numpy
+- scipy
+- opencv-python (cv2)
+- scikit-image
+
+Install them with:
+
+```bash
+pip install numpy scipy opencv-python scikit-image
+```
+
+## Usage
+
+The library exports the following main components:
+
+- `threshold_image`: Applies thresholding to a grayscale image and extracts contours.
+- `contours_to_objects`: Converts extracted contours into clustered objects with angular and size properties.
+- `ContourObject`: A class representing a detected object with angular position and size.
+- `ContourParams`: A helper class for contour parameters (used internally but exported).
+
+Import them as follows:
+
+```python
+from image_thr import threshold_image, contours_to_objects, ContourObject, ContourParams
+```
+
+### 1. Thresholding an Image (`threshold_image`)
+
+This function processes a grayscale image (frame) to apply thresholding and detect contours. It supports multiple thresholding methods and returns bounding boxes for contours along with histogram data.
+
+#### Signature
+```python
+def threshold_image(
+    frame: np.ndarray, 
+    position: tuple[int, int] = (0, 0), 
+    user_low: int | None = None, 
+    user_high: int | None = None, 
+    low_add: int = -5, 
+    method: str = 'fourier'
+) -> tuple[list[list[int]], np.ndarray, np.ndarray, int, int]
+```
+
+#### Parameters
+- `frame`: A 2D NumPy array representing the grayscale image (e.g., from `cv2.imread(..., cv2.IMREAD_GRAYSCALE)`).
+- `position`: Tuple (offset_x, offset_y) for adjusting contour positions (default: (0, 0)).
+- `user_low`: Optional user-specified lower threshold value (overrides computed low).
+- `user_high`: Optional user-specified upper threshold value (overrides computed high).
+- `low_add`: Adjustment added to the computed low threshold (default: -5, used in Fourier method).
+- `method`: Thresholding method to use. Supported options:
+  - `'fourier'` (default): Uses Fourier approximation of the histogram to find thresholds.
+  - `'otsu'`: Otsu's method for bimodal histograms.
+  - `'minimum'`: Minimum between two peaks.
+  - `'mean'`: Mean of the image.
+  - `'isodata'`: ISODATA algorithm.
+  - `'triangle'`: Triangle algorithm.
+  - `'li'`: Li's iterative minimum cross-entropy.
+  - `'yen'`: Yen's method.
+  - `'max_entropy'`: Maximum entropy thresholding.
+  - `'min_error'`: Minimum error thresholding.
+  - `'moments'`: Moments-based thresholding.
+  - `'intermodes'`: Intermodes smoothing.
+  - `'percentile'`: Percentile-based (default 50%).
+
+#### Returns
+- `contour_boxes`: List of [x, y, w, h, contour] for each detected contour.
+- `counts`: Histogram bin counts (original).
+- `approx_counts`: Approximated histogram (e.g., Fourier-smoothed).
+- `low`: Computed or user-specified low threshold.
+- `high`: Computed or user-specified high threshold.
+
+#### Example
+```python
+import cv2
+import numpy as np
+from image_thr import threshold_image
+
+# Load grayscale image
+frame = cv2.imread('example.jpg', cv2.IMREAD_GRAYSCALE)
+
+# Apply thresholding
+contour_boxes, counts, approx_counts, low, high = threshold_image(frame, method='otsu')
+
+print(f"Thresholds: low={low}, high={high}")
+print(f"Detected {len(contour_boxes)} contours")
+```
+
+### 2. Converting Contours to Objects (`contours_to_objects`)
+
+This function takes the output from `threshold_image` (contour_boxes) and clusters nearby contours into objects, applying size filters and converting to angular and physical measurements.
+
+#### Signature
+```python
+def contours_to_objects(
+    contour_boxes: list[list[int]], 
+    cam_angle: tuple[float, float], 
+    distance: float, 
+    frame_shape: tuple[int, int], 
+    min_obj_size: float, 
+    max_obj_size: float, 
+    roi_offset: tuple[int, int], 
+    ignore_size_and_clustering: bool = False
+) -> list[ContourObject]
+```
+
+#### Parameters
+- `contour_boxes`: List of contour bounding boxes from `threshold_image` (excluding the contour array itself; use [x, y, w, h]).
+- `cam_angle`: Tuple (cam_angle_x, cam_angle_y) in degrees for horizontal and vertical field of view.
+- `distance`: Distance to the object plane in meters.
+- `frame_shape`: Tuple (height, width) of the image frame.
+- `min_obj_size`: Minimum object size in cm to include.
+- `max_obj_size`: Maximum object size in cm to include.
+- `roi_offset`: Tuple (offset_x, offset_y) for region of interest adjustment.
+- `ignore_size_and_clustering`: If True, skips size filtering and clustering, returning all contours as objects (default: False).
+
+#### Returns
+- List of `ContourObject` instances representing clustered or individual objects.
+
+#### Example
+```python
+from image_thr import contours_to_objects
+
+# Assuming contour_boxes from previous thresholding
+cam_angle = (60.0, 45.0)  # Example FOV in degrees
+distance = 10.0  # meters
+frame_shape = frame.shape[:2]  # (height, width)
+min_obj_size = 5.0  # cm
+max_obj_size = 50.0  # cm
+roi_offset = (0, 0)
+
+objects = contours_to_objects(contour_boxes, cam_angle, distance, frame_shape, min_obj_size, max_obj_size, roi_offset)
+
+for obj in objects:
+    print(f"Object: dx={obj.dx_deg:.2f}°, dy={obj.dy_deg:.2f}°, width={obj.width_deg:.2f}°, height={obj.height_deg:.2f}°")
+```
+
+### 3. Classes
+
+#### ContourObject
+Represents a detected object with angular position and size.
+
+- Attributes:
+  - `id`: Unique identifier (currently set to Python's built-in `id`, but may need customization).
+  - `last_updated`: Timestamp of last update (from `time.time()`).
+  - `dx_deg`: Horizontal angular offset from center in degrees.
+  - `dy_deg`: Vertical angular offset from center in degrees.
+  - `width_deg`: Width in degrees.
+  - `height_deg`: Height in degrees.
+
+#### ContourParams
+Internal helper class for contour calculations.
+
+- Attributes:
+  - `size_cm`: Maximum size in cm (width or height).
+  - `center_x`: Center x-coordinate in pixels.
+  - `center_y`: Center y-coordinate in pixels.
+  - `w`: Width in pixels.
+  - `h`: Height in pixels.
+  - `dx_deg`: Horizontal angular offset in degrees.
+  - `dy_deg`: Vertical angular offset in degrees.
+  - `w_deg`: Width in degrees.
+  - `h_deg`: Height in degrees.
+
+## Additional Notes
+- The library includes internal helper functions for conversions (e.g., `pts_to_deg`, `deg_to_cm`) and custom threshold calculations, but these are not exported and should not be used directly.
+- Performance: For large images, scaling is applied internally to optimize histogram computation.
+- Error Handling: Invalid methods in `threshold_image` raise `ValueError`. Some thresholding methods may fall back to defaults if they fail (e.g., minimum threshold).
+- Applications: Ideal for real-time object detection in robotics, surveillance, or augmented reality where angular and physical sizing is needed.
+
+## Contributing
+Contributions are welcome! Please submit pull requests for bug fixes, new features, or improvements.
+
+## License
+This library is released under the MIT License (assuming standard open-source; adjust as needed).
