@@ -1,0 +1,709 @@
+Metadata-Version: 2.4
+Name: jokoor
+Version: 2.0.0
+Summary: Official Python SDK for the Jokoor API
+Author-email: Jokoor <hello@jokoor.com>
+Maintainer-email: Jokoor <hello@jokoor.com>
+License-Expression: MIT
+Project-URL: Homepage, https://jokoor.com
+Project-URL: Documentation, https://docs.jokoor.com
+Project-URL: Repository, https://github.com/jokoor/sdk-python
+Project-URL: Issues, https://github.com/jokoor/sdk-python/issues
+Keywords: jokoor,sms,payments,api,sdk,wave,gambia,africa
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Communications
+Classifier: Topic :: Office/Business :: Financial :: Point-Of-Sale
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28.0
+Requires-Dist: urllib3>=1.26.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Requires-Dist: responses>=0.22.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: types-requests>=2.28.0; extra == "dev"
+
+# Jokoor Python SDK
+
+Official Python SDK for the [Jokoor API](https://jokoor.com). Send SMS messages, accept payments, manage payouts, and more.
+
+[![PyPI version](https://badge.fury.io/py/jokoor.svg)](https://badge.fury.io/py/jokoor)
+[![Python Support](https://img.shields.io/pypi/pyversions/jokoor.svg)](https://pypi.org/project/jokoor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- **SMS**: Send messages, manage campaigns, templates, and contacts
+- **Payments**: Accept payments via Wave, card, Afrimoney, and QMoney
+- **Invoices**: Create, send, and track invoices with automatic tax calculation
+- **Payouts**: Withdraw funds to bank accounts and Wave B2P recipients
+- **Webhooks**: Configure webhook endpoints to receive event notifications
+- **Type-safe**: Full type hints for better IDE support and type checking
+- **Tuple return pattern**: Returns `(data, error)` tuples - no exceptions raised
+- **Automatic retries**: Built-in retry logic with exponential backoff
+- **Connection pooling**: Efficient HTTP connection management
+
+## Installation
+
+```bash
+pip install jokoor
+```
+
+```bash
+poetry add jokoor
+```
+
+```bash
+pipenv install jokoor
+```
+
+## Quick Start
+
+```python
+from jokoor import Jokoor
+from datetime import datetime, timezone  # For scheduled operations
+
+# Initialize the client
+client = Jokoor('sk_test_your_api_key')
+
+# Send an SMS message
+sms, error = client.sms.send(
+    recipient_phone='+2207654321',
+    message_body='Hello from Jokoor!'
+)
+
+if error:
+    print(f'Error: {error}')
+else:
+    print(f'SMS sent: {sms["id"]}')
+```
+
+**Note on DateTime Parameters:**
+For scheduled operations, you can use either ISO 8601 strings or Python `datetime` objects:
+
+```python
+# Option 1: ISO 8601 string (recommended)
+scheduled_at='2024-12-25T10:00:00Z'
+
+# Option 2: Python datetime object
+from datetime import datetime, timezone
+scheduled_at=datetime(2024, 12, 25, 10, 0, tzinfo=timezone.utc)
+```
+
+## Authentication
+
+Get your API keys from the [Jokoor Dashboard](https://dashboard.jokoor.com/settings/api-keys).
+
+### API Key Types
+
+- **Secret keys** (`sk_test_xxx`, `sk_live_xxx`) - Full API access, use server-side only
+- **Publishable keys** (`pk_test_xxx`, `pk_live_xxx`) - Limited access for client-side operations
+
+### Test vs Live Mode
+
+- **Test keys** (`_test_`) - For testing and development, no real charges
+- **Live keys** (`_live_`) - For production use with real transactions
+
+```python
+# Test environment
+test_client = Jokoor('sk_test_your_api_key')
+
+# Production environment
+live_client = Jokoor('sk_live_your_api_key')
+```
+
+## Configuration
+
+```python
+from jokoor import Jokoor
+
+client = Jokoor(
+    api_key='sk_test_xxx',
+    base_url='https://api.jokoor.com/v1',  # Optional: custom API URL
+    timeout=30,                             # Optional: request timeout (seconds)
+    max_retries=3,                          # Optional: max retry attempts
+    debug=False,                            # Optional: enable debug logging
+)
+```
+
+## Error Handling
+
+The SDK uses a tuple return pattern `(data, error)` instead of raising exceptions:
+
+```python
+# Success case
+sms, error = client.sms.send(
+    recipient_phone='+2207654321',
+    message_body='Hello!'
+)
+
+if error:
+    print(f'Error: {error}')
+    return
+
+# Use data
+print(f'SMS sent: {sms["id"]}')
+```
+
+## API Reference
+
+### SMS
+
+#### Send SMS
+
+```python
+sms, error = client.sms.send(
+    recipient_phone='+2207123456',
+    message_body='Your verification code is 123456',
+    sender_id='MyApp',              # Optional
+    scheduled_at='2024-12-25T10:00:00Z',  # Optional
+    is_draft=False,                 # Optional
+)
+```
+
+#### Get SMS Message
+
+```python
+sms, error = client.sms.get('msg_123')
+```
+
+#### List SMS Messages
+
+```python
+result, error = client.sms.list(
+    offset=0,
+    limit=20,
+    status='delivered',
+    start_date='2024-01-01T00:00:00Z',
+    end_date='2024-12-31T23:59:59Z',
+)
+
+if result:
+    print(f"Total: {result['count']}")
+    for sms in result['items']:
+        print(sms['id'])
+```
+
+### Payment Links
+
+#### Create Payment Link
+
+```python
+link, error = client.payment_links.create(
+    title='Premium Subscription',
+    amount='500.00',
+    currency='GMD',
+    description='Monthly premium features',
+    success_url='https://example.com/success',
+    failure_url='https://example.com/cancel',
+)
+
+if link:
+    # Share this URL with customers
+    print(f"Payment URL: {link['payment_url']}")
+    # Example: https://pay.jokoor.com/pay/pl_abc123
+```
+
+**Note:** Payment links have hosted payment pages. Customers visit the `payment_url` to complete payment - no need to call the initialize endpoint.
+
+#### List Payment Links
+
+```python
+result, error = client.payment_links.list(limit=20, status='active')
+```
+
+### Checkouts
+
+Checkouts support **both hosted pages and custom integration**.
+
+#### Option 1: Hosted Checkout Page (Simple)
+
+```python
+checkout, error = client.checkouts.create(
+    amount='100.00',
+    currency='GMD',
+    description='Service payment',
+)
+
+if checkout:
+    # Share payment_url with customer
+    print(f"Send customer to: {checkout['payment_url']}")
+    # https://pay.jokoor.com/checkout/chk_abc123
+    # Customer completes payment on hosted page
+```
+
+#### Option 2: Custom SDK Integration (Full Control)
+
+```python
+# Step 1: Create checkout
+checkout, error = client.checkouts.create(
+    amount='100.00',
+    currency='GMD',
+    description='Service payment',
+)
+
+if error:
+    print(f'Error: {error}')
+    exit()
+
+# Step 2: Initialize with client_secret
+session, error = client.payments.initialize(
+    client_secret=checkout['client_secret'],
+    payment_method='wave',
+    customer_phone='+2207654321',
+    customer_email='customer@example.com',
+)
+
+if session:
+    # Redirect customer to payment provider
+    print(f"Redirect to: {session['payment_url']}")
+```
+
+### Initialize Payment (Embedded Checkout)
+
+Use this endpoint when building a custom payment UI with checkouts.
+
+```python
+# After creating a checkout with client_secret
+session, error = client.payments.initialize(
+    client_secret=checkout['client_secret'],
+    payment_method='wave',
+    customer_phone='+2207654321',
+    customer_email='customer@example.com',
+    customer_name='John Doe',
+)
+
+if session:
+    # Redirect customer to payment provider
+    print(f"Redirect to: {session['payment_url']}")
+```
+
+**When to use:**
+
+- ✅ Embedded checkout integrations (custom payment UI)
+- ❌ NOT for payment links, donations, or invoices (they have hosted pages)
+
+### Invoices
+
+#### Create Invoice
+
+```python
+invoice, error = client.invoices.create(
+    customer_email='customer@example.com',
+    customer_name='John Doe',
+    items=[
+        {
+            'description': 'Consulting Services',
+            'quantity': 10,
+            'unit_price': '50.00',
+        },
+    ],
+    currency='GMD',
+    due_date='2024-12-31T23:59:59Z',
+    tax_rate=15,  # Optional: 15% tax
+)
+
+if invoice:
+    print(f"Invoice Number: {invoice['invoice_number']}")
+    print(f"Payment URL: {invoice['payment_url']}")  # Customer pays here
+    print(f"PDF URL: {invoice['pdf_url']}")          # Download PDF
+```
+
+#### Record Offline Payment
+
+For cash, bank transfers, checks, etc. (NOT Wave/Afrimoney/card):
+
+```python
+invoice, error = client.invoices.record_payment(
+    'inv_123',
+    amount='1150.00',
+    payment_method='bank_transfer',
+    transaction_id='BANK-REF-123456',
+    notes='Received via wire transfer',
+)
+```
+
+**Two ways to pay invoices:**
+
+- **Online:** Customer visits `payment_url` (Wave, Afrimoney, card)
+- **Offline:** Use `record_payment()` for cash, bank transfers, checks
+
+### Donation Campaigns
+
+```python
+campaign, error = client.donations.create(
+    title='Help Build a School',
+    description='Raising funds to build a new school',
+    target_amount='50000.00',  # Optional goal
+    currency='GMD',
+    slug='school-building-fund',  # Custom URL slug
+)
+
+if campaign:
+    print(f"Donation URL: {campaign['donation_url']}")
+    # Example: https://donate.jokoor.com/school-building-fund
+    print(f"Slug: {campaign['slug']}")
+    print(f"Progress: {campaign['progress_percentage']}%")
+```
+
+### Customers
+
+```python
+customer, error = client.customers.create(
+    email='customer@example.com',
+    phone='+2207123456',
+    name='John Doe',
+)
+```
+
+### Products
+
+```python
+product, error = client.products.create(
+    name='Premium Subscription',
+    description='Monthly premium features',
+    price='29.99',
+    currency='GMD',
+    active=True,
+)
+```
+
+### Transactions
+
+```python
+result, error = client.transactions.list(
+    offset=0,
+    limit=20,
+    status='completed',
+    start_date='2024-01-01T00:00:00Z',
+    end_date='2024-12-31T23:59:59Z',
+)
+
+if result:
+    for txn in result['items']:
+        print(f"{txn['id']}: {txn['amount']} {txn['currency']}")
+```
+
+### Refunds
+
+```python
+# Full refund
+refund, error = client.refunds.create(
+    'txn_123',
+    reason='Customer request',
+)
+
+# Partial refund
+refund, error = client.refunds.create(
+    'txn_123',
+    amount='50.00',
+    reason='Partial refund for damaged item',
+)
+```
+
+### Subscriptions
+
+```python
+subscription, error = client.subscriptions.create(
+    customer_id='cus_123',
+    amount='29.99',
+    currency='GMD',
+    interval='monthly',
+)
+```
+
+### Payouts
+
+#### Get Balance
+
+```python
+balance, error = client.payouts.get_balance()
+if balance:
+    print(f"Available: {balance['available_balance']} {balance['currency']}")
+    print(f"Pending: {balance['pending_balance']} {balance['currency']}")
+```
+
+#### List Bank Accounts
+
+```python
+accounts, error = client.bank_accounts.list()
+```
+
+**Note:** Creating/updating bank accounts requires OTP and must be done via the web dashboard.
+
+#### Send Payout to Recipient (Wave B2P)
+
+```python
+payout, error = client.payout_recipients.send_payout(
+    recipient_id='recip_123',
+    amount='500.00',
+    reference='Salary payment',
+    # Note: OTP required - must be obtained via dashboard
+)
+```
+
+### Webhooks
+
+#### Create Webhook Endpoint
+
+```python
+webhook, error = client.webhooks.create(
+    url='https://myapp.com/webhooks/jokoor',
+    enabled_events=[
+        'payment.succeeded',
+        'payment.failed',
+        'sms.delivered',
+        'sms.failed',
+    ],
+)
+
+if webhook:
+    # Secret is only shown once - store it securely
+    print(f"Webhook Secret: {webhook['secret']}")
+```
+
+#### List Webhook Events
+
+```python
+result, error = client.webhook_events.list(
+    offset=0,
+    limit=20,
+    type='payment.succeeded',
+    start_date='2024-01-01T00:00:00Z',
+)
+```
+
+## Complete Examples
+
+### Accept Payment with Hosted Page
+
+```python
+from jokoor import Jokoor
+
+client = Jokoor('sk_test_xxx')
+
+# Create a payment link
+link, error = client.payment_links.create(
+    title='Product Purchase',
+    amount='500.00',
+    currency='GMD',
+)
+
+if error:
+    print(f'Error: {error}')
+else:
+    # Share payment_url with customer
+    print(f'Send customer to: {link["payment_url"]}')
+    # Customer visits URL and completes payment on hosted page
+```
+
+### Custom Payment Integration
+
+```python
+from jokoor import Jokoor
+
+client = Jokoor('sk_test_xxx')
+
+# 1. Create checkout
+checkout, error = client.checkouts.create(
+    amount='100.00',
+    currency='GMD',
+    description='Service payment',
+)
+
+if error:
+    print(f'Error: {error}')
+    exit()
+
+# 2. Initialize payment with custom UI
+session, error = client.payments.initialize(
+    client_secret=checkout['client_secret'],
+    payment_method='wave',
+    customer_phone='+2207654321',
+    customer_email='customer@example.com',
+)
+
+if session:
+    # Redirect customer to payment provider
+    print(f'Redirect to: {session["payment_url"]}')
+```
+
+### Create and Send Invoice
+
+```python
+# Create invoice
+invoice, error = client.invoices.create(
+    customer_email='customer@example.com',
+    customer_name='John Doe',
+    items=[
+        {
+            'description': 'Web Development',
+            'quantity': 1,
+            'unit_price': '1000.00',
+        },
+    ],
+    currency='GMD',
+    due_date='2024-12-31T23:59:59Z',
+    tax_rate=15,
+)
+
+if error:
+    print(f'Error: {error}')
+    exit()
+
+# Send invoice to customer
+client.invoices.send(invoice['id'])
+
+# Customer can pay online at:
+print(f"Payment URL: {invoice['payment_url']}")
+
+# Or record offline payment (cash, bank transfer):
+client.invoices.record_payment(
+    invoice['id'],
+    amount='1150.00',
+    payment_method='bank_transfer',
+    transaction_id='BANK-123',
+    notes='Received via wire transfer',
+)
+```
+
+### Bulk SMS Campaign
+
+```python
+# 1. Create contact group
+group, error = client.contact_groups.create(name='Campaign Recipients')
+
+# 2. Add contacts
+contact_ids = ['contact_1', 'contact_2', 'contact_3']
+client.contact_groups.add_contacts(group['id'], contact_ids)
+
+# 3. Create and send campaign
+campaign, error = client.campaigns.create(
+    name='Product Launch',
+    message_body='Check out our new product!',
+    group_ids=[group['id']],
+)
+
+# Send immediately
+client.campaigns.send(campaign['id'])
+
+# Or send asynchronously (recommended for large campaigns)
+client.campaigns.send_async(campaign['id'])
+```
+
+## Type Hints
+
+The SDK includes comprehensive type hints for better IDE support:
+
+```python
+from typing import Tuple, Optional
+from jokoor import Jokoor
+from jokoor.types import PaymentLink, Checkout, Invoice
+
+def create_payment(client: Jokoor) -> Tuple[Optional[PaymentLink], Optional[str]]:
+    return client.payment_links.create(
+        name='Test Payment',
+        amount='100.00',
+        currency='GMD',
+    )
+
+# IDE will provide autocomplete and type checking
+link, error = create_payment(client)
+if link:
+    print(link['payment_url'])  # IDE knows this field exists
+    print(link['livemode'])     # Full autocomplete support
+```
+
+## Migration from v1.x
+
+### Field Name Changes
+
+```python
+# Invoice items field renamed
+# OLD
+invoice['line_items']
+
+# NEW
+invoice['items']  # Now matches API field name
+
+# Donation campaign fields renamed
+# OLD
+campaign['goal_amount']
+campaign['raised_amount']
+
+# NEW
+campaign['target_amount']   # Renamed for API consistency
+campaign['current_amount']  # Renamed for API consistency
+
+# Payment link URL field renamed
+# OLD
+link['url']
+
+# NEW
+link['payment_url']  # Now includes full hosted page URL
+```
+
+### New Fields Available
+
+**Checkouts:**
+
+- `payment_url` - Hosted payment page URL
+- `client_secret` - For SDK integration
+- `livemode` - Payment mode indicator
+
+**Payment Links:**
+
+- `payment_url` - Hosted payment page URL
+- `livemode` - Payment mode indicator
+
+**Invoices:**
+
+- `payment_url` - Public payment URL
+- `pdf_url` - PDF download URL
+- `remaining_amount` - Balance remaining
+- `receipts` - Payment receipts
+
+**Donation Campaigns:**
+
+- `slug` - SEO-friendly URL slug
+- `donation_url` - Public donation page URL
+- `donor_count` - Number of donors
+- `progress_percentage` - Campaign progress
+- `organizer_details` - Organizer information
+
+## Rate Limiting
+
+```python
+client = Jokoor('sk_test_xxx', max_retries=5)
+```
+
+## Debugging
+
+```python
+client = Jokoor('sk_test_xxx', debug=True)
+# Logs all requests and responses
+```
+
+## Support
+
+- **Documentation**: https://docs.jokoor.com
+- **API Reference**: https://docs.jokoor.com/api
+- **Email**: hello@jokoor.com
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
