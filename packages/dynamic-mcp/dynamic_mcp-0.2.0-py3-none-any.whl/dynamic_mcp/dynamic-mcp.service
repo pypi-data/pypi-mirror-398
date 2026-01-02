@@ -1,0 +1,55 @@
+[Unit]
+Description=Dynamic MCP Server - Crash Dump Analysis Service
+Documentation=https://github.com/42research/dynamic-mcp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dynamic-mcp
+Group=dynamic-mcp
+WorkingDirectory=/opt/dynamic-mcp
+
+# Service execution
+ExecStart=/usr/local/bin/dynamic-mcp-http
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Environment variables
+Environment="PORT=8080"
+Environment="LOG_LEVEL=INFO"
+Environment="PYTHONUNBUFFERED=1"
+
+# Tunnel integration - MCP_SERVER_URL will be set via systemctl set-environment or EnvironmentFile
+# EnvironmentFile=/etc/dynamic-mcp/dynamic-mcp.env
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+# Security and isolation
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/crash-dumps /var/log/dynamic-mcp /var/crash
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dynamic-mcp
+
+[Install]
+WantedBy=multi-user.target
+
