@@ -1,0 +1,1099 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paper Trading Scenarios &mdash; weex-client 0.2.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            weex-client
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">Paper Trading Scenarios</a><ul>
+<li><a class="reference internal" href="#getting-started-with-paper-trading">Getting Started with Paper Trading</a></li>
+<li><a class="reference internal" href="#scenario-1-market-making">Scenario 1: Market Making</a></li>
+<li><a class="reference internal" href="#scenario-2-trend-following-with-leverage">Scenario 2: Trend Following with Leverage</a></li>
+<li><a class="reference internal" href="#scenario-3-mean-reversion-strategy">Scenario 3: Mean Reversion Strategy</a></li>
+<li><a class="reference internal" href="#risk-management-for-paper-trading">Risk Management for Paper Trading</a></li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">weex-client</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Paper Trading Scenarios</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/trading/paper-trading.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="paper-trading-scenarios">
+<h1>Paper Trading Scenarios<a class="headerlink" href="#paper-trading-scenarios" title="Link to this heading"></a></h1>
+<p>Practice trading strategies without risking real money. Paper trading helps you learn market dynamics, test strategies, and build confidence before using real funds.</p>
+<p>🎯 <strong>Goal</strong>: Build trading skills safely
+🛡️ <strong>Safety</strong>: Zero financial risk
+📊 <strong>Scenarios</strong>: Market making, trend following, mean reversion, grid trading</p>
+<section id="getting-started-with-paper-trading">
+<h2>Getting Started with Paper Trading<a class="headerlink" href="#getting-started-with-paper-trading" title="Link to this heading"></a></h2>
+<p>1. <strong>Environment Setup</strong>
+<a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">`</span></a>bash
+# Always use development environment
+export WEEX_ENVIRONMENT=development</p>
+<p># Test configuration
+make safety-check
+<a href="#id5"><span class="problematic" id="id6">``</span></a><a href="#id7"><span class="problematic" id="id8">`</span></a></p>
+<p>2. <strong>Create Paper Trading Class</strong>
+<a href="#id9"><span class="problematic" id="id10">``</span></a><a href="#id11"><span class="problematic" id="id12">`</span></a>python
+from weex_client import WeexAsyncClient, WeexConfig</p>
+<dl>
+<dt>class PaperTrader:</dt><dd><dl>
+<dt>def __init__(self, initial_balance=10000):</dt><dd><p>self.balance = initial_balance
+self.positions = {}
+self.trades = []
+self.trade_id = 0
+self.commission_rate = 0.001  # 0.1% commission</p>
+</dd>
+<dt>def get_portfolio_value(self, current_prices):</dt><dd><p>“””Calculate total portfolio value”””
+portfolio_value = self.balance</p>
+<dl class="simple">
+<dt>for symbol, position in self.positions.items():</dt><dd><dl class="simple">
+<dt>if symbol in current_prices:</dt><dd><p>current_price = current_prices[symbol]
+portfolio_value += position[“size”] * current_price</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p>return portfolio_value</p>
+</dd>
+<dt>def calculate_unrealized_pnl(self, current_prices):</dt><dd><p>“””Calculate unrealized profit/loss”””
+total_pnl = 0.0</p>
+<dl class="simple">
+<dt>for symbol, position in self.positions.items():</dt><dd><dl class="simple">
+<dt>if symbol in current_prices:</dt><dd><p>current_price = current_prices[symbol]
+entry_price = position[“entry_price”]
+pnl = (current_price - entry_price) * position[“size”]
+total_pnl += pnl</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p>return total_pnl</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p><a href="#id13"><span class="problematic" id="id14">``</span></a><a href="#id15"><span class="problematic" id="id16">`</span></a></p>
+</section>
+<section id="scenario-1-market-making">
+<h2>Scenario 1: Market Making<a class="headerlink" href="#scenario-1-market-making" title="Link to this heading"></a></h2>
+<p><strong>Concept</strong>: Place limit orders on both sides of the order book to profit from the bid-ask spread.</p>
+<p><strong>Strategy</strong>:
+- Buy slightly below best bid
+- Sell slightly above best ask
+- Manage inventory risk
+- Profit from small price differences</p>
+<p><a href="#id17"><span class="problematic" id="id18">``</span></a><a href="#id19"><span class="problematic" id="id20">`</span></a>python
+class MarketMaker(PaperTrader):</p>
+<blockquote>
+<div><dl>
+<dt>def __init__(self, initial_balance=10000, spread_pct=0.001):</dt><dd><p>super().__init__(initial_balance)
+self.spread_pct = spread_pct  # 0.1% spread
+self.max_inventory_ratio = 0.3  # Max 30% in inventory
+self.min_order_size = 10  # Minimum $10 order</p>
+</dd>
+<dt>async def market_make_simulation(self, symbol=”BTCUSDT”, duration=300):</dt><dd><p>“””Run market making simulation”””</p>
+<p>config = WeexConfig.from_env()</p>
+<dl>
+<dt>async with WeexAsyncClient(config) as client:</dt><dd><p>print(f”🏪 Starting market making for {symbol}”)
+print(f”📊 Spread: {self.spread_pct*100:.2f}%”)
+print(f”💰 Initial balance: ${self.balance:.2f}”)</p>
+<p>start_time = time.time()</p>
+<dl>
+<dt>while time.time() - start_time &lt; duration:</dt><dd><dl>
+<dt>try:</dt><dd><p># Get real market data
+ticker_data = await client.get_ticker(symbol)
+order_book_data = await client.get_order_book(symbol, limit=1)</p>
+<p>current_price = float(ticker_data[“data”][“last”])
+best_bid = float(order_book_data[“data”][“bids”][0][0]) if order_book_data[“data”][“bids”] else current_price * 0.999
+best_ask = float(order_book_data[“data”][“asks”][0][0]) if order_book_data[“data”][“asks”] else current_price * 1.001</p>
+<p># Calculate our quotes
+our_bid = best_bid * (1 - self.spread_pct)
+our_ask = best_ask * (1 + self.spread_pct)</p>
+<p># Check inventory constraints
+current_inventory = self.positions.get(symbol, {}).get(“size”, 0)
+inventory_value = abs(current_inventory) * current_price
+max_inventory = self.balance * self.max_inventory_ratio</p>
+<p># Place orders based on inventory
+await self.manage_inventory(</p>
+<blockquote>
+<div><p>client, symbol, current_price,
+our_bid, our_ask, current_inventory,
+inventory_value, max_inventory</p>
+</div></blockquote>
+<p>)</p>
+<p># Show status
+portfolio_value = self.get_portfolio_value({symbol: current_price})
+unrealized_pnl = self.calculate_unrealized_pnl({symbol: current_price})</p>
+<p>print(f”📊 Price: ${current_price:.2f} | Bid: ${our_bid:.2f} | Ask: ${our_ask:.2f}”)
+print(f”📦 Inventory: {current_inventory:.6f} | Value: ${inventory_value:.2f}”)
+print(f”💼 Portfolio: ${portfolio_value:.2f} | PnL: ${unrealized_pnl:.2f}”)
+print(“-” * 60)</p>
+<p>await asyncio.sleep(10)  # Update every 10 seconds</p>
+</dd>
+<dt>except Exception as e:</dt><dd><p>print(f”❌ Market making error: {e}”)
+await asyncio.sleep(5)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p># End of simulation
+await self.close_all_positions(client, symbol)
+final_value = self.get_portfolio_value({symbol: current_price})
+total_pnl = final_value - self.initial_balance</p>
+<p>print(f”🏪 Market making complete!”)
+print(f”💰 Final portfolio: ${final_value:.2f}”)
+print(f”📈 Total PnL: ${total_pnl:.2f} ({total_pnl/self.initial_balance*100:+.2f}%)”)
+print(f”📊 Total trades: {len(self.trades)}”)</p>
+</dd>
+</dl>
+</dd>
+<dt>async def manage_inventory(self, client, symbol, current_price,</dt><dd><blockquote>
+<div><p>our_bid, our_ask, current_inventory,
+inventory_value, max_inventory):</p>
+</div></blockquote>
+<p>“””Manage positions based on inventory constraints”””</p>
+<p># Calculate position sizes
+max_risk_per_side = self.balance * 0.01  # 1% rule per side</p>
+<dl>
+<dt>if current_inventory &gt;= 0:  # Long or neutral bias</dt><dd><p># More willing to sell, less willing to buy
+ask_size = min(max_risk_per_side / our_ask,</p>
+<blockquote>
+<div><p>current_inventory + max_risk_per_side / our_ask)</p>
+</div></blockquote>
+<dl class="simple">
+<dt>bid_size = min(max_risk_per_side / our_bid,</dt><dd><p>max_risk_per_side / our_bid / 2)</p>
+</dd>
+</dl>
+</dd>
+<dt>else:  # Short bias</dt><dd><p># More willing to buy, less willing to sell
+bid_size = min(max_risk_per_side / our_bid,</p>
+<blockquote>
+<div><p>abs(current_inventory) + max_risk_per_side / our_bid)</p>
+</div></blockquote>
+<dl class="simple">
+<dt>ask_size = min(max_risk_per_side / our_ask,</dt><dd><p>max_risk_per_side / our_ask / 2)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p># Place paper orders (simulated)
+await self.simulate_order_fill(</p>
+<blockquote>
+<div><p>“buy”, our_bid, bid_size, current_price, symbol</p>
+</div></blockquote>
+<p>)
+await self.simulate_order_fill(</p>
+<blockquote>
+<div><p>“sell”, our_ask, ask_size, current_price, symbol</p>
+</div></blockquote>
+<p>)</p>
+</dd>
+<dt>async def simulate_order_fill(self, side, price, size, current_price, symbol):</dt><dd><p>“””Simulate order fill based on price movement”””</p>
+<p># Simple fill simulation - random chance based on how close we are to market
+import random
+price_diff = abs(current_price - price) / current_price</p>
+<dl class="simple">
+<dt>if side == “buy” and current_price &lt;= price:</dt><dd><p>fill_probability = max(0.1, 0.9 - price_diff * 100)</p>
+</dd>
+<dt>elif side == “sell” and current_price &gt;= price:</dt><dd><p>fill_probability = max(0.1, 0.9 - price_diff * 100)</p>
+</dd>
+<dt>else:</dt><dd><p>fill_probability = 0.0</p>
+</dd>
+<dt>if random.random() &lt; fill_probability * 0.3:  # Reduce fill rate for realism</dt><dd><p>await self.execute_paper_trade(side, price, size, symbol)</p>
+</dd>
+</dl>
+</dd>
+<dt>async def execute_paper_trade(self, side, price, size, symbol):</dt><dd><p>“””Execute a paper trade”””</p>
+<p>commission = size * price * self.commission_rate</p>
+<dl>
+<dt>if side == “buy”:</dt><dd><p>cost = size * price + commission
+if self.balance &gt;= cost:</p>
+<blockquote>
+<div><p>self.balance -= cost
+current_pos = self.positions.get(symbol, {“size”: 0, “entry_price”: price})</p>
+<p># Update weighted average entry price
+old_size = current_pos[“size”]
+new_size = old_size + size
+if new_size != 0:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>current_pos[“entry_price”] = (</dt><dd><p>(current_pos[“entry_price”] * old_size + price * size) / new_size</p>
+</dd>
+</dl>
+<p>)</p>
+</div></blockquote>
+<p>current_pos[“size”] = new_size
+self.positions[symbol] = current_pos</p>
+<p>self.trade_id += 1
+self.trades.append({</p>
+<blockquote>
+<div><p>“id”: self.trade_id,
+“side”: “buy”,
+“symbol”: symbol,
+“price”: price,
+“size”: size,
+“commission”: commission,
+“timestamp”: time.time()</p>
+</div></blockquote>
+<p>})</p>
+<p>print(f”🟢 PAPER BUY: {size:.6f} {symbol} &#64; ${price:.2f}”)</p>
+</div></blockquote>
+</dd>
+<dt>elif side == “sell”:</dt><dd><p>current_pos = self.positions.get(symbol, {“size”: 0, “entry_price”: 0})
+if current_pos[“size”] &gt;= size:</p>
+<blockquote>
+<div><p>revenue = size * price - commission
+self.balance += revenue</p>
+<p># Calculate realized PnL
+realized_pnl = (price - current_pos[“entry_price”]) * size - commission
+current_pos[“size”] -= size</p>
+<dl class="simple">
+<dt>if current_pos[“size”] == 0:</dt><dd><p>del self.positions[symbol]</p>
+</dd>
+<dt>else:</dt><dd><p>self.positions[symbol] = current_pos</p>
+</dd>
+</dl>
+<p>self.trade_id += 1
+self.trades.append({</p>
+<blockquote>
+<div><p>“id”: self.trade_id,
+“side”: “sell”,
+“symbol”: symbol,
+“price”: price,
+“size”: size,
+“commission”: commission,
+“realized_pnl”: realized_pnl,
+“timestamp”: time.time()</p>
+</div></blockquote>
+<p>})</p>
+<p>print(f”🔴 PAPER SELL: {size:.6f} {symbol} &#64; ${price:.2f} | PnL: ${realized_pnl:.2f}”)</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+</dl>
+</div></blockquote>
+<p># Run market making simulation
+async def run_market_making():</p>
+<blockquote>
+<div><p>market_maker = MarketMaker(initial_balance=10000, spread_pct=0.001)
+await market_maker.market_make_simulation(duration=300)  # 5 minutes</p>
+</div></blockquote>
+<dl class="simple">
+<dt>if __name__ == “__main__”:</dt><dd><p>print(”🏪 Market Making Paper Trading”)
+print(”💡 This strategy profits from bid-ask spread”)
+print(”⚠️  Requires careful inventory management”)
+asyncio.run(run_market_making())</p>
+</dd>
+</dl>
+<p><a href="#id21"><span class="problematic" id="id22">``</span></a><a href="#id23"><span class="problematic" id="id24">`</span></a></p>
+</section>
+<section id="scenario-2-trend-following-with-leverage">
+<h2>Scenario 2: Trend Following with Leverage<a class="headerlink" href="#scenario-2-trend-following-with-leverage" title="Link to this heading"></a></h2>
+<p><strong>Concept</strong>: Follow market trends using technical indicators and leverage for enhanced returns.</p>
+<p><strong>Strategy</strong>:
+- Use moving averages for trend direction
+- Apply controlled leverage (1x, 2x, 3x)
+- Implement stop-loss and take-profit
+- Risk management with position sizing</p>
+<p><a href="#id25"><span class="problematic" id="id26">``</span></a><a href="#id27"><span class="problematic" id="id28">`</span></a>python
+class TrendFollower(PaperTrader):</p>
+<blockquote>
+<div><dl>
+<dt>def __init__(self, initial_balance=10000, leverage=2):</dt><dd><p>super().__init__(initial_balance)
+self.leverage = leverage
+self.short_ma = 10
+self.long_ma = 30
+self.stop_loss_pct = 0.02  # 2% stop loss
+self.take_profit_pct = 0.06  # 6% take profit</p>
+</dd>
+<dt>async def trend_following_simulation(self, symbol=”BTCUSDT”, duration=600):</dt><dd><p>“””Run trend following with leverage”””</p>
+<p>config = WeexConfig.from_env()</p>
+<dl>
+<dt>async with WeexAsyncClient(config) as client:</dt><dd><p>print(f”📈 Starting trend following for {symbol}”)
+print(f”⚡ Leverage: {self.leverage}x”)
+print(f”📊 MA: {self.short_ma}/{self.long_ma}”)
+print(f”🛡️ Stop Loss: {self.stop_loss_pct*100:.1f}% | Take Profit: {self.take_profit_pct*100:.1f}%”)
+print(f”💰 Initial balance: ${self.balance:.2f}”)</p>
+<p>price_history = []
+position = None
+entry_price = None
+stop_loss = None
+take_profit = None</p>
+<p># Collect initial data
+print(”📊 Collecting initial market data…”)
+for _ in range(self.long_ma + 10):</p>
+<blockquote>
+<div><p>ticker_data = await client.get_ticker(symbol)
+price = float(ticker_data[“data”][“last”])
+price_history.append(price)
+await asyncio.sleep(2)</p>
+</div></blockquote>
+<p>print(”✅ Initial data collected, starting strategy…”)</p>
+<p>start_time = time.time()</p>
+<dl>
+<dt>while time.time() - start_time &lt; duration:</dt><dd><dl>
+<dt>try:</dt><dd><p># Get latest price
+ticker_data = await client.get_ticker(symbol)
+current_price = float(ticker_data[“data”][“last”])
+price_history.append(current_price)</p>
+<dl class="simple">
+<dt>if len(price_history) &gt; self.long_ma + 10:</dt><dd><p>price_history.pop(0)</p>
+</dd>
+</dl>
+<p># Calculate moving averages
+short_ma = sum(price_history[-self.short_ma:]) / self.short_ma
+long_ma = sum(price_history[-self.long_ma:]) / self.long_ma</p>
+<p># Generate signals
+if short_ma &gt; long_ma and position != “long”:</p>
+<blockquote>
+<div><p>signal = “buy”</p>
+</div></blockquote>
+<dl class="simple">
+<dt>elif short_ma &lt; long_ma and position != “short”:</dt><dd><p>signal = “sell”</p>
+</dd>
+<dt>else:</dt><dd><p>signal = “hold”</p>
+</dd>
+</dl>
+<p>print(f”📊 Price: ${current_price:.2f} | Short MA: ${short_ma:.2f} | Long MA: ${long_ma:.2f}”)
+print(f”📈 Signal: {signal.upper()} | Position: {position or ‘none’}”)</p>
+<p># Check stop loss and take profit
+if position == “long”:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>if current_price &lt;= stop_loss:</dt><dd><p>print(f”🛡️ STOP LOSS triggered at ${current_price:.2f}”)
+await self.close_position(client, symbol, current_price, “stop_loss”)
+position = None
+entry_price = None
+stop_loss = None
+take_profit = None</p>
+</dd>
+<dt>elif current_price &gt;= take_profit:</dt><dd><p>print(f”🎯 TAKE PROFIT triggered at ${current_price:.2f}”)
+await self.close_position(client, symbol, current_price, “take_profit”)
+position = None
+entry_price = None
+stop_loss = None
+take_profit = None</p>
+</dd>
+</dl>
+</div></blockquote>
+<dl class="simple">
+<dt>elif position == “short”:</dt><dd><dl class="simple">
+<dt>if current_price &gt;= stop_loss:</dt><dd><p>print(f”🛡️ STOP LOSS triggered at ${current_price:.2f}”)
+await self.close_position(client, symbol, current_price, “stop_loss”)
+position = None
+entry_price = None
+stop_loss = None
+take_profit = None</p>
+</dd>
+<dt>elif current_price &lt;= take_profit:</dt><dd><p>print(f”🎯 TAKE PROFIT triggered at ${current_price:.2f}”)
+await self.close_position(client, symbol, current_price, “take_profit”)
+position = None
+entry_price = None
+stop_loss = None
+take_profit = None</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p># Execute new positions
+if signal == “buy” and position != “long”:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>position_size = await self.calculate_leveraged_position_size(</dt><dd><p>client, current_price, “long”</p>
+</dd>
+</dl>
+<p>)</p>
+<dl>
+<dt>if position_size &gt; 0:</dt><dd><dl class="simple">
+<dt>await self.open_position(</dt><dd><p>client, symbol, current_price, position_size, “long”</p>
+</dd>
+</dl>
+<p>)
+position = “long”
+entry_price = current_price
+stop_loss = current_price * (1 - self.stop_loss_pct)
+take_profit = current_price * (1 + self.take_profit_pct)</p>
+<p>print(f”🟢 LONG position opened: {position_size:.6f} &#64; ${current_price:.2f}”)
+print(f”🛡️ Stop Loss: ${stop_loss:.2f} | 🎯 Take Profit: ${take_profit:.2f}”)</p>
+</dd>
+</dl>
+</div></blockquote>
+<dl>
+<dt>elif signal == “sell” and position != “short”:</dt><dd><dl class="simple">
+<dt>position_size = await self.calculate_leveraged_position_size(</dt><dd><p>client, current_price, “short”</p>
+</dd>
+</dl>
+<p>)</p>
+<dl>
+<dt>if position_size &gt; 0:</dt><dd><dl class="simple">
+<dt>await self.open_position(</dt><dd><p>client, symbol, current_price, position_size, “short”</p>
+</dd>
+</dl>
+<p>)
+position = “short”
+entry_price = current_price
+stop_loss = current_price * (1 + self.stop_loss_pct)
+take_profit = current_price * (1 - self.take_profit_pct)</p>
+<p>print(f”🔴 SHORT position opened: {position_size:.6f} &#64; ${current_price:.2f}”)
+print(f”🛡️ Stop Loss: ${stop_loss:.2f} | 🎯 Take Profit: ${take_profit:.2f}”)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p># Show portfolio status
+portfolio_value = self.get_portfolio_value({symbol: current_price})
+unrealized_pnl = self.calculate_unrealized_pnl({symbol: current_price})
+leverage_ratio = self.calculate_leverage_ratio(current_price)</p>
+<p>print(f”💼 Portfolio: ${portfolio_value:.2f} | PnL: ${unrealized_pnl:.2f}”)
+print(f”⚡ Leverage ratio: {leverage_ratio:.2f}x”)
+print(“-” * 70)</p>
+<p>await asyncio.sleep(5)  # Check every 5 seconds</p>
+</dd>
+<dt>except Exception as e:</dt><dd><p>print(f”❌ Trend following error: {e}”)
+await asyncio.sleep(5)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p># Close any remaining positions
+if position:</p>
+<blockquote>
+<div><p>ticker_data = await client.get_ticker(symbol)
+final_price = float(ticker_data[“data”][“last”])
+await self.close_position(client, symbol, final_price, “end_simulation”)</p>
+</div></blockquote>
+<p># Final summary
+final_value = self.get_portfolio_value({symbol: current_price})
+total_pnl = final_value - self.initial_balance
+return_pct = (total_pnl / self.initial_balance) * 100</p>
+<p>print(f”📈 Trend following complete!”)
+print(f”💰 Final portfolio: ${final_value:.2f}”)
+print(f”📈 Total PnL: ${total_pnl:.2f} ({return_pct:+.2f}%)”)
+print(f”📊 Total trades: {len(self.trades)}”)
+print(f”⚡ Max leverage used: {self.leverage}x”)</p>
+</dd>
+</dl>
+</dd>
+<dt>async def calculate_leveraged_position_size(self, client, current_price, direction):</dt><dd><p>“””Calculate position size with leverage and 1% rule”””</p>
+<p># Available balance for margin
+available_balance = self.balance</p>
+<p># Calculate position size with leverage
+max_position_value = available_balance * self.leverage</p>
+<p># Apply 1% rule to actual risk (not leveraged amount)
+max_risk_amount = available_balance * 0.01
+max_position_size = max_risk_amount / current_price</p>
+<p># Take minimum of leverage constraint and risk rule
+leveraged_size = max_position_value / current_price
+final_size = min(leveraged_size, max_position_size)</p>
+<p>return final_size</p>
+</dd>
+<dt>async def open_position(self, client, symbol, price, size, direction):</dt><dd><p>“””Open leveraged position”””</p>
+<p># Calculate margin requirement
+margin = (size * price) / self.leverage</p>
+<dl>
+<dt>if self.balance &gt;= margin:</dt><dd><p>self.balance -= margin</p>
+<dl class="simple">
+<dt>self.positions[symbol] = {</dt><dd><p>“size”: size if direction == “long” else -size,
+“entry_price”: price,
+“leverage”: self.leverage,
+“margin”: margin,
+“direction”: direction</p>
+</dd>
+</dl>
+<p>}</p>
+<p>self.trade_id += 1
+self.trades.append({</p>
+<blockquote>
+<div><p>“id”: self.trade_id,
+“type”: “open”,
+“direction”: direction,
+“symbol”: symbol,
+“price”: price,
+“size”: size,
+“margin”: margin,
+“leverage”: self.leverage,
+“timestamp”: time.time()</p>
+</div></blockquote>
+<p>})</p>
+</dd>
+</dl>
+</dd>
+<dt>async def close_position(self, client, symbol, current_price, reason):</dt><dd><p>“””Close leveraged position”””</p>
+<dl class="simple">
+<dt>if symbol not in self.positions:</dt><dd><p>return</p>
+</dd>
+</dl>
+<p>position = self.positions[symbol]
+position_size = abs(position[“size”])
+margin = position[“margin”]
+entry_price = position[“entry_price”]
+leverage = position[“leverage”]</p>
+<p># Calculate PnL
+if position[“size”] &gt; 0:  # Long position</p>
+<blockquote>
+<div><p>pnl = (current_price - entry_price) * position_size</p>
+</div></blockquote>
+<dl class="simple">
+<dt>else:  # Short position</dt><dd><p>pnl = (entry_price - current_price) * position_size</p>
+</dd>
+</dl>
+<p># Return margin + PnL
+self.balance += margin + pnl</p>
+<p>self.trade_id += 1
+self.trades.append({</p>
+<blockquote>
+<div><p>“id”: self.trade_id,
+“type”: “close”,
+“symbol”: symbol,
+“entry_price”: entry_price,
+“close_price”: current_price,
+“size”: position_size,
+“pnl”: pnl,
+“margin_returned”: margin,
+“leverage”: leverage,
+“reason”: reason,
+“timestamp”: time.time()</p>
+</div></blockquote>
+<p>})</p>
+<p># Remove position
+del self.positions[symbol]</p>
+<p>print(f”✅ Position closed: {position_size:.6f} &#64; ${current_price:.2f}”)
+print(f”📊 PnL: ${pnl:.2f} | Margin returned: ${margin:.2f}”)</p>
+</dd>
+<dt>def calculate_leverage_ratio(self, current_price):</dt><dd><p>“””Calculate current leverage ratio”””</p>
+<p>total_position_value = 0.0
+for symbol, position in self.positions.items():</p>
+<blockquote>
+<div><p>position_value = abs(position[“size”]) * current_prices.get(symbol, current_price)
+total_position_value += position_value</p>
+</div></blockquote>
+<dl class="simple">
+<dt>if self.balance &gt; 0:</dt><dd><p>return total_position_value / self.balance</p>
+</dd>
+</dl>
+<p>return 0.0</p>
+</dd>
+</dl>
+</div></blockquote>
+<p># Run trend following with different leverage levels
+async def run_trend_following():</p>
+<blockquote>
+<div><p>print(”📈 Trend Following Paper Trading”)
+print(”⚡ Test different leverage levels:”)</p>
+<p>leverage_levels = [1, 2, 3]</p>
+<dl>
+<dt>for leverage in leverage_levels:</dt><dd><p>print(f”n— Testing {leverage}x Leverage —“)
+trader = TrendFollower(initial_balance=10000, leverage=leverage)
+await trader.trend_following_simulation(duration=300)  # 5 minutes each</p>
+<p># Wait between tests
+if leverage &lt; max(leverage_levels):</p>
+<blockquote>
+<div><p>print(”⏳ Waiting 30 seconds before next test…”)
+await asyncio.sleep(30)</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<dl class="simple">
+<dt>if __name__ == “__main__”:</dt><dd><p>print(”📈 Trend Following with Leverage”)
+print(”⚠️  Higher leverage = Higher risk AND higher potential returns”)
+print(”🛡️  Always use stop losses with leverage!”)
+asyncio.run(run_trend_following())</p>
+</dd>
+</dl>
+<p><a href="#id29"><span class="problematic" id="id30">``</span></a><a href="#id31"><span class="problematic" id="id32">`</span></a></p>
+</section>
+<section id="scenario-3-mean-reversion-strategy">
+<h2>Scenario 3: Mean Reversion Strategy<a class="headerlink" href="#scenario-3-mean-reversion-strategy" title="Link to this heading"></a></h2>
+<p><strong>Concept</strong>: Bet on prices returning to their historical average after extreme movements.</p>
+<p><strong>Strategy</strong>:
+- Calculate Bollinger Bands
+- Buy when price hits lower band
+- Sell when price hits upper band
+- Use leverage for enhanced returns
+- Implement risk management</p>
+<p><a href="#id33"><span class="problematic" id="id34">``</span></a><a href="#id35"><span class="problematic" id="id36">`</span></a>python
+class MeanReversionTrader(PaperTrader):</p>
+<blockquote>
+<div><dl>
+<dt>def __init__(self, initial_balance=10000, leverage=1.5):</dt><dd><p>super().__init__(initial_balance)
+self.leverage = leverage
+self.bb_period = 20
+self.bb_std = 2.0  # 2 standard deviations
+self.position_size_pct = 0.8  # Use 80% of available margin</p>
+</dd>
+<dt>async def mean_reversion_simulation(self, symbol=”BTCUSDT”, duration=600):</dt><dd><p>“””Run mean reversion strategy”””</p>
+<p>config = WeexConfig.from_env()</p>
+<dl>
+<dt>async with WeexAsyncClient(config) as client:</dt><dd><p>print(f”📊 Starting mean reversion for {symbol}”)
+print(f”⚡ Leverage: {self.leverage}x”)
+print(f”📈 Bollinger Bands: {self.bb_period} period, {self.bb_std} std”)
+print(f”💰 Initial balance: ${self.balance:.2f}”)</p>
+<p>price_history = []
+position = None
+entry_price = None
+entry_time = None</p>
+<p># Collect initial data
+print(”📊 Collecting initial market data…”)
+for _ in range(self.bb_period + 10):</p>
+<blockquote>
+<div><p>ticker_data = await client.get_ticker(symbol)
+price = float(ticker_data[“data”][“last”])
+price_history.append(price)
+await asyncio.sleep(2)</p>
+</div></blockquote>
+<p>print(”✅ Initial data collected, starting strategy…”)</p>
+<p>start_time = time.time()</p>
+<dl>
+<dt>while time.time() - start_time &lt; duration:</dt><dd><dl>
+<dt>try:</dt><dd><p># Get latest price
+ticker_data = await client.get_ticker(symbol)
+current_price = float(ticker_data[“data”][“last”])
+price_history.append(current_price)</p>
+<dl class="simple">
+<dt>if len(price_history) &gt; self.bb_period + 10:</dt><dd><p>price_history.pop(0)</p>
+</dd>
+</dl>
+<p># Calculate Bollinger Bands
+recent_prices = price_history[-self.bb_period:]
+sma = sum(recent_prices) / len(recent_prices)</p>
+<p># Calculate standard deviation
+variance = sum((price - sma) ** 2 for price in recent_prices) / len(recent_prices)
+std = variance ** 0.5</p>
+<p>upper_band = sma + (self.bb_std * std)
+lower_band = sma - (self.bb_std * std)</p>
+<p># Calculate position within bands
+if upper_band != lower_band:</p>
+<blockquote>
+<div><p>band_position = (current_price - lower_band) / (upper_band - lower_band)</p>
+</div></blockquote>
+<dl class="simple">
+<dt>else:</dt><dd><p>band_position = 0.5</p>
+</dd>
+</dl>
+<p># Generate signals
+if current_price &lt;= lower_band and position != “long”:</p>
+<blockquote>
+<div><p>signal = “buy”</p>
+</div></blockquote>
+<dl class="simple">
+<dt>elif current_price &gt;= upper_band and position != “short”:</dt><dd><p>signal = “sell”</p>
+</dd>
+<dt>elif position and abs(band_position - 0.5) &lt; 0.1:</dt><dd><p>signal = “close”  # Close when near middle</p>
+</dd>
+<dt>else:</dt><dd><p>signal = “hold”</p>
+</dd>
+</dl>
+<p>print(f”📊 Price: ${current_price:.2f} | SMA: ${sma:.2f}”)
+print(f”📈 Bands: ${lower_band:.2f} - ${upper_band:.2f}”)
+print(f”📍 Band Position: {band_position:.2f} (0=lower, 1=upper)”)
+print(f”🎯 Signal: {signal.upper()} | Position: {position or ‘none’}”)</p>
+<p># Execute trades
+if signal == “buy” and position != “long”:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>position_size = await self.calculate_position_size(</dt><dd><p>client, current_price</p>
+</dd>
+</dl>
+<p>)</p>
+<dl>
+<dt>if position_size &gt; 0:</dt><dd><dl class="simple">
+<dt>await self.open_position(</dt><dd><p>client, symbol, current_price, position_size, “long”</p>
+</dd>
+</dl>
+<p>)
+position = “long”
+entry_price = current_price
+entry_time = time.time()</p>
+<p>print(f”🟢 LONG position: {position_size:.6f} &#64; ${current_price:.2f}”)
+print(f”📍 At lower band: ${lower_band:.2f}”)</p>
+</dd>
+</dl>
+</div></blockquote>
+<dl>
+<dt>elif signal == “sell” and position != “short”:</dt><dd><dl class="simple">
+<dt>position_size = await self.calculate_position_size(</dt><dd><p>client, current_price</p>
+</dd>
+</dl>
+<p>)</p>
+<dl>
+<dt>if position_size &gt; 0:</dt><dd><dl class="simple">
+<dt>await self.open_position(</dt><dd><p>client, symbol, current_price, position_size, “short”</p>
+</dd>
+</dl>
+<p>)
+position = “short”
+entry_price = current_price
+entry_time = time.time()</p>
+<p>print(f”🔴 SHORT position: {position_size:.6f} &#64; ${current_price:.2f}”)
+print(f”📍 At upper band: ${upper_band:.2f}”)</p>
+</dd>
+</dl>
+</dd>
+<dt>elif signal == “close” and position:</dt><dd><p># Close position when price returns to mean
+await self.close_position(</p>
+<blockquote>
+<div><p>client, symbol, current_price, “mean_reversion”</p>
+</div></blockquote>
+<p>)</p>
+<dl class="simple">
+<dt>if entry_time:</dt><dd><p>duration = time.time() - entry_time
+pnl = self.calculate_position_pnl(symbol, current_price)
+print(f”✅ Position closed after {duration:.0f}s”)
+print(f”📊 PnL: ${pnl:.2f}”)</p>
+</dd>
+</dl>
+<p>position = None
+entry_price = None
+entry_time = None</p>
+</dd>
+</dl>
+<p># Show portfolio status
+portfolio_value = self.get_portfolio_value({symbol: current_price})
+unrealized_pnl = self.calculate_unrealized_pnl({symbol: current_price})</p>
+<p>print(f”💼 Portfolio: ${portfolio_value:.2f} | PnL: ${unrealized_pnl:.2f}”)
+print(“-” * 60)</p>
+<p>await asyncio.sleep(5)  # Check every 5 seconds</p>
+</dd>
+<dt>except Exception as e:</dt><dd><p>print(f”❌ Mean reversion error: {e}”)
+await asyncio.sleep(5)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p># Close any remaining positions
+if position:</p>
+<blockquote>
+<div><p>ticker_data = await client.get_ticker(symbol)
+final_price = float(ticker_data[“data”][“last”])
+await self.close_position(client, symbol, final_price, “end_simulation”)</p>
+</div></blockquote>
+<p># Final summary
+final_value = self.get_portfolio_value({symbol: current_price})
+total_pnl = final_value - self.initial_balance
+return_pct = (total_pnl / self.initial_balance) * 100</p>
+<p>print(f”📊 Mean reversion complete!”)
+print(f”💰 Final portfolio: ${final_value:.2f}”)
+print(f”📈 Total PnL: ${total_pnl:.2f} ({return_pct:+.2f}%)”)
+print(f”📊 Total trades: {len(self.trades)}”)</p>
+<p># Analyze performance
+winning_trades = [t for t in self.trades if t.get(“pnl”, 0) &gt; 0]
+losing_trades = [t for t in self.trades if t.get(“pnl”, 0) &lt; 0]</p>
+<dl>
+<dt>if winning_trades or losing_trades:</dt><dd><p>win_rate = len(winning_trades) / (len(winning_trades) + len(losing_trades)) * 100
+avg_win = sum(t[“pnl”] for t in winning_trades) / len(winning_trades) if winning_trades else 0
+avg_loss = sum(t[“pnl”] for t in losing_trades) / len(losing_trades) if losing_trades else 0</p>
+<p>print(f”📊 Win Rate: {win_rate:.1f}%”)
+print(f”📈 Avg Win: ${avg_win:.2f}”)
+print(f”📉 Avg Loss: ${avg_loss:.2f}”)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>async def calculate_position_size(self, client, current_price):</dt><dd><p>“””Calculate position size with leverage and risk management”””</p>
+<p>available_balance = self.balance
+margin_available = available_balance * self.position_size_pct</p>
+<p># Calculate position size
+max_position_value = margin_available * self.leverage
+position_size = max_position_value / current_price</p>
+<p>return position_size</p>
+</dd>
+<dt>async def open_position(self, client, symbol, price, size, direction):</dt><dd><p>“””Open mean reversion position”””</p>
+<p>margin = (size * price) / self.leverage</p>
+<dl>
+<dt>if self.balance &gt;= margin:</dt><dd><p>self.balance -= margin</p>
+<dl class="simple">
+<dt>self.positions[symbol] = {</dt><dd><p>“size”: size if direction == “long” else -size,
+“entry_price”: price,
+“leverage”: self.leverage,
+“margin”: margin,
+“direction”: direction,
+“strategy”: “mean_reversion”</p>
+</dd>
+</dl>
+<p>}</p>
+<p>self.trade_id += 1
+self.trades.append({</p>
+<blockquote>
+<div><p>“id”: self.trade_id,
+“type”: “open”,
+“direction”: direction,
+“symbol”: symbol,
+“price”: price,
+“size”: size,
+“margin”: margin,
+“leverage”: self.leverage,
+“timestamp”: time.time()</p>
+</div></blockquote>
+<p>})</p>
+</dd>
+</dl>
+</dd>
+<dt>async def close_position(self, client, symbol, current_price, reason):</dt><dd><p>“””Close mean reversion position”””</p>
+<dl class="simple">
+<dt>if symbol not in self.positions:</dt><dd><p>return</p>
+</dd>
+</dl>
+<p>position = self.positions[symbol]
+position_size = abs(position[“size”])
+margin = position[“margin”]
+entry_price = position[“entry_price”]</p>
+<p># Calculate PnL
+if position[“size”] &gt; 0:  # Long position</p>
+<blockquote>
+<div><p>pnl = (current_price - entry_price) * position_size</p>
+</div></blockquote>
+<dl class="simple">
+<dt>else:  # Short position</dt><dd><p>pnl = (entry_price - current_price) * position_size</p>
+</dd>
+</dl>
+<p># Return margin + PnL
+self.balance += margin + pnl</p>
+<p>self.trade_id += 1
+self.trades.append({</p>
+<blockquote>
+<div><p>“id”: self.trade_id,
+“type”: “close”,
+“symbol”: symbol,
+“entry_price”: entry_price,
+“close_price”: current_price,
+“size”: position_size,
+“pnl”: pnl,
+“margin_returned”: margin,
+“reason”: reason,
+“timestamp”: time.time()</p>
+</div></blockquote>
+<p>})</p>
+<p>del self.positions[symbol]</p>
+</dd>
+<dt>def calculate_position_pnl(self, symbol, current_price):</dt><dd><p>“””Calculate unrealized PnL for open position”””</p>
+<dl class="simple">
+<dt>if symbol not in self.positions:</dt><dd><p>return 0.0</p>
+</dd>
+</dl>
+<p>position = self.positions[symbol]
+entry_price = position[“entry_price”]
+position_size = abs(position[“size”])</p>
+<dl class="simple">
+<dt>if position[“size”] &gt; 0:  # Long</dt><dd><p>return (current_price - entry_price) * position_size</p>
+</dd>
+<dt>else:  # Short</dt><dd><p>return (entry_price - current_price) * position_size</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</div></blockquote>
+<p># Run mean reversion strategy
+async def run_mean_reversion():</p>
+<blockquote>
+<div><p>print(”📊 Mean Reversion Paper Trading”)
+print(”💡 Strategy: Buy low, sell high based on statistical analysis”)
+print(”⚠️  Works best in ranging markets, less effective in strong trends”)</p>
+<p>trader = MeanReversionTrader(initial_balance=10000, leverage=1.5)
+await trader.mean_reversion_simulation(duration=600)  # 10 minutes</p>
+</div></blockquote>
+<dl class="simple">
+<dt>if __name__ == “__main__”:</dt><dd><p>asyncio.run(run_mean_reversion())</p>
+</dd>
+</dl>
+<p><a href="#id37"><span class="problematic" id="id38">``</span></a><a href="#id39"><span class="problematic" id="id40">`</span></a></p>
+</section>
+<section id="risk-management-for-paper-trading">
+<h2>Risk Management for Paper Trading<a class="headerlink" href="#risk-management-for-paper-trading" title="Link to this heading"></a></h2>
+<p><strong>Position Sizing with Leverage</strong>:
+<a href="#id41"><span class="problematic" id="id42">``</span></a><a href="#id43"><span class="problematic" id="id44">`</span></a>python
+def calculate_safe_position_size(balance, leverage, current_price):</p>
+<blockquote>
+<div><p>“””Calculate position size respecting 1% rule”””</p>
+<p># 1% of account balance at risk
+max_risk_amount = balance * 0.01</p>
+<p># Position size with leverage
+max_position_value = balance * leverage
+position_size = min(</p>
+<blockquote>
+<div><p>max_position_value / current_price,
+max_risk_amount / current_price</p>
+</div></blockquote>
+<p>)</p>
+<p>return position_size</p>
+</div></blockquote>
+<p># Examples
+balance = 1000
+price = 50000</p>
+<dl>
+<dt>for leverage in [1, 2, 5, 10]:</dt><dd><p>size = calculate_safe_position_size(balance, leverage, price)
+position_value = size * price
+margin_required = position_value / leverage</p>
+<p>print(f”{leverage}x: {size:.6f} BTC = ${position_value:.2f} position, ${margin_required:.2f} margin”)</p>
+</dd>
+</dl>
+<p><a href="#id45"><span class="problematic" id="id46">``</span></a><a href="#id47"><span class="problematic" id="id48">`</span></a></p>
+<p><strong>Leverage Risk Analysis</strong>:
+<a href="#id49"><span class="problematic" id="id50">``</span></a><a href="#id51"><span class="problematic" id="id52">`</span></a>python
+def analyze_leverage_risk(initial_balance, leverage_levels):</p>
+<blockquote>
+<div><p>“””Analyze risk at different leverage levels”””</p>
+<p>print(”🛡️ Leverage Risk Analysis”)
+print(“=” * 50)</p>
+<dl>
+<dt>for leverage in leverage_levels:</dt><dd><p>max_position = initial_balance * leverage
+margin_requirement = initial_balance
+liquidation_move = 1.0 / leverage  # Price move to liquidate</p>
+<p>print(f”n{leverage}x Leverage:”)
+print(f”  Max Position: ${max_position:,.2f}”)
+print(f”  Margin Required: ${margin_requirement:,.2f}”)
+print(f”  Liquidation at: {liquidation_move*100:.1f}% move”)
+print(f”  Risk Level: {’⚠️ High’ if leverage &gt; 3 else ‘🟡 Medium’ if leverage &gt; 1 else ‘🟢 Low’}”)</p>
+</dd>
+</dl>
+</div></blockquote>
+<p># Usage
+analyze_leverage_risk(10000, [1, 2, 5, 10])
+<a href="#id53"><span class="problematic" id="id54">``</span></a><a href="#id55"><span class="problematic" id="id56">`</span></a></p>
+<p><strong>Paper Trading Best Practices</strong>:</p>
+<ol class="arabic simple">
+<li><p><strong>Start with 1x leverage</strong> before increasing</p></li>
+<li><p><strong>Use 1% rule</strong> for position sizing</p></li>
+<li><p><strong>Track performance metrics</strong> (win rate, avg win/loss)</p></li>
+<li><p><strong>Test different market conditions</strong> (trending, ranging, volatile)</p></li>
+<li><p><strong>Practice risk management</strong> (stop losses, position limits)</p></li>
+<li><p><strong>Keep detailed records</strong> of all trades and decisions</p></li>
+<li><p><strong>Review and refine</strong> strategies regularly</p></li>
+</ol>
+<p><strong>Performance Metrics to Track</strong>:</p>
+<p><a href="#id57"><span class="problematic" id="id58">``</span></a><a href="#id59"><span class="problematic" id="id60">`</span></a>python
+def analyze_paper_trading_performance(trades):</p>
+<blockquote>
+<div><p>“””Analyze paper trading performance”””</p>
+<dl class="simple">
+<dt>if not trades:</dt><dd><p>print(“No trades to analyze”)
+return</p>
+</dd>
+</dl>
+<p># Basic metrics
+total_trades = len(trades)
+winning_trades = [t for t in trades if t.get(“pnl”, 0) &gt; 0]
+losing_trades = [t for t in trades if t.get(“pnl”, 0) &lt; 0]</p>
+<p>win_rate = len(winning_trades) / total_trades * 100
+total_pnl = sum(t.get(“pnl”, 0) for t in trades)</p>
+<p># Advanced metrics
+avg_win = sum(t[“pnl”] for t in winning_trades) / len(winning_trades) if winning_trades else 0
+avg_loss = sum(t[“pnl”] for t in losing_trades) / len(losing_trades) if losing_trades else 0
+profit_factor = abs(avg_win / avg_loss) if avg_loss != 0 else float(‘inf’)</p>
+<p>max_drawdown = calculate_max_drawdown(trades)
+sharpe_ratio = calculate_sharpe_ratio(trades)</p>
+<p>print(f”📊 Performance Analysis”)
+print(f”Total Trades: {total_trades}”)
+print(f”Win Rate: {win_rate:.1f}%”)
+print(f”Total PnL: ${total_pnl:.2f}”)
+print(f”Avg Win: ${avg_win:.2f}”)
+print(f”Avg Loss: ${avg_loss:.2f}”)
+print(f”Profit Factor: {profit_factor:.2f}”)
+print(f”Max Drawdown: {max_drawdown:.2f}%”)
+print(f”Sharpe Ratio: {sharpe_ratio:.2f}”)</p>
+</div></blockquote>
+<dl class="simple">
+<dt>def calculate_max_drawdown(trades):</dt><dd><p>“””Calculate maximum drawdown from trades”””
+# Implementation for drawdown calculation
+pass</p>
+</dd>
+<dt>def calculate_sharpe_ratio(trades):</dt><dd><p>“””Calculate Sharpe ratio for risk-adjusted returns”””
+# Implementation for Sharpe ratio calculation
+pass</p>
+</dd>
+</dl>
+<p><a href="#id61"><span class="problematic" id="id62">``</span></a><a href="#id63"><span class="problematic" id="id64">`</span></a></p>
+<p>Remember: <strong>Paper trading builds skills and confidence, but real trading involves emotional pressures not present in simulation. Always start with small position sizes when moving to real money!</strong> 🛡️</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Weex Client Contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
