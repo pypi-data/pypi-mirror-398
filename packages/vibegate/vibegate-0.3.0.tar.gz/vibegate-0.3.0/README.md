@@ -1,0 +1,651 @@
+# VibeGate
+
+[![PyPI version](https://badge.fury.io/py/vibegate.svg)](https://badge.fury.io/py/vibegate)
+[![CI](https://github.com/maxadamsky/VibeGate/actions/workflows/ci.yml/badge.svg)](https://github.com/maxadamsky/VibeGate/actions/workflows/ci.yml)
+[![semantic-release](https://img.shields.io/badge/semantic--release-automated-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
+VibeGate runs deterministic readiness checks for Python projects and produces an evidence ledger plus a deterministic Fix Pack of remediation patches.
+
+**Framework Support:** Works with any Python project. Includes optional framework-specific checks for FastAPI, with Django and Flask support planned.
+
+**Status:** Alpha - Automated releases via semantic-release
+
+## Quickstart
+
+Install and run VibeGate in the way that matches your workflow.
+
+### A) Install VibeGate as a tool to run on other repos (pipx recommended)
+
+This keeps the CLI isolated and available on your PATH.
+
+```bash
+pipx install "vibegate[tools]"
+```
+
+### B) Install VibeGate in a project venv
+
+Use this when VibeGate should live alongside your project dependencies.
+
+```bash
+python -m pip install "vibegate[tools]"
+```
+
+If you want the minimal package without tooling, install without extras.
+
+```bash
+python -m pip install "vibegate"
+```
+
+### C) Contributor dev install
+
+Use this when working on VibeGate itself.
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+## AI Assistant Features (Optional)
+
+VibeGate can use a local AI model to make code quality issues easier to understand and fix.
+
+### What it does
+
+- **🤖 Plain English Explanations**: Converts technical findings into friendly, approachable explanations
+- **🔧 Fix Prompts**: Generates detailed, copy-paste ready prompts for your AI coding assistant
+- **✨ 100% Local**: Uses Ollama - no data leaves your machine
+- **⚡ Smart Caching**: Caches responses to avoid redundant inference
+
+### Quick Setup
+
+```bash
+# Install with LLM support
+pip install "vibegate[llm]"
+
+# Install Ollama (if not already installed)
+# macOS: brew install ollama
+# Linux: curl -fsSL https://ollama.com/install.sh | sh
+# Windows: https://ollama.com/download
+
+# Run init - it will guide you through model selection
+vibegate init .
+```
+
+The setup wizard will:
+1. Detect if Ollama is installed
+2. Let you choose a model (CodeLlama 7B recommended)
+3. Download the model
+4. Add LLM config to `vibegate.yaml`
+
+### Supported Models
+
+- **CodeLlama 7B** (Recommended) - Fast, code-focused, 4GB RAM
+- **CodeLlama 13B** - Better quality, 8GB RAM
+- **DeepSeek Coder 6.7B** - Fast alternative, 4GB RAM
+- **Mistral 7B** - General purpose, 4GB RAM
+
+### Example Output
+
+When you run `vibegate propose .` with LLM enabled, you get:
+
+```markdown
+### Proposal 1: Broad Exception Handling
+
+#### 🤖 AI Explanation
+
+You're catching generic `Exception` in several places, which is like using a
+fishing net to catch specific fish - it works, but you might catch things you
+didn't mean to.
+
+This pattern appears mainly in your AST visitor classes, where catching broad
+exceptions is actually a legitimate pattern since node transformers need to
+handle any parsing errors gracefully.
+
+#### 🔧 AI-Generated Fix Prompt
+
+In src/vibegate/checks.py, refine the broad exception detection rule to
+exclude AST visitor patterns.
+
+The rule currently flags all generic `Exception` catches, but AST
+visitor/transformer classes legitimately need broad exception handling.
+
+Action: Update the detection logic to:
+1. Check if exception handler is within ast.NodeVisitor/NodeTransformer
+2. If yes, skip the broad-except warning
+3. Add code comment explaining why this pattern is allowed
+
+After this change:
+1. Run: pytest tests/test_checks.py
+2. Verify false positives in visitor classes are gone
+3. Ensure true broad-except issues are still caught
+```
+
+### Configuration
+
+In `vibegate.yaml`:
+
+```yaml
+llm:
+  enabled: true
+  provider: ollama
+  cache_dir: .vibegate/llm_cache
+  ollama:
+    base_url: http://localhost:11434
+    model: codellama:7b
+    temperature: 0.3
+  features:
+    explain_findings: true
+    generate_prompts: true
+```
+
+### Disabling AI Features
+
+Set `llm.enabled: false` in `vibegate.yaml` or remove the `llm` section entirely.
+
+## Self-Hosting: VibeGate Validates Itself
+
+**VibeGate eats its own dog food.** The codebase uses VibeGate to enforce its own quality standards, demonstrating that the defensive programming checks are practical and valuable in real-world code.
+
+### Quality Metrics
+
+| Metric | Status | Details |
+|--------|--------|---------|
+| **VibeGate Check** | ✅ **PASS** | Zero unsuppressed blocking findings |
+| **Empty Except Blocks** | ✅ **0** | All except blocks have logging |
+| **Zero Division Guards** | ✅ **0** | All divisions protected by checks |
+| **Bounds Validation** | ✅ **0** | All list access validated |
+| **Total Findings** | **104** | 79 dict access (schema-validated), 25 broad exceptions (LLM resilience) |
+| **Suppressions** | **Justified** | All suppressions document design decisions |
+
+### What This Means
+
+1. **No Empty Except Blocks**: Every exception handler logs debug information for troubleshooting
+2. **All Divisions Protected**: Enhanced AST checker detects control flow guards (`if x > 0:`, else branches)
+3. **Smart Bounds Checking**: Understands truthiness (`if list:`), length checks (`len(list) >= N`), and compound guards
+4. **Remaining Findings Are Intentional**:
+   - **Dict access**: Schema-validated configs (keys guaranteed to exist)
+   - **Broad exceptions**: LLM integration code (resilience requires catching all errors)
+
+### CI Strategy: VibeGate as Orchestrator
+
+Our CI runs **one command**: `vibegate check .`
+
+This single command orchestrates:
+- ✅ Code formatting (ruff format)
+- ✅ Linting (ruff check)
+- ✅ Type checking (pyright)
+- ✅ Tests (pytest)
+- ✅ Defensive programming (AST analysis)
+
+```yaml
+# .github/workflows/ci.yml
+- name: VibeGate Quality Gate (orchestrates all checks)
+  run: python -m vibegate check .
+```
+
+Individual tool runs remain in CI for debugging visibility, but **in production, you only need VibeGate**.
+
+### Advanced Control Flow Detection
+
+VibeGate's AST checker understands:
+
+```python
+# Else branch inverse logic
+def _percent(total: int, part: int) -> str:
+    if total == 0:
+        return "0%"
+    else:
+        return f"{100 * part / total:.1f}%"  # ✅ Division safe (total != 0)
+
+# Compound guards
+if top_dirs and len(top_dirs) >= 2:
+    first = top_dirs[0]   # ✅ Safe
+    second = top_dirs[1]  # ✅ Safe
+
+# Truthiness checks
+if action_hints:
+    primary = action_hints[0]  # ✅ Safe (non-empty)
+```
+
+### Why Self-Hosting Matters
+
+**Credibility**: A quality tool that doesn't validate itself lacks credibility. VibeGate demonstrates that defensive programming checks are:
+- **Practical**: Real code can pass these checks
+- **Valuable**: Caught real issues during development
+- **Maintainable**: Suppressions document design decisions, not workarounds
+
+**Dog-Fooding Benefits**:
+- Found and fixed AST checker false positives
+- Improved control flow detection
+- Validated that the tool is useful for Python projects
+- Demonstrated that broad exception catching IS correct in some contexts (LLM code)
+
+## Release workflow
+
+Releases are **fully automated** using [semantic-release](https://python-semantic-release.readthedocs.io/) based on [Conventional Commits](https://www.conventionalcommits.org/).
+
+**How it works:**
+
+1. Merge PRs with conventional commit messages to `main` (`feat:`, `fix:`, `perf:`, etc.)
+2. The `semantic-release` workflow automatically runs on every push to `main`
+3. If releasable commits exist, semantic-release will:
+   - Determine the next version based on commit types
+   - Update `CHANGELOG.md` automatically
+   - Create and push a git tag
+   - Build and publish to PyPI via Trusted Publishing
+   - Create a GitHub Release with changelog notes
+
+**No manual version bumping required!**
+
+**Commit types and version bumps:**
+- `feat:` → minor version bump (0.1.0 → 0.2.0)
+- `fix:`, `perf:`, `refactor:` → patch version bump (0.1.0 → 0.1.1)
+- `feat!:` or `BREAKING CHANGE:` → major version bump (0.1.0 → 1.0.0)
+- `docs:`, `chore:`, `ci:`, `test:` → no release
+
+**For contributors:**
+- Use conventional commits (enforced by pre-commit hooks)
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for commit message format
+- See [docs/RELEASING.md](docs/RELEASING.md) for detailed release documentation
+
+**Manual releases** (backup method):
+- For emergency releases, use the `hotfix` workflow
+- For manual control, use the deprecated `prepare_release` workflow
+- See [docs/RELEASING.md](docs/RELEASING.md) for details
+
+### Run VibeGate
+
+**One-command workflow (recommended for humans):**
+
+```bash
+# Does everything: creates config if missing, verifies tools, runs checks
+vibegate start .
+```
+
+**Evolution workflow (for maintainers improving check quality):**
+
+```bash
+# Full cycle: check → triage (optional) → tune → propose
+vibegate evolve .
+```
+
+**Step-by-step workflow (CI and manual control):**
+
+```bash
+vibegate init .      # Create config
+vibegate doctor .    # Verify tools
+vibegate check .     # Run checks
+vibegate triage .    # Label findings interactively (TTY only)
+vibegate tune .      # Generate tuning recommendations
+vibegate propose .   # Generate actionable proposal pack (PR-ready)
+```
+
+From source path (works without installing the console script):
+
+```bash
+python -m vibegate start .
+python -m vibegate evolve .
+python -m vibegate check .
+```
+
+Review artifacts:
+
+VibeGate writes `vibegate.yaml`, `.vibegate/suppressions.yaml`, and generates `artifacts/`
+plus `evidence/`. The report, fix pack, and JSONL evidence ledger are the audit trail for
+what ran and why it failed. `artifacts/` and `evidence/` are generated outputs and typically
+should not be committed.
+
+List fix pack tasks without `jq`:
+
+```bash
+vibegate fixpack-list --path artifacts/fixpack.json
+```
+
+## Developer install
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+## Contributor quickstart
+
+```bash
+make install      # Install dev dependencies
+make test         # Run tests
+make test-cov     # Run tests with coverage
+make coverage     # Generate HTML coverage report
+make gate         # Run vibegate on itself
+make sync-schemas # Sync JSON schemas
+```
+
+### Code Coverage
+
+VibeGate tracks test coverage using pytest-cov. Coverage reports are generated in CI and can be viewed in the workflow artifacts.
+
+**Local development:**
+- Run tests with coverage: `make test-cov`
+- Generate HTML report: `make coverage`
+- View report: Open `htmlcov/index.html` in your browser
+
+**CI/CD:**
+- Coverage reports are automatically generated on every PR
+- HTML and XML reports are uploaded as workflow artifacts
+- Download from GitHub Actions → Artifacts → `coverage-report-*`
+
+Smoke CI repro (build wheel, install, run checks):
+
+```bash
+./scripts/ci_smoke.sh
+```
+
+Release smoke (clean build, install newest wheel, run CLI checks):
+
+```bash
+./scripts/build_and_smoke.sh
+```
+
+On Windows:
+
+```powershell
+./scripts/ci_smoke.ps1
+```
+
+## Demo
+
+Try the demos:
+
+- `examples/fastapi-demo/` (fails: a test expectation mismatch)
+- `examples/fastapi-demo-fixed/` (passes)
+
+Each demo includes a `run_vibegate.sh` script that runs `python -m vibegate check .`
+and prints where artifacts and evidence land.
+
+## CI example (GitHub Actions)
+
+```yaml
+- name: Install VibeGate
+  run: pipx install "vibegate[tools]"
+- name: Run VibeGate
+  run: |
+    vibegate doctor .
+    vibegate check .
+```
+
+## Why the helper scripts exist (zsh-safe)
+
+Shells like zsh can error on unmatched globs (for example, `dist/*.whl`). The
+helper scripts in `scripts/` avoid that footgun by using `find` and explicit
+selection of the newest wheel.
+
+## Hello Plugin walkthrough
+
+VibeGate supports external check plugins via Python entry points. A minimal example
+plugin lives at `examples/hello-plugin/`.
+
+1) Install the example plugin in editable mode:
+
+```bash
+python -m pip install -e examples/hello-plugin
+```
+
+2) Enable the plugin in `vibegate.yaml`:
+
+```yaml
+plugins:
+  checks:
+    enabled:
+      - hello
+```
+
+3) (Optional) Customize the message from the plugin:
+
+```yaml
+plugins:
+  checks:
+    config:
+      hello:
+        message: "Hello from my repo!"
+```
+
+4) Run VibeGate as usual:
+
+```bash
+vibegate check .
+```
+
+You should see a new finding with `check_id` set to `plugin.hello` in the report.
+
+## Local dev
+
+```bash
+python -m pip install -e ".[dev]"
+pytest
+```
+
+## Continuous Integration
+
+CI runs a fast Ubuntu job on every pull request targeting `main`, and runs a broader
+OS matrix on pushes to `main` (plus manual workflow dispatches). Each job installs dev
+dependencies, runs the test/check steps, and always uploads debugging artifacts from
+`artifacts/` and `evidence/` to the workflow run's "Artifacts" section in GitHub Actions.
+
+### Expected output files
+
+Defaults (can be overridden by `vibegate.yaml`):
+
+- `artifacts/vibegate_report.md`
+- `artifacts/fixpack.json`
+- `artifacts/fixpack.md`
+- `evidence/vibegate.jsonl`
+
+Configuration contract:
+
+- `vibegate.yaml` (validated against `schema/vibegate.schema.json`)
+
+### Profiles
+
+Profiles let you define named override bundles (for enabling/disabling checks, severity overrides,
+or tool-specific configuration tweaks) and select one with `profile`. The base config is loaded
+first, then the selected profile overrides are applied on top.
+
+Example:
+
+```yaml
+profile: "strict"
+profiles:
+  fast:
+    checks:
+      tests:
+        enabled: false
+      dependency_hygiene:
+        enabled: false
+  strict:
+    checks:
+      sast:
+        enabled: true
+        severity_threshold: high
+    severity_overrides:
+      "sast.bandit": high
+  ci:
+    checks:
+      runtime_smoke:
+        enabled: true
+    tool_overrides:
+      pytest:
+        args: ["-q", "--maxfail=1"]
+```
+
+## Troubleshooting
+
+If `vibegate.yaml` fails schema validation, regenerate it or fix the required fields:
+
+```bash
+vibegate init . --force
+```
+
+This overwrites the existing `vibegate.yaml`. Or fix the required fields listed in the schema errors.
+
+## What runs
+
+Baseline checks:
+
+- Formatting: `ruff format --check`
+- Lint: `ruff check --output-format json`
+- Typecheck: `pyright --outputjson`
+- Tests: `pytest -q`
+- Dependency hygiene: lockfile required + `uv lock --check` when UV is detected
+- Config sanity: deterministic scanning for debug/uvicorn reload/cors/secret/placeholder patterns
+- Error handling: AST-based detection of bare except, empty except blocks, generic exceptions, and missing logging
+- Defensive programming: AST-based detection of missing None checks, bounds validation, and zero divisor checks
+- Code complexity: Function length, nesting depth, and cyclomatic complexity analysis
+- Dead code: Detection of unreachable code and commented-out code blocks (optional vulture tool integration)
+
+Optional when the tool is on `PATH`:
+
+- `bandit` (JSON output)
+- `gitleaks` (JSON output)
+- `osv-scanner` offline only when a local DB snapshot is configured
+- `vulture` (dead code detection)
+
+## Workspace scope
+
+VibeGate only scans files in the workspace set:
+
+- In a Git repo, the workspace is `git ls-files` (tracked files).
+- Outside Git, VibeGate walks the repo and applies default excludes.
+
+Default excludes: `.venv/`, `venv/`, `env/`, `.git/`, `__pycache__/`,
+`.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `node_modules/`, `dist/`,
+`build/`, `.tox/`, `.eggs/`, `site-packages/`, `*.egg-info/`.
+
+Virtualenv site-packages are excluded by default, including `.venv/site-packages`
+and `venv/site-packages`.
+
+## Evidence & Fix Pack
+
+Evidence is written as JSONL with `run_start`, `tool_exec`, `finding`, `suppression_applied`, and `run_summary` events. Each tool execution records argv, cwd, duration, exit code, and artifact hashes.
+
+Fix Pack output (`fixpack.json` + `fixpack.md`) is deterministic and ordered by category: dependency hygiene → vulnerability → secrets → security → typecheck → lint → formatting → tests → config → runtime.
+
+## CLI
+
+- `vibegate check [REPO_ROOT]` (defaults to `.`; exit 0 on PASS, 1 on FAIL, 2 on config error)
+- `vibegate init [REPO_ROOT]` (scaffold `vibegate.yaml`, `artifacts/`, `evidence/`, `.vibegate/`)
+- `vibegate doctor [REPO_ROOT]` (report missing tools + version drift)
+- `vibegate fixpack` (runs checks, emits fix pack only, still writes evidence)
+- `vibegate fixpack-list [--path artifacts/fixpack.json]` (TSV summary of fixpack tasks)
+- `vibegate label <fingerprint> [--false-positive|--true-positive|--acceptable-risk] --reason <reason>` (label findings for quality tracking)
+- `vibegate tune [REPO_ROOT]` (analyze labeled findings and generate tuning recommendations)
+- `vibegate propose [REPO_ROOT]` (generate actionable proposal pack from tuning clusters)
+- `vibegate verify` (alias of `check`)
+- `vibegate prompt` (stub)
+
+## Evolving checks: The tuning workflow
+
+VibeGate provides an offline, deterministic tuning pipeline to help you evolve check quality based on labeled findings.
+Run `vibegate evolve .` regularly (or use the scheduled CI workflow) to keep rules improving over time.
+
+**Key distinction:**
+- **Suppressions** (`.vibegate/suppressions.yaml`) - Affect CI/CD behavior (findings are suppressed and don't cause failures)
+- **Labels** (`.vibegate/labels.yaml`) - Learning signal only (track false positives, true positives, acceptable risks for analysis)
+
+**Workflow:**
+
+1. **Run checks and find a false positive:**
+   ```bash
+   vibegate check .
+   # Review artifacts/vibegate_report.md
+   ```
+
+2. **Label the finding:**
+   ```bash
+   vibegate label sha256:abc123... --false-positive --reason "typing-context"
+   ```
+
+   You can also label as `--true-positive` or `--acceptable-risk`.
+
+3. **Generate tuning insights:**
+   ```bash
+   vibegate tune .
+   ```
+
+   This produces:
+   - `artifacts/tuning/tuning_report.md` - Human-friendly summary with actionable hints
+   - `artifacts/tuning/tuning_clusters.json` - Machine-readable cluster data
+   - `artifacts/tuning/tuning_examples/` - Code snippets for each cluster
+
+4. **Generate actionable proposals:**
+   ```bash
+   vibegate propose .
+   ```
+
+   This creates a Proposed Patch Pack with:
+   - `artifacts/proposals/proposal_report.md` - PR-ready proposals with concrete suggestions
+   - `artifacts/proposals/proposals.json` - Machine-readable proposal data
+   - `artifacts/proposals/regression_snippets/` - Code snippets that should NOT trigger after rule refinement
+   - `artifacts/proposals/copy_paste_snippets/` - Ready-to-use suppression snippets
+
+5. **Review and apply proposals:**
+   - Each proposal includes rule refinement suggestions (e.g., "Narrow AST predicate to exclude type-annotation context")
+   - Copy-paste suppression snippets are provided as a last resort
+   - Regression snippets help verify rule refinements don't introduce false positives
+   - Use proposals to create PRs that refine rules or add regression tests
+
+**Example action hints:**
+- If >80% of FPs are in `tests/` directory → consider ignoring test code or downgrading severity
+- If many findings are in type annotations → consider guarding for type annotation context
+- If findings cluster in specific file globs → consider file-glob suppression or narrower AST predicates
+
+**Note:** The evolution pipeline (tune + propose) is completely offline and deterministic - no network calls, no AI models, just pattern analysis and heuristics. The propose command does NOT auto-modify files; it generates suggestions for human review.
+
+## How to add VibeGate to an existing Python project
+
+1. **Initialize configuration:**
+   ```bash
+   vibegate init .
+   ```
+   This creates `vibegate.yaml` at the repo root.
+
+2. **Configure framework-specific checks (optional):**
+
+   **FastAPI projects:**
+   ```yaml
+   project:
+     app_module: "app.main:app"  # Your ASGI entrypoint
+
+   checks:
+     runtime_smoke:
+       enabled: true
+       command: "uvicorn app.main:app --host 127.0.0.1 --port 8000"
+       health_url: "http://127.0.0.1:8000/healthz"
+   ```
+
+   **Django projects:**
+   ```yaml
+   checks:
+     runtime_smoke:
+       enabled: true
+       command: "python manage.py runserver 8000"
+       health_url: "http://127.0.0.1:8000/health/"
+   ```
+
+   **Flask projects:**
+   ```yaml
+   checks:
+     runtime_smoke:
+       enabled: true
+       command: "flask run --port 8000"
+       health_url: "http://127.0.0.1:8000/health"
+   ```
+
+3. **Commit a lockfile** (`uv.lock`, `poetry.lock`, or `pdm.lock`) and ensure it stays fresh.
+
+4. **Add suppressions** (optional) in `.vibegate/suppressions.yaml` for known findings with justification and expiry.
+
+5. **Run checks:**
+   ```bash
+   vibegate check .
+   ```
+   Review `artifacts/fixpack.md` for remediation steps.

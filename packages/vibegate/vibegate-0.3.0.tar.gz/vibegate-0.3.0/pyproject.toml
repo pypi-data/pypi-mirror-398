@@ -1,0 +1,202 @@
+[build-system]
+requires = ["hatchling==1.24.2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vibegate"
+version = "0.3.0"
+description = "Deterministic production readiness gate for Python projects."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "VibeGate" }]
+keywords = ["python", "quality", "gate", "cli", "fastapi", "django", "flask", "testing", "linting"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+  "typer>=0.12,<1",
+  "click>=8.1,<9",
+  "PyYAML>=6.0,<7",
+  "jsonschema>=4.23,<5",
+]
+
+[project.optional-dependencies]
+# UI server for interactive findings triage (web-based interface)
+ui = [
+  "fastapi>=0.115,<1",
+  "typing-extensions>=4.1,<5",
+  "uvicorn>=0.30,<1",
+]
+# LLM-powered AI assistant for generating friendly explanations and fix prompts
+# Requires Ollama installed locally. Install with: pip install "vibegate[llm]"
+# See README.md "AI Assistant Features" section for setup instructions
+llm = [
+  "ollama>=0.4.0,<1",
+]
+# Quality tools for checking repositories (pytest, ruff, pyright, uv)
+tools = [
+  "pytest==8.3.2",
+  "ruff==0.14.9",
+  "pyright==1.1.407",
+  "uv==0.5.7",
+]
+# Development dependencies (tools + build/release tooling)
+dev = [
+  "pytest==8.3.2",
+  "pytest-cov==6.0.0",
+  "ruff==0.14.9",
+  "pyright==1.1.407",
+  "uv==0.5.7",
+  "build==1.2.2.post1",
+  "twine==5.1.1",
+  "python-semantic-release==9.15.2",
+  "pre-commit==4.0.1",
+  "commitizen==4.1.0",
+  "distlib==0.3.9",  # Pin to 0.3.9 for Python 3.14 compatibility
+]
+
+[project.scripts]
+vibegate = "vibegate.cli:app"
+
+[project.urls]
+source = "https://github.com/VibeGate/vibegate"
+issues = "https://github.com/VibeGate/vibegate/issues"
+docs = "https://github.com/VibeGate/vibegate/tree/main/docs"
+
+[project.entry-points."vibegate.checks"]
+
+[project.entry-points."vibegate.emitters"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/vibegate"]
+omit = [
+  "*/tests/*",
+  "*/__pycache__/*",
+  "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = [
+  ".eggs/**",
+  ".pytest_cache/**",
+  ".ruff_cache/**",
+  ".tox/**",
+  ".venv*/**",
+  "**/site-packages/**",
+  "artifacts/**",
+  "build/**",
+  "dist/**",
+  "evidence/**",
+  "examples",
+  "node_modules/**",
+  "venv/**",
+]
+# Optional dependencies are expected to be missing in some environments
+reportMissingImports = "warning"
+reportAttributeAccessIssue = "warning"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vibegate"]
+include = ["src/vibegate/schemas/*.json", "src/vibegate/ui/static/**", "LICENSE", "README.md", "pyproject.toml"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/vibegate",
+  "schema",
+  "LICENSE",
+  "README.md",
+  "CHANGELOG.md",
+  "CODE_OF_CONDUCT.md",
+  "CONTRIBUTING.md",
+  "ROADMAP.md",
+  "SECURITY.md",
+  "docs/RELEASING.md",
+  "pyproject.toml",
+]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version", "pyproject.toml:tool.commitizen.version"]
+version_variables = []
+tag_format = "v{version}"
+commit_message = "chore(release): {version}"
+build_command = "python -m build"
+branch = "main"
+upload_to_vcs_release = true
+upload_to_repository = false
+hvcs = "github"
+major_on_zero = false
+allow_zero_version = true
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+# Note: During alpha phase (0.1.0a*), versions are managed manually.
+# Semantic-release will be used for stable releases (0.1.0, 0.2.0, etc.)
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = ["^chore\\(release\\):", "^chore\\(deps\\):"]
+template_dir = "templates"
+mode = "update"
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.changelog.environment]
+keep_trailing_newline = true
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor", "style", "test", "revert"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "refactor", "revert"]
+default_bump_level = 0
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
+upload_to_vcs_release = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.3.0"
+version_files = [
+  "pyproject.toml:project.version",
+  "pyproject.toml:tool.commitizen.version"
+]
+tag_format = "v$version"
+update_changelog_on_bump = true
+major_version_zero = true
+annotated_tag = true

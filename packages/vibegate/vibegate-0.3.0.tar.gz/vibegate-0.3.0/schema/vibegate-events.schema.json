@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibegate.dev/schemas/v1alpha1/vibegate-events.schema.json",
+  "title": "VibeGate Evidence JSONL Event Schema",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/run_start" },
+    { "$ref": "#/$defs/check_start" },
+    { "$ref": "#/$defs/check_end" },
+    { "$ref": "#/$defs/tool_exec" },
+    { "$ref": "#/$defs/finding" },
+    { "$ref": "#/$defs/suppression_applied" },
+    { "$ref": "#/$defs/run_summary" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["schema_version", "event_type", "run_id", "seq", "ts", "repo", "contract"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1alpha1" },
+        "event_type": { "type": "string" },
+        "run_id": { "type": "string", "minLength": 8 },
+        "seq": { "type": "integer", "minimum": 1 },
+        "ts": { "type": "string" },
+        "repo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["root", "vcs", "commit", "dirty"],
+          "properties": {
+            "root": { "type": "string" },
+            "vcs": { "type": "string", "enum": ["git", "none"] },
+            "commit": { "type": "string" },
+            "dirty": { "type": "boolean" }
+          }
+        },
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {
+            "path": { "type": "string" },
+            "sha256": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "run_start": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["schema_version", "event_type", "run_id", "seq", "ts", "repo", "contract", "vibegate", "selected_packaging"],
+          "properties": {
+            "schema_version": { "const": "v1alpha1" },
+            "event_type": { "const": "run_start" },
+            "vibegate": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["version", "mode"],
+              "properties": {
+                "version": { "type": "string" },
+                "mode": { "type": "string", "enum": ["local", "ci"] }
+              }
+            },
+            "selected_packaging": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tool", "lockfiles"],
+              "properties": {
+                "tool": { "type": "string" },
+                "lockfiles": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "toolchain": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tool", "version"],
+                "properties": {
+                  "tool": { "type": "string" },
+                  "version": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "check_start": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["event_type", "check_id", "check_key", "enabled"],
+          "properties": {
+            "event_type": { "const": "check_start" },
+            "check_id": { "type": "string" },
+            "check_key": { "type": "string" },
+            "enabled": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "check_end": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["event_type", "check_id", "check_key", "status", "duration_ms", "findings_count"],
+          "properties": {
+            "event_type": { "const": "check_end" },
+            "check_id": { "type": "string" },
+            "check_key": { "type": "string" },
+            "status": { "type": "string", "enum": ["PASS", "FAIL", "SKIPPED"] },
+            "duration_ms": { "type": "integer", "minimum": 0 },
+            "exit_code": { "type": ["integer", "null"] },
+            "skipped_reason": { "type": ["string", "null"] },
+            "findings_count": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "tool_exec": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["event_type", "check_id", "tool", "tool_version", "command", "duration_ms", "exit_code"],
+          "properties": {
+            "event_type": { "const": "tool_exec" },
+            "check_id": { "type": "string" },
+            "tool": { "type": "string" },
+            "tool_version": { "type": "string" },
+            "command": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["argv", "cwd"],
+              "properties": {
+                "argv": { "type": "array", "items": { "type": "string" } },
+                "cwd": { "type": "string" },
+                "env_allowlist": { "type": "object" }
+              }
+            },
+            "duration_ms": { "type": "integer", "minimum": 0 },
+            "exit_code": { "type": "integer" },
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "sha256"],
+                "properties": {
+                  "path": { "type": "string" },
+                  "sha256": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "finding": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["event_type", "check_id", "finding_type", "rule_id", "severity", "message", "fingerprint", "confidence", "rule_version"],
+          "properties": {
+            "event_type": { "const": "finding" },
+            "check_id": { "type": "string" },
+            "finding_type": {
+              "type": "string",
+              "enum": ["formatting", "lint", "typecheck", "tests", "dependency_hygiene", "sast", "secrets", "vulnerability", "config_sanity", "runtime_smoke", "tooling", "error_handling", "defensive_coding", "complexity", "dead_code"]
+            },
+            "tool": { "type": "string" },
+            "rule_id": { "type": "string" },
+            "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+            "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "Confidence level of the finding." },
+            "rule_version": { "type": "string", "description": "Version of the rule that generated this finding." },
+            "message": { "type": "string" },
+            "remediation_hint": { "type": "string" },
+            "location": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "col": { "type": "integer", "minimum": 1 },
+                "end_line": { "type": "integer", "minimum": 1 },
+                "end_col": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "fingerprint": { "type": "string", "description": "Stable hash used for suppression matching and fixpack references." }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "suppression_applied": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["event_type", "rule_id", "fingerprint", "justification", "expires_at"],
+          "properties": {
+            "event_type": { "const": "suppression_applied" },
+            "rule_id": { "type": "string" },
+            "fingerprint": { "type": "string" },
+            "justification": { "type": "string" },
+            "actor": { "type": "string" },
+            "applied_at": { "type": "string" },
+            "expires_at": { "type": "string" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "run_summary": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["event_type", "result", "counts", "skipped_checks"],
+          "properties": {
+            "event_type": { "const": "run_summary" },
+            "result": { "type": "string", "enum": ["PASS", "FAIL"] },
+            "duration_ms": { "type": "integer", "minimum": 0 },
+            "counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["findings_total", "findings_unsuppressed", "suppressed_total"],
+              "properties": {
+                "findings_total": { "type": "integer", "minimum": 0 },
+                "findings_unsuppressed": { "type": "integer", "minimum": 0 },
+                "findings_blocking": { "type": "integer", "minimum": 0 },
+                "findings_warning": { "type": "integer", "minimum": 0 },
+                "suppressed_total": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "decision": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "blocking_count",
+                "warning_count",
+                "suppressed_count"
+              ],
+              "properties": {
+                "status": { "type": "string", "enum": ["PASS", "FAIL"] },
+                "reason": { "type": "string" },
+                "blocking_count": { "type": "integer", "minimum": 0 },
+                "warning_count": { "type": "integer", "minimum": 0 },
+                "suppressed_count": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["baseline_run_id", "counts_delta", "baseline_counts"],
+              "properties": {
+                "baseline_run_id": { "type": "string" },
+                "counts_delta": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "findings_total": { "type": "integer" },
+                    "findings_unsuppressed": { "type": "integer" },
+                    "findings_blocking": { "type": "integer" },
+                    "findings_warning": { "type": "integer" },
+                    "suppressed_total": { "type": "integer" }
+                  }
+                },
+                "baseline_counts": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "findings_total",
+                    "findings_unsuppressed",
+                    "suppressed_total"
+                  ],
+                  "properties": {
+                    "findings_total": { "type": "integer", "minimum": 0 },
+                    "findings_unsuppressed": { "type": "integer", "minimum": 0 },
+                    "findings_blocking": { "type": "integer", "minimum": 0 },
+                    "findings_warning": { "type": "integer", "minimum": 0 },
+                    "suppressed_total": { "type": "integer", "minimum": 0 }
+                  }
+                }
+              }
+            },
+            "skipped_checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["check_id", "reason"],
+                "properties": {
+                  "check_id": { "type": "string" },
+                  "reason": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}
