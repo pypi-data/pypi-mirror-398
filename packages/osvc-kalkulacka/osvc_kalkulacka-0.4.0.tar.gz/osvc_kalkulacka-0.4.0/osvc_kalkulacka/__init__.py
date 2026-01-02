@@ -1,0 +1,1 @@
+"""OSVC kalkulacka package."""
