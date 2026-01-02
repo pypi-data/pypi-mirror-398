@@ -1,0 +1,13 @@
+# ---------------------------------------------------------------------
+# Gufo NOC Speedup: _fast typing
+# ---------------------------------------------------------------------
+# Copyright (C) 2023-25, Gufo Labs
+# See LICENSE.md for details
+# ---------------------------------------------------------------------
+
+def encode_int(v: int) -> bytes: ...
+def encode_oid(v: bytes) -> str: ...
+def parse_p_oid(v: bytes) -> str: ...
+def parse_tlv_header(
+    v: bytes,
+) -> tuple[int, int, int, bool, bool, int, int]: ...
