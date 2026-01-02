@@ -1,0 +1,202 @@
+# OneRouter Python SDK
+
+Official Python SDK for OneRouter - Unified API for payments, subscriptions, and more.
+
+## Installation
+
+```bash
+pip install onerouter
+```
+
+## Quick Start
+
+```python
+from onerouter import OneRouter
+
+# Initialize client
+client = OneRouter(api_key="unf_live_xxx")
+
+# Create payment
+order = await client.payments.create(
+    amount=500.00,
+    currency="INR"
+)
+
+print(f"Order ID: {order['transaction_id']}")
+print(f"Checkout URL: {order['checkout_url']}")
+```
+
+## Features
+
+- ✅ **Unified API**: Single interface for Razorpay, PayPal, Stripe, etc.
+- ✅ **Automatic Retries**: Built-in retry logic with exponential backoff
+- ✅ **Idempotency**: Prevent duplicate payments automatically
+- ✅ **Type Hints**: Full type support for better IDE autocomplete
+- ✅ **Error Handling**: Comprehensive exception hierarchy
+- ✅ **Async & Sync**: Support for both async/await and synchronous code
+
+## Usage Examples
+
+### Async Usage (Recommended)
+
+```python
+import asyncio
+from onerouter import OneRouter
+
+async def main():
+    async with OneRouter(api_key="unf_live_xxx") as client:
+        # Create payment
+        order = await client.payments.create(
+            amount=500.00,
+            currency="INR",
+            receipt="order_123"
+        )
+
+        # Get payment status
+        status = await client.payments.get(order['transaction_id'])
+
+        # Create refund
+        refund = await client.payments.refund(
+            payment_id=order['provider_order_id'],
+            amount=100.00  # Partial refund
+        )
+
+asyncio.run(main())
+```
+
+### Sync Usage (for non-async code)
+
+```python
+from onerouter import OneRouterSync
+
+client = OneRouterSync(api_key="unf_live_xxx")
+
+try:
+    # Create payment (no await needed)
+    order = client.payments.create(
+        amount=500.00,
+        currency="INR"
+    )
+    print(f"Order: {order['transaction_id']}")
+finally:
+    client.close()
+```
+
+### Subscriptions
+
+```python
+# Create subscription
+subscription = await client.subscriptions.create(
+    plan_id="plan_monthly_99",
+    customer_notify=True,
+    total_count=12
+)
+
+# Get subscription
+sub_details = await client.subscriptions.get(subscription['id'])
+
+# Cancel subscription
+await client.subscriptions.cancel(
+    subscription_id=subscription['id'],
+    cancel_at_cycle_end=True
+)
+```
+
+### Payment Links
+
+```python
+# Create payment link
+link = await client.payment_links.create(
+    amount=999.00,
+    description="Premium Plan",
+    customer_email="user@example.com"
+)
+
+print(f"Share this link: {link['short_url']}")
+```
+
+### Error Handling
+
+```python
+from onerouter import (
+    OneRouter,
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    APIError
+)
+
+async with OneRouter(api_key="unf_live_xxx") as client:
+    try:
+        order = await client.payments.create(amount=500.00)
+
+    except AuthenticationError:
+        print("Invalid API key")
+
+    except RateLimitError as e:
+        print(f"Rate limit exceeded. Retry after {e.retry_after} seconds")
+
+    except ValidationError as e:
+        print(f"Validation error: {e}")
+
+    except APIError as e:
+        print(f"API error ({e.status_code}): {e}")
+```
+
+## Configuration
+
+```python
+client = OneRouter(
+    api_key="unf_live_xxx",
+    base_url="https://api.onerouter.com",  # Optional: Custom API URL
+    timeout=30,                             # Optional: Request timeout (seconds)
+    max_retries=3                           # Optional: Max retry attempts
+)
+```
+
+## API Reference
+
+### Payments
+
+| Method | Description |
+|--------|-------------|
+| `payments.create()` | Create a payment order |
+| `payments.get(transaction_id)` | Get payment details |
+| `payments.refund(payment_id, amount)` | Create refund |
+
+### Subscriptions
+
+| Method | Description |
+|--------|-------------|
+| `subscriptions.create()` | Create subscription |
+| `subscriptions.get(subscription_id)` | Get subscription details |
+| `subscriptions.cancel(subscription_id)` | Cancel subscription |
+
+### Payment Links
+
+| Method | Description |
+|--------|-------------|
+| `payment_links.create()` | Create payment link |
+
+## Testing
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=onerouter tests/
+```
+
+## Support
+
+- **Documentation**: https://docs.onerouter.com
+- **GitHub**: https://github.com/onerouter/onerouter-python
+- **Email**: support@onerouter.com
+
+## License
+
+MIT License - see LICENSE file for details
