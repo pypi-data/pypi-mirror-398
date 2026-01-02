@@ -1,0 +1,269 @@
+# tests/test_json_shape.py
+import unittest
+from datetime import date, datetime
+from typing import Literal
+
+from src.trivialai.util import Exact, TransformError, json_shape
+
+
+class TestJsonShape(unittest.TestCase):
+    # -------- basic types --------
+
+    def test_json_shape_int_accepts_int(self):
+        v = json_shape(int)
+        self.assertEqual(v("1"), 1)
+        self.assertEqual(v(2), 2)  # passthrough loadch(dict) equivalent for scalars
+
+    def test_json_shape_int_rejects_bool(self):
+        v = json_shape(int)
+        with self.assertRaises(TransformError):
+            v("true")
+
+    def test_json_shape_float_accepts_int_and_float(self):
+        v = json_shape(float)
+        self.assertEqual(v("1"), 1)
+        self.assertEqual(v("1.5"), 1.5)
+
+    def test_json_shape_float_rejects_bool(self):
+        v = json_shape(float)
+        with self.assertRaises(TransformError):
+            v("false")
+
+    def test_json_shape_str_accepts_str(self):
+        v = json_shape(str)
+        self.assertEqual(v('"hello"'), "hello")
+
+    def test_json_shape_str_rejects_non_str(self):
+        v = json_shape(str)
+        with self.assertRaises(TransformError):
+            v("123")
+
+    def test_json_shape_bool_accepts_bool(self):
+        v = json_shape(bool)
+        self.assertTrue(v("true"))
+        self.assertFalse(v("false"))
+
+    def test_json_shape_bool_rejects_int(self):
+        v = json_shape(bool)
+        with self.assertRaises(TransformError):
+            v("0")
+
+    # -------- list shapes --------
+
+    def test_json_shape_list_of_ints_success(self):
+        v = json_shape([int])
+        self.assertEqual(v("[1,2,3]"), [1, 2, 3])
+
+    def test_json_shape_list_wrong_container_rejected(self):
+        v = json_shape([int])
+        with self.assertRaises(TransformError):
+            v('{"a": 1}')
+
+    def test_json_shape_list_element_type_mismatch(self):
+        v = json_shape([int])
+        with self.assertRaises(TransformError):
+            v('[1, "nope", 3]')
+
+    # -------- tuple shapes --------
+
+    def test_json_shape_tuple_fixed_length_success(self):
+        v = json_shape((int, str, bool))
+        out = v('[1, "x", true]')
+        self.assertEqual(out, [1, "x", True])
+
+    def test_json_shape_tuple_length_mismatch(self):
+        v = json_shape((int, str))
+        with self.assertRaises(TransformError):
+            v('[1, "x", true]')
+
+    def test_json_shape_tuple_element_type_mismatch(self):
+        v = json_shape((int, str))
+        with self.assertRaises(TransformError):
+            v("[1, 2]")
+
+    # -------- dict shapes (specific keys) --------
+
+    def test_json_shape_specific_keys_success(self):
+        v = json_shape({"a": int, "b": str})
+        out = v('{"a": 1, "b": "x", "extra": 999}')
+        # extra keys are allowed by current validator behavior
+        self.assertEqual(out["a"], 1)
+        self.assertEqual(out["b"], "x")
+        self.assertEqual(out["extra"], 999)
+
+    def test_json_shape_specific_keys_missing_key(self):
+        v = json_shape({"a": int, "b": str})
+        with self.assertRaises(TransformError):
+            v('{"a": 1}')
+
+    def test_json_shape_specific_keys_nested(self):
+        v = json_shape({"outer": {"inner": [str]}})
+        out = v('{"outer": {"inner": ["x", "y"]}}')
+        self.assertEqual(out, {"outer": {"inner": ["x", "y"]}})
+
+    # -------- dict shapes (general typed dicts) --------
+
+    def test_json_shape_general_dict_str_to_int_success(self):
+        v = json_shape({str: int})
+        out = v('{"a": 1, "b": 2}')
+        self.assertEqual(out, {"a": 1, "b": 2})
+
+    def test_json_shape_general_dict_value_type_mismatch(self):
+        v = json_shape({str: int})
+        with self.assertRaises(TransformError):
+            v('{"a": 1, "b": "nope"}')
+
+    def test_json_shape_general_dict_key_type_not_supported_for_json_objects(self):
+        # JSON object keys are always strings (after parsing)
+        v = json_shape({int: str})
+        with self.assertRaises(TransformError):
+            v('{"1": "x"}')  # key parses as "1" (str), not int
+
+    # -------- raw literal values (existing feature) --------
+
+    def test_json_shape_literal_in_dict_value_success(self):
+        v = json_shape({"type": "conclusion", "summary": str})
+        out = v('{"type":"conclusion","summary":"ok"}')
+        self.assertEqual(out["type"], "conclusion")
+        self.assertEqual(out["summary"], "ok")
+
+    def test_json_shape_literal_in_dict_value_mismatch(self):
+        v = json_shape({"type": "conclusion", "summary": str})
+        with self.assertRaises(TransformError):
+            v('{"type":"summary","summary":"ok"}')
+
+    def test_json_shape_literal_none(self):
+        v = json_shape(None)
+        self.assertIsNone(v("null"))
+        with self.assertRaises(TransformError):
+            v("0")
+
+    def test_json_shape_literal_number(self):
+        v = json_shape(5)
+        self.assertEqual(v("5"), 5)
+        with self.assertRaises(TransformError):
+            v("6")
+
+    def test_json_shape_literal_string(self):
+        v = json_shape("ok")
+        self.assertEqual(v('"ok"'), "ok")
+        with self.assertRaises(TransformError):
+            v('"nope"')
+
+    def test_json_shape_literal_bool(self):
+        v = json_shape(True)
+        self.assertTrue(v("true"))
+        with self.assertRaises(TransformError):
+            v("false")
+
+    # -------- typing.Literal[...] (NEW FEATURE) --------
+
+    def test_json_shape_typing_literal_accepts_allowed(self):
+        v = json_shape(Literal["a", "b", "c"])
+        self.assertEqual(v('"a"'), "a")
+        self.assertEqual(v('"b"'), "b")
+
+    def test_json_shape_typing_literal_rejects_disallowed(self):
+        v = json_shape(Literal["a", "b"])
+        with self.assertRaises(TransformError):
+            v('"c"')
+
+    def test_json_shape_typing_literal_type_sensitive(self):
+        # Should not allow 0 to satisfy Literal[False] or similar
+        v = json_shape(Literal[0])
+        self.assertEqual(v("0"), 0)
+        with self.assertRaises(TransformError):
+            v("false")
+
+    # -------- date / datetime --------
+
+    def test_json_shape_date_accepts_date_string(self):
+        v = json_shape(date)
+        self.assertEqual(v('"2024-03-15"'), "2024-03-15")
+
+    def test_json_shape_date_rejects_datetime_string(self):
+        v = json_shape(date)
+        with self.assertRaises(TransformError):
+            v('"2024-03-15T09:00:00Z"')
+
+    def test_json_shape_datetime_accepts_datetime_string_z(self):
+        v = json_shape(datetime)
+        self.assertEqual(v('"2024-03-15T17:00:00Z"'), "2024-03-15T17:00:00Z")
+
+    def test_json_shape_datetime_accepts_datetime_string_with_offset(self):
+        v = json_shape(datetime)
+        self.assertEqual(v('"2024-03-15T17:00:00+00:00"'), "2024-03-15T17:00:00+00:00")
+
+    def test_json_shape_datetime_rejects_date_only(self):
+        v = json_shape(datetime)
+        with self.assertRaises(TransformError):
+            v('"2024-03-15"')
+
+    def test_json_shape_datetime_in_dict_rejects_date_only(self):
+        TP = {"start_at": datetime, "end_at": datetime}
+        v = json_shape(TP)
+        ex = '{"start_at":"2024-03-15","end_at":"2024-03-15T17:00:00Z"}'
+        with self.assertRaises(TransformError):
+            v(ex)
+
+    # -------- Exact subtrees --------
+    def test_json_shape_exact_rejects_extra_keys(self):
+        v = json_shape(Exact({"a": int, "b": str}))
+        with self.assertRaises(TransformError):
+            v('{"a": 1, "b": "x", "extra": 999}')
+
+    def test_json_shape_exact_allows_only_specified_keys(self):
+        v = json_shape(Exact({"a": int, "b": str}))
+        out = v('{"a": 1, "b": "x"}')
+        self.assertEqual(out, {"a": 1, "b": "x"})
+
+    def test_json_shape_exact_is_local_to_subtree(self):
+        v = json_shape({"outer": Exact({"a": int})})
+        with self.assertRaises(TransformError):
+            v('{"outer": {"a": 1, "extra": 2}}')
+
+        v2 = json_shape({"outer": {"a": int}})
+        out2 = v2('{"outer": {"a": 1, "extra": 2}}')
+        self.assertEqual(out2["outer"]["a"], 1)
+        self.assertEqual(out2["outer"]["extra"], 2)
+
+    # -------- coerce --------
+
+    def test_json_shape_datetime_coerce_true_returns_datetime(self):
+        v = json_shape({"t": datetime}, coerce=True)
+        out = v('{"t":"2024-03-15T17:00:00Z"}')
+        self.assertIsInstance(out["t"], datetime)
+
+    def test_json_shape_date_coerce_true_returns_date(self):
+        v = json_shape({"d": date}, coerce=True)
+        out = v('{"d":"2024-03-15"}')
+        self.assertIsInstance(out["d"], date)
+        self.assertNotIsInstance(out["d"], datetime)
+
+    # -------- dict container type checks --------
+
+    def test_json_shape_dict_type_accepts_any_object(self):
+        v = json_shape({"parsed": dict})
+        out = v('{"parsed":{"a":1,"b":[2,3]}}')
+        self.assertIsInstance(out["parsed"], dict)
+
+    def test_json_shape_dict_type_rejects_non_object(self):
+        v = json_shape({"parsed": dict})
+        with self.assertRaises(TransformError):
+            v('{"parsed":[1,2,3]}')
+
+    # -------- parsing failures --------
+
+    def test_json_shape_parse_failed(self):
+        v = json_shape({"a": int})
+        with self.assertRaises(TransformError) as ctx:
+            v("{a: 1}")  # invalid even for your lenient loader per existing tests
+        self.assertEqual(str(ctx.exception), "parse-failed")
+
+    # -------- passthrough structured input --------
+
+    def test_json_shape_accepts_already_parsed_dict(self):
+        v = json_shape({"type": "conclusion", "summary": str})
+        obj = {"type": "conclusion", "summary": "yo"}
+        out = v(obj)
+        self.assertIs(out, obj)  # loadch passthrough for dicts
