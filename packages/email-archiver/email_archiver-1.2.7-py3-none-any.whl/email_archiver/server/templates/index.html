@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EESA | Archive Intelligence Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #0a0a0c;
+            color: #fff;
+            background-image: radial-gradient(circle at top left, #1e1b4b 0%, #0a0a0c 40%);
+            min-height: 100vh;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .text-gradient {
+            background: linear-gradient(to right, #fff, #94a3b8);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .input-glass {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .input-glass:focus {
+            outline: none;
+            border-color: rgba(99, 102, 241, 0.5);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        /* Typography Scale - Improved Readability */
+        .text-tiny {
+            font-size: 11px;
+        }
+
+        /* Beautiful Tooltips */
+        .tooltip-trigger {
+            position: relative;
+            overflow: visible;
+            cursor: help;
+            z-index: 1;
+        }
+
+        /* Lift the whole trigger above siblings (Incremental switch, buttons, etc.) */
+        .tooltip-trigger:hover {
+            z-index: 999999;
+        }
+
+        /* Tooltip box */
+        .tooltip-content {
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 999999;
+
+            /* keep your styling */
+            padding: 0.75rem 1rem;
+            background: rgba(15, 23, 42, 0.98);
+            backdrop-filter: blur(12px);
+            color: #e2e8f0;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            transition: opacity .2s ease, transform .2s ease;
+        }
+
+        /* This is the “make it appear” rule */
+        .tooltip-trigger:hover .tooltip-content {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-4px);
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#a855f7',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body x-data="eesaDashboard()">
+    <div class="flex flex-col h-screen overflow-hidden">
+        <!-- Top Navigation -->
+        <nav
+            class="h-20 glass flex flex-shrink-0 items-center justify-between px-4 md:px-6 lg:px-8 z-20 border-b border-white/5 sticky top-0">
+            <div class="flex items-center gap-4 md:gap-8 lg:gap-12">
+                <div class="flex items-center gap-3 cursor-pointer" @click="activeTab = 'dashboard'">
+                    <div
+                        class="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary font-bold shadow-lg shadow-primary/20">
+                        E
+                    </div>
+                    <div class="hidden sm:block">
+                        <h1 class="text-lg md:text-xl font-bold text-gradient"
+                            x-text="activeTab === 'dashboard' ? 'Archive Intelligence' : 'System Configuration'"></h1>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider hidden md:block"
+                            x-text="activeTab === 'dashboard' ? 'Dashboard v' + appVersion : 'Control Center'"></p>
+                    </div>
+                </div>
+
+                <div class="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
+
+                <div class="flex gap-2">
+                    <button @click="activeTab = 'dashboard'"
+                        :class="activeTab === 'dashboard' ? 'bg-primary/10 text-primary border-primary/20' : 'text-slate-500 hover:text-slate-300 border-transparent'"
+                        class="px-3 md:px-4 py-2 rounded-xl transition-all flex items-center gap-2 md:gap-3 border text-sm font-bold uppercase tracking-wider">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <span class="hidden md:inline">Dashboard</span>
+                    </button>
+                    <button @click="activeTab = 'settings'"
+                        :class="activeTab === 'settings' ? 'bg-primary/10 text-primary border-primary/20' : 'text-slate-500 hover:text-slate-300 border-transparent'"
+                        class="px-3 md:px-4 py-2 rounded-xl transition-all flex items-center gap-2 md:gap-3 border text-sm font-bold uppercase tracking-wider">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span class="hidden md:inline">Settings</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 md:gap-6">
+                <!-- Search Bar -->
+                <div class="relative hidden md:block" x-show="activeTab === 'dashboard'">
+                    <input type="text" x-model="search" @input.debounce.500ms="resetAndFetch()"
+                        class="w-48 lg:w-80 bg-white/5 border border-white/10 rounded-xl px-10 py-2.5 text-xs focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder:text-slate-600"
+                        placeholder="Search archive...">
+                    <span class="absolute left-3 top-2.5 text-slate-500 text-sm">🔍</span>
+                </div>
+
+                <div class="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 glass rounded-2xl border border-white/5">
+                    <div class="relative w-2 h-2">
+                        <div class="absolute inset-0 rounded-full"
+                            :class="status.is_running ? 'bg-green-400 animate-ping' : 'bg-slate-500'"></div>
+                        <div class="absolute inset-0 rounded-full"
+                            :class="status.is_running ? 'bg-green-500' : 'bg-slate-600'"></div>
+                    </div>
+                    <span class="text-xs font-black uppercase tracking-wider hidden sm:inline"
+                        :class="status.is_running ? 'text-green-400' : 'text-slate-500'"
+                        x-text="status.is_running ? 'SYNC ACTIVE' : 'READY'"></span>
+                    <span class="text-xs font-black uppercase tracking-wider sm:hidden"
+                        :class="status.is_running ? 'text-green-400' : 'text-slate-500'"
+                        x-text="status.is_running ? 'SYNC' : 'OK'"></span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden p-4 md:p-6 lg:p-8">
+
+            <!-- Dashboard View -->
+            <div x-show="activeTab === 'dashboard'"
+                class="flex-1 overflow-y-auto space-y-4 md:space-y-6 lg:space-y-8 pr-2">
+
+                <!-- Connection Wizard / Welcome -->
+                <div x-show="!authStatus.gmail && !authStatus.m365 && stats.total_archived === 0"
+                    class="glass p-6 md:p-8 rounded-3xl border border-indigo-500/20 bg-indigo-500/5 mb-4 md:mb-6 lg:mb-8 animate-in slide-in-from-top duration-500">
+                    <div class="flex flex-col md:flex-row gap-6 md:gap-8 items-center">
+                        <div class="flex-1 space-y-4">
+                            <h2 class="text-xl md:text-2xl font-bold text-white">Welcome to Email Archiver</h2>
+                            <p class="text-slate-400 text-sm leading-relaxed">Connect your first email provider to start
+                                building your intelligence archive. No technical setup required.</p>
+                            <div class="flex flex-col sm:flex-row gap-3 md:gap-4">
+                                <button @click="startAuth('gmail')"
+                                    class="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 border border-white/5">
+                                    <span>📩</span> Connect Gmail
+                                </button>
+                                <button @click="startAuth('m365')"
+                                    class="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 border border-white/5">
+                                    <span>☁️</span> Connect Microsoft 365
+                                </button>
+                            </div>
+                        </div>
+                        <div
+                            class="w-24 h-24 bg-indigo-500/10 rounded-full flex items-center justify-center text-4xl animate-bounce">
+                            🚀
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                    <div class="glass p-5 md:p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-medium text-slate-400 tracking-wider">TOTAL ARCHIVED</span>
+                            <span class="text-primary text-xl">📁</span>
+                        </div>
+                        <div class="text-3xl font-bold mb-1" x-text="stats.total_archived.toLocaleString()">0</div>
+                        <div class="text-tiny text-slate-500">Updated: Just Now</div>
+                    </div>
+                    <div class="glass p-5 md:p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-medium text-slate-400 tracking-wider">AI CLASSIFIED</span>
+                            <span class="text-secondary text-xl">🧠</span>
+                        </div>
+                        <div class="text-3xl font-bold mb-1" x-text="stats.classified.toLocaleString()">0</div>
+                        <div class="text-tiny text-green-400/80">Active Categories: <span
+                                x-text="Object.keys(stats.categories).length">0</span></div>
+                    </div>
+                    <div class="glass p-5 md:p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-medium text-slate-400 tracking-wider">DATA ENTITIES</span>
+                            <span class="text-indigo-400 text-xl">📊</span>
+                        </div>
+                        <div class="text-3xl font-bold mb-1" x-text="stats.extracted.toLocaleString()">0</div>
+                        <div class="text-tiny text-indigo-400/80">Structured Extraction Enabled</div>
+                    </div>
+                </div>
+
+                <!-- Sync Console -->
+                <div class="glass rounded-2xl p-4 md:p-5 lg:p-6 relative overflow-visible" style="isolation:isolate;">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="font-bold text-slate-300">Synchronization Engine</h2>
+                    </div>
+
+                    <div class="flex flex-col lg:flex-row gap-6 md:gap-8 items-start justify-center">
+                        <div class="flex flex-col items-center gap-6 relative z-0">
+                            <!-- Big Sync Button -->
+                            <div class="relative group">
+                                <button @click="status.is_running ? stopSync() : triggerSync()"
+                                    class="w-40 h-40 rounded-full glass border-2 border-primary/20 flex flex-col items-center justify-center transition-all duration-500 hover:scale-105 active:scale-95 group relative overflow-hidden">
+
+                                    <div x-show="status.is_running"
+                                        class="absolute inset-0 border-2 border-primary animate-[spin_2s_linear_infinite] border-t-transparent rounded-full">
+                                    </div>
+
+                                    <div class="text-xl font-bold tracking-widest text-white"
+                                        x-text="status.is_running ? (status.is_cancelled ? 'HALTING' : 'STOP') : 'SYNC'">
+                                        SYNC</div>
+                                    <div class="text-xs text-slate-500 mt-1 uppercase"
+                                        x-text="status.is_running ? (status.is_cancelled ? 'Stopping...' : 'Abort Sync') : 'Initiate Task'">
+                                        Initiate Task</div>
+                                    <div class="mt-3 text-2xl transition-transform"
+                                        :class="status.is_running ? 'rotate-180 text-red-400' : 'group-hover:rotate-12'">
+                                        🔄</div>
+                                </button>
+
+                                <!-- Glow effect -->
+                                <div class="absolute inset-0 bg-primary/20 blur-3xl -z-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    :class="status.is_running ? 'opacity-100' : ''"></div>
+                            </div>
+
+                            <button x-show="!status.is_running" @click="triggerSync(true)"
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-full glass border border-white/10 hover:bg-white/10 transition-colors group/btn relative">
+                                <span
+                                    class="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover/btn:text-slate-200">Re-analyze
+                                    Local Archive</span>
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                    class="w-3 h-3 text-slate-500 group-hover/btn:rotate-180 transition-transform"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+
+                            <!-- Quick Context -->
+                            <div class="w-full max-w-md space-y-4 relative z-20">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label
+                                            class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Provider</label>
+                                        <select x-model="syncConfig.provider"
+                                            class="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm focus:outline-none focus:border-primary/50 text-white">
+                                            <option class="bg-slate-900" value="gmail">Gmail</option>
+                                            <option class="bg-slate-900" value="m365">Microsoft 365</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex items-end">
+                                        <label class="flex items-center gap-2 cursor-pointer group">
+                                            <input type="checkbox" x-model="syncConfig.incremental" class="hidden">
+                                            <div class="w-10 h-5 bg-white/10 rounded-full relative transition-colors"
+                                                :class="syncConfig.incremental ? 'bg-primary/40' : ''">
+                                                <div class="absolute top-1 left-1 w-3 h-3 bg-slate-400 rounded-full transition-transform"
+                                                    :class="syncConfig.incremental ? 'translate-x-5 bg-white' : ''">
+                                                </div>
+                                            </div>
+                                            <div class="tooltip-trigger inline-block">
+                                                <span
+                                                    class="text-xs font-bold text-slate-400 uppercase">Incremental</span>
+                                                <div class="tooltip-content">
+                                                    <strong>Incremental Sync</strong><br>
+                                                    Only fetch new emails since last sync. Much faster! Disable for full
+                                                    re-sync from scratch.
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="flex gap-4">
+                                    <label
+                                        class="flex items-center gap-3 glass px-3 py-2 rounded-xl cursor-pointer hover:bg-white/10 transition-colors flex-1">
+                                        <input type="checkbox" x-model="syncConfig.classify" class="accent-primary">
+                                        <div class="tooltip-trigger inline-block">
+                                            <span class="text-sm font-semibold text-slate-300">AI Classify</span>
+                                            <div class="tooltip-content">
+                                                <strong>AI Classification</strong><br>
+                                                Auto-categorize emails (Work, Personal, Finance, etc.) using AI. Adds
+                                                searchable labels to your archive.
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label
+                                        class="flex items-center gap-3 glass px-3 py-2 rounded-xl cursor-pointer hover:bg-white/10 transition-colors flex-1">
+                                        <input type="checkbox" x-model="syncConfig.extract" class="accent-indigo-500">
+                                        <div class="tooltip-trigger inline-block">
+                                            <span class="text-sm font-semibold text-slate-300">Deep Extract</span>
+                                            <div class="tooltip-content">
+                                                <strong>Deep Extraction</strong><br>
+                                                Extract summaries, action items, people, and organizations using AI.
+                                                Creates structured intelligence data.
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="flex gap-4">
+                                    <label
+                                        class="flex items-center gap-3 glass px-3 py-2 rounded-xl cursor-pointer hover:bg-white/10 transition-colors flex-1">
+                                        <input type="checkbox" x-model="syncConfig.rename" class="accent-amber-500">
+                                        <div class="tooltip-trigger inline-block">
+                                            <span class="text-sm font-semibold text-slate-300">Rename Files</span>
+                                            <div class="tooltip-content">
+                                                <strong>AI-Powered Filenames</strong><br>
+                                                Use AI-generated smart filenames instead of timestamps. Makes files
+                                                easier to find in your filesystem.
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label
+                                        class="flex items-center gap-3 glass px-3 py-2 rounded-xl cursor-pointer hover:bg-white/10 transition-colors flex-1">
+                                        <input type="checkbox" x-model="syncConfig.embed" class="accent-emerald-500">
+                                        <div class="tooltip-trigger inline-block">
+                                            <span class="text-sm font-semibold text-slate-300">Embed Metadata</span>
+                                            <div class="tooltip-content">
+                                                <strong>Embed Metadata Headers</strong><br>
+                                                Inject AI data as X-EESA headers directly into .eml files. Data travels
+                                                with the file forever!
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Advanced Sync Configuration -->
+                                <div class="border-t border-white/5 pt-6 space-y-4">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-500"
+                                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                        </svg>
+                                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Advanced
+                                            Filters</span>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs text-slate-400 mb-1 uppercase font-bold">Since
+                                                Date</label>
+                                            <input type="date" x-model="syncConfig.since"
+                                                class="bg-white/5 border border-white/10 rounded-lg p-2 text-xs w-full focus:outline-none focus:border-primary/50 text-white">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-slate-400 mb-1 uppercase font-bold">After
+                                                ID</label>
+                                            <input type="text" x-model="syncConfig.after_id" placeholder="Optional"
+                                                class="bg-white/5 border border-white/10 rounded-lg p-2 text-xs w-full focus:outline-none focus:border-primary/50 text-white placeholder:text-slate-600">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-slate-400 mb-1 uppercase font-bold">Search
+                                            Query</label>
+                                        <input type="text" x-model="syncConfig.query"
+                                            placeholder="e.g. from:invoice label:unread"
+                                            class="bg-white/5 border border-white/10 rounded-lg p-2 text-xs w-full focus:outline-none focus:border-primary/50 text-white placeholder:text-slate-600">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Real-time Log Console -->
+                        <div
+                            class="flex-1 w-full flex flex-col h-full min-h-[250px] glass rounded-2xl overflow-hidden border border-white/10 self-stretch">
+                            <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Process
+                                    Output</span>
+                                <div class="flex gap-2">
+                                    <span
+                                        class="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/40"></span>
+                                    <span
+                                        class="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/40"></span>
+                                    <span
+                                        class="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/40"></span>
+                                </div>
+                            </div>
+                            <div x-ref="logConsole"
+                                class="flex-1 p-4 font-mono text-xs space-y-1 overflow-y-auto max-h-[350px] leading-relaxed">
+                                <template x-for="log in status.logs">
+                                    <div class="flex gap-3">
+                                        <span class="text-slate-600 shrink-0"
+                                            x-text="log.includes(' - ') ? log.split(' - ')[0].split(' ')[1] : ''"></span>
+                                        <span
+                                            :class="log.includes('ERROR') ? 'text-red-400' : log.includes('WARNING') ? 'text-yellow-400' : 'text-slate-300'"
+                                            x-text="log.includes(' - ') ? log.substring(log.indexOf(' - ') + 3) : log"></span>
+                                    </div>
+                                </template>
+                                <div x-show="status.logs.length === 0" class="text-slate-600 italic">
+                                    System idle. Waiting for task initiation...
+                                </div>
+                                <div x-show="status.is_running"
+                                    class="inline-block w-1.5 h-3 bg-primary animate-pulse ml-1 align-middle"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Emails -->
+                <div class="glass rounded-2xl overflow-hidden">
+                    <div
+                        class="p-4 md:p-6 border-b border-white/10 flex flex-col sm:flex-row gap-3 sm:gap-0 justify-between items-start sm:items-center">
+                        <h2 class="font-bold flex items-center gap-2 text-slate-300">
+                            <span class="w-1.5 h-1.5 rounded-full bg-primary shadow shadow-primary"></span>
+                            Intelligence Feed
+                        </h2>
+                        <div class="flex items-center gap-4">
+                            <span class="text-xs text-slate-500" x-show="search">Showing results for: "<span
+                                    x-text="search"></span>"</span>
+                            <button @click="resetAndFetch()"
+                                class="text-xs font-bold text-primary hover:text-primary/80 uppercase tracking-wider transition-colors">Refresh
+                                View</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr class="text-slate-400 uppercase text-xs tracking-wide border-b border-white/5">
+                                    <th class="px-6 py-4 font-semibold">Subject</th>
+                                    <th class="px-6 py-4 font-semibold">Sender</th>
+                                    <th class="px-6 py-4 font-semibold">Date</th>
+                                    <th class="px-6 py-4 font-semibold">Classification</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-white/5">
+                                <template x-for="(email, index) in emails" :key="index">
+                                    <tr @click="openEmail(email)"
+                                        class="hover:bg-white/5 transition-colors group cursor-pointer border-l-2 border-transparent hover:border-primary">
+                                        <td class="px-6 py-4 font-medium truncate max-w-xs text-slate-200"
+                                            x-text="email.subject"></td>
+                                        <td class="px-6 py-4 text-slate-400 truncate max-w-[150px]"
+                                            x-text="email.sender">
+                                        </td>
+                                        <td class="px-6 py-4 text-xs text-slate-500 whitespace-nowrap"
+                                            x-text="formatDate(email.received_at)"></td>
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-2">
+                                                <template x-if="email.classification">
+                                                    <span :class="getBadgeClass(email.classification.category)"
+                                                        class="px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide"
+                                                        x-text="email.classification.category"></span>
+                                                </template>
+                                                <template x-if="!email.classification">
+                                                    <span class="text-slate-700 text-xs">UNPROCESSED</span>
+                                                </template>
+                                                <span x-show="email.extraction" class="text-xs"
+                                                    title="Deep Extraction Available">🧩</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                        <div x-show="emails.length === 0" class="p-12 text-center text-slate-600">
+                            No emails found matching your current filter.
+                        </div>
+
+                        <!-- Pagination -->
+                        <div x-show="emails.length > 0" class="p-4 md:p-6 border-t border-white/5">
+                            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                                <!-- Page Info -->
+                                <div class="text-xs text-slate-500">
+                                    Showing <span class="text-slate-300 font-semibold"
+                                        x-text="((currentPage - 1) * pageSize) + 1"></span>
+                                    to <span class="text-slate-300 font-semibold"
+                                        x-text="Math.min(currentPage * pageSize, stats.total_archived)"></span>
+                                    of <span class="text-slate-300 font-semibold" x-text="stats.total_archived"></span>
+                                    emails
+                                </div>
+
+                                <!-- Page Controls -->
+                                <div class="flex items-center gap-2">
+                                    <!-- Previous Button -->
+                                    <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
+                                        class="px-3 py-2 glass rounded-lg text-xs font-bold transition-all border border-white/5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                    </button>
+
+                                    <!-- Page Numbers -->
+                                    <div class="flex items-center gap-1">
+                                        <template x-for="page in getPageNumbers()" :key="page">
+                                            <button x-show="page !== '...'"
+                                                @click="page !== '...' ? goToPage(page) : null"
+                                                :class="page === currentPage ? 'bg-primary text-white' : 'glass text-slate-400 hover:bg-white/10'"
+                                                class="w-9 h-9 rounded-lg text-xs font-bold transition-all border border-white/5"
+                                                x-text="page"></button>
+                                            <span x-show="page === '...'" class="px-2 text-slate-600">...</span>
+                                        </template>
+                                    </div>
+
+                                    <!-- Next Button -->
+                                    <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
+                                        class="px-3 py-2 glass rounded-lg text-xs font-bold transition-all border border-white/5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+
+                                    <!-- Jump to Page -->
+                                    <div class="hidden lg:flex items-center gap-2 ml-4 pl-4 border-l border-white/10">
+                                        <span class="text-xs text-slate-500">Go to:</span>
+                                        <input type="number" x-model.number="jumpToPageInput"
+                                            @keydown.enter="goToPage(jumpToPageInput)" min="1" :max="totalPages"
+                                            class="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-primary/50"
+                                            placeholder="Page">
+                                        <button @click="goToPage(jumpToPageInput)"
+                                            class="px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-bold transition-all">
+                                            Go
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div x-show="activeTab === 'settings'" x-cloak
+                class="flex-1 overflow-y-auto space-y-4 md:space-y-6 lg:space-y-8 pr-2">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+                    <!-- General Settings -->
+                    <div class="glass p-6 md:p-8 rounded-3xl space-y-6">
+                        <h3 class="text-lg font-bold text-slate-200 flex items-center gap-3">
+                            <span class="p-2 bg-primary/20 rounded-lg text-primary text-base">⚙️</span>
+                            System Settings
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-2 uppercase">Download
+                                    Directory</label>
+                                <input type="text" x-model="config.app.download_dir" class="input-glass"
+                                    placeholder="e.g. downloads/">
+                            </div>
+
+                            <div class="pt-4 border-t border-white/5">
+                                <h4 class="text-sm font-bold text-slate-400 mb-4">Webhook Notification</h4>
+                                <div class="space-y-4">
+                                    <label class="flex items-center gap-3 cursor-pointer group">
+                                        <input type="checkbox" x-model="config.webhook.enabled" class="accent-primary">
+                                        <span class="text-sm text-slate-300">Enable Webhooks</span>
+                                    </label>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Endpoint
+                                            URL</label>
+                                        <input type="text" x-model="config.webhook.url" class="input-glass"
+                                            placeholder="https://..." :disabled="!config.webhook.enabled">
+                                    </div>
+                                    <div>
+                                        <label
+                                            class="block text-xs font-bold text-slate-400 mb-1 uppercase">Authorization
+                                            Secret</label>
+                                        <input type="password" x-model="config.webhook.headers.Authorization"
+                                            class="input-glass" placeholder="Optional token"
+                                            :disabled="!config.webhook.enabled">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Hub Settings -->
+                    <div class="glass p-6 md:p-8 rounded-3xl space-y-6">
+                        <h3 class="text-lg font-bold text-slate-200 flex items-center gap-3">
+                            <span class="p-2 bg-secondary/20 rounded-lg text-secondary text-base">🧠</span>
+                            Intelligence Hub
+                        </h3>
+
+                        <div class="space-y-6">
+                            <!-- Classification -->
+                            <div class="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="text-sm font-bold text-slate-300">AI Classification</h4>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" x-model="config.classification.enabled" class="hidden">
+                                        <div class="w-8 h-4 bg-white/10 rounded-full relative"
+                                            :class="config.classification.enabled ? 'bg-secondary/40' : ''">
+                                            <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-slate-400 rounded-full transition-transform"
+                                                :class="config.classification.enabled ? 'translate-x-4 bg-white' : ''">
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="space-y-4">
+                                    <div class="flex justify-between items-end">
+                                        <div>
+                                            <label
+                                                class="block text-xs font-bold text-slate-400 mb-1 uppercase">Presets</label>
+                                            <div class="flex gap-2">
+                                                <button @click="setLLMPreset('openai')"
+                                                    class="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded text-xs font-bold border border-white/5 transition-all">OpenAI</button>
+                                                <button @click="setLLMPreset('ollama')"
+                                                    class="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded text-xs font-bold border border-white/5 transition-all">Ollama</button>
+                                                <button @click="setLLMPreset('lm_studio')"
+                                                    class="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded text-xs font-bold border border-white/5 transition-all">LM
+                                                    Studio</button>
+                                            </div>
+                                        </div>
+                                        <div class="flex-1 ml-4">
+                                            <label
+                                                class="block text-xs font-bold text-slate-400 mb-1 uppercase">Model</label>
+                                            <input type="text" x-model="config.classification.model"
+                                                class="input-glass py-2 px-3" placeholder="gpt-4o-mini">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div x-show="config.classification.enabled">
+                                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">LLM API
+                                        Key</label>
+                                    <input type="password" x-model="config.classification.api_key" class="input-glass"
+                                        placeholder="sk-... (Optional for local LLMs)">
+                                </div>
+
+                                <div x-show="config.classification.enabled">
+                                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Base
+                                        URL</label>
+                                    <input type="text" x-model="config.classification.base_url" class="input-glass"
+                                        placeholder="Leave empty for OpenAI default">
+                                </div>
+                            </div>
+
+                            <!-- Extraction -->
+                            <div class="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="text-sm font-bold text-slate-300">Data Extraction</h4>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" x-model="config.extraction.enabled" class="hidden">
+                                        <div class="w-8 h-4 bg-white/10 rounded-full relative"
+                                            :class="config.extraction.enabled ? 'bg-indigo-500/40' : ''">
+                                            <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-slate-400 rounded-full transition-transform"
+                                                :class="config.extraction.enabled ? 'translate-x-4 bg-white' : ''">
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <p class="text-sm text-slate-400">Enable advanced metadata extraction of summaries,
+                                    action items, and entities.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="flex justify-end gap-4 pb-12">
+                    <button @click="fetchSettings()"
+                        class="px-6 py-2 glass rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-colors">Discard</button>
+                    <button @click="saveSettings()"
+                        class="px-10 py-2 bg-primary rounded-xl text-sm font-bold text-white shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+                        <span x-show="isSaving"
+                            class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        Save Changes
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8 pb-8 md:pb-12">
+                    <!-- Google Secrets -->
+                    <div class="glass p-6 md:p-8 rounded-3xl space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-sm font-bold text-slate-300">Google Client Secrets</h4>
+                            <span :class="authStatus.gmail ? 'text-green-400' : 'text-slate-500'"
+                                class="text-xs font-bold uppercase"
+                                x-text="authStatus.gmail ? 'Connected' : 'Disconnected'"></span>
+                        </div>
+                        <p class="text-xs text-slate-400">Paste your <code>credentials.json</code> content here to
+                            enable Gmail sync.</p>
+                        <textarea x-model="gmailSecretJson" rows="4"
+                            class="w-full bg-slate-900/50 border border-white/5 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-primary/50 transition-all"
+                            placeholder='{ "installed": { ... } }'></textarea>
+                        <button @click="saveSecret('gmail')" :disabled="!gmailSecretJson"
+                            class="w-full py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 transition-all border border-white/5">
+                            Update Gmail Secrets
+                        </button>
+                    </div>
+
+                    <!-- M365 Secrets -->
+                    <div class="glass p-6 md:p-8 rounded-3xl space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-sm font-bold text-slate-300">M365 Configuration</h4>
+                            <span :class="authStatus.m365 ? 'text-green-400' : 'text-slate-500'"
+                                class="text-xs font-bold uppercase"
+                                x-text="authStatus.m365 ? 'Connected' : 'Disconnected'"></span>
+                        </div>
+                        <p class="text-xs text-slate-400">Paste your MSAL <code>config.json</code> or leave empty if
+                            using settings above.</p>
+                        <textarea x-model="m365SecretJson" rows="4"
+                            class="w-full bg-slate-900/50 border border-white/5 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500/50 transition-all"
+                            placeholder='{ "client_id": "...", "authority": "..." }'></textarea>
+                        <button @click="saveSecret('m365')" :disabled="!m365SecretJson"
+                            class="w-full py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 transition-all border border-white/5">
+                            Update M365 Secrets
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="glass p-6 md:p-8 rounded-3xl border border-red-500/10 bg-red-500/5 mb-8 md:mb-12">
+                    <h3 class="text-lg font-bold text-red-400 flex items-center gap-3 mb-4">
+                        <span class="p-2 bg-red-500/10 rounded-lg text-base">☠️</span>
+                        Danger Zone
+                    </h3>
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div class="space-y-1">
+                            <h4 class="text-sm font-bold text-white">Factory Reset</h4>
+                            <p class="text-xs text-slate-400 max-w-lg">
+                                PERMANENTLY delete all application data including the database, logs, and downloads.
+                                Authentication tokens will be preserved. This action forces a server shutdown.
+                            </p>
+                        </div>
+                        <button @click="resetModal = true"
+                            class="px-6 py-3 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold text-red-400 transition-all uppercase tracking-wider flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Factory Reset System
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+    </div>
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div x-show="resetModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div @click="resetModal = false" class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"></div>
+        <div
+            class="relative w-full max-w-md bg-[#1a0505] rounded-3xl p-8 shadow-2xl border border-red-500/30 animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-red-400">Confirm Factory Reset</h3>
+                <button @click="resetModal = false" class="text-slate-500 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4 mb-8">
+                <div class="flex items-start gap-4 p-4 bg-red-500/10 rounded-xl border border-red-500/10">
+                    <span class="text-2xl">⚠️</span>
+                    <div>
+                        <p class="text-sm font-bold text-red-200 mb-1">Destructive Action</p>
+                        <p class="text-xs text-red-100/70 leading-relaxed">
+                            You are about to delete your entire archive database, downloaded files, and logs.
+                            This action <b>CANNOT</b> be undone.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <label
+                        class="flex items-center gap-3 glass p-3 rounded-lg border border-white/5 opacity-80 cursor-not-allowed">
+                        <input type="checkbox" checked disabled class="accent-red-500">
+                        <span class="text-xs font-mono text-slate-400">Delete Database (email_archiver.sqlite)</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-3 glass p-3 rounded-lg border border-white/5 opacity-80 cursor-not-allowed">
+                        <input type="checkbox" checked disabled class="accent-red-500">
+                        <span class="text-xs font-mono text-slate-400">Delete Downloads (downloads/)</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-3 glass p-3 rounded-lg border border-white/5 opacity-80 cursor-not-allowed">
+                        <input type="checkbox" checked disabled class="accent-red-500">
+                        <span class="text-xs font-mono text-slate-400">Delete System Logs</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button @click="resetModal = false"
+                    class="px-6 py-2 glass rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-colors">
+                    Cancel
+                </button>
+                <button @click="triggerReset()" :disabled="isResetting"
+                    class="px-6 py-2 bg-red-600 rounded-xl text-xs font-bold text-white shadow-lg shadow-red-500/20 hover:bg-red-500 active:scale-95 transition-all flex items-center gap-2">
+                    <span x-show="isResetting"
+                        class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span x-text="isResetting ? 'Wiping Data...' : 'Confirm Reset'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Flow Modal -->
+    <div x-show="authFlow" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div @click="authFlow = null" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"></div>
+        <div
+            class="relative w-full max-w-md glass rounded-3xl p-6 md:p-8 shadow-2xl border border-white/10 animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white"
+                    x-text="'Connect ' + (authFlow?.provider === 'gmail' ? 'Gmail' : 'Microsoft 365')"></h3>
+                <button @click="authFlow = null" class="text-slate-500 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Gmail Flow -->
+            <template x-if="authFlow?.provider === 'gmail'">
+                <div class="space-y-6">
+                    <div class="space-y-2">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Step 1:
+                            Authorization</p>
+                        <p class="text-sm text-slate-400">Open the link below to authorize access to your Gmail
+                            account:</p>
+                        <a :href="authFlow.url" target="_blank"
+                            class="block p-4 bg-white/5 rounded-2xl text-primary text-xs font-mono break-all border border-primary/20 hover:bg-primary/5 transition-all"
+                            x-text="authFlow.url"></a>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Step 2: Validation
+                        </p>
+                        <p class="text-sm text-slate-400">Paste the authorization code provided by Google below:
+                        </p>
+                        <input type="text" x-model="authCode" placeholder="Paste code here..."
+                            class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary transition-all">
+                    </div>
+                </div>
+            </template>
+
+            <!-- M365 Flow -->
+            <template x-if="authFlow?.provider === 'm365'">
+                <div class="space-y-6">
+                    <div class="space-y-4">
+                        <p class="text-sm text-slate-400" x-text="authFlow.flow.message"></p>
+                        <div
+                            class="p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-center shadow-inner">
+                            <span class="text-3xl font-mono font-bold text-indigo-400 tracking-[0.2em]"
+                                x-text="authFlow.flow.user_code"></span>
+                        </div>
+                        <div class="flex items-start gap-3 p-4 bg-white/5 rounded-xl border border-white/5">
+                            <span class="text-xl">ℹ️</span>
+                            <p class="text-sm text-slate-400 leading-relaxed">Once you enter the code in the
+                                Microsoft portal, this dashboard will automatically detect the connection.</p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <div class="flex justify-end gap-3 mt-10">
+                <button @click="authFlow = null"
+                    class="px-6 py-2 glass rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-colors">Cancel</button>
+                <button @click="completeAuth()" :disabled="isAuthenticating"
+                    class="px-8 py-2 bg-primary rounded-xl text-xs font-bold text-white shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+                    <span x-show="isAuthenticating"
+                        class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span x-text="isAuthenticating ? 'Validating...' : 'Complete Connection'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Detail Modal -->
+    <div x-show="selectedEmail" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        @keydown.escape.window="selectedEmail = null">
+        <div class="glass w-full max-w-3xl max-h-[90vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl"
+            @click.away="selectedEmail = null">
+            <div class="p-4 md:p-6 border-b border-white/10 flex justify-between items-start">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-200" x-text="selectedEmail?.subject"></h3>
+                                            <div class="flex gap-4 mt-2">
+                                                <span class="text-xs text-slate-500">From: <span class="text-slate-300"
+                                                        x-text="selectedEmail?.sender"></span></span>
+                                                <span class="text-xs text-slate-500">Date: <span class="text-slate-300"
+                                                        x-text="formatDate(selectedEmail?.received_at)"></span></span>
+                                                
+                                                <a :href="`/api/emails/${encodeURIComponent(selectedEmail?.message_id)}/download`" 
+                                                   target="_blank"
+                                                   class="text-xs font-bold text-primary hover:text-white transition-colors flex items-center gap-1 ml-4 border-l border-white/10 pl-4">
+                                                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                   </svg>
+                                                   Download EML
+                                                </a>
+                                            </div>                </div>
+                <button @click="selectedEmail = null" class="text-slate-500 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
+                <!-- Intelligence Panel -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-primary/5 rounded-2xl p-5 border border-primary/10">
+                        <h4 class="text-xs font-bold text-primary uppercase tracking-wider mb-3">
+                            Classification</h4>
+                        <template x-if="selectedEmail?.classification">
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-3">
+                                    <span :class="getBadgeClass(selectedEmail.classification.category)"
+                                        class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide"
+                                        x-text="selectedEmail.classification.category"></span>
+                                    <span x-show="selectedEmail.classification.reasoning"
+                                        class="text-xs text-slate-500">AI Confidence: High</span>
+                                </div>
+                                <p class="text-sm text-slate-300 leading-relaxed"
+                                    x-text="selectedEmail.classification.reasoning"></p>
+                            </div>
+                        </template>
+                        <template x-if="!selectedEmail?.classification">
+                            <p class="text-xs text-slate-600 italic">No AI classification metadata available for
+                                this item.</p>
+                        </template>
+                    </div>
+
+                    <div class="bg-secondary/5 rounded-2xl p-5 border border-secondary/10">
+                        <h4 class="text-xs font-bold text-secondary uppercase tracking-wider mb-3">System
+                            Info</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-xs text-slate-400 font-bold uppercase">Source</span>
+                                <span class="text-xs text-slate-300 font-bold uppercase"
+                                    x-text="selectedEmail?.provider"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-xs text-slate-400 font-bold uppercase">Archived</span>
+                                <span class="text-xs text-slate-300 font-bold uppercase"
+                                    x-text="formatDate(selectedEmail?.processed_at)"></span>
+                            </div>
+                            <div class="pt-2 border-t border-white/5">
+                                <span class="text-xs text-slate-400 font-bold uppercase block mb-1">Local
+                                    Path</span>
+                                <code
+                                    class="text-xs text-indigo-300/80 block break-all font-mono bg-black/20 p-2 rounded"
+                                    x-text="selectedEmail?.file_path"></code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Extraction Results -->
+                <template x-if="selectedEmail?.extraction">
+                    <div class="glass rounded-2xl p-6 border border-white/5">
+                        <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4">Deep
+                            Extraction Results</h4>
+
+                        <div class="space-y-6">
+                            <div>
+                                <span class="text-xs text-slate-400 font-bold uppercase block mb-1">Summary</span>
+                                <p class="text-sm text-slate-200 leading-relaxed"
+                                    x-text="selectedEmail.extraction.summary"></p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div x-show="selectedEmail.extraction.action_items?.length">
+                                    <span class="text-xs text-slate-400 font-bold uppercase block mb-2">Action
+                                        Items</span>
+                                    <ul class="space-y-2">
+                                        <template x-for="item in selectedEmail.extraction.action_items">
+                                            <li class="text-xs text-slate-400 flex gap-2">
+                                                <span class="text-indigo-500">▹</span>
+                                                <span x-text="item"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                <div x-show="selectedEmail.extraction.organizations?.length">
+                                    <span class="text-xs text-slate-400 font-bold uppercase block mb-2">Relevant
+                                        Entities</span>
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="org in selectedEmail.extraction.organizations">
+                                            <span class="px-2 py-1 bg-white/5 rounded text-xs text-slate-400"
+                                                x-text="org"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+    </main>
+    </div>
+
+    <script>
+        function eesaDashboard() {
+            return {
+                activeTab: 'dashboard',
+                stats: { total_archived: 0, classified: 0, extracted: 0, categories: {} },
+                emails: [],
+                status: { is_running: false, logs: [] },
+                search: '',
+                currentPage: 1,
+                pageSize: 50,
+                jumpToPageInput: '',
+                selectedEmail: null,
+                syncConfig: {
+                    provider: 'gmail',
+                    incremental: true,
+                    classify: true,
+                    extract: true,  // ON by default - show full power!
+                    rename: true,
+                    embed: true,
+                    since: new Date().toISOString().split('T')[0],
+                    after_id: '',
+                    query: '',
+                    local_only: false
+                },
+                config: {
+                    app: { download_dir: 'downloads/' },
+                    webhook: { enabled: false, url: '', headers: { Authorization: '' } },
+                    classification: { enabled: false, provider: 'openai', model: '', api_key: '', base_url: '' },
+                    extraction: { enabled: false }
+                },
+                appVersion: '...',
+                isSaving: false,
+                authStatus: { gmail: false, m365: false },
+                authFlow: null,
+                authCode: '',
+                isAuthenticating: false,
+                isResetting: false,
+                resetModal: false,
+                gmailSecretJson: '',
+                m365SecretJson: '',
+                get totalPages() {
+                    return Math.ceil(this.stats.total_archived / this.pageSize) || 1;
+                },
+                setLLMPreset(preset) {
+                    if (preset === 'openai') {
+                        this.config.classification.base_url = '';
+                        this.config.classification.model = 'gpt-4o-mini';
+                    } else if (preset === 'ollama') {
+                        this.config.classification.base_url = 'http://localhost:11434/v1';
+                        this.config.classification.model = 'llama3';
+                    } else if (preset === 'lm_studio') {
+                        this.config.classification.base_url = 'http://localhost:1234/v1';
+                        this.config.classification.model = 'model-identifier';
+                    }
+                },
+                getPageNumbers() {
+                    const pages = [];
+                    const total = this.totalPages;
+                    const current = this.currentPage;
+
+                    if (total <= 7) {
+                        // Show all pages if 7 or fewer
+                        for (let i = 1; i <= total; i++) {
+                            pages.push(i);
+                        }
+                    } else {
+                        // Always show first page
+                        pages.push(1);
+
+                        if (current > 3) {
+                            pages.push('...');
+                        }
+
+                        // Show pages around current
+                        const start = Math.max(2, current - 1);
+                        const end = Math.min(total - 1, current + 1);
+
+                        for (let i = start; i <= end; i++) {
+                            if (!pages.includes(i)) {
+                                pages.push(i);
+                            }
+                        }
+
+                        if (current < total - 2) {
+                            pages.push('...');
+                        }
+
+                        // Always show last page
+                        if (!pages.includes(total)) {
+                            pages.push(total);
+                        }
+                    }
+
+                    return pages;
+                },
+                goToPage(page) {
+                    if (page < 1 || page > this.totalPages || page === this.currentPage) return;
+                    this.currentPage = page;
+                    this.jumpToPageInput = '';
+                    this.fetchData(true);
+                    // Scroll to top of table
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                },
+                init() {
+                    this.fetchVersion();
+                    this.resetAndFetch();
+                    this.fetchSettings();
+                    this.checkAuthStatus();
+
+                    setInterval(() => {
+                        this.fetchStatus();
+                        if (this.status.is_running) {
+                            this.fetchData(false); // Update stats/logs, but don't reset list if syncing
+                            this.$nextTick(() => {
+                                const el = this.$refs.logConsole;
+                                if (el) el.scrollTop = el.scrollHeight;
+                            });
+                        }
+                    }, 2000);
+                },
+                async saveSecret(provider) {
+                    const jsonStr = provider === 'gmail' ? this.gmailSecretJson : this.m365SecretJson;
+                    if (!jsonStr) return;
+                    try {
+                        const data = JSON.parse(jsonStr);
+                        const res = await fetch(`/api/secrets?provider=${provider}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+                        const result = await res.json();
+                        if (res.ok) {
+                            alert(result.message);
+                            if (provider === 'gmail') this.gmailSecretJson = '';
+                            else this.m365SecretJson = '';
+                        } else {
+                            alert('Error: ' + result.detail);
+                        }
+                    } catch (e) {
+                        alert('Invalid JSON: ' + e.message);
+                    }
+                },
+                async checkAuthStatus() {
+                    try {
+                        const res = await fetch('/api/auth/status');
+                        this.authStatus = await res.json();
+                    } catch (e) { }
+                },
+                async startAuth(provider) {
+                    this.isAuthenticating = true;
+                    this.authFlow = null;
+                    this.authCode = '';
+                    try {
+                        const res = await fetch('/api/auth/init', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ provider })
+                        });
+                        this.authFlow = await res.json();
+                        this.authFlow.provider = provider;
+                    } catch (e) {
+                        alert('Auth init failed: ' + e);
+                    } finally {
+                        this.isAuthenticating = false;
+                    }
+                },
+                async completeAuth() {
+                    this.isAuthenticating = true;
+                    try {
+                        const res = await fetch('/api/auth/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                provider: this.authFlow.provider,
+                                code: this.authCode,
+                                flow: this.authFlow.flow
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            this.authFlow = null;
+                            this.checkAuthStatus();
+                        } else {
+                            alert(data.detail || 'Auth failed');
+                        }
+                    } catch (e) {
+                        alert('Auth failed: ' + e);
+                    } finally {
+                        this.isAuthenticating = false;
+                    }
+                },
+                resetAndFetch() {
+                    this.currentPage = 1;
+                    this.fetchData(true);
+                },
+                async fetchData(reset = true) {
+                    try {
+                        const skip = (this.currentPage - 1) * this.pageSize;
+                        const [statsRes, emailsRes] = await Promise.all([
+                            fetch('/api/stats'),
+                            fetch(`/api/emails?search=${encodeURIComponent(this.search)}&skip=${skip}&limit=${this.pageSize}`)
+                        ]);
+                        this.stats = await statsRes.json();
+                        const newEmails = await emailsRes.json();
+                        this.emails = newEmails;
+                    } catch (e) { console.error('Data fetch error:', e); }
+                },
+                openEmail(email) {
+                    this.selectedEmail = email;
+                },
+                async fetchStatus() {
+                    try {
+                        const res = await fetch('/api/status');
+                        this.status = await res.json();
+                    } catch (e) { }
+                },
+                async fetchSettings() {
+                    try {
+                        const res = await fetch('/api/settings');
+                        const data = await res.json();
+                        // Initialize nested objects if missing
+                        if (!data.app) data.app = { download_dir: 'downloads/' };
+                        if (!data.webhook) data.webhook = { enabled: false, url: '', headers: { Authorization: '' } };
+                        if (!data.webhook.headers) data.webhook.headers = { Authorization: '' };
+                        if (!data.classification) data.classification = { enabled: false, provider: 'openai', model: 'gpt-4o-mini', api_key: '' };
+                        if (!data.extraction) data.extraction = { enabled: false };
+
+                        // Backward compatibility: map openai_api_key to api_key
+                        if (data.classification.openai_api_key && !data.classification.api_key) {
+                            data.classification.api_key = data.classification.openai_api_key;
+                        }
+
+                        this.config = data;
+
+                        // Sync quick sync config with settings
+                        this.syncConfig.classify = data.classification.enabled;
+                        this.syncConfig.extract = data.extraction.enabled;
+                    } catch (e) { console.error('Settings fetch error:', e); }
+                },
+                async saveSettings() {
+                    this.isSaving = true;
+                    try {
+                        await fetch('/api/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.config)
+                        });
+                        // Update syncConfig to match
+                        this.syncConfig.classify = this.config.classification.enabled;
+                        this.syncConfig.extract = this.config.extraction.enabled;
+                        setTimeout(() => this.isSaving = false, 500);
+                    } catch (e) {
+                        console.error('Save error:', e);
+                        this.isSaving = false;
+                    }
+                },
+                async fetchVersion() {
+                    try {
+                        const res = await fetch('/api/version');
+                        const data = await res.json();
+                        this.appVersion = data.version;
+                    } catch (e) { }
+                },
+                async triggerSync(localOnly = false) {
+                    try {
+                        this.syncConfig.local_only = localOnly;
+                        // Sync current LLM settings to request
+                        this.syncConfig.llm_base_url = this.config.classification.base_url;
+                        this.syncConfig.llm_api_key = this.config.classification.api_key;
+                        this.syncConfig.llm_model = this.config.classification.model;
+
+                        await fetch('/api/sync', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.syncConfig)
+                        });
+                        this.status.is_running = true;
+                        this.status.logs = ["Initiating background task..."];
+                    } catch (e) { }
+                },
+                async stopSync() {
+                    try {
+                        await fetch('/api/sync/stop', { method: 'POST' });
+                        this.status.is_cancelled = true;
+                    } catch (e) { }
+                },
+                async triggerReset() {
+                    this.isResetting = true;
+                    try {
+                        const res = await fetch('/api/reset', { method: 'POST' });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message);
+                            this.resetModal = false;
+                            window.location.reload();
+                        } else {
+                            alert('Reset failed: ' + data.detail);
+                        }
+                    } catch (e) {
+                        alert('Reset failed: ' + e);
+                    } finally {
+                        this.isResetting = false;
+                    }
+                },
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                },
+                getBadgeClass(cat) {
+                    const classes = {
+                        important: "bg-red-500/20 text-red-400 border border-red-500/30",
+                        promotional: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
+                        transactional: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+                        newsletter: "bg-green-500/20 text-green-400 border border-green-500/30",
+                        social: "bg-purple-500/20 text-purple-400 border border-purple-500/30",
+                        spam: "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+                    };
+                    return classes[cat.toLowerCase()] || "bg-slate-500/20 text-slate-400 border border-slate-500/30";
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
