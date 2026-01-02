@@ -1,0 +1,171 @@
+[project]
+name = "fastapi_factory_utilities"
+dynamic = []
+version = "0.13.3"
+
+[tool.poetry]
+homepage = "https://github.com/DeerHide/fastapi_factory_utilities"
+repository = "https://github.com/DeerHide/fastapi_factory_utilities"
+keywords = ["python", "fastapi", "beanie", "taskiq", "opentelemetry", "microservices"]
+description = "Consolidate libraries and utilities to create microservices in Python with FastAPI, Beanie, Taskiq, AioPika and OpenTelemetry."
+authors = ["miragecentury <victorien.vanroye@gmail.com>"]
+maintainers = ["miragecentury <victorien.vanroye@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "fastapi_factory_utilities", from = "src" },
+    { include = "fastapi_factory_utilities/py.typed", from = "src" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
+
+[tool.poetry-dynamic-versioning]
+enable = false
+vcs = "git"
+metadata = false
+dirty = true
+
+[tool.poetry-dynamic-versioning.substitution]
+folders = [{path= "src/fastapi_factory_utilities/core/__init__.py"}]
+
+[[tool.poetry.source]]
+name = "velmios"
+url = "https://pypi.velmios.io/simple"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+structlog = ">=24.1,<26.0"
+typer = "^0"
+pydantic = "^2.8.2"
+fastapi = ">=0.115.13,<1"
+uvicorn = ">=0.34.3,<1"
+opentelemetry-sdk = "^1.26.0"
+opentelemetry-exporter-otlp-proto-http = "^1.26.0"
+opentelemetry-exporter-otlp-proto-grpc = "^1.26.0"
+opentelemetry-instrumentation-fastapi = "^0"
+opentelemetry-propagator-b3 = "^1.26.0"
+beanie = "^2.0.0"
+opentelemetry-instrumentation-pymongo = "^0"
+pymongo = ">=4.9.2,<4.16.0"
+pyaml = "^25.1.0"
+reactivex = "^4.0.4"
+pyjwt = "^2.10.1"
+aiohttp = { version="^3.12.13", extras=["speedups"] }
+opentelemetry-instrumentation-aiohttp-client = "^0"
+aio-pika = "^9.5.7"
+opentelemetry-instrumentation-aio-pika = "^0.60b0"
+taskiq-dependencies = { version="^1.5.8", source="velmios"}
+taskiq-fastapi = "^0.3.5"
+taskiq-redis = "^1.0.9"
+certifi = "^2025.11.12"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+mypy = "^1.10.0"
+types-requests = "^2.32.0.20240712"
+types-pyyaml = "^6.0.12.20240311"
+pylint = {version=">=3.2.2,<5.0.0", extras=["spelling"]}
+black = "^25.9.0"
+pre-commit = "^4.0.1"
+pyupgrade = "^3.15.2"
+pytest = "^9.0.1"
+pytest-xdist = "^3.6.1"
+pytest-cov = "^7.0.0"
+ruff = "^0"
+pytest-asyncio = ">=0.25,<1.4"
+pytest-mongo = "^3.1.0"
+locust = "^2.32.4"
+testcontainers = { version="^4.9.0", extras=["mongodb","rabbitmq", "redis"] }
+types-deprecated = "^1.2.15.20241117"
+types-pygments = "^2.18.0.20240506"
+types-colorama = "^0.4.15.20240311"
+types-protobuf = ">=5.29.1.20241207,<7.0.0.0"
+types-psutil = ">=6.1.0.20241221,<8.0.0.0"
+types-pyopenssl = "^24.1.0.20240722"
+types-ujson = "^5.10.0.20240515"
+httpx = "^0.28.1"
+
+[tool.poetry.extras]
+
+[tool.poetry.scripts]
+fastapi_factory_utilities-example = "fastapi_factory_utilities.example.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+addopts = "--import-mode=importlib -n auto --color=yes"
+filterwarnings = [
+    "ignore:.*datetime.datetime.utcfromtimestamp().*:DeprecationWarning", # reactivex
+    "ignore:.*datetime.datetime.utcnow().*:DeprecationWarning", # reactivex
+    "ignore::pydantic.warnings.PydanticDeprecatedSince211",
+    "ignore:The @wait_container_is_ready decorator is deprecated.*:DeprecationWarning", # testcontainers
+    "ignore:The wait_for_logs function with string or callable predicates is deprecated.*:DeprecationWarning", # testcontainers
+    "ignore:Remove `format_exc_info` from your processor chain if you want pretty exceptions.*:UserWarning", # structlog pretty exceptions
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+mongo_params = ""
+
+[tool.black]
+line-length = 120
+target-version = ['py312']
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+packages = "fastapi_factory_utilities"
+mypy_path  = "src:tests"
+namespace_packages = true
+plugins = ["pydantic.mypy"]
+follow_imports = "silent"
+follow_untyped_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+# for strict mypy: (this is the tricky one :-))
+disallow_untyped_defs = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.ruff]
+# Same as Black.
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["D","F","E","W","I","UP","PL","N","RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 120
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
