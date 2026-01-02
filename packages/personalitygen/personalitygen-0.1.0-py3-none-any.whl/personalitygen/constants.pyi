@@ -1,0 +1,2 @@
+UNIT_RANGE_MIN: float
+UNIT_RANGE_MAX: float
