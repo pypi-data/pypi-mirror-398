@@ -1,0 +1,488 @@
+Metadata-Version: 2.4
+Name: roksta
+Version: 0.4.1
+Summary: An AI coding assistant
+Author-email: Prash Naidu <prash@roksta.ai>
+Project-URL: Homepage, https://roksta.ai
+Requires-Python: <3.15,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: google-genai==1.49.0
+Requires-Dist: pydantic>=2.11.7
+Requires-Dist: tiktoken>=0.9.0
+Requires-Dist: rich>=14.0.0
+Requires-Dist: pyyaml>=6.0.2
+Requires-Dist: textual>=3.5.0
+Requires-Dist: cryptography>=45.0.4
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: ulid-py>=1.1.0
+Requires-Dist: packaging>=25.0
+Requires-Dist: pyperclip>=1.9.0
+Requires-Dist: filetype>=1.2.0
+Requires-Dist: gitpython>=3.1.44
+Requires-Dist: jsonref>=1.1.0
+Requires-Dist: pathspec>=0.12.1
+Requires-Dist: psutil>=7.1.0
+Requires-Dist: PyNaCl>=1.6.0
+Requires-Dist: markdownify>=1.2.0
+Requires-Dist: aiosqlite>=0.22.0
+Provides-Extra: tests
+Requires-Dist: pytest>=8.4.1; extra == "tests"
+Requires-Dist: pytest-asyncio>=1.0.0; extra == "tests"
+Requires-Dist: pytest-mock>=3.14.1; extra == "tests"
+Requires-Dist: ruff>=0.12.8; extra == "tests"
+Requires-Dist: pytest-cov>=7.0.0; extra == "tests"
+Provides-Extra: build
+Requires-Dist: setuptools>=80.9.0; extra == "build"
+Requires-Dist: wheel>=0.45.1; extra == "build"
+Requires-Dist: twine>=6.1.0; extra == "build"
+Requires-Dist: cython>=3.1.2; extra == "build"
+Requires-Dist: cibuildwheel>=3.0.0; extra == "build"
+Requires-Dist: build>=1.2.2.post1; extra == "build"
+Provides-Extra: admin
+Requires-Dist: invoke>=2.2.0; extra == "admin"
+Requires-Dist: google-cloud-firestore>=2.21.0; extra == "admin"
+Requires-Dist: firebase-admin>=7.1.0; extra == "admin"
+Provides-Extra: benchmark
+Requires-Dist: sb-cli>=0.1.5; extra == "benchmark"
+Requires-Dist: datasets>=4.2.0; extra == "benchmark"
+Requires-Dist: gitpython>=3.1.45; extra == "benchmark"
+
+# Roksta: An AI Coding Assistant 🤘
+
+Welcome!
+
+AI coding can feel chaotic. Too many tools rush ahead, make assumptions, and change your code without clarity — creating stress, rework, and that out-of-control feeling.
+
+We built Roksta to bring clarity, transparency and control back to the process.
+
+Here's what we believe an AI coding assistant should and shouldn't do:
+
+**👍 They should:**
+- Clarity: Ask for details instead of assuming.
+- Transparency: Explain the plan before coding.
+- Cost & Speed: Use fast, cheap models for simple tasks.
+- Performance: Use strong models for complex work.
+- Reliability: Switch providers to avoid downtime.
+
+**👎 They shouldn't:**
+- Degrade in performance as the session grows.
+- Hit context window limits.
+- Be locked to a single LLM provider.
+- Have expensive subscriptions.
+- Impose arbitrary usage limits.
+
+Roksta delivers all the above with simple **pay-as-you-go pricing** — no subscription required.
+
+---
+
+## Table of Contents
+
+- [Installation & Setup](#installation--setup)
+- [Usage](#usage)
+- [Recommended Workflow](#recommended-workflow)
+- [Command Reference](#command-reference)
+- [Command Line Parameters](#command-line-parameters)
+- [Troubleshooting](#troubleshooting)
+- [Terms & Conditions](https://roksta.ai/TandCs.html)
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+- Python 3.11 or later
+- [pipx](https://pipx.pypa.io/stable/installation/) installed
+
+
+### Supported Platforms
+- Linux (x86_64, aarch64)
+- macOS (x86_64, arm64)
+- Windows (64-bit)
+
+
+### Installation
+```bash
+pipx install roksta
+pipx ensurepath
+```
+
+
+### Launching Roksta
+Navigate to your project's root folder and run:
+
+```bash
+roksta
+```
+Once launched, you will see a welcome screen and instructions on how to get started.
+
+
+### Activation
+Before you can use Roksta, you'll need to log in and activate it.
+
+Log in with the `/login` command; this will open a browser window that will allow you to log in via GitHub, Google or Microsoft.
+
+Once you've logged in, you can activate your account using an activation code. Activate Roksta using `/activate <activation_code>`. If you don't have an activation code, you can request activation using the `/request-activation` command.
+
+You will not be able to use Roksta till it has been activated. This feature has been implemented to control user adoption of Roksta as we scale. We expect to allow general access in due course.
+
+
+### Initial Setup
+
+Run the `/init` command in Roksta to initialise the codebase. This step prepares the configuration files and indexes your project structure. This can take a few minutes depending on the size of your project. However, it only needs to be done once and significantly speeds up Roksta during subsequent runs.
+
+The command also creates a `.roksta` folder in the project directory and adds it to the `.gitignore` file. It also creates `.rokstarc` and `.rokstaignore` files in the project root folder that provides Roksta with project specific configuration details.
+
+We recommend that you edit `.rokstaignore` to make it specific for your project.  A better specified file will improve Roksta's speed and reduce token usage which ultimately reduces the cost of using Roksta.
+
+You're now ready to start using Roksta! 🤘
+
+PS: Roksta also supports an AGENTS.md file in the project root folder.
+
+---
+
+## Usage
+
+### Setting Goals
+Once Roksta has been initialised, you can tell it what you want it to do by issuing the `/goal` command and then specifying your goal in the input box. The input box accepts multi-line inputs, so you will need to press **Ctrl+Enter** or **Ctrl+S** to submit your goal.
+
+Directives can be used to control how Roksta behaves. They are:
+
+  - `#full-auto`: Instructs Roksta to work on the goal and apply changes without requiring any human intervention. It's therefore important to ensure that the goal is well specified.
+
+  - `#clarify`: Force goal clarification even in full-auto mode.
+
+  - `#no-clarify`: Skip goal clarification.
+
+  - `#yolo`: Allow Roksta to run any shell command without asking for permission, can be useful when combined with the #full-auto directive.
+
+  - `#thinking(<param>)`: Adjusts the AI's computational effort for the task. The following class of models will be used by default: `gpt-5-mini`, `grok-4-fast`, `gemini-2.5-flash`, `claude-haiku-4.5`.
+    - `<param>` can be:
+      - `more`: Uses models that think more. Useful for more complex tasks where deeper analysis is required. The following types of models used will be: `gpt-5`, `grok-4`, `gemini-2.5-pro`, `claude-sonnet-4.5`.
+      - `fast`: Uses faster models (e.g. `mini`, `fast`, `flash`) or fast inference providers (e.g. Cerebras) or a combination to deliver results faster.
+    - If multiple `#thinking` directives are used in a single goal, the last one specified will take precedence. 
+    - Example:
+      ```
+      Refactor the authentication module. #thinking(more)
+      ```
+    - Note: If thinking is not set, Roksta will dynamically choose the thinking level depending on the goal's difficulty.
+
+  - `#llm-family(<family>)`: Specifies the preferred LLM family for the task (case-insensitive). Accepted values:
+    - `OpenAI`
+    - `Gemini`
+    - `Anthropic`
+    - `xAI`
+  
+    This directive guides Roksta's model selection to balance performance and cost. Example usage:
+      ```
+      Refactor data pipeline. #llm-family(Gemini)
+      ```
+
+  - `#verbose`: Temporarily enables more detailed, user-facing output while Roksta works on the current goal. This setting applies only to the active goal and is not saved across sessions or future goals.
+
+  - `#commit`: Automatically commits the changes made by Roksta to your local git repository after they have been applied. It will stage only the files modified or deleted by Roksta in the current run and use an auto-generated commit message. This does not push the changes to a remote repository. Can be overridden by the `#no-commit` directive.
+
+  - `#no-commit`: Prevents all forms of automatic committing for the specific goal to which it's applied, overriding any global auto-commit settings or the `#commit` directive.
+
+  - `#test`: Temporarily force running of tests for this goal run if a test command is configured in `.rokstarc`. If no test command is configured a warning is printed and no tests are attempted. This directive only affects the current goal execution and does not persist to project configuration.
+
+  - `#no-test`: Prevents automatic running of tests even if testing has been enabled via the `/testing on` command. Takes precedence over `#test` if both are present.
+
+  - `#build`: Temporarily force a build for this goal run if a build command is configured in `.rokstarc`. If no build command is configured a warning is printed and no build is attempted. This directive only affects the current goal execution and does not persist to project configuration.
+
+  - `#no-build`: Temporarily skip building for this goal run. Takes precedence over `#build` if both are present. This directive only affects the current goal execution and does not persist to project configuration.
+
+The following directives can be used to tune the context window to help improve performance:
+
+- `#focus(<pattern>)`: Add a file or glob pattern to include as context for understanding the goal.
+- `#ignore(<pattern>)`: Exclude files from consideration entirely.
+
+If multiple directives of the same type are used, all specified patterns will be merged. Each directive should be on its own line, and directives may be placed anywhere in the goal text.
+
+---
+
+## Recommended Workflow
+
+We recommend using the following workflow when working with Roksta.
+
+1. Activate a git branch for the goal you're going to work on.
+
+1. Give Roksta your goal using the `/goal` command. Don't make goals too ambitious, if it would take an experienced developer over two weeks to complete it, it's probably worth breaking the goal down into smaller chunks. Ideally, something that would take 1-3 days of coding.
+
+1. Review the code changes it has made using your IDE or a diff tool.
+
+1. Accept/edit/discard changes as you see fit and commit.
+
+1. If Roksta has got the task very wrong, simply discard the changes and re-run Roksta with the same goal but modified to tell it not to do what it did wrong. The chance of errors also increases if the goal is large and complicated in which case better results would be obtained by breaking the goal into smaller tasks.
+
+**Tip**: If you're not sure when asked a clarifying question, you can tell Roksta that you're not sure or ask it to do whatever it thinks is best practice.
+
+---
+
+## Command Reference
+
+Below are the commands that are available in Roksta. Commands that require the user to be logged in are noted accordingly.
+
+### /help
+
+- **Description:** Displays all available commands along with a help message.
+
+### /clear
+
+- **Description:** Clears the output area.
+
+### /quit
+
+- **Description:** Quits the application. You can also use `Ctrl+Q` to quit.
+
+### /init
+
+- **Description:** Initialises the codebase. Use this command if Roksta has not yet been initialised. This may take a few minutes and only needs to be done once. If you omit this step, Roksta will automatically run the initialisation step when you give it your first goal.
+
+### /goal
+
+- **Requires login**
+
+- **Description:** Starts the process by which you can ask Roksta to work on achieving a specific goal. [Click here](https://roksta.ai/README.html#setting-goals) to understand how to set goals for Roksta to work on.
+
+### /continue
+
+- **Requires login**
+
+- **Description:** Works exactly like `/goal` but maintains the context of the previously completed goal. [Click here](https://roksta.ai/README.html#setting-goals) to understand how to set goals for Roksta to work on.
+
+### /chat
+
+- **Requires login**
+
+- **Description:** Starts an interactive chat session where you can ask questions about your codebase. Roksta can read your files to provide contextually-aware answers. This command is for querying and understanding your code; to apply code changes, use the `/goal` command. To exit the chat session, use the `/end` command (`/quit` and `/exit` will also work) or press `Ctrl+R`.
+
+- **Directives** The chat interface supports the following directives:
+  - `#thinking(<level>)`: Adjusts the AI's computational effort. Accepted levels:
+    - `more`
+    - `less`
+    - `default`
+  - `#save`: This will save the chat transcript.
+
+### /login
+
+- **Description:** Logs you in. Logging in is a prerequisite to use Roksta.
+
+  Note: Once you log in, Roksta will store your login token in the .roksta.yaml file in your home directory. It will use this token to auto-login every time to start up Roksta. If you don't want it to log you in automatically, set the value of auto to false.
+
+### /activate
+
+- **Requires login**
+
+- **Description:** Activates your account using an activation code.
+
+- **Usage:** `/activate <activation_code>`
+
+- **Example:** `/activate YourActivationCode`
+
+### /request-activation
+
+- **Requires login**
+
+- **Description:** Submits an activation request for your account.
+
+### /add-funds
+
+- **Requires login**
+
+- **Description:** Adds funds to your account. You cannot add less than $5 to your account per transaction.
+
+- **Usage:** `/add-funds <amount>`
+
+- **Example:** `/add-funds 10`
+
+### /payment-details
+
+- **Requires login**
+
+- **Description:** Opens a Stripe webpage for providing or updating your payment details. By default Roksta will take a payment of $10 every time the balance drops below $2. You can toggle the auto-payment feature and set how much it adds and the threshold amount using the `/auto-charge` command. The threshold can't be less than $1 and the payment amount can't be less than $5.
+
+### /auto-charge
+
+- **Requires login**
+
+- **Description:** Configures automatic top-up of your account balance. When enabled, Roksta will automatically add funds to your account if your balance drops below a specified threshold. Settings are stored in the `.roksta.yaml` file in your home directory and can also be manually edited there.
+
+- **Usage:** `/auto-charge <on|off|status> [charge_amount trigger_balance]`
+
+- **Subcommands:**
+  - `on`: Enables auto-charge. If `charge_amount` and `trigger_balance` are not provided, it uses the default values ($10.00 charge amount, $2.00 trigger balance) or the last saved values from your `.roksta.yaml` configuration.
+  - `off`: Disables auto-charge.
+  - `status` (or no parameters): Show the current auto-charge configuration.
+
+- **Parameters:**
+    - `<on|off|status>`: (Required)
+    - `[charge_amount]`: (Optional) The amount to be automatically charged to your payment method. Minimum $5.00. If provided, `trigger_balance` must also be provided. Defaults to $10.00 if enabling with `on` and no custom values are set.
+    - `[trigger_balance]`: (Optional) The balance threshold below which an auto-charge will be triggered. Minimum $1.00. If provided, `charge_amount` must also be provided. Defaults to $2.00 if enabling with `on` and no custom values are set.
+
+- **Example:** `/auto-charge on 15 3`
+
+- **Notes:**
+    - If you wish to specify `charge_amount` and `trigger_balance`, both must be provided.
+    - The system will use the values from your `.roksta.yaml` file in your home directory by default if you just use `/auto-charge on` without specifying amounts.
+
+### /auto-commit
+
+- **Description:** Enables, disables, or reports the status of automatic commits for this project. If no subcommand is provided, it defaults to `status`. The setting is stored in the project configuration file at `<project-root>/.rokstarc` as the top-level key `auto_commit`.
+
+- **Usage:** `/auto-commit <on|off|status>`
+
+- **Example:** `/auto-commit on`
+
+### /linting
+
+- **Description:** Manage project-specific linting configuration stored under the top-level `linting` key in your project config file. The `/linting` command records three configuration values (enabled, check and fix) in `<project-root>/.rokstarc`. It does NOT run linters; it only saves the commands Roksta can reference later.
+
+- **Usage:** `/linting <on|off|set|clear|status> ["check command"] ["fix command"]`
+
+- **Subcommands:**
+  - `status` (or no parameters): Show the current values of `linting.enabled`, `linting.check` and `linting.fix`.
+  - `on`: Enable linting by setting `linting.enabled` = true and persisting the project config.
+  - `off`: Disable linting by setting `linting.enabled` = false and persisting the project config.
+  - `set "check" ["fix"]`: Save a `check` command and an optional `fix` command, and set `linting.enabled` = true. The `check` parameter is required and must be non-empty. Example: `/linting set "flake8 ." "black ."`.
+  - `clear`: Remove or clear the `linting` configuration (sets enabled = false and empties check/fix). If no config file exists the command will clear the in-memory project config instead.
+
+- **Behaviour:**
+  - If no project config file exists the command will create one and initialise it with sensible defaults.
+  - If the project config file contains invalid JSON, `/linting` will refuse to operate and will prompt you to fix `.rokstarc` manually.
+
+- **Examples:**
+  ```
+  /linting status
+  /linting on
+  /linting off
+  /linting set "flake8 ." "black ."
+  /linting clear
+  ```
+
+### /testing
+
+- **Description:** Manage project-specific testing configuration stored under the top-level `testing` key in your project config file. The `/testing` command records two configuration values (enabled and command) in `<project-root>/.rokstarc`. It does NOT run the tests; it only saves the command Roksta can reference later.
+
+- **Usage:** `/testing <on|off|set|clear|status> ["test command"]`
+
+- **Subcommands:**
+  - `status` (or no parameters): Show the current values of `testing.enabled` and `testing.command`.
+  - `on`: Enable testing by setting `testing.enabled` = true and persisting the project config.
+  - `off`: Disable testing by setting `testing.enabled` = false and persisting the project config.
+  - `set "command"`: Save the testing command and set `testing.enabled` = true. The command parameter is required and must be non-empty. Example: `/testing set "pytest"`.
+  - `clear`: Remove or clear the `testing` configuration (sets enabled = false and empties command). If no config file exists the command will clear the in-memory project config instead.
+
+- **Behaviour:**
+  - If no project config file exists the command will create one and initialise it with sensible defaults.
+  - If the project config file contains invalid JSON, `/testing` will refuse to operate and will prompt you to fix `.rokstarc` manually.
+
+- **Examples:**
+  ```
+  /testing status
+  /testing on
+  /testing off
+  /testing set "jest"
+  /testing clear
+  ```
+
+- **Example workflow:**
+  1. Configure the project test command:
+     ```
+     /testing set "pytest"
+     ```
+  2. Use `#test` in your goal to trigger the configured test command for this run. Example goal:
+     ```
+     Run unit tests for the payments module and fix failures. #test
+     ```
+
+### /building
+
+- **Description:** Manage project-specific build configuration stored under the top-level `building` key in your project config file. The `/building` command records two configuration values (enabled and command) in `<project-root>/.rokstarc`. It does NOT run your build; it only saves the command Roksta can reference later.
+
+- **Usage:** `/building <on|off|set|clear|status> ["build command"]`
+
+- **Subcommands:**
+  - `status` (or no parameters): Show the current values of `building.enabled` and `building.command`.
+  - `on`: Enable building by setting `building.enabled` = true and persisting the project config.
+  - `off`: Disable building by setting `building.enabled` = false and persisting the project config.
+  - `set "command"`: Save the build command and set `building.enabled` = true. The command parameter is required and must be non-empty. Example: `/building set "npm run build"`.
+  - `clear`: Remove or clear the `building` configuration (sets enabled = false and empties command). If no config file exists the command will clear the in-memory project config instead.
+
+- **Behaviour:**
+  - If no project config file exists the command will create one and initialise it with sensible defaults.
+  - If the project config file contains invalid JSON, `/building` will refuse to operate and will prompt you to fix `.rokstarc` manually.
+
+- **Examples:**
+  ```
+  /building status
+  /building on
+  /building off
+  /building set "npm run build"
+  /building clear
+  ```
+
+### /redeem
+
+- **Requires login**
+
+- **Description:** Redeems a credit code to update your account balance.
+
+- **Usage:** `/redeem <credit_code>`
+
+- **Example:** `/redeem CreditCode123`
+
+### /usage
+
+- **Requires login**
+
+- **Description:** Displays the session usage and cost, along with your current balance.
+
+### /dev-rate
+
+- **Description:** Used to set the developer rate which will be used to calculate developer savings. It will display the rate currently being used if it's called without providing a rate.
+
+- **Usage:** `/dev-rate [hourly_rate]`
+
+- **Example:** `/dev-rate 75`
+
+### /feedback
+
+- **Requires login**
+
+- **Description:** Submits feedback regarding the application.
+
+---
+
+## Command Line Parameters
+
+Roksta also accepts command line parameters to allow batch execution.
+
+- **--goal**: Provide a file which contains the goal that Roksta will immediately start working towards on startup. e.g. `roksta --goal goal_file.txt`. Ensure you include the `#full-auto` directive within the goal to enable it to operate in a fully automatic manner. Otherwise, Roksta will pause for user feedback.
+
+- **--exit**: Instructs Roksta to exit once the goal has been completed. e.g. `roksta --goal goal_file.txt --exit`
+
+- **--no-index**: Prevents Roksta from constructing an index for the codebase. Setting this parameter will reduce the cost of running a one-off task but will degrade performance.
+
+- **--benchmark**: A useful shortcut when running Roksta within benchmarks. Equivalent to setting `--full-auto --yolo --exit --no-index`.
+
+- **# Directives**: All goal directives, e.g. `#full-auto`, can also be provided as command line parameters. Just replace the `#` with `--` on the command line. Directives that take parameters, e.g. `#thinking(more)` can also be used; simply provide the parameter after a space or an `=` sign, e.g. `--thinking more` or `--thinking=more`.
+
+If directives are also specified within the goal, the two lists are merged to create a single list of directives that are then implemented.
+
+---
+
+## Troubleshooting
+
+- **Login is mandatory:** Roksta won't work if you don't log in.
+
+- **Activation:** Make sure you have activated your account using an activation code.
+
+- **Multi-line input:** Sometimes, Roksta will switch to multi-line mode, so if you can't submit your input with just Enter, try Ctrl+Enter or Ctrl+S. Note that if you use Roksta within an IDE's terminal, Ctrl+Enter might not work as IDEs sometimes capture that combination, use Ctrl+S instead.
+
+- **Initialisation delay:** The `/init` command may take several minutes on first run as it indexes your codebase. Please be patient during this process.
+
+- **Command not recognized:** If you encounter a message stating that a command is not recognized, double-check the spelling and ensure that you are using the correct multi-line format.
+
+---
+
+Happy building and Rok on!🤘
