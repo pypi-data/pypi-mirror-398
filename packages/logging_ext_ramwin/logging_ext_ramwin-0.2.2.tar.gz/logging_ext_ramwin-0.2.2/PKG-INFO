@@ -1,0 +1,191 @@
+Metadata-Version: 2.4
+Name: logging_ext_ramwin
+Version: 0.2.2
+Summary: Extended logging handlers with date-based filename formatting
+Project-URL: Homepage, https://github.com/ramwin/logging-ext-ramwin
+Project-URL: Repository, https://github.com/ramwin/logging-ext-ramwin
+Project-URL: Issues, https://github.com/ramwin/logging-ext-ramwin/issues
+Author-email: ramwin <ramwin@qq.com>
+License-Expression: MIT
+License-File: LICENCE
+Keywords: concurrent,date,handler,logging,rotation
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Logging
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+
+# logging_ext_ramwin
+
+Extended logging handlers with date-based filename formatting for Python.
+
+## Features
+
+- **Date-based filename patterns**: Automatically create log files with names based on current date/time
+- **Automatic cleanup**: Keep only the most recent log files with configurable `backup_count`
+- **Multi-process safe**: Concurrent file operations with proper error handling
+- **Flexible patterns**: Support any strftime format codes (e.g., `%Y-%m-%d`, `%Y-%m-%d_%H`, etc.)
+- **Easy integration**: Drop-in replacement for standard logging handlers
+
+## Installation
+
+```bash
+pip install logging_ext_ramwin
+```
+
+## Quick Start
+
+### Basic Daily Logging
+```
+import logging
+from logging_ext import DateBasedFileHandler
+
+# Create handler that creates daily log files
+handler = DateBasedFileHandler(
+    filename_pattern="logs/app-%Y-%m-%d.log",
+    backup_count=7  # Keep last 7 days
+)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+logger = logging.getLogger("my_app")
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
+
+# Log some messages
+logger.info("Application started")
+logger.error("Something went wrong")
+```
+
+### Hourly Log Rotation
+```
+from logging_ext import DateBasedFileHandler
+
+# Create hourly log files
+handler = DateBasedFileHandler(
+    filename_pattern="logs/app-%Y-%m-%d_%H.log",
+    backup_count=24  # Keep last 24 hours
+)
+```
+
+### Multi-Process Safe Logging
+```
+from logging_ext import ConcurrentDateBasedFileHandler
+
+# Thread-safe version for multi-process applications
+handler = ConcurrentDateBasedFileHandler(
+    filename_pattern="logs/app-%Y-%m-%d.log",
+    backup_count=7
+)
+```
+
+### Filename Patterns
+
+| Pattern          | Example Output    | Description       |
+| ---------------- | ----------------- | ----------------- |
+| `%Y-%m-%d`       | 2024-01-15        | Daily logs        |
+| `%Y-%m-%d_%H`    | 2024-01-15\_14    | Hourly logs       |
+| `%Y-%m-%d_%H-%M` | 2024-01-15\_14-30 | Minute-based logs |
+| `%Y-%W`          | 2024-03           | Weekly logs       |
+| `%Y-%m`          | 2024-01           | Monthly logs      |
+
+## Advanced Usage
+### Custom Cleanup Logic
+```
+handler = DateBasedFileHandler(
+    filename_pattern="logs/app-%Y-%m-%d.log",
+    backup_count=30  # Keep 30 days of logs
+)
+```
+
+### Combining with Other Handlers
+```
+import logging
+from logging_ext import DateBasedFileHandler
+
+# Create logger
+logger = logging.getLogger("my_app")
+logger.setLevel(logging.DEBUG)
+
+# Console handler for immediate feedback
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# File handler for persistent logging
+file_handler = DateBasedFileHandler(
+    filename_pattern="logs/app-%Y-%m-%d.log",
+    backup_count=7
+)
+file_handler.setLevel(logging.DEBUG)
+
+# Formatters
+console_formatter = logging.Formatter('%(levelname)s - %(message)s')
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+console_handler.setFormatter(console_formatter)
+file_handler.setFormatter(file_formatter)
+
+# Add handlers
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+```
+
+
+## API Reference 
+### DateBasedFileHandler
+```
+DateBasedFileHandler(
+    filename_pattern: str,      # Pattern for log filenames using strftime format
+    backup_count: int = 0,      # Number of old log files to keep (0 = no cleanup)
+    encoding: str = "utf-8",    # File encoding
+    delay: bool = False,        # Delay file opening until first log message
+    mode: str = "a"             # File opening mode
+)
+```
+
+## Contributing
+Contributions are welcome! Please feel free to submit a Pull Request. 
+
+## License
+MIT License
+
+## Usage 使用说明(Chinese)
+
+这个库提供了以下主要功能：
+
+1. **DateBasedFileHandler**: 基础的日期文件日志处理器
+2. **ConcurrentDateBasedFileHandler**: 支持基本文件锁定的并发安全版本
+
+### 主要特性：
+
+- ✅ 支持任意strftime格式模式（如`%Y-%m-%d`, `%Y-%m-%d_%H`等）
+- ✅ 自动清理旧的日志文件（通过`backup_count`参数）
+- ✅ 多进程并发安全（处理文件被其他进程删除的情况）
+- ✅ 自动创建必要的目录
+- ✅ 健壮的错误处理
+- ✅ 使用简单，与标准logging模块完美集成
+
+### 安装和使用：
+
+```bash
+# 安装
+pip install logging_ext_ramwin
+
+# 使用
+from logging_ext import DateBasedFileHandler
+
+handler = DateBasedFileHandler(
+    filename_pattern="logs/app-%Y-%m-%d.log",
+    backup_count=7  # 保留最近7天的日志
+)
+```
