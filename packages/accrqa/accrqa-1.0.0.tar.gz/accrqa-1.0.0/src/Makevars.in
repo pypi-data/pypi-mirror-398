@@ -1,0 +1,20 @@
+## src/Makevars.in – portable template (no GNU make extensions)
+
+CXX_STD = CXX17
+
+PKG_CXXFLAGS = -DACCRQA_R_FOUND \
+  -DACCRQA_VER_MAJOR=@ACCRQA_VERSION_MAJOR@ \
+  -DACCRQA_VER_MINOR=@ACCRQA_VERSION_MINOR@ \
+  -DACCRQA_VER_PATCH=@ACCRQA_VERSION_PATCH@ \
+  @CUDA_CXXFLAGS@ \
+  @OPENMP_CXXFLAGS@
+
+PKG_LIBS = @CUDA_LIBS@ @R_LIB@ @OPENMP_CXXFLAGS@
+
+OBJECTS = @OBJECTS@
+
+## Tell make how to build CUDA object files.
+## R's own rules handle .cpp -> .o and linking AccRQA.so.
+%.o: %.cu
+	@NVCC@ -O3 @NVCC_FLAGS@ @CUDA_LIBS@ @CUDA_CXXFLAGS@ -c $< -o $@ -Xcompiler "-fPIC"
+
