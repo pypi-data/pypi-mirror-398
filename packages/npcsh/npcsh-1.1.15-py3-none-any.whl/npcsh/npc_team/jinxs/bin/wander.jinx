@@ -1,0 +1,152 @@
+jinx_name: wander
+description: Creative daydreaming with probabilistic temperature shifts mid-stream
+inputs:
+  - problem
+steps:
+  - name: wander_explore
+    engine: python
+    code: |
+      import random
+      from termcolor import colored
+      from npcpy.llm_funcs import get_llm_response
+
+      problem = context.get('problem', '')
+      if not problem:
+          context['output'] = "Need a topic to wander about."
+          exit()
+
+      model = 'gpt-4.1-nano'
+      provider = 'openai'
+      low_temp = 0.5
+      high_temp = 1.9
+      sample_rate = 0.4
+      interrupt_prob = 0.02
+
+      print(f"""
+      ██╗    ██╗ █████╗ ███╗   ██╗██████╗ ███████╗██████╗
+      ██║    ██║██╔══██╗████╗  ██║██╔══██╗██╔════╝██╔══██╗
+      ██║ █╗ ██║███████║██╔██╗ ██║██║  ██║█████╗  ██████╔╝
+      ██║███╗██║██╔══██║██║╚██╗██║██║  ██║██╔══╝  ██╔══██╗
+      ╚███╔███╔╝██║  ██║██║ ╚████║██████╔╝███████╗██║  ██║
+       ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+
+      Wandering: {problem}
+      """)
+
+      print(colored(f"--- Low temp stream ({low_temp}) ---", "cyan"))
+
+      low_prompt = f"Think about: {problem}"
+      resp = get_llm_response(low_prompt, model=model, provider=provider, temperature=low_temp, stream=True)
+
+      # Get the actual stream from the response
+      stream = resp.get('response') if isinstance(resp, dict) else resp
+
+      low_output = ""
+      interrupted = False
+
+      for chunk in stream:
+          if hasattr(chunk, 'choices') and chunk.choices:
+              delta = chunk.choices[0].delta
+              text = getattr(delta, 'content', '') or ''
+          elif isinstance(chunk, dict):
+              text = chunk.get('content', '') or chunk.get('response', '')
+          else:
+              text = ''
+
+          if text:
+              print(text, end='', flush=True)
+              low_output += text
+
+              if random.random() < interrupt_prob:
+                  print(colored("\n[INTERRUPT]", "yellow"))
+                  interrupted = True
+                  break
+
+      print()
+
+      print(colored(f"\n--- High temp stream ({high_temp}) ---", "cyan"))
+
+      high_prompt = f"{low_output}\n\nContinue:"
+      resp = get_llm_response(high_prompt, model=model, provider=provider, temperature=high_temp, stream=True)
+      stream = resp.get('response') if isinstance(resp, dict) else resp
+
+      high_output = ""
+      for chunk in stream:
+          if hasattr(chunk, 'choices') and chunk.choices:
+              delta = chunk.choices[0].delta
+              text = getattr(delta, 'content', '') or ''
+          elif isinstance(chunk, dict):
+              text = chunk.get('content', '') or chunk.get('response', '')
+          else:
+              text = ''
+
+          if text:
+              print(text, end='', flush=True)
+              high_output += text
+
+      print()
+
+      lines = [l for l in high_output.split('\n') if l.strip()]
+      sample_size = max(1, int(len(lines) * sample_rate))
+      sampled = random.sample(lines, sample_size) if lines else [high_output]
+
+      print(colored("\n=== SAMPLED INSIGHTS ===", "yellow"))
+      fragments_text = chr(10).join(sampled)
+      print(fragments_text)
+
+      print(colored("\n=== SYNTHESIS ===", "green"))
+
+      synthesis_prompt = f"""You are a mad scientist oracle. The gibberish below contains hidden truths.
+
+QUESTION: {problem}
+
+CHAOS FRAGMENTS:
+{fragments_text}
+
+RULES:
+1. You MUST use AT LEAST HALF of the fragments above - quote them directly
+2. Make WILD CREATIVE LEAPS - not academic, not safe, not obvious
+3. Find patterns in the noise like reading entrails or tea leaves
+4. Foreign text, Unicode garbage, code snippets - ALL are omens with meaning
+5. Puns, wordplay, phonetic similarities - all valid connections
+6. The weirder the connection, the better
+7. NO HEDGING. No "this suggests" or "perhaps". Be BOLD. Be CERTAIN.
+
+OUTPUT 3 WILD HYPOTHESES:
+For each: Quote the fragments you're using -> Make your creative leap -> State the bold claim
+
+These must be ideas that COULD NOT exist without this specific chaos. Surprise us. Make us see {problem} in a way nobody has before."""
+
+      resp = get_llm_response(synthesis_prompt, model=model, provider=provider, temperature=0.5, stream=True)
+      stream = resp.get('response') if isinstance(resp, dict) else resp
+
+      synthesis = ""
+      for chunk in stream:
+          if hasattr(chunk, 'choices') and chunk.choices:
+              delta = chunk.choices[0].delta
+              text = getattr(delta, 'content', '') or ''
+          elif isinstance(chunk, dict):
+              text = chunk.get('content', '') or chunk.get('response', '')
+          else:
+              text = ''
+
+          if text:
+              print(text, end='', flush=True)
+              synthesis += text
+
+      print()
+
+      full_output = f"""Wandering: {problem}
+
+        --- Low temp stream ({low_temp}) ---
+        {low_output}
+
+        --- High temp stream ({high_temp}) ---
+        {high_output}
+
+        === SAMPLED INSIGHTS ===
+        {fragments_text}
+
+        === SYNTHESIS ===
+        {synthesis}"""
+      context['output'] = full_output

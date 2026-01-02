@@ -1,0 +1,48 @@
+"""
+spool - Interactive chat mode CLI entry point
+
+This is a thin wrapper that executes the spool.jinx through the jinx mechanism.
+"""
+import argparse
+import os
+import sys
+
+from npcsh._state import setup_shell
+
+
+def main():
+    parser = argparse.ArgumentParser(description="spool - Interactive chat mode")
+    parser.add_argument("--model", "-m", type=str, help="LLM model to use")
+    parser.add_argument("--provider", "-p", type=str, help="LLM provider to use")
+    parser.add_argument("--files", "-f", nargs="*", help="Files to load for RAG context")
+    parser.add_argument("--no-stream", action="store_true", help="Disable streaming")
+    args = parser.parse_args()
+
+    # Setup shell to get team and default NPC
+    command_history, team, default_npc = setup_shell()
+
+    if not team or "spool" not in team.jinxs_dict:
+        print("Error: spool jinx not found. Ensure npc_team/jinxs/modes/spool.jinx exists.")
+        sys.exit(1)
+
+    # Build context for jinx execution
+    context = {
+        "npc": default_npc,
+        "team": team,
+        "messages": [],
+        "model": args.model,
+        "provider": args.provider,
+        "attachments": ",".join(args.files) if args.files else None,
+        "stream": not args.no_stream,
+    }
+
+    # Execute the jinx
+    spool_jinx = team.jinxs_dict["spool"]
+    result = spool_jinx.execute(context=context, npc=default_npc)
+
+    if isinstance(result, dict) and result.get("output"):
+        print(result["output"])
+
+
+if __name__ == "__main__":
+    main()
