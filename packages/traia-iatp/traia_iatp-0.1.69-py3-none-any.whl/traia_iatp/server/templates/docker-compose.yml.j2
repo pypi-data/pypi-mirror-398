@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  {{ agent_id }}:
+  build: .
+  container_name: {{ agent_id }}-local
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - PORT=${PORT:-8000}
+      - HOST=0.0.0.0
+      - LLM_MODEL=${LLM_MODEL:-openai/gpt-4.1}
+      {% for env_var in environment_variables %}
+      - {{ env_var.name }}={{ env_var.value }}
+      {% endfor %}
+    volumes:
+      - ./.env:/app/.env:ro
+    {% if mcp_server_url %}
+    # MCP Server configuration
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # For accessing local MCP servers
+    {% endif %}
+    restart: unless-stopped 

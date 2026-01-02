@@ -1,0 +1,298 @@
+"""
+{{ agent_name }} - A2A Server Agent Executor Implementation
+
+This module implements the agent executor for {{ agent_name }}.
+Supports both synchronous responses and SSE streaming.
+"""
+
+import asyncio
+import json
+import logging
+import os
+from typing import AsyncGenerator, Optional, Dict, Any
+from datetime import datetime
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from a2a.server.agent_execution import AgentExecutor, RequestContext
+from a2a.server.events.event_queue import EventQueue
+from a2a.types import Message, TextPart
+from a2a.utils import new_agent_text_message
+from crewai import Task, LLM
+from traia_iatp.mcp import MCPServerConfig, MCPAgentBuilder, run_with_mcp_tools, MCPServerInfo
+
+# Import AgentOps for operation tracking
+import agentops
+
+
+
+DEFAULT_LLM = LLM(
+    model=os.getenv("LLM_MODEL", "openai/gpt-4o-mini"),  # Better model for tool execution
+    temperature=float(os.getenv("LLM_MODEL_TEMPERATURE", "0.1")),
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+current_time = datetime.utcnow()
+
+logger = logging.getLogger(__name__)
+
+logger.info(f"Current LLM model used: {os.getenv('LLM_MODEL', 'openai/gpt-4o-mini')}")
+
+# Create a thread pool for CPU-bound CrewAI operations
+executor = ThreadPoolExecutor(max_workers=10)
+
+# Get MCP server API key if required
+{% if requires_api_key %}
+# Check for API keys required by the MCP server
+MCP_API_KEY = None
+{% for api_key_name in api_keys %}
+if not MCP_API_KEY and os.getenv("{{ api_key_name }}"):
+    MCP_API_KEY = os.getenv("{{ api_key_name }}")
+    logger.info(f"Using API key from {{ api_key_name }} environment variable")
+{% endfor %}
+
+if not MCP_API_KEY:
+    logger.warning("No API key found for MCP server authentication.")
+    logger.warning("The MCP server requires one of these environment variables to be set:")
+    {% for api_key_name in api_keys %}
+    logger.warning("  - {{ api_key_name }}")
+    {% endfor %}
+else:
+    logger.info("MCP server API key loaded successfully")
+{% else %}
+MCP_API_KEY = None
+{% endif %}
+
+
+class CustomEvent:
+    """Custom event class for SSE streaming."""
+    def __init__(self, event_type: str, data: Dict[str, Any]):
+        self.type = event_type
+        self.data = data
+
+
+class {{ class_name }}AgentExecutor(AgentExecutor):
+    """Agent executor for {{ agent_name }}.
+    
+    This executor supports:
+    - ✅ Concurrent requests from multiple clients (each gets fresh agent/task)
+    - ✅ Memory-enabled agents for better MCP tool usage learning
+    - ✅ D402 payment enforcement per request
+    - ✅ Streaming and non-streaming modes
+    """
+    
+    def __init__(self, mcp_config: MCPServerConfig, supports_streaming: bool = False):
+        self.mcp_config = mcp_config
+        self.supports_streaming = supports_streaming
+        self.mcp_server_info = MCPServerInfo(
+            id="",  # Not needed for direct usage
+            name=mcp_config.name,
+            url=mcp_config.url,
+            description=mcp_config.description,
+            server_type=mcp_config.server_type,
+            capabilities=mcp_config.capabilities,
+            metadata=mcp_config.metadata,
+            tags=mcp_config.metadata.get("tags", [])
+        )
+    
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """Process a request using the {{ agent_name }} capabilities."""
+        try:
+            # Get the user's request from context
+            request_text = context.get_user_input()
+            if not request_text:
+                # Send empty response with task ID if available
+                msg = new_agent_text_message("No user message provided")
+                if hasattr(context, 'task_id') and context.task_id:
+                    msg.task_id = context.task_id
+                await event_queue.enqueue_event(msg)
+                return
+            
+            # Check if client requested streaming
+            stream_requested = False
+            if hasattr(context, 'configuration') and context.configuration:
+                output_mode = context.configuration.get('output_mode', '')
+                stream_requested = output_mode == 'text/event-stream'
+            
+            # Execute the request
+            if stream_requested and self.supports_streaming:
+                await self._execute_streaming(context, event_queue, request_text)
+            else:
+                await self._execute_standard(context, event_queue, request_text)
+                
+        except Exception as e:
+            logger.error(f"Error processing request: {e}")
+            msg = new_agent_text_message(f"Error processing request: {str(e)}")
+            if hasattr(context, 'task_id') and context.task_id:
+                msg.task_id = context.task_id
+            await event_queue.enqueue_event(msg)
+    
+    async def _execute_standard(self, context: RequestContext, event_queue: EventQueue, request_text: str) -> None:
+        """Execute standard (non-streaming) request."""
+        # Get additional context if provided
+        task_context = {}
+        if hasattr(context, 'metadata'):
+            task_context = context.metadata or {}
+        
+        # Create an agent for this request
+        # Note: Each request gets a fresh agent to support concurrent requests
+        # Memory is enabled to help the agent learn MCP tool usage patterns
+        agent = MCPAgentBuilder.create_agent(
+            role=f"{{ agent_name }} Tool Executor",
+            goal=f"EXECUTE tools from {self.mcp_config.name} to get REAL data. Never respond without calling tools first.",
+            backstory=f"You are a tool execution specialist for {self.mcp_config.name}. {self.mcp_config.description}. "
+                      f"CRITICAL RULES: "
+                      f"1. ALWAYS call the appropriate tool to get real data "
+                      f"2. NEVER answer based on assumptions or knowledge "
+                      f"3. If no tool can answer the request, explicitly state 'No suitable tool found in {self.mcp_config.name}' "
+                      f"4. Base your response ONLY on actual tool execution results",
+            llm=DEFAULT_LLM,
+            verbose=True,  # Enable verbose mode for better debugging
+            memory=True,  # Enable memory for learning MCP server usage
+            max_iter=25  # Allow sufficient iterations to execute tools
+        )
+        
+        # Create a task with explicit tool requirement
+        task = Task(
+            description=f"{request_text}\n\nIMPORTANT: You MUST use the available tools to get this data. Do not provide answers without calling tools.",
+            expected_output="Real data obtained by executing the appropriate tool. If no tool can provide this data, state 'No suitable tool available'.",
+            agent=agent
+        )
+        
+        # Create a wrapper function to handle the arguments properly
+        def run_crew_task():
+            # Build kwargs for run_with_mcp_tools
+            kwargs = {
+                "tasks": [task],
+                "mcp_server": self.mcp_server_info,
+                "inputs": task_context,
+                "skip_health_check": True
+            }
+            
+            # Only add api_key if MCP server requires authentication
+            if self.mcp_config.metadata.get("requires_api_key", False) and MCP_API_KEY:
+                kwargs["api_key"] = MCP_API_KEY
+                logger.debug("Including API key for authenticated MCP connection")
+            
+            return run_with_mcp_tools(**kwargs)
+        
+        # Run CrewAI in thread pool to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(executor, run_crew_task)
+        
+        # Send the result as agent message with task ID if available
+        msg = new_agent_text_message(str(result))
+        if hasattr(context, 'task_id') and context.task_id:
+            msg.task_id = context.task_id
+        await event_queue.enqueue_event(msg)
+    
+    async def _execute_streaming(self, context: RequestContext, event_queue: EventQueue, request_text: str) -> None:
+        """Execute streaming request using SSE."""
+        try:
+            # Send initial event to indicate streaming has started
+            await event_queue.enqueue_event(
+                CustomEvent("stream_start", {"message": "Starting streaming response"})
+            )
+            
+            # Stream chunks as they become available
+            chunk_count = 0
+            async for chunk in self._stream_mcp_response(request_text, context):
+                # Send each chunk as a separate SSE event
+                await event_queue.enqueue_event(
+                    CustomEvent("stream_chunk", {
+                        "chunk_id": chunk_count,
+                        "content": chunk
+                    })
+                )
+                
+                # Also emit as message event for standard SSE subscribers
+                await event_queue.enqueue_event(
+                    CustomEvent("message", {
+                        "role": "agent",
+                        "content": chunk,
+                        "chunk_id": chunk_count
+                    })
+                )
+                
+                chunk_count += 1
+                
+                # Yield control to allow other tasks to run
+                await asyncio.sleep(0)
+            
+            # Send completion event
+            await event_queue.enqueue_event(
+                CustomEvent("stream_complete", {
+                    "total_chunks": chunk_count,
+                    "message": "Streaming completed successfully"
+                })
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in streaming execution: {e}")
+            await event_queue.enqueue_event(
+                CustomEvent("stream_error", {
+                    "error": str(e),
+                    "message": "Streaming encountered an error"
+                })
+            )
+    
+    async def _stream_mcp_response(self, request_text: str, context: RequestContext) -> AsyncGenerator[str, None]:
+        """
+        Stream responses from MCP server.
+        This is a placeholder that should be implemented based on specific MCP server capabilities.
+        """
+        # For now, simulate streaming by breaking response into chunks
+        # In real implementation, this would connect to MCP server's streaming endpoint
+        
+        # Get full response first (in real implementation, this would be streamed)
+        task_context = {}
+        if hasattr(context, 'metadata'):
+            task_context = context.metadata or {}
+        
+        agent = MCPAgentBuilder.create_agent(
+            role=f"{{ agent_name }} Streaming Specialist",
+            goal=f"Process the streaming request using {self.mcp_config.name} for streaming data",
+            backstory=f"You are an expert at using {self.mcp_config.name} for streaming data. {self.mcp_config.description}",
+            verbose=True,  # Enable verbose mode
+            memory=True  # Enable memory for learning MCP server usage
+        )
+        
+        task = Task(
+            description=request_text,
+            expected_output="The processed streaming result",
+            agent=agent
+        )
+        
+        # For demonstration, get the full result and stream it in chunks
+        def run_streaming_task():
+            # Build kwargs for run_with_mcp_tools
+            kwargs = {
+                "tasks": [task],
+                "mcp_server": self.mcp_server_info,
+                "inputs": task_context,
+                "skip_health_check": True
+            }
+            
+            # Only add api_key if MCP server requires authentication
+            if self.mcp_config.metadata.get("requires_api_key", False) and MCP_API_KEY:
+                kwargs["api_key"] = MCP_API_KEY
+                logger.debug("Including API key for authenticated MCP streaming connection")
+            
+            return run_with_mcp_tools(**kwargs)
+        
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(executor, run_streaming_task)
+        
+        # Simulate streaming by chunking the response
+        result_str = str(result)
+        chunk_size = 100  # Characters per chunk
+        
+        for i in range(0, len(result_str), chunk_size):
+            chunk = result_str[i:i + chunk_size]
+            yield chunk
+            await asyncio.sleep(0.1)  # Simulate network delay
+    
+    async def cancel(self, task_id: str) -> None:
+        """Cancel a running task."""
+        logger.info(f"Cancelling task: {task_id}")
+        # Implementation depends on MCP server capabilities
+        # For now, just log the cancellation request
+        pass 

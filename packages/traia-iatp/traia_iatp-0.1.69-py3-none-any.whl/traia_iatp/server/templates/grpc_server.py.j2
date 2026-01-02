@@ -1,0 +1,218 @@
+"""
+{{ agency_name }} - gRPC Server Implementation
+
+This module provides a gRPC server for {{ agency_name }}.
+This is an optional component that can run alongside the HTTP/2 server for high-performance scenarios.
+"""
+
+import asyncio
+import logging
+import os
+import json
+from concurrent import futures
+from typing import AsyncIterator, Optional
+
+import grpc
+from grpc import aio
+from traia_iatp.mcp import MCPServerConfig
+from .agent_executor import {{ class_name }}AgentExecutor
+
+# Note: These would be generated from .proto files
+# from . import a2a_pb2, a2a_pb2_grpc
+
+logger = logging.getLogger(__name__)
+
+
+class {{ class_name }}GrpcService:  # (a2a_pb2_grpc.A2AServiceServicer):
+    """gRPC service implementation for {{ agency_name }}."""
+    
+    def __init__(self, mcp_config: MCPServerConfig):
+        self.mcp_config = mcp_config
+        self.executor = {{ class_name }}AgentExecutor(
+            mcp_config,
+            supports_streaming=True  # gRPC always supports streaming
+        )
+    
+    async def SendMessage(self, request, context):
+        """Handle unary RPC: single request, single response."""
+        try:
+            # Extract message content
+            message_content = request.message.content
+            
+            # Process with executor
+            result = await self.executor.process_unary_request(message_content)
+            
+            # Create response
+            # response = a2a_pb2.SendMessageResponse()
+            # response.result.content = result
+            # return response
+            
+            # Placeholder return
+            return {"result": {"content": result}}
+            
+        except Exception as e:
+            logger.error(f"Error in SendMessage: {e}")
+            await context.abort(
+                grpc.StatusCode.INTERNAL,
+                f"Internal error: {str(e)}"
+            )
+    
+    async def StreamMessage(self, request, context):
+        """Handle server streaming RPC: single request, stream of responses."""
+        try:
+            # Extract message content
+            message_content = request.message.content
+            
+            # Stream responses
+            async for chunk in self.executor.process_streaming_request(message_content):
+                # response = a2a_pb2.StreamMessageResponse()
+                # response.chunk.content = chunk
+                # yield response
+                
+                # Placeholder yield
+                yield {"chunk": {"content": chunk}}
+                
+        except Exception as e:
+            logger.error(f"Error in StreamMessage: {e}")
+            await context.abort(
+                grpc.StatusCode.INTERNAL,
+                f"Streaming error: {str(e)}"
+            )
+    
+    async def BidirectionalStream(self, request_iterator, context):
+        """Handle bidirectional streaming RPC."""
+        try:
+            async for request in request_iterator:
+                # Process each incoming request
+                message_content = request.message.content
+                
+                # Stream responses for this request
+                async for chunk in self.executor.process_streaming_request(message_content):
+                    # response = a2a_pb2.StreamMessageResponse()
+                    # response.chunk.content = chunk
+                    # yield response
+                    
+                    # Placeholder yield
+                    yield {"chunk": {"content": chunk}}
+                    
+        except Exception as e:
+            logger.error(f"Error in BidirectionalStream: {e}")
+            await context.abort(
+                grpc.StatusCode.INTERNAL,
+                f"Bidirectional streaming error: {str(e)}"
+            )
+    
+    async def GetCapabilities(self, request, context):
+        """Return agent capabilities."""
+        try:
+            # capabilities = a2a_pb2.CapabilitiesResponse()
+            # capabilities.name = "{{ agency_id }}"
+            # capabilities.description = "{{ agency_description }}"
+            # capabilities.version = "{{ agency_version }}"
+            # capabilities.supports_streaming = True
+            # capabilities.supports_bidirectional = True
+            # return capabilities
+            
+            # Placeholder return
+            return {
+                "name": "{{ agency_id }}",
+                "description": "{{ agency_description }}",
+                "version": "{{ agency_version }}",
+                "supports_streaming": True,
+                "supports_bidirectional": True,
+                "mcp_capabilities": self.mcp_config.capabilities
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in GetCapabilities: {e}")
+            await context.abort(
+                grpc.StatusCode.INTERNAL,
+                f"Error getting capabilities: {str(e)}"
+            )
+
+
+async def serve_grpc():
+    """Start the gRPC server."""
+    # Load configuration
+    config_path = "agency_config.json"
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config_data = json.load(f)
+        mcp_data = config_data.get("mcp_server", {})
+    else:
+        mcp_data = {
+            "name": "{{ mcp_server_name }}",
+            "url": "{{ mcp_server_url }}",
+            "description": "{{ mcp_server_description }}",
+            "server_type": "{{ mcp_server_type }}",
+            "capabilities": {{ mcp_server_capabilities | tojson }},
+            "metadata": {{ mcp_server_metadata | tojson }}
+        }
+    
+    # Create MCP config
+    mcp_config = MCPServerConfig(
+        name=mcp_data["name"],
+        url=mcp_data["url"],
+        description=mcp_data["description"],
+        server_type=mcp_data.get("server_type", "streamable-http"),
+        capabilities=mcp_data.get("capabilities", []),
+        metadata=mcp_data.get("metadata", {})
+    )
+    
+    # Create gRPC server
+    server = aio.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        options=[
+            ('grpc.max_send_message_length', 4 * 1024 * 1024),  # 4MB
+            ('grpc.max_receive_message_length', 4 * 1024 * 1024),  # 4MB
+            ('grpc.keepalive_time_ms', 10000),
+            ('grpc.keepalive_timeout_ms', 5000),
+            ('grpc.http2.max_concurrent_streams', 100),
+            ('grpc.http2.max_frame_size', 16384),
+        ]
+    )
+    
+    # Add service
+    service = {{ class_name }}GrpcService(mcp_config)
+    # a2a_pb2_grpc.add_A2AServiceServicer_to_server(service, server)
+    
+    # Enable reflection for debugging
+    # from grpc_reflection.v1alpha import reflection
+    # SERVICE_NAMES = (
+    #     a2a_pb2.DESCRIPTOR.services_by_name['A2AService'].full_name,
+    #     reflection.SERVICE_NAME,
+    # )
+    # reflection.enable_server_reflection(SERVICE_NAMES, server)
+    
+    # Get port from environment
+    port = int(os.environ.get("GRPC_PORT", 50051))
+    
+    # Add insecure port (TLS can be added later)
+    server.add_insecure_port(f'[::]:{port}')
+    
+    logger.info(f"Starting {{ agency_name }} gRPC Server")
+    logger.info(f"Listening on port {port}")
+    logger.info(f"MCP Server: {{ mcp_server_name }}")
+    
+    # Start server
+    await server.start()
+    
+    try:
+        await server.wait_for_termination()
+    except KeyboardInterrupt:
+        logger.info("Shutting down gRPC server...")
+        await server.stop(5)
+
+
+def main():
+    """Main entry point for gRPC server."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    asyncio.run(serve_grpc())
+
+
+if __name__ == "__main__":
+    main() 
