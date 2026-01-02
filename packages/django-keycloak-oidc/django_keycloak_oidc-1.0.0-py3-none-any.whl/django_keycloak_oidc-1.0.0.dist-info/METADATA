@@ -1,0 +1,179 @@
+Metadata-Version: 2.4
+Name: django-keycloak-oidc
+Version: 1.0.0
+Summary: This project is fork of mozilla-django-oidc and modified to map keycloak roles / groups to django user permissions / groups.
+Author-email: Mohsen Khodabakhshi <devbynature@proton.me>
+License-Expression: MPL-2.0
+Project-URL: Homepage, https://github.com/karnameh-tech/django-keycloak-oidc
+Project-URL: Documentation, https://github.com/karnameh-tech/django-keycloak-oidc
+Keywords: django-keycloak-oidc
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 4.2
+Classifier: Framework :: Django :: 5.0
+Classifier: Framework :: Django :: 5.1
+Classifier: Framework :: Django :: 5.2
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: AUTHORS.rst
+Requires-Dist: Django>=4.2
+Requires-Dist: pyjwt
+Requires-Dist: requests
+Requires-Dist: cryptography
+Provides-Extra: drf
+Requires-Dist: djangorestframework>=3.14; extra == "drf"
+Provides-Extra: test
+Requires-Dist: bumpversion; extra == "test"
+Requires-Dist: ipython; extra == "test"
+Requires-Dist: ipdb; extra == "test"
+Requires-Dist: djangorestframework>=3.14; extra == "test"
+Requires-Dist: pre-commit; extra == "test"
+Requires-Dist: responses; extra == "test"
+Requires-Dist: importlib-metadata; python_version < "3.10" and extra == "test"
+Requires-Dist: splinter[selenium]>=0.21.0; extra == "test"
+Requires-Dist: coverage; extra == "test"
+Requires-Dist: tox; extra == "test"
+Provides-Extra: lint
+Requires-Dist: flake8; extra == "lint"
+Provides-Extra: build
+Requires-Dist: build; extra == "build"
+Provides-Extra: docs
+Requires-Dist: sphinx; extra == "docs"
+Requires-Dist: sphinx_rtd_theme; extra == "docs"
+Provides-Extra: dev
+Requires-Dist: django-keycloak-oidc[build,docs,drf,lint,test]; extra == "dev"
+Dynamic: license-file
+
+# django-keyclock-oidc
+
+This project is fork of [mozilla-django-oidc](https://github.com/mozilla/mozilla-django-oidc/) and modified to map keycloak roles / groups to django user permissions / groups. You can read more about the original project documentation [here](https://mozilla-django-oidc.readthedocs.io/en/latest/).
+
+## Features
+- Automatic mapping of Keycloak roles and groups to Django user permissions and groups
+- Django admin login integration with Keycloak
+- OIDC authentication with Keycloak
+
+## Installation
+
+1. You can install the package via your python package manager, example:
+
+```bash
+pip install django-keyclock-oidc
+# or
+poetry add django-keyclock-oidc
+# or
+uv add django-keyclock-oidc
+```
+
+2. Add `django_keyclock_oidc` to your `INSTALLED_APPS` in `settings.py`:
+
+```python
+INSTALLED_APPS = [
+    'django_keyclock_oidc', # (here) at the top of the admin app
+    "django.contrib.admin",
+    ...
+]
+```
+
+3. Add the authentication backend to your `AUTHENTICATION_BACKENDS` in `settings.py`:
+
+```python
+AUTHENTICATION_BACKENDS = [
+    'django_keycloak_oidc.auth.KeyCloakAuthenticationBackend', # here
+    'django.contrib.auth.backends.ModelBackend', # django default (need it too)
+    ..., # and other
+]
+```
+
+4. Add urls to your `urls.py`:
+
+```python
+urlpatterns = [
+    ...,
+    path("oidc/", include("django_keycloak_oidc.urls")),
+    ...,
+]
+```
+**Important Note:** If you changed your admin root path, Make sure that the `oidc/` and `admin/` paths are in same root.
+
+for example:
+
+```python
+urlpatterns = [
+    ...,
+    path(
+        "root/",  # your root (if you did it)
+        include(
+            [
+                ...,
+                path("admin/", admin.site.urls),
+                path("oidc/", include("django_keycloak_oidc.urls")),
+                ...,
+            ]
+        )
+    ),
+    ...,
+]
+```
+
+5. (Optional) Add the settings_context to your context_processors in `settings.py` if you want to customize the authentication button in django admin login page:
+
+```python
+TEMPLATES = [
+    {
+        ...,
+        "OPTIONS": {
+            "context_processors": [
+                ...,
+                "django_keycloak_oidc.context_processor.settings_context", # here
+            ],
+        },
+    },
+]
+```
+
+6. Run migrations (Done):
+
+```bash
+python manage.py migrate
+```
+
+## Configuration
+You can see configuration of the original project [here](https://mozilla-django-oidc.readthedocs.io/en/latest/).
+
+My sample configuration(`settings.py`) is as below:
+
+```python
+OIDC_RP_CLIENT_ID = "<client-id>"
+OIDC_RP_CLIENT_SECRET = "<client-secret>"
+OIDC_RP_SIGN_ALGO = "RS256"
+
+OIDC_VERIFY_SSL = False
+
+OIDC_OP_AUTHORIZATION_ENDPOINT = "http://<keycloak-host>/realms/<realm>/protocol/openid-connect/auth"
+OIDC_OP_TOKEN_ENDPOINT = "http://<keycloak-host>/realms/<realm>/protocol/openid-connect/token"
+OIDC_OP_USER_ENDPOINT = "http://<keycloak-host>/realms/<realm>/protocol/openid-connect/userinfo"
+OIDC_OP_JWKS_ENDPOINT = "http://<keycloak-host>/realms/<realm>/protocol/openid-connect/certs"
+
+LOGIN_URL = "/oidc/authenticate/"
+LOGIN_REDIRECT_URL = "/leasing/admin/"
+LOGIN_REDIRECT_URL_FAILURE = "/leasing/admin/"
+LOGOUT_REDIRECT_URL = "/leasing/admin/login/"
+
+# Optional settings for customizing the login button in django admin login page if you added the context processor (step 5 in Installation)
+KEYCLOAK_DJANGO_ADMIN_LOGIN_DIRECTION = "ltr"
+KEYCLOAK_DJANGO_ADMIN_LOGIN_TEXT = "Login with"
+KEYCLOAK_DJANGO_ADMIN_LOGIN_LOGO = "https://karnameh.com/assets/logos/karnameh-logo.svg"
+```
