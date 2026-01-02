@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  {{container_name}}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: {{ecr_repository_url}}:latest
+    container_name: {{container_name}}-app
+    expose:
+      - "8000"
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: "{{primary_domain}},{{container_name}},localhost,127.0.0.1"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: {{container_name}}-nginx
+    depends_on:
+      - {{container_name}}
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    container_name: web-certbot
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h; done"
+    restart: unless-stopped
+
+volumes:
+  letsencrypt:
+  certbot-www:

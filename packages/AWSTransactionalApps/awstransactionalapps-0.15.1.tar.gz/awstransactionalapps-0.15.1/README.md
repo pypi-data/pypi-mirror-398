@@ -1,0 +1,190 @@
+# AWSTransactionalApps
+
+A reusable Python CDKTF package that provisions the complete AWS Transactional Apps architecture, uploads all required runtime scripts to an S3 deployment bucket, and provides a sample project to validate the package.
+
+## Features
+
+- **EC2 Instance Provisioning**: Creates EC2 instances with proper IAM roles and instance profiles
+- **S3 Script Deployment**: Automatically uploads runtime scripts (setup, loader, bootstrap, update) to S3
+- **ECR Integration**: Conditional ECR repository creation for Docker images
+- **RDS Support**: Optional PostgreSQL RDS instance creation
+- **Secrets Manager**: Integrated secrets management for application configuration
+- **SystemD Services**: Includes systemd service and timer configurations
+
+## Architecture Components
+
+- **setup.sh**: Initial EC2 setup script downloaded via user data
+- **loader.sh**: Application loader script
+- **bootstrap.sh**: Runtime bootstrap script
+- **update.sh**: Application update script
+- **docker-compose.yml**: Docker Compose configuration template
+- **SystemD services**: awsec2-loader.service, awsec2-app.service, awsec2-app-update.timer
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- Node.js 16+ (for CDKTF)
+- AWS CLI configured with appropriate credentials
+- Terraform 1.0+
+
+### Install the Package Locally
+
+```bash
+# Clone the repository
+cd /Repos/AWSTransactionalApps
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install the package in editable mode
+pip install -e AWSTransactionalApps/
+```
+
+## Quick Start
+
+### Using the Sample Project
+
+```bash
+# Navigate to sample directory
+cd /Repos/AWSTransactionalApps/sample
+
+# Install sample project dependencies
+pip install -r requirements.txt
+
+# Generate CDKTF provider bindings (first time only)
+cdktf get
+
+# Synthesize Terraform configuration
+cdktf synth
+
+# Review the Terraform plan
+cdktf diff
+
+# Deploy the infrastructure
+cdktf deploy
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from cdktf import App
+from AWSTransactionalAppsStack import DockerEC2
+
+app = App()
+
+DockerEC2(
+    app,
+    "my-app-stack",
+    project_name="my-project",
+    region="us-east-1",
+    ami_id="ami-0c2b8ca1dad447f8a",
+    instance_type="t4g.medium",
+    disk_size=100,
+)
+
+app.synth()
+```
+
+### Configuration Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `project_name` | str | Required | Unique project identifier |
+| `region` | str | `ca-central-1` | AWS region |
+| `ami_id` | str | `ami-0c2b8ca1dad447f8a` | EC2 AMI ID |
+| `instance_type` | str | `t4g.medium` | EC2 instance type |
+| `disk_size` | int | `100` | Root volume size in GB |
+| `platform_name` | str | `None` | Platform name (defaults to project_name) |
+| `deployment_bucket` | str | `None` | S3 bucket for deployments |
+| `storage_bucket` | str | `None` | S3 bucket for storage |
+| `enable_rds` | bool | `False` | Enable RDS PostgreSQL |
+| `rds_name` | str | `None` | RDS instance identifier |
+| `private_ecr` | bool | `True` | Use private ECR |
+
+## IAM Permissions
+
+The EC2 instance is provisioned with the following IAM permissions:
+
+- `ec2:DescribeTags`
+- `ec2:DescribeInstances`
+- `s3:GetObject`
+- `s3:ListBucket`
+- `ecr:GetAuthorizationToken`
+- `ecr:BatchGetImage`
+- `ecr:BatchCheckLayerAvailability`
+- `ecr:GetDownloadUrlForLayer`
+- `secretsmanager:GetSecretValue`
+- `secretsmanager:ListSecrets`
+- `secretsmanager:DescribeSecret`
+- `logs:CreateLogGroup`
+- `logs:CreateLogStream`
+- `logs:PutLogEvents`
+
+## Project Structure
+
+```
+AWSTransactionalApps/
+├── setup.py
+├── pyproject.toml
+├── README.md
+├── requirements.txt
+└── AWSTransactionalAppsStack/
+    ├── __init__.py
+    ├── config.py
+    ├── DockerEC2.py
+    ├── uploader.py
+    ├── iam/
+    │   └── ec2_policy.json
+    └── scripts/
+        ├── setup/
+        │   └── setup.sh
+        ├── loader/
+        │   └── loader.sh
+        ├── runtime/
+        │   ├── bootstrap.sh
+        │   └── update.sh
+        ├── systemd/
+        │   ├── awsec2-loader.service
+        │   ├── awsec2-app.service
+        │   └── awsec2-app-update.timer
+        └── compose/
+            └── docker-compose.yml
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# From the package directory
+pip install pytest
+pytest tests/
+```
+
+### Building the Package
+
+```bash
+pip install build
+python -m build
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Support
+
+For issues and feature requests, please visit:
+https://dev.azure.com/buzzerboyinc/buzzerboy
