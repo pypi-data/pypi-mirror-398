@@ -1,0 +1,275 @@
+"""Jaquel query validators and optimizers for ASAM ODS Jaquel MCP Server."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+class JaquelValidator:
+    """Validates and analyzes Jaquel query structures."""
+
+    # Valid operators in Jaquel
+    COMPARISON_OPERATORS = {
+        "$eq",
+        "$neq",
+        "$lt",
+        "$gt",
+        "$lte",
+        "$gte",
+        "$in",
+        "$notinset",
+        "$like",
+        "$notlike",
+        "$null",
+        "$notnull",
+        "$between",
+    }
+
+    LOGICAL_OPERATORS = {"$and", "$or", "$not"}
+
+    AGGREGATE_FUNCTIONS = {
+        "$none",
+        "$count",
+        "$dcount",
+        "$min",
+        "$max",
+        "$avg",
+        "$stddev",
+        "$sum",
+        "$distinct",
+        "$point",
+        "$ia",
+    }
+
+    SPECIAL_KEYS = {
+        "$attributes",
+        "$orderby",
+        "$groupby",
+        "$options",
+        "$unit",
+        "$nested",
+        "$rowlimit",
+        "$rowskip",
+        "$seqlimit",
+        "$seqskip",
+    }
+
+    ALL_OPERATORS = COMPARISON_OPERATORS | LOGICAL_OPERATORS | AGGREGATE_FUNCTIONS | SPECIAL_KEYS
+
+    @staticmethod
+    def _validate_operator_dict(op_dict: dict[str, Any], path: str, errors: list, issues: list) -> None:
+        """Recursively validate an operator dictionary."""
+        for key, value in op_dict.items():
+            if key.startswith("$"):
+                if key not in JaquelValidator.ALL_OPERATORS:
+                    errors.append(f"Unknown operator: {key} at '{path}'")
+                elif key in JaquelValidator.LOGICAL_OPERATORS:
+                    if key == "$not":
+                        if not isinstance(value, dict):
+                            msg = f"{key} must contain expression at '{path}'"
+                            errors.append(msg)
+                        else:
+                            JaquelValidator._validate_operator_dict(value, f"{path}.{key}", errors, issues)
+                    else:  # $and, $or
+                        if not isinstance(value, list):
+                            msg = f"{key} must contain an array at '{path}'"
+                            errors.append(msg)
+                        else:
+                            for i, item in enumerate(value):
+                                if isinstance(item, dict):
+                                    JaquelValidator._validate_operator_dict(item, f"{path}.{key}[{i}]", errors, issues)
+                elif key in JaquelValidator.COMPARISON_OPERATORS:
+                    if key in ["$null", "$notnull"]:
+                        if value != 1:
+                            msg = f"{key} should have value 1 at '{path}'"
+                            issues.append(msg)
+                    elif key in ["$between", "$in", "$notinset"]:
+                        if not isinstance(value, list):
+                            msg = f"{key} requires a list value at '{path}'"
+                            errors.append(msg)
+            elif isinstance(value, dict):
+                # This is a field condition like {"field": {"$eq": "value"}}
+                JaquelValidator._validate_operator_dict(value, f"{path}.{key}", errors, issues)
+
+    @staticmethod
+    def query_validate(query: dict[str, Any]) -> dict[str, Any]:
+        """Validate a Jaquel query structure.
+
+        Returns:
+            dict with 'valid', 'errors', 'warnings',
+            'suggestions'.
+        """
+        errors: list[str] = []
+        warnings: list[str] = []
+        suggestions: list[str] = []
+
+        if not isinstance(query, dict):
+            return {"valid": False, "errors": ["Query must be a dictionary"], "warnings": [], "suggestions": []}
+
+        # Find all non-$ keys (entity names)
+        non_dollar_keys = [key for key in query.keys() if not key.startswith("$")]
+
+        if not non_dollar_keys:
+            msg = "Query must contain an entity name (non-$ key)"
+            errors.append(msg)
+            return {"valid": False, "errors": errors, "warnings": warnings, "suggestions": suggestions}
+
+        if len(non_dollar_keys) > 1:
+            msg = f"Query is only allowed to contain a single non-$ element which is the entity to look for, but found: {', '.join(non_dollar_keys)}"
+            errors.append(msg)
+            return {"valid": False, "errors": errors, "warnings": warnings, "suggestions": suggestions}
+
+        entity_name = non_dollar_keys[0]
+
+        # Validate entity query value
+        entity_query = query[entity_name]
+        if entity_query is None:
+            msg = f"Entity '{entity_name}' query value cannot be None"
+            errors.append(msg)
+        elif not isinstance(entity_query, (dict, int, str)):
+            msg = f"Entity '{entity_name}' query value must be " "dict, int, or string"
+            errors.append(msg)
+
+        if isinstance(entity_query, dict):
+            JaquelValidator._validate_operator_dict(entity_query, entity_name, errors, issues=warnings)
+
+        # Validate special keys
+        for key in query.keys():
+            if key.startswith("$"):
+                if key not in JaquelValidator.SPECIAL_KEYS:
+                    warnings.append(f"Unknown special key: {key}")
+
+        # Check for common patterns
+        if "$attributes" in query:
+            attrs = query["$attributes"]
+            if not isinstance(attrs, dict):
+                errors.append("$attributes must be a dictionary")
+            else:
+                if len(attrs) == 0:
+                    msg = "$attributes is empty - consider " "removing it or adding attributes"
+                    suggestions.append(msg)
+
+        if "$orderby" in query:
+            orderby = query["$orderby"]
+            if not isinstance(orderby, dict):
+                msg = "$orderby must be a dictionary with " "attribute names as keys and 0/1 as values"
+                errors.append(msg)
+
+        if "$groupby" in query:
+            groupby = query["$groupby"]
+            if not isinstance(groupby, dict):
+                errors.append("$groupby must be a dictionary")
+
+        if "$options" in query:
+            opts = query["$options"]
+            if isinstance(opts, dict):
+                rowlimit = opts.get("$rowlimit")
+                if rowlimit is not None:
+                    if not isinstance(rowlimit, int):
+                        msg = "$rowlimit must be an integer"
+                        errors.append(msg)
+                rowskip = opts.get("$rowskip")
+                if rowskip is not None:
+                    if not isinstance(rowskip, int):
+                        msg = "$rowskip must be an integer"
+                        errors.append(msg)
+
+        return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "suggestions": suggestions}
+
+    @staticmethod
+    def get_operator_info(operator: str) -> dict[str, Any]:
+        """Get information about a Jaquel operator."""
+        operator_docs = {
+            "$eq": {
+                "category": "comparison",
+                "description": "Equal comparison",
+                "example": '{"name": {"$eq": "MyTest"}}',
+                "options": "Use $options: 'i' for case-insensitive",
+            },
+            "$neq": {
+                "category": "comparison",
+                "description": "Not equal comparison",
+                "example": '{"status": {"$neq": "active"}}',
+            },
+            "$lt": {
+                "category": "comparison",
+                "description": "Less than",
+                "example": '{"value": {"$lt": 100}}',
+            },
+            "$gt": {
+                "category": "comparison",
+                "description": "Greater than",
+                "example": '{"value": {"$gt": 0}}',
+            },
+            "$lte": {
+                "category": "comparison",
+                "description": "Less than or equal",
+                "example": '{"value": {"$lte": 100}}',
+            },
+            "$gte": {
+                "category": "comparison",
+                "description": "Greater than or equal",
+                "example": '{"value": {"$gte": 0}}',
+            },
+            "$in": {
+                "category": "comparison",
+                "description": "Value in array",
+                "example": '{"id": {"$in": [1, 2, 3]}}',
+            },
+            "$like": {
+                "category": "comparison",
+                "description": "Wildcard match (* and ?)",
+                "example": '{"name": {"$like": "Test*"}}',
+                "options": "Use $options: 'i' for case-insensitive",
+            },
+            "$between": {
+                "category": "comparison",
+                "description": "Value between two values",
+                "example": '{"date": {"$between": ' '["2023-01-01", "2023-12-31"]}}',
+            },
+            "$null": {
+                "category": "comparison",
+                "description": "Is null value",
+                "example": '{"field": {"$null": 1}}',
+            },
+            "$notnull": {
+                "category": "comparison",
+                "description": "Is not null value",
+                "example": '{"field": {"$notnull": 1}}',
+            },
+            "$and": {
+                "category": "logical",
+                "description": "Logical AND - all must be true",
+                "example": '{"$and": [{"status": "active"},' ' {"value": {"$gt": 0}}]}',
+            },
+            "$or": {
+                "category": "logical",
+                "description": "Logical OR - at least one true",
+                "example": '{"$or": [{"status": "active"},' ' {"status": "pending"}]}',
+            },
+            "$not": {
+                "category": "logical",
+                "description": "Logical NOT",
+                "example": '{"$not": {"status": "inactive"}}',
+            },
+            "$distinct": {
+                "category": "aggregate",
+                "description": "Get distinct values",
+                "example": '{"$attributes": ' '{"name": {"$distinct": 1}}}',
+            },
+            "$min": {
+                "category": "aggregate",
+                "description": "Get minimum value",
+                "example": '{"$attributes": ' '{"value": {"$min": 1}}}',
+            },
+            "$max": {
+                "category": "aggregate",
+                "description": "Get maximum value",
+                "example": '{"$attributes": ' '{"value": {"$max": 1}}}',
+            },
+        }
+
+        if operator not in operator_docs:
+            return {"error": f"Unknown operator: {operator}"}
+
+        return operator_docs[operator]
