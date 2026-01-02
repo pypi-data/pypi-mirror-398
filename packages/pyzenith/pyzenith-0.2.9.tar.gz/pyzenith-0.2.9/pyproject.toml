@@ -1,0 +1,142 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyzenith"
+version = "0.2.9"
+description = "Cross-Platform ML Optimization Framework with ONNX Interpreter"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Wahyu Ardiansyah", email = "wahyuardiansyah1903@gmail.com"},
+]
+maintainers = [
+    {name = "Wahyu Ardiansyah", email = "wahyuardiansyah1903@gmail.com"}
+]
+keywords = [
+    "machine-learning",
+    "deep-learning",
+    "optimization",
+    "compiler",
+    "pytorch",
+    "tensorflow",
+    "jax",
+    "onnx",
+    "cuda",
+    "inference",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Compilers",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+onnx = [
+    "onnx>=1.14.0",
+    "onnxruntime>=1.15.0",
+]
+pytorch = [
+    "torch>=2.0.0",
+]
+tensorflow = [
+    "tensorflow>=2.12.0",
+    "tf2onnx>=1.14.0",
+]
+jax = [
+    "jax>=0.4.0",
+    "jaxlib>=0.4.0",
+]
+all = [
+    "pyzenith[onnx,pytorch,tensorflow,jax]",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/vibeswithkk/zenith"
+Documentation = "https://zenith.dev/docs"
+Repository = "https://github.com/vibeswithkk/zenith"
+Issues = "https://github.com/vibeswithkk/zenith/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["zenith*"]
+
+[tool.setuptools.package-data]
+zenith = ["py.typed", "*.so", "*.pyd"]
+
+[project.scripts]
+zenith = "zenith.cli:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.venv
+    | build
+    | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_first_party = ["zenith"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "zenith/tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["zenith"]
+omit = ["tests/*", "**/test_*.py", "**/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+fail_under = 65
+show_missing = true
+
+[tool.mutmut]
+paths_to_mutate = "zenith/core/"
+tests_dir = "tests/python/"
+runner = ".venv/bin/python -m pytest tests/python/test_core_unit.py -x -q"
