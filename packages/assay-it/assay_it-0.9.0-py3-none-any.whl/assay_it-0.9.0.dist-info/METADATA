@@ -1,0 +1,174 @@
+Metadata-Version: 2.4
+Name: assay-it
+Version: 0.9.0
+Summary: High-performance evaluation framework for LLM agents
+Project-URL: Homepage, https://assay.dev
+Project-URL: Repository, https://github.com/Rul1an/assay
+Project-URL: Issues, https://github.com/Rul1an/assay/issues
+Author-email: Assay <hello@assay.dev>
+License: MIT License
+        
+        Copyright (c) 2025 verdict-dev
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires-Python: >=3.9
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: black; extra == 'dev'
+Requires-Dist: isort; extra == 'dev'
+Requires-Dist: mypy; extra == 'dev'
+Requires-Dist: pytest; extra == 'dev'
+Requires-Dist: pytest-asyncio; extra == 'dev'
+Provides-Extra: openai
+Requires-Dist: openai>=1.0.0; extra == 'openai'
+Description-Content-Type: text/markdown
+
+# Assay Python SDK
+
+**Record deterministic traces from your Python agents for regression gating.**
+
+## 🚀 Golden Quickstart
+
+The fastest way to regression test your AI agent.
+
+### 1. Installation
+```bash
+pip install assay
+```
+
+### 2. Record (`record.py`)
+Run your agent through the SDK to capture a trace. Pass your tool functions to `tool_executors` so Assay can record their inputs and outputs.
+
+```python
+import os
+import openai
+from assay_sdk import TraceWriter, record_chat_completions_with_tools
+
+# 1. Setup Client & Tools
+client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "mock"))
+TOOLS = [{
+    "type": "function",
+    "function": {
+        "name": "GetWeather",
+        "parameters": {"type": "object", "properties": {"location": {"type": "string"}}}
+    }
+}]
+
+# 2. Define Execution Logic (The "Real" Code)
+def get_weather(args):
+    return {"temp": 22, "location": args.get("location")}
+
+# 3. Record the Loop
+writer = TraceWriter("traces/quickstart.jsonl")
+result = record_chat_completions_with_tools(
+    writer=writer,
+    client=client,
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Weather in Tokyo?"}],
+    tools=TOOLS,
+    tool_executors={"GetWeather": get_weather}, # Link schema -> function
+    episode_id="weather_demo",
+    test_id="weather_check"
+)
+print(f"Agent Final Answer: {result['content']}")
+```
+
+### 3. Configure (`assay.yaml`)
+Tell Assay what to check.
+
+```yaml
+version: 1
+model: "trace"
+tests:
+  - id: weather_check
+    input:
+      prompt: "Weather in Tokyo?" # Matches the recorded prompt
+    expected:
+      type: regex_match
+      pattern: ".*" # Pass if any content returned (baseline check)
+```
+
+### 4. Verify
+Run the regression gate. This replays your trace against the recorded tool outputs to ensure determinism.
+
+```bash
+# Verify strictly (fails if any tool call arg changed even slightly)
+assay ci --config assay.yaml --trace-file traces/quickstart.jsonl --replay-strict --db :memory:
+```
+
+---
+
+## 🌊 Advanced: Streaming support
+Capture streaming responses while maintaining tool call execution.
+
+```python
+from assay_sdk import record_chat_completions_stream_with_tools
+
+# ... setup client & writer ...
+
+result = record_chat_completions_stream_with_tools(
+    writer=writer,
+    # ... args ...
+    stream=True # SDK handles chunk aggregation automatically
+    # tool_executors={...} # Required if tools are used
+)
+```
+*Note: The hybrid wrapper (`record_chat_completions_stream_with_tools`) streams the thinking tokens to the user, executes tools, and then performs a standard follow-up call.*
+
+## 🛡️ Advanced: Privacy & Redaction
+Protect sensitive data (PII, API keys) from ever hitting the trace file.
+
+```python
+from assay_sdk import TraceWriter, make_redactor
+
+# Create a redactor that scrubs keys and regex patterns
+redactor = make_redactor(
+    key_denylist={"authorization", "password", "api_key"},
+    patterns=[r"sk-[a-zA-Z0-9]{20,}"] # Mask OpenAI keys
+)
+
+# Attach to writer - happens automatically on write
+writer = TraceWriter("traces/secure.jsonl", redact_fn=redactor)
+```
+
+## ⚡ Async Support
+Native `async` support for high-throughput applications (FastAPI, etc.) is available via the `assay_sdk.async_openai` submodule. It provides full parity with the sync API, including loop and streaming support.
+
+## ❓ Troubleshooting
+
+### `E_TRACE_EPISODE_MISSING`
+**Cause**: The `test_id` or `episode_id` in your trace doesn't match what `assay ci` expected from its config (or implicit default).
+**Fix**: Ensure your `assay.yaml` test IDs match the `test_id` passed to `record_chat_completions...`.
+
+### "Duplicate prompt in strict replay"
+**Cause**: You ran `record.py` twice without cleaning the trace file, so it contains two identical episodes. `assay ci` in strict mode doesn't know which one to replay.
+**Fix**:
+1. Truncate the file before recording: `trace_path = "traces/my_trace.jsonl"; open(trace_path, 'w').close()`.
+2. Use unique `episode_id`s (e.g. UUIDs) for every run.
