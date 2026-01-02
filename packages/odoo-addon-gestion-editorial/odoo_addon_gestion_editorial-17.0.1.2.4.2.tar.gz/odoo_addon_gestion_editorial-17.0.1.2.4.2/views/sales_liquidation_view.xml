@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+  <record id="action_sales_liquidation_editorial" model="ir.actions.act_window">
+    <field name="name">Liquidaciones de ventas</field>
+    <field name="res_model">sale.order</field>
+    <field name="view_mode">tree,kanban,form</field>
+    <field name="view_id" ref="sale.view_order_tree"/>
+    <field name="search_view_id" ref="sale.sale_order_view_search_inherit_sale"/>
+    <field name="context">{'order_type': 'SALE_LIQ'}</field>
+    <field name="domain">[('order_type', '=', 'SALE_LIQ')]</field>
+  </record>
+
+  <record id="action_deposit_return_sales_editorial" model="ir.actions.act_window">
+    <field name="name">Devoluciones de depósito de ventas</field>
+    <field name="res_model">sale.order</field>
+    <field name="view_mode">tree,kanban,form</field>
+    <field name="view_id" ref="sale.view_order_tree"/>
+    <field name="search_view_id" ref="sale.sale_order_view_search_inherit_sale"/>
+    <field name="domain">[('order_type', '=', 'SALE_DEPR')]</field>
+    <field name="context">{'order_type': 'SALE_DEPR'}</field>
+  </record>
+
+  <menuitem
+    id="submenu_liquidation_sales"
+    name="Liquidaciones de ventas"
+    parent="sale.sale_order_menu"
+    sequence="10"
+    action="action_sales_liquidation_editorial"
+    groups="sales_team.group_sale_manager"
+    />
+  <menuitem
+    id="submenu_liquidation_deposit_return_sales"
+    name="Devoluciones de depósito"
+    parent="sale.sale_order_menu"
+    sequence="11"
+    action="action_deposit_return_sales_editorial"
+    groups="sales_team.group_sale_manager"
+    />
+
+  <record id="sale_order_form_editorial_liq_view" model="ir.ui.view">
+    <field name="name">sale.order.editorial.form.view</field>
+    <field name="model">sale.order</field>
+    <field name="inherit_id" ref="sale.view_order_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='payment_term_id']" position="after">
+        <field name="order_type" invisible="1" readonly="1"/>
+      </xpath>
+
+      <!-- Add buttons search deposit-->
+      <xpath expr="//notebook" position="before">      
+        <button name="%(action_liquidation_wizard_sales)d" string="Buscar productos en depósito ventas" type="action" class="oe_highlight"
+          invisible="order_type not in ('SALE_LIQ','SALE_DEPR') or state != 'draft' or partner_id == False"
+          context="{'partner_id': partner_id, 'liquidation_id': id, 'liquidation_type': order_type}"/>
+      </xpath>
+
+    </field>
+  </record>
+
+  <!-- Hide liqs from sale orders tree views -->
+  <record id="sale.action_quotations_with_onboarding" model="ir.actions.act_window">
+      <field name="domain">[('order_type', 'not in', ['SALE_LIQ', 'SALE_DEPR'])]</field>
+  </record>
+
+  <record id="sale.action_orders" model="ir.actions.act_window">
+      <field name="domain">
+        [('order_type', 'not in', ['SALE_LIQ', 'SALE_DEPR']),
+        ('state', 'not in', ('draft', 'sent', 'cancel'))]
+      </field>
+  </record>
+
+</odoo>

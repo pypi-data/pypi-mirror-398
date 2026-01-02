@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+  <record id="action_purchases_liquidation_editorial" model="ir.actions.act_window">
+    <field name="name">Liquidaciones de compras</field>
+    <field name="res_model">purchase.order</field>
+    <field name="view_mode">tree,kanban,form</field>
+    <field name="view_id" ref="purchase.purchase_order_view_tree"/>
+    <field name="search_view_id" ref="purchase.purchase_order_view_search"/>
+    <field name="context">{'order_type': 'PURCHASE_LIQ'}</field>
+    <field name="domain">[('order_type', '=', 'PURCHASE_LIQ')]</field>
+  </record>
+
+  <record id="action_deposit_return_purchases_editorial" model="ir.actions.act_window">
+    <field name="name">Devoluciones de depósito de compras</field>
+    <field name="res_model">purchase.order</field>
+    <field name="view_mode">tree,kanban,form</field>
+    <field name="view_id" ref="purchase.purchase_order_view_tree"/>
+    <field name="search_view_id" ref="purchase.purchase_order_view_search"/>
+    <field name="domain">[('order_type', '=', 'PURCHASE_DEPR')]</field>
+    <field name="context">{'order_type': 'PURCHASE_DEPR'}</field>
+  </record>
+
+  <menuitem
+    id="submenu_liquidation_purchases"
+    name="Liquidaciones de compras"
+    parent="purchase.menu_procurement_management"
+    sequence="10"
+    action="action_purchases_liquidation_editorial"
+    groups="purchase.group_purchase_manager"
+  />
+  <menuitem
+    id="submenu_liquidation_deposit_return_purchases"
+    name="Devoluciones de depósito"
+    parent="purchase.menu_procurement_management"
+    sequence="11"
+    action="action_deposit_return_purchases_editorial"
+    groups="purchase.group_purchase_manager"
+  />
+
+  <record id="purchase_liq_editorial_form_view" model="ir.ui.view">
+    <field name="name">purchase.order.editorial.form.view</field>
+    <field name="model">purchase.order</field>
+    <field name="inherit_id" ref="purchase.purchase_order_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='partner_id']" position="after">
+        <field name="order_type" invisible="1" readonly="1"/>
+        <field name="is_deposit_purchase" invisible="1" readonly="1"/>
+      </xpath>
+
+      <!-- Hide create invoice button for purchase liq returns + purchases in deposit -->
+      <xpath expr="//button[@name='action_create_invoice'][@class='oe_highlight']" position="attributes">
+          <attribute name="invisible">is_deposit_purchase or order_type == 'PURCHASE_DEPR' or state not in ('purchase', 'done') or invoice_status in ('no', 'invoiced')</attribute>
+      </xpath>
+      <xpath expr="//button[@name='action_create_invoice'][not(@class='oe_highlight')]" position="attributes">
+          <attribute name="invisible">is_deposit_purchase or order_type == 'PURCHASE_DEPR' or state not in ('purchase', 'done') or invoice_status not in ('no', 'invoiced') or not order_line</attribute>
+      </xpath>
+
+    <!-- Add buttons search deposit-->
+    <xpath expr="//notebook" position="before">      
+    <button name="%(action_liquidation_wizard_purchases)d" string="Buscar productos en depósito compras" type="action" class="oe_highlight"
+        invisible="order_type not in ('PURCHASE_LIQ','PURCHASE_DEPR') or state != 'draft' or partner_id == False"
+        context="{'partner_id': partner_id, 'liquidation_id': id, 'liquidation_type': order_type}"/>
+    </xpath>
+
+    </field>
+  </record>
+
+</odoo>
