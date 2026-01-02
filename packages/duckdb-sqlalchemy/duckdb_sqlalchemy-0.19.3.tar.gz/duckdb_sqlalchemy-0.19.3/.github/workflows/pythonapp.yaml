@@ -1,0 +1,69 @@
+name: Python application
+
+on:
+  pull_request:
+    paths:
+      - "duckdb_sqlalchemy/**"
+      - "examples/**"
+      - "pyproject.toml"
+      - "noxfile.py"
+      - "test.cfg"
+      - ".github/workflows/pythonapp.yaml"
+  workflow_dispatch:
+permissions:
+  checks: write
+
+jobs:
+  build_backend:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    env:
+      FORCE_COLOR: 1
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Remove cached duckdb extensions
+        run: rm -rf ~/.duckdb
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install --upgrade SQLAlchemy
+          python -m pip install --upgrade duckdb
+      - name: Run tests
+        run: |
+          pytest \
+            --junitxml=results.xml \
+            --cov \
+            --cov-report xml:coverage.xml \
+            --verbose \
+            -rs \
+            --remote-data
+        env:
+          SQLALCHEMY_WARN_20: "true"
+      - name: Publish Unit Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: results.xml
+          comment_mode: off
+          check_name:  "Test Results - python=${{ matrix.python }}"
+      - uses: codecov/codecov-action@v5.5.1
+        env:
+          PYTHON: ${{matrix.python}}
+        with:
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: PYTHON
+          fail_ci_if_error: true
+          verbose: true
