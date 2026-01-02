@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+from flux import Flux
+from flux.cli.base import dependency_array_create
+from flux.job import JobspecV1, submit
+
+
+def create_jobspecs():
+    jobspec_dict = {}
+    
+    {% for task in tasks %}
+    jobspec_dict["{{ task.task_name }}"] = JobspecV1.from_batch_command(
+        script="{{ task.script }}",
+        jobname="{{ task.task_name }}",
+        num_slots={{ task.num_slots }},
+        {% if task.num_cores is not none %}
+        cores_per_slot={{ task.num_cores }},
+        {% endif -%}
+        {% if task.num_gpus is not none %}
+        gpus_per_slot={{ task.num_gpus }},
+        {% endif -%}
+        {% if task.num_nodes is not none %}
+        num_nodes={{ task.num_nodes }},
+        {% endif -%}
+        {% if task.exclusive is not none %}
+        exclusive={{ task.exclusive }},
+        {% endif -%}
+        {% if task.duration is not none %}
+        duration={{ task.duration }},
+        {% endif -%}
+        {% if task.environment is not none %}
+        environment={{ task.environment }},
+        {% endif -%}
+        {% if task.cwd is not none %}
+        cwd="{{ task.cwd }}",
+        {% endif -%}
+        {% if task.output is not none %}
+        output="{{ task.output }}",
+        {% endif -%}
+        {% if task.error is not none %}
+        error="{{ task.error }}",
+        {% endif -%}
+        {% if task.queue is not none %}
+        queue="{{ task.queue }}",
+        {% endif -%}
+        {% if task.bank is not none %}
+        bank="{{ task.bank }}",
+        {% endif %}
+    )
+
+    {% endfor %}
+    return jobspec_dict
+
+
+def submit_tasks(handle, jobspec_dict):
+    jobid_dict = {}
+    {% for task_info in task_submit_info %}
+    {{ task_info.task_name }}_dependency_keys = {{ task_info.dependencies }}
+    if len({{ task_info.task_name }}_dependency_keys) > 0:
+        jobspec_dict["{{ task_info.task_name }}"].setattr(
+            "system.dependencies", dependency_array_create([jobid_dict[key] for key in {{ task_info.task_name }}_dependency_keys])
+        )
+    jobid_dict["{{ task_info.task_name }}"] = submit(handle, jobspec_dict["{{ task_info.task_name }}"])
+    print("Job ID for task '{{ task_info.task_name }}' is", jobid_dict["{{ task_info.task_name }}"].f58plain)
+
+    {% endfor %}
+
+
+def main():
+    handle = Flux()
+    jobspec_dict = create_jobspecs()
+    submit_tasks(handle, jobspec_dict)
+
+
+if __name__ == "__main__":
+    main()
