@@ -1,0 +1,72 @@
+from typing import Any, Dict, Tuple
+from Agent.tools.base import BaseTool, ExecutorProtocol, ToolCategory
+from robot.api import logger
+
+
+def get_element_center(element: Dict[str, Any]) -> Tuple[int, int]:
+    bbox = element.get("bbox", {})
+    x = bbox.get("x", 0) + bbox.get("width", 0) // 2
+    y = bbox.get("y", 0) + bbox.get("height", 0) // 2
+    return x, y
+
+
+class ClickElementTool(BaseTool):
+    """Click on a mobile UI element using coordinates."""
+    
+    @property
+    def name(self) -> str:
+        return "tap_element"
+    
+    @property
+    def description(self) -> str:
+        return "Tap/click element by INDEX. DO NOT use for text input - use input_text instead."
+    
+    @property
+    def category(self) -> ToolCategory:
+        return ToolCategory.MOBILE
+    
+    @property
+    def works_on_locator(self) -> bool:
+        return False
+    
+    @property
+    def works_on_coordinates(self) -> bool:
+        return True
+    
+    @property
+    def has_coordinates_alternative(self) -> bool:
+        return False
+    
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "element_index": {
+                    "type": "integer",
+                    "description": "The index number of the element from the UI elements list (1-based)",
+                    "minimum": 1
+                }
+            },
+            "required": ["element_index"]
+        }
+    
+    def execute(
+        self, 
+        executor: ExecutorProtocol, 
+        arguments: Dict[str, Any], 
+        context: Dict[str, Any]
+    ) -> None:
+        element_index = arguments["element_index"]
+        ui_candidates = context.get("ui_candidates", [])
+        
+        if element_index < 1 or element_index > len(ui_candidates):
+            raise AssertionError(
+                f"Invalid element_index: {element_index}. Must be 1-{len(ui_candidates)}"
+            )
+        
+        element = ui_candidates[element_index - 1]
+        x, y = get_element_center(element)
+        
+        logger.debug(f"Tapping at ({x}, {y}) for element: {element.get('text', '')}")
+        executor.run_keyword("Tap", [x, y])
+

@@ -1,0 +1,259 @@
+from anthropic import Anthropic, APIError
+from typing import Optional, Dict, List, Union
+from robot.api import logger
+from Agent.ai.llm._baseclient import BaseLLMClient
+from Agent.config.model_config import ModelConfig
+from Agent.utilities._costtracker import CostTracker
+
+
+class AnthropicClient(BaseLLMClient):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "claude-sonnet-4-5-20250929",
+        max_retries: int = 3,
+    ):
+        self.api_key: str = api_key
+
+        if not self.api_key:
+            from Agent.config.config import Config
+            config = Config()
+            self.api_key = config.ANTHROPIC_API_KEY
+
+        if not self.api_key:
+            raise ValueError("API key must be provided either as an argument or in the environment variables.")
+
+        self.default_model = model
+        self.max_retries = max_retries
+        self.client = Anthropic(api_key=self.api_key, max_retries=max_retries)
+        self.model_config = ModelConfig()
+        self.cost_tracker = CostTracker()
+
+    def create_chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        max_tokens: int = 1400,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[Union[str, Dict]] = None,
+        **kwargs
+    ):
+        try:
+            self._validate_parameters(temperature, top_p)
+
+            system_message = None
+            user_messages = []
+
+            for msg in messages:
+                if msg.get("role") == "system":
+                    system_message = msg.get("content")
+                else:
+                    transformed_content = self._transform_content(msg.get("content"))
+                    user_messages.append({"role": msg.get("role"), "content": transformed_content})
+
+            api_params = {
+                "model": model or self.default_model,
+                "messages": user_messages,
+                "max_tokens": max_tokens,
+                **kwargs,
+            }
+            if temperature != 1.0:
+                api_params["temperature"] = temperature
+            elif top_p != 1.0:
+                api_params["top_p"] = top_p
+            else:
+                api_params["temperature"] = temperature
+
+            if system_message:
+                api_params["system"] = system_message
+
+            if tools:
+                # Check format and convert if necessary
+                if len(tools) > 0 and isinstance(tools[0], dict) and "type" in tools[0] and tools[0]["type"] == "function":
+                    from Agent.ai.llm._converters import convert_to_anthropic_tools
+                    api_params["tools"] = convert_to_anthropic_tools(tools)
+                else:
+                    api_params["tools"] = tools
+
+                if tool_choice:
+                    from Agent.ai.llm._converters import convert_tool_choice_to_anthropic
+                    api_params["tool_choice"] = convert_tool_choice_to_anthropic(tool_choice)
+
+            response = self.client.messages.create(**api_params)
+
+            logger.debug(
+                f"Anthropic API call successful. Tokens used: {response.usage.input_tokens + response.usage.output_tokens}"
+            )
+            logger.debug(f"Response: {response}")
+
+            return response
+
+        except APIError as e:
+            logger.error(f"Anthropic API Error: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            raise
+
+    def _transform_content(self, content):
+        if isinstance(content, str):
+            return content
+        if not isinstance(content, list):
+            return content
+        transformed = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+            if item_type == "text":
+                transformed.append({"type": "text", "text": item.get("text", "")})
+            elif item_type == "image_url":
+                image_url_data = item.get("image_url", {})
+                if isinstance(image_url_data, dict) and "url" in image_url_data:
+                    url = image_url_data["url"]
+                    if url.startswith("data:"):
+                        try:
+                            header, data = url.split(",", 1)
+                            media_type = header.split(";")[0].split(":")[1]
+                            transformed.append(
+                                {
+                                    "type": "image",
+                                    "source": {"type": "base64", "media_type": media_type, "data": data},
+                                }
+                            )
+                        except (ValueError, IndexError) as e:
+                            logger.error(f"Invalid base64 image URL format: {e}")
+                            continue
+                    else:
+                        transformed.append({"type": "image", "source": {"type": "url", "url": url}})
+            elif item_type == "image":
+                if "source" in item:
+                    transformed.append(item)
+                else:
+                    logger.warn("Image item missing 'source' field")
+            else:
+                transformed.append(item)
+        return transformed if transformed else content
+
+    def _validate_parameters(self, temperature: float, top_p: float):
+        if not (0 <= temperature <= 1):
+            logger.error(f"Invalid temperature {temperature}. Must be between 0 and 1 for Anthropic")
+            raise ValueError(f"Invalid temperature {temperature}. Must be between 0 and 1")
+        if not (0 <= top_p <= 1):
+            logger.error(f"Invalid top_p {top_p}. Must be between 0 and 1")
+            raise ValueError(f"Invalid top_p {top_p}. Must be between 0 and 1")
+    
+    def _calculate_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> Dict[str, float]:
+        """
+        Calculate the cost of API call based on token usage.
+        
+        Args:
+            model: Model name used for the API call
+            prompt_tokens: Number of input tokens
+            completion_tokens: Number of output tokens
+            
+        Returns:
+            Dictionary with input_cost, output_cost, and total_cost
+        """
+        pricing = self.model_config.get_model_pricing(model)
+        
+        if not pricing:
+            logger.warn(f"No pricing information found for model: {model}. Cost will be 0.")
+            return {
+                'input_cost': 0.0,
+                'output_cost': 0.0,
+                'total_cost': 0.0
+            }
+        
+        # Pricing is per 1M tokens according to llm_models.json metadata
+        input_cost = (prompt_tokens / 1_000_000) * pricing['input']
+        output_cost = (completion_tokens / 1_000_000) * pricing['output']
+        total_cost = input_cost + output_cost
+        
+        return {
+            'input_cost': input_cost,
+            'output_cost': output_cost,
+            'total_cost': total_cost
+        }
+
+    def format_response(
+        self,
+        response,
+        include_tokens: bool = True,
+        include_reason: bool = False,
+    ) -> Dict[str, Union[str, int, float]]:
+        if not response or not response.content:
+            logger.error(f"Invalid response or no content in the response")
+            return {}
+
+        content_text = ""
+        tool_calls = []
+        
+        for block in response.content:
+            if hasattr(block, "text"):
+                content_text += block.text
+            elif hasattr(block, "type") and block.type == "tool_use":
+                # Anthropic tool_use block
+                import json
+                tool_calls.append({
+                    "id": block.id,
+                    "type": "function",
+                    "function": {
+                        "name": block.name,
+                        "arguments": json.dumps(block.input)
+                    }
+                })
+
+        result = {
+            "content": content_text,
+        }
+
+        if tool_calls:
+            result["tool_calls"] = tool_calls
+
+        if include_tokens and response.usage:
+            logger.debug(
+                f"Tokens used: input={response.usage.input_tokens}, output={response.usage.output_tokens}"
+            )
+            result.update(
+                {
+                    "prompt_tokens": response.usage.input_tokens,
+                    "completion_tokens": response.usage.output_tokens,
+                    "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                }
+            )
+            
+            # Calculate and track cost
+            cost_data = self._calculate_cost(
+                model=response.model,
+                prompt_tokens=response.usage.input_tokens,
+                completion_tokens=response.usage.output_tokens
+            )
+            
+            result.update({
+                "input_cost": cost_data['input_cost'],
+                "output_cost": cost_data['output_cost'],
+                "total_cost": cost_data['total_cost']
+            })
+            
+            # Track cost in the cost tracker
+            self.cost_tracker.add_cost(
+                input_cost=cost_data['input_cost'],
+                output_cost=cost_data['output_cost'],
+                model=response.model
+            )
+            
+            logger.debug(
+                f"API call cost: ${cost_data['total_cost']:.6f} "
+                f"(input: ${cost_data['input_cost']:.6f}, output: ${cost_data['output_cost']:.6f})"
+            )
+
+        if include_reason:
+            logger.debug(f"Stop reason: {response.stop_reason}")
+            result["finish_reason"] = response.stop_reason
+
+        return result
+
+
