@@ -1,0 +1,953 @@
+from pathlib import Path
+import json
+
+import click
+import questionary
+from questionary import Choice
+from rich.console import Console
+from rich.panel import Panel
+
+from .browser import ManualBrowser, run_agent_browser
+from .utils import (
+    generate_run_id,
+    generate_folder_name,
+    get_config_path,
+    get_history_path,
+    get_har_dir,
+    get_timestamp,
+)
+from .tui import (
+    get_model_choices,
+    display_banner,
+    display_footer,
+    THEME_PRIMARY,
+    THEME_SECONDARY,
+    THEME_DIM,
+    MODE_COLORS,
+)
+from .config import ConfigManager
+from .session import SessionManager
+from .engineer import run_reverse_engineering
+from .messages import MessageStore
+from . import __version__
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.styles import Style as PtStyle
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+
+
+console = Console()
+config_manager = ConfigManager(get_config_path())
+session_manager = SessionManager(get_history_path())
+
+# Mode definitions
+MODES = ["manual", "engineer", "agent"]
+MODE_DESCRIPTIONS = {
+    "manual": "full pipeline",
+    "engineer": "reverse engineer only",
+    "agent": "autonomous agent + capture",
+}
+
+
+def prompt_interactive_options(
+    prompt: str | None = None,
+    url: str | None = None,
+    reverse_engineer: bool | None = None,
+    model: str | None = None,
+    current_mode: str = "manual",
+) -> dict:
+    """Prompt user for essential options interactively (Browgents style).
+
+    Shift+Tab cycles through modes: manual ↔ engineer ↔ agent
+    """
+
+    # Slash command completer
+    commands = [
+        "/settings",
+        "/history",
+        "/messages",
+        "/help",
+        "/exit",
+        "/quit",
+        "/commands",
+    ]
+
+    class FilteredCompleter(Completer):
+        def get_completions(self, document, complete_event):
+            text = document.text_before_cursor
+            if not text.startswith("/"):
+                return
+
+            # Only suggest if we are still on the first word (the command)
+            if " " in text:
+                return
+
+            for cmd in commands:
+                if cmd.startswith(text):
+                    yield Completion(cmd, start_position=-len(text))
+
+    command_completer = FilteredCompleter()
+
+    # Track mode state (mutable container for closure)
+    mode_state = {"mode": current_mode, "mode_index": MODES.index(current_mode)}
+
+    # Create key bindings for mode cycling
+    kb = KeyBindings()
+
+    @kb.add("s-tab")  # Shift+Tab
+    def cycle_mode(event):
+        """Cycle to next mode."""
+        mode_state["mode_index"] = (mode_state["mode_index"] + 1) % len(MODES)
+        mode_state["mode"] = MODES[mode_state["mode_index"]]
+        # Force prompt refresh by invalidating the app
+        event.app.invalidate()
+
+    def get_prompt():
+        """Generate prompt with current mode indicator."""
+        mode = mode_state["mode"]
+        mode_color = MODE_COLORS.get(mode, THEME_PRIMARY)
+        return HTML(
+            f'<style fg="{mode_color}">[{mode}]</style> <style fg="{mode_color}" bold="true">&gt;</style> '
+        )
+
+    if prompt is None:
+        pt_style = PtStyle.from_dict(
+            {
+                "prompt": f"{THEME_PRIMARY} bold",
+                "": THEME_SECONDARY,
+            }
+        )
+
+        session = PromptSession(
+            message=get_prompt,  # Dynamic prompt function
+            completer=command_completer,
+            auto_suggest=AutoSuggestFromHistory(),
+            complete_while_typing=True,
+            style=pt_style,
+            key_bindings=kb,
+        )
+
+        prompt = session.prompt()
+
+    if prompt is None:  # Handle Ctrl+D or Ctrl+C if not caught
+        raise click.Abort()
+
+    prompt = prompt.strip()
+    if not prompt:
+        return {"command": "/empty", "mode": mode_state["mode"]}
+
+    if prompt.startswith("/"):
+        return {"command": prompt.lower(), "mode": mode_state["mode"]}
+
+    # Return mode in all cases
+    result_mode = mode_state["mode"]
+
+    # Engineer mode: prompt is the run_id
+    if result_mode == "engineer":
+        return {
+            "mode": result_mode,
+            "run_id": prompt,
+            "model": model
+            or config_manager.get("claude_code_model", "claude-sonnet-4-5"),
+        }
+
+    # Agent mode: similar to manual but uses autonomous browser
+    if result_mode == "agent":
+        if url is None:
+            try:
+                url = questionary.text(
+                    " > url",
+                    instruction="(Enter for none)",
+                    qmark="",
+                    style=questionary.Style(
+                        [
+                            ("question", f"fg:{THEME_SECONDARY}"),
+                            ("instruction", f"fg:{THEME_DIM} italic"),
+                        ]
+                    ),
+                ).ask()
+                if url is None:  # questionary returns None on Ctrl+C
+                    raise click.Abort()
+            except KeyboardInterrupt:
+                raise click.Abort()
+
+        if model is None:
+            model = config_manager.get("claude_code_model", "claude-sonnet-4-5")
+
+        return {
+            "mode": result_mode,
+            "prompt": prompt,
+            "url": url if url else None,
+            "reverse_engineer": False,  # Agent mode doesn't auto-reverse engineer
+            "model": model,
+        }
+
+    # Manual mode: need URL
+    if url is None:
+        try:
+            url = questionary.text(
+                " > url",
+                instruction="(Enter for none)",
+                qmark="",
+                style=questionary.Style(
+                    [
+                        ("question", f"fg:{THEME_SECONDARY}"),
+                        ("instruction", f"fg:{THEME_DIM} italic"),
+                    ]
+                ),
+            ).ask()
+            if url is None:  # questionary returns None on Ctrl+C
+                raise click.Abort()
+        except KeyboardInterrupt:
+            raise click.Abort()
+
+    # Use settings defaults for the rest
+    if reverse_engineer is None:
+        reverse_engineer = True
+
+    if model is None:
+        model = config_manager.get("claude_code_model", "claude-sonnet-4-5")
+
+    return {
+        "mode": result_mode,
+        "prompt": prompt,
+        "url": url if url else None,
+        "reverse_engineer": reverse_engineer,
+        "model": model,
+    }
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+@click.version_option(version=__version__)
+def main(ctx: click.Context):
+    """Reverse API - Capture browser traffic for API reverse engineering."""
+    if ctx.invoked_subcommand is None:
+        repl_loop()
+
+
+def repl_loop():
+    """Main interactive loop for the CLI."""
+    display_banner(console)
+    console.print("  [dim]shift+tab to cycle modes: manual | engineer | agent[/dim]")
+    display_footer(console)
+
+    current_mode = "manual"
+
+    while True:
+        try:
+            options = prompt_interactive_options(current_mode=current_mode)
+
+            # Update current mode for next iteration
+            current_mode = options.get("mode", "manual")
+
+            if "command" in options:
+                cmd = options["command"]
+                if cmd == "/empty":
+                    continue
+                if cmd == "/exit" or cmd == "/quit":
+                    return  # Exit the loop and return to main
+                elif cmd == "/settings":
+                    handle_settings()
+                elif cmd == "/history":
+                    handle_history()
+                elif cmd == "/help" or cmd == "/commands":
+                    handle_help()
+                elif cmd.startswith("/messages"):
+                    parts = cmd.split(maxsplit=1)
+                    if len(parts) > 1:
+                        handle_messages(parts[1].strip())
+                    else:
+                        console.print(
+                            " [dim]![/dim] [red]usage:[/red] /messages <run_id>"
+                        )
+                else:
+                    console.print(f" [dim]![/dim] [red]unknown command:[/red] {cmd}")
+                continue
+
+            mode = options.get("mode", "manual")
+
+            # Handle different modes
+            if mode == "engineer":
+                # Engineer mode: only run reverse engineering on existing run_id
+                run_id = options.get("run_id")
+                if not run_id:
+                    console.print(
+                        " [dim]![/dim] [red]error:[/red] enter a run_id to reverse engineer"
+                    )
+                    continue
+                run_engineer(run_id, model=options.get("model"))
+                continue
+
+            if mode == "agent":
+                # Agent mode: run autonomous browser agent
+                run_agent_capture(
+                    prompt=options["prompt"],
+                    url=options.get("url"),
+                    reverse_engineer=True,  # Enable reverse engineering
+                    model=options.get("model"),
+                )
+                continue
+
+            # Manual mode: run browser capture
+            run_manual_capture(
+                prompt=options["prompt"],
+                url=options["url"],
+                reverse_engineer=options["reverse_engineer"],
+                model=options["model"],
+            )
+
+        except (click.Abort, KeyboardInterrupt):
+            console.print("\n [dim]terminated[/dim]")
+            return
+        except Exception as e:
+            console.print(f" [dim]![/dim] [red]error:[/red] {e}")
+
+
+def handle_settings():
+    """Display and manage settings."""
+    console.print()
+    for k, v in config_manager.config.items():
+        console.print(f" [dim]>[/dim] {k:25} [white]{v}[/white]")
+
+    action = questionary.select(
+        "",
+        choices=[
+            Choice(title="> change claude code model", value="claude_code_model"),
+            Choice(title="> change sdk", value="sdk"),
+            Choice(title="> opencode provider", value="opencode_provider"),
+            Choice(title="> opencode model", value="opencode_model"),
+            Choice(title="> agent provider", value="agent_provider"),
+            Choice(title="> browser-use model", value="browser_use_model"),
+            Choice(title="> stagehand model", value="stagehand_model"),
+            Choice(title="> output directory", value="output_dir"),
+            Choice(title="> back", value="back"),
+        ],
+        pointer="",
+        qmark="",
+        style=questionary.Style(
+            [
+                ("highlighted", f"fg:{THEME_PRIMARY} bold"),
+                ("selected", "fg:white"),
+            ]
+        ),
+    ).ask()
+
+    if action is None or action == "back":
+        return
+
+    if action == "claude_code_model":
+        model_choices = [
+            Choice(title=f"> {c['name'].lower()}", value=c["value"])
+            for c in get_model_choices()
+        ]
+        model_choices.append(Choice(title="> back", value="back"))
+        model = questionary.select(
+            "",
+            choices=model_choices,
+            pointer="",
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("highlighted", f"fg:{THEME_PRIMARY} bold"),
+                ]
+            ),
+        ).ask()
+        if model and model != "back":
+            config_manager.set("claude_code_model", model)
+            console.print(f" [dim]updated[/dim] {model}\n")
+
+    elif action == "sdk":
+        sdk_choices = [
+            Choice(title="> opencode", value="opencode"),
+            Choice(title="> claude", value="claude"),
+            Choice(title="> back", value="back"),
+        ]
+        sdk = questionary.select(
+            "",
+            choices=sdk_choices,
+            pointer="",
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("highlighted", f"fg:{THEME_PRIMARY} bold"),
+                ]
+            ),
+        ).ask()
+        if sdk and sdk != "back":
+            config_manager.set("sdk", sdk)
+            console.print(f" [dim]updated[/dim] sdk: {sdk}\n")
+
+    elif action == "agent_provider":
+        provider_choices = [
+            Choice(title="> browser-use", value="browser-use"),
+            Choice(title="> stagehand", value="stagehand"),
+            Choice(title="> back", value="back"),
+        ]
+        provider = questionary.select(
+            "",
+            choices=provider_choices,
+            pointer="",
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("highlighted", f"fg:{THEME_PRIMARY} bold"),
+                ]
+            ),
+        ).ask()
+        if provider and provider != "back":
+            config_manager.set("agent_provider", provider)
+            console.print(f" [dim]updated[/dim] agent provider: {provider}\n")
+
+    elif action == "opencode_provider":
+        current = config_manager.get("opencode_provider", "anthropic")
+        new_provider = questionary.text(
+            " > opencode provider",
+            default=current or "anthropic",
+            instruction="(e.g., 'anthropic', 'openai', 'google')",
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("question", f"fg:{THEME_SECONDARY}"),
+                    ("instruction", f"fg:{THEME_DIM} italic"),
+                ]
+            ),
+        ).ask()
+        if new_provider is not None:
+            new_provider = new_provider.strip()
+            if not new_provider:
+                console.print(
+                    " [yellow]error:[/yellow] opencode provider cannot be empty\n"
+                )
+            else:
+                config_manager.set("opencode_provider", new_provider)
+                console.print(
+                    f" [dim]updated[/dim] opencode provider: {new_provider}\n"
+                )
+
+    elif action == "opencode_model":
+        current = config_manager.get("opencode_model", "claude-sonnet-4-5")
+        new_model = questionary.text(
+            " > opencode model",
+            default=current or "claude-sonnet-4-5",
+            instruction="(e.g., 'claude-sonnet-4-5', 'claude-opus-4-5')",
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("question", f"fg:{THEME_SECONDARY}"),
+                    ("instruction", f"fg:{THEME_DIM} italic"),
+                ]
+            ),
+        ).ask()
+        if new_model is not None:
+            new_model = new_model.strip()
+            if not new_model:
+                console.print(
+                    " [yellow]error:[/yellow] opencode model cannot be empty\n"
+                )
+            else:
+                config_manager.set("opencode_model", new_model)
+                console.print(f" [dim]updated[/dim] opencode model: {new_model}\n")
+
+    elif action == "browser_use_model":
+        from .browser import parse_agent_model
+
+        current = config_manager.get("browser_use_model", "bu-llm")
+        instruction = "(Format: 'bu-llm' or 'provider/model', e.g., 'openai/gpt-4')"
+
+        new_model = questionary.text(
+            " > browser-use model",
+            default=current or "bu-llm",
+            instruction=instruction,
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("question", f"fg:{THEME_SECONDARY}"),
+                    ("instruction", f"fg:{THEME_DIM} italic"),
+                ]
+            ),
+        ).ask()
+        if new_model is not None:
+            new_model = new_model.strip()
+            if not new_model:
+                console.print(
+                    " [yellow]error:[/yellow] browser-use model cannot be empty\n"
+                )
+            else:
+                # Validate format for browser-use
+                try:
+                    parse_agent_model(new_model, "browser-use")
+                    config_manager.set("browser_use_model", new_model)
+                    console.print(
+                        f" [dim]updated[/dim] browser-use model: {new_model}\n"
+                    )
+                except ValueError as e:
+                    console.print(f" [yellow]error:[/yellow] {e}\n")
+                    console.print(
+                        " [dim]Valid formats:[/dim]\n"
+                        " [dim]  - bu-llm[/dim]\n"
+                        " [dim]  - openai/model_name (e.g., openai/gpt-4)[/dim]\n"
+                        " [dim]  - google/model_name (e.g., google/gemini-pro)[/dim]\n"
+                    )
+
+    elif action == "stagehand_model":
+        from .browser import parse_agent_model
+
+        current = config_manager.get(
+            "stagehand_model", "openai/computer-use-preview-2025-03-11"
+        )
+        instruction = "(Format: 'openai/model' or 'anthropic/model', e.g., 'openai/computer-use-preview-2025-03-11' or 'anthropic/claude-sonnet-4-5-20250929')"
+
+        new_model = questionary.text(
+            " > stagehand model",
+            default=current or "openai/computer-use-preview-2025-03-11",
+            instruction=instruction,
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("question", f"fg:{THEME_SECONDARY}"),
+                    ("instruction", f"fg:{THEME_DIM} italic"),
+                ]
+            ),
+        ).ask()
+        if new_model is not None:
+            new_model = new_model.strip()
+            if not new_model:
+                console.print(
+                    " [yellow]error:[/yellow] stagehand model cannot be empty\n"
+                )
+            else:
+                # Validate format for stagehand
+                try:
+                    parse_agent_model(new_model, "stagehand")
+                    config_manager.set("stagehand_model", new_model)
+                    console.print(f" [dim]updated[/dim] stagehand model: {new_model}\n")
+                except ValueError as e:
+                    console.print(f" [yellow]error:[/yellow] {e}\n")
+                    console.print(
+                        " [dim]Valid formats for stagehand:[/dim]\n"
+                        " [dim]  - openai/computer-use-preview-2025-03-11[/dim]\n"
+                        " [dim]  - anthropic/claude-sonnet-4-5-20250929[/dim]\n"
+                        " [dim]  - anthropic/claude-haiku-4-5-20251001[/dim]\n"
+                        " [dim]  - anthropic/claude-opus-4-5-20251101[/dim]\n"
+                    )
+
+    elif action == "output_dir":
+        current = config_manager.get("output_dir")
+        new_dir = questionary.text(
+            " > output directory",
+            default=current or "",
+            instruction="(Enter for default ~/.reverse-api/runs)",
+            qmark="",
+            style=questionary.Style(
+                [
+                    ("question", f"fg:{THEME_SECONDARY}"),
+                    ("instruction", f"fg:{THEME_DIM} italic"),
+                ]
+            ),
+        ).ask()
+        if new_dir is not None:
+            config_manager.set("output_dir", new_dir if new_dir.strip() else None)
+            console.print(" [dim]updated[/dim] output directory\n")
+
+
+def handle_history():
+    """Display history of runs."""
+    history = session_manager.get_history(limit=15)
+    if not history:
+        console.print(" [dim]> no logs found[/dim]")
+        return
+
+    choices = []
+    for run in history:
+        cost = run.get("usage", {}).get("estimated_cost_usd", 0)
+        cost_str = f"${cost:.3f}" if cost > 0 else "-"
+        title = f"> {run['run_id']:12}  {run['prompt'][:40]:40}  {cost_str:>8}"
+        choices.append(Choice(title=title, value=run["run_id"]))
+
+    choices.append(Choice(title="> back", value="back"))
+
+    run_id = questionary.select(
+        "",
+        choices=choices,
+        pointer="",
+        qmark="",
+        style=questionary.Style(
+            [
+                ("highlighted", f"fg:{THEME_PRIMARY} bold"),
+                ("selected", "fg:white"),
+            ]
+        ),
+    ).ask()
+
+    if not run_id or run_id == "back":
+        return
+
+    run = session_manager.get_run(run_id)
+    if run:
+        console.print(Panel(json.dumps(run, indent=2), border_style=THEME_DIM))
+        if questionary.confirm(" > recode?").ask():
+            model = run.get("model") or config_manager.get(
+                "claude_code_model", "claude-sonnet-4-5"
+            )
+            run_engineer(run_id, model=model)
+    else:
+        console.print(" [dim]> not found[/dim]")
+
+
+def handle_help():
+    """Show help for slash commands."""
+    console.print()
+    console.print(" [white]commands[/white]")
+    console.print(" [dim]>[/dim] /settings   [dim]system[/dim]")
+    console.print(" [dim]>[/dim] /history    [dim]logs[/dim]")
+    console.print(" [dim]>[/dim] /messages   [dim]view run messages[/dim]")
+    console.print(" [dim]>[/dim] /help       [dim]help[/dim]")
+    console.print(" [dim]>[/dim] /exit       [dim]quit[/dim]")
+    console.print()
+    console.print(" [white]modes[/white] [dim](shift+tab to cycle)[/dim]")
+    console.print(
+        " [dim]>[/dim] manual      [dim]full pipeline: browser + reverse engineering[/dim]"
+    )
+    console.print(
+        " [dim]>[/dim] engineer    [dim]reverse engineer only (enter run_id)[/dim]"
+    )
+    console.print(" [dim]>[/dim] agent       [dim]autonomous agent + capture[/dim]")
+    console.print()
+
+
+def handle_messages(run_id: str):
+    """Display messages from a previous run."""
+    store = MessageStore(run_id)
+    messages = store.load()
+
+    if not messages:
+        console.print(f" [dim]>[/dim] [red]no messages found for run:[/red] {run_id}")
+        return
+
+    console.print()
+    console.print(f" [white]messages for {run_id}[/white]")
+    console.print()
+
+    for msg in messages:
+        msg_type = msg.get("type", "unknown")
+        content = msg.get("content", "")
+        timestamp = msg.get("timestamp", "")[:19]  # Truncate to datetime
+
+        if msg_type == "prompt":
+            console.print(f" [dim]{timestamp}[/dim] [white]prompt[/white]")
+            # Show first 200 chars of prompt
+            display = str(content)[:200]
+            if len(str(content)) > 200:
+                display += "..."
+            console.print(f"   [dim]{display}[/dim]")
+        elif msg_type == "tool_start":
+            name = content.get("name", "tool")
+            console.print(f" [dim]{timestamp}[/dim] [white]{name.lower()}[/white]")
+        elif msg_type == "tool_result":
+            name = content.get("name", "tool")
+            is_error = content.get("is_error", False)
+            status = "[red]error[/red]" if is_error else "[dim]ok[/dim]"
+            console.print(f" [dim]{timestamp}[/dim]   {status}")
+        elif msg_type == "thinking":
+            display = str(content)[:100].replace("\\n", " ")
+            if len(str(content)) > 100:
+                display += "..."
+            console.print(f" [dim]{timestamp}  .. {display}[/dim]")
+        elif msg_type == "error":
+            console.print(f" [dim]{timestamp}[/dim] [red]error: {content}[/red]")
+        elif msg_type == "result":
+            console.print(f" [dim]{timestamp}[/dim] [white]complete[/white]")
+            if isinstance(content, dict):
+                script_path = content.get("script_path", "")
+                if script_path:
+                    console.print(f"   [dim]{script_path}[/dim]")
+
+    console.print()
+
+
+@main.command()
+@click.option("--prompt", "-p", default=None, help="Capture description.")
+@click.option("--url", "-u", default=None, help="Starting URL.")
+@click.option(
+    "--reverse-engineer/--no-engineer",
+    "reverse_engineer",
+    default=True,
+    help="Auto-run Claude.",
+)
+@click.option(
+    "--model",
+    "-m",
+    type=click.Choice(["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"]),
+    default=None,
+)
+@click.option("--output-dir", "-o", default=None, help="Custom output directory.")
+def manual(prompt, url, reverse_engineer, model, output_dir):
+    """Start a manual browser session."""
+    run_manual_capture(prompt, url, reverse_engineer, model, output_dir)
+
+
+def run_manual_capture(
+    prompt=None, url=None, reverse_engineer=True, model=None, output_dir=None
+):
+    """Shared logic for manual capture."""
+    output_dir = output_dir or config_manager.get("output_dir")
+
+    if prompt is None:
+        options = prompt_interactive_options(
+            prompt=prompt,
+            url=url,
+            reverse_engineer=reverse_engineer,
+            model=model,
+        )
+        if "command" in options:
+            return  # Should not happen from here
+        prompt = options["prompt"]
+        url = options["url"]
+        reverse_engineer = options["reverse_engineer"]
+        model = options["model"]
+
+    run_id = generate_run_id()
+    timestamp = get_timestamp()
+
+    # Record initial session
+    session_manager.add_run(
+        run_id=run_id,
+        prompt=prompt,
+        timestamp=timestamp,
+        url=url,
+        model=model,
+        mode="manual",  # Track mode in history
+        paths={"har_dir": str(get_har_dir(run_id, output_dir))},
+    )
+
+    browser = ManualBrowser(run_id=run_id, prompt=prompt, output_dir=output_dir)
+    har_path = browser.start(start_url=url)
+
+    if reverse_engineer:
+        result = run_engineer(
+            run_id=run_id,
+            har_path=har_path,
+            prompt=prompt,
+            model=model,
+            output_dir=output_dir,
+        )
+        if result:
+            session_manager.update_run(
+                run_id=run_id,
+                usage=result.get("usage", {}),
+                paths={"script_path": result.get("script_path")},
+            )
+
+
+def run_agent_capture(
+    prompt=None, url=None, reverse_engineer=False, model=None, output_dir=None
+):
+    """Shared logic for agent capture mode."""
+    output_dir = output_dir or config_manager.get("output_dir")
+
+    if prompt is None:
+        options = prompt_interactive_options(
+            prompt=prompt,
+            url=url,
+            reverse_engineer=reverse_engineer,
+            model=model,
+        )
+        if "command" in options:
+            return
+        prompt = options["prompt"]
+        url = options["url"]
+        reverse_engineer = options["reverse_engineer"]
+        model = options["model"]
+
+    run_id = generate_run_id()
+    timestamp = get_timestamp()
+
+    # Get agent models and provider from config
+    browser_use_model = config_manager.get("browser_use_model", "bu-llm")
+    stagehand_model = config_manager.get(
+        "stagehand_model", "openai/computer-use-preview-2025-03-11"
+    )
+    agent_provider = config_manager.get("agent_provider", "browser-use")
+
+    # Record initial session
+    session_manager.add_run(
+        run_id=run_id,
+        prompt=prompt,
+        timestamp=timestamp,
+        url=url,
+        model=model,
+        mode="agent",  # Track mode in history
+        paths={"har_dir": str(get_har_dir(run_id, output_dir))},
+    )
+
+    # Run agent browser
+    try:
+        har_path = run_agent_browser(
+            run_id=run_id,
+            prompt=prompt,
+            output_dir=output_dir,
+            browser_use_model=browser_use_model,
+            stagehand_model=stagehand_model,
+            agent_provider=agent_provider,
+            start_url=url,
+        )
+
+        # Optionally run reverse engineering
+        if reverse_engineer:
+            engineer_prompt = prompt
+            try:
+                wants_new_prompt = questionary.confirm(
+                    " > new prompt for engineer?",
+                    default=False,
+                    qmark="",
+                    style=questionary.Style(
+                        [
+                            ("question", f"fg:{THEME_SECONDARY}"),
+                            ("instruction", f"fg:{THEME_DIM} italic"),
+                        ]
+                    ),
+                ).ask()
+
+                if wants_new_prompt is None:
+                    raise KeyboardInterrupt
+
+                if wants_new_prompt:
+                    new_prompt = questionary.text(
+                        " > engineer prompt",
+                        instruction="(Enter to use original)",
+                        default="",
+                        qmark="",
+                        style=questionary.Style(
+                            [
+                                ("question", f"fg:{THEME_SECONDARY}"),
+                                ("instruction", f"fg:{THEME_DIM} italic"),
+                            ]
+                        ),
+                    ).ask()
+
+                    if new_prompt is None:
+                        raise KeyboardInterrupt
+
+                    if new_prompt and new_prompt.strip():
+                        engineer_prompt = new_prompt.strip()
+            except KeyboardInterrupt:
+                pass
+
+            result = run_engineer(
+                run_id=run_id,
+                har_path=har_path,
+                prompt=engineer_prompt,
+                model=model,
+                output_dir=output_dir,
+            )
+            if result:
+                session_manager.update_run(
+                    run_id=run_id,
+                    usage=result.get("usage", {}),
+                    paths={"script_path": result.get("script_path")},
+                )
+    except Exception as e:
+        console.print(f" [red]agent mode error: {e}[/red]")
+        import traceback
+
+        traceback.print_exc()
+
+
+@main.command()
+@click.argument("run_id")
+@click.option(
+    "--model",
+    "-m",
+    type=click.Choice(["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"]),
+    default=None,
+)
+@click.option("--output-dir", "-o", default=None, help="Custom output directory.")
+def engineer(run_id, model, output_dir):
+    """Run reverse engineering on a previous run."""
+    run_engineer(run_id, model=model, output_dir=output_dir)
+
+
+def run_engineer(run_id, har_path=None, prompt=None, model=None, output_dir=None):
+    """Shared logic for reverse engineering."""
+    if not har_path or not prompt:
+        # Load from history if possible
+        run_data = session_manager.get_run(run_id)
+        if not run_data:
+            # Fallback to file search if not in history
+            har_dir = get_har_dir(run_id, output_dir)
+            har_path = har_dir / "recording.har"
+            if not har_path.exists():
+                console.print(f" [dim]![/dim] [red]not found:[/red] {run_id}")
+                return None
+            prompt = "Reverse engineer captured APIs"  # Default
+        else:
+            prompt = run_data["prompt"]
+            # Detect where it was saved
+            paths = run_data.get("paths", {})
+            har_dir = Path(paths.get("har_dir", get_har_dir(run_id, None)))
+            har_path = har_dir / "recording.har"
+
+    sdk = config_manager.get("sdk", "claude")
+    if sdk == "opencode":
+        result = run_reverse_engineering(
+            run_id=run_id,
+            har_path=har_path,
+            prompt=prompt,
+            model=model,
+            output_dir=output_dir,
+            sdk=sdk,
+            opencode_provider=config_manager.get("opencode_provider", "anthropic"),
+            opencode_model=config_manager.get("opencode_model", "claude-sonnet-4-5"),
+        )
+    else:
+        result = run_reverse_engineering(
+            run_id=run_id,
+            har_path=har_path,
+            prompt=prompt,
+            model=model or config_manager.get("claude_code_model", "claude-sonnet-4-5"),
+            output_dir=output_dir,
+            sdk=sdk,
+        )
+
+    if result:
+        # Automatically copy scripts to current directory with a readable name
+        scripts_dir = Path(result["script_path"]).parent
+        base_name = generate_folder_name(prompt)
+        folder_name = base_name
+        local_dir = Path.cwd() / "scripts" / folder_name
+
+        # Handle existing folder - append suffix if needed
+        counter = 2
+        while local_dir.exists():
+            folder_name = f"{base_name}_{counter}"
+            local_dir = Path.cwd() / "scripts" / folder_name
+            counter += 1
+
+        local_dir.mkdir(parents=True, exist_ok=True)
+
+        import shutil
+
+        for item in scripts_dir.iterdir():
+            if item.is_file():
+                shutil.copy2(item, local_dir / item.name)
+
+        console.print(" [dim]>[/dim] [white]decoding complete[/white]")
+        console.print(f" [dim]>[/dim] [white]{result['script_path']}[/white]")
+        console.print(
+            f" [dim]>[/dim] [white]copied to ./scripts/{folder_name}[/white]\n"
+        )
+
+        session_manager.update_run(
+            run_id=run_id,
+            usage=result.get("usage", {}),
+            paths={"script_path": result.get("script_path")},
+        )
+    return result
+
+
+if __name__ == "__main__":
+    main()
