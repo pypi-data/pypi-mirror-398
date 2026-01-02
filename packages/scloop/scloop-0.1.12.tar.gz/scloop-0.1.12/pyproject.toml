@@ -1,0 +1,125 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+# [tool.setuptools]
+# package-dir = { "" = "src" }
+# ext-modules = [
+#   { name = "scloop.data.ripser_lib", sources = [
+#     "./src/scloop/data/ripser_lib.pyx",
+#     "./src/scloop/data/ripser.cpp",
+#   ], language = "c++", optional = false },
+#   { name = "scloop.utils.linear_algebra_gf2.m4ri_lib", sources = [
+#     "./src/scloop/utils/linear_algebra_gf2/m4ri_lib.pyx",
+#   ], language = "c", optional = false, libraries = ["m4ri"], extra-objects = [
+#     "./src/scloop/utils/linear_algebra_gf2/libm4ri.a",
+#   ], include-dirs = [
+#     "./src/scloop/utils/linear_algebra_gf2/include",
+#   ] },
+# ]
+requires = [ "cython>=3.0.12", "setuptools>=74.1" ]
+
+[project]
+name = "scloop"
+version = "0.1.12"
+description = "single-cell loop analysis"
+readme = "README.md"
+authors = [
+  { name = "Zhiyuan(Stan) Yu and Idse Heemskerk", email = "zyyu@umich.edu" },
+]
+requires-python = ">=3.12"
+# tensorflow hasn't supported 3.13 yet
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+  "cython>=3.0.12",
+  "glasbey==0.3",
+  "igraph>=0.11",
+  "loguru==0.7.3",
+  "numba>=0.62.1",
+  "numpy<2",
+  "pandas",
+  "pip>=25.2",
+  "pydantic>=2.11.4",
+  "pynndescent>=0.5.13",
+  "pytest>=8.4",
+  "rich==14.2",
+  "scanpy[leiden]>=1.11.2",
+  "scikit-misc>=0.5.2",
+  "statsmodels==0.14.4",
+  "tensorflow>=2.18.1",
+  "torch",
+  "torchdyn>=1.0.6",
+  "torchvision",
+  "tqdm-joblib>=0.0.5",
+  "umap-learn>=0.5.7",
+]
+
+urls.Issues = "https://github.com/stanfish06/scloop/issues"
+urls.Repository = "https://github.com/stanfish06/scloop.git"
+
+[dependency-groups]
+dev = [
+  "pyright==1.1.406",
+  "ty>=0.0.1a34",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.extra-build-dependencies]
+scloop = [ "Cython" ]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+
+torchvision = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.ruff]
+exclude = [ "src/scloop/preprocessing/delve" ]
+format.indent-style = "space"
+format.quote-style = "double"
+lint.extend-select = [ "I" ]
+lint.fixable = [ "ALL" ]
+
+[tool.pyproject-fmt]
+column_width = 120
+indent = 2
+keep_full_version = false
+max_supported_python = "3.12"
+
+# use 1.1.406 pyright or a version after 1.1.407 (does not work well with pydantic dataclass)
+
+[tool.pyright]
+include = [ "src" ]
+exclude = [
+  "**/__pycache__",
+  "examples",
+  "**/*.pyx",
+  "**/*.pxd",
+]
+
+reportMissingImports = "error"
+reportMissingTypeStubs = false
+
+pythonVersion = "3.12"
+pythonPlatform = "Linux"
+
+executionEnvironments = [
+  { root = "src" },
+]
+
+venvPath = "/home/stanfish/Git/scloop"
+venv = ".venv"
+
+[tool.ty]
+src = { include = [ "src" ], exclude = [ "src/scloop/preprocessing/delve" ] }
