@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+  <data>
+    <record id="view_sales_liquidation_tree" model="ir.ui.view">
+        <field name="name">liquidation.editorial.line.operations.tree.sales</field>
+        <field name="model">liquidation.line.editorial</field>
+        <field name="priority">1000</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="product_id" required="1" readonly="1"/>
+                <field name="product_barcode" readonly="1"/>
+                <field name="total_qty_disponibles" readonly="1"/>
+                <field name="total_qty_a_liquidar" string="A devolver"
+                  column_invisible="parent.liquidation_type not in ('SALE_DEPR', 'PURCHASE_DEPR')"
+                  force_save="1"/>
+                <field name="total_qty_a_liquidar" string="A liquidar"
+                  column_invisible="parent.liquidation_type not in ('SALE_LIQ', 'PURCHASE_LIQ')"
+                  force_save="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_purchases_liquidation_tree" model="ir.ui.view">
+        <field name="name">liquidation.editorial.line.operations.tree.purchases</field>
+        <field name="model">liquidation.line.editorial</field>
+        <field name="priority">1000</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="product_id" required="1" readonly="1"/>
+                <field name="product_barcode" readonly="1"/>
+                <field name="total_qty_disponibles" readonly="1" invisible="context.get('parent.liquidation_type') == 'PURCHASE_DEPR'"/>
+                <field name="total_qty_disponibles_devolver_dep_com" readonly="1" invisible="context.get('parent.liquidation_type') == 'PURCHASE_LIQ'"/>
+                <field name="vendidos_sin_liquidar" readonly="1" invisible="context.get('parent.liquidation_type') == 'PURCHASE_DEPR'"/>
+                <field name="total_qty_a_liquidar" string="A devolver"
+                  column_invisible="parent.liquidation_type not in ('PURCHASE_DEPR', 'SALE_DEPR')"
+                  force_save="1"/>
+                <field name="total_qty_a_liquidar" string="A liquidar"
+                  column_invisible="parent.liquidation_type not in ('PURCHASE_LIQ', 'SALE_LIQ')"
+                  force_save="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="sales_liquidation_wizard_view_form" model="ir.ui.view">
+      <field name="name">liquidation.lines.wizard.form.sales</field>
+      <field name="model">liquidation.wizard.editorial</field>
+      <field name="arch" type="xml">
+        <form string="Depósito actual">
+          <group>
+            <field name="partner_id" required="1" readonly="1"/>
+            <field name="liquidation_type" invisible="1"/>
+          </group>
+          <group>
+            <field name="liquidation_line_ids" context="{'tree_view_ref': 'gestion_editorial.view_sales_liquidation_tree'}" />
+          </group>
+          <footer>
+            <button name="add_selected_products" string="Añadir seleccionados" type="object" class="btn-primary"/>
+            <button name="select_all_liquidation_lines" string="Añadir todos" type="object" class="btn-primary"/>
+            <button special="cancel" string="Cancelar" class="btn-danger"/>
+          </footer>
+       </form>
+      </field>
+    </record>
+
+    <record id="purchases_liquidation_wizard_view_form" model="ir.ui.view">
+      <field name="name">liquidation.lines.wizard.form.purchases</field>
+      <field name="model">liquidation.wizard.editorial</field>
+      <field name="arch" type="xml">
+        <form string="Depósito actual">
+          <group>
+            <field name="partner_id" required="1" readonly="1"/>
+            <field name="liquidation_type" invisible="1"/>
+          </group>
+          <group>
+            <field name="liquidation_line_ids" context="{'tree_view_ref': 'gestion_editorial.view_purchases_liquidation_tree'}" />
+          </group>
+          <footer>
+            <button name="add_selected_products" string="Añadir seleccionados" type="object" class="btn-primary"/>
+            <button name="select_all_liquidation_lines" string="Añadir todos" type="object" class="btn-primary"/>
+            <button special="cancel" string="Cancelar" class="btn-danger"/>
+          </footer>
+       </form>
+      </field>
+    </record>
+
+    <record id="action_liquidation_wizard_sales" model="ir.actions.act_window">
+        <field name="name">Asistente para depósito en venta</field>
+        <field name="res_model">liquidation.wizard.editorial</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="sales_liquidation_wizard_view_form"/>
+        <field name="target">new</field>
+    </record>
+
+    <record id="action_liquidation_wizard_purchases" model="ir.actions.act_window">
+        <field name="name">Asistente para depósito en compra</field>
+        <field name="res_model">liquidation.wizard.editorial</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="purchases_liquidation_wizard_view_form"/>
+        <field name="target">new</field>
+    </record>
+
+  </data>
+</odoo>
