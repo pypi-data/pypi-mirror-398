@@ -1,0 +1,546 @@
+# querygrid.py
+# Copyright 2015 Roger Marsh
+# Licence: See LICENCE (BSD licence)
+
+"""Grids for listing details of selection rules on chess database."""
+
+import tkinter.messagebox
+
+from solentware_grid.datagrid import DataGrid
+
+from ..core.chessrecord import ChessDBrecordQuery
+from .querydisplay import QueryDisplay, QueryDisplayEdit
+from .queryrow import ChessDBrowQuery
+from ..core import export_selection_rule
+from .eventspec import EventSpec
+from .display import Display
+from ..shared.cql_gamelist_query import CQLGameListQuery
+from ..shared.allgrid import AllGrid
+
+
+class QueryListGrid(AllGrid, CQLGameListQuery, DataGrid, Display):
+    """A DataGrid for lists of game selection rules.
+
+    Subclasses provide navigation and extra methods appropriate to list use.
+
+    """
+
+    def __init__(self, parent, ui):
+        """Extend with link to user interface object.
+
+        parent - see superclass
+        ui - container for user interface widgets and methods.
+
+        """
+        super().__init__(parent=parent)
+        self.ui = ui
+        self._configure_frame_and_initial_event_bindings()
+
+    def _display_selected_item_kind(self, key, selected):
+        # Should the Frame containing board and position be created here and
+        # passed to QueryDisplay. (Needs 'import Tkinter' above.)
+        # Rather than passing the container where the Frame created by
+        # QueryDisplay is to be put.
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Display")
+            return None
+        selection = self.make_display_widget(selected)
+        self.ui.add_selection_rule_to_display(selection)
+        self.ui.selection_items.increment_object_count(key)
+        self.ui.selection_items.set_itemmap(selection, key)
+        self.set_properties(key)
+        return selection
+
+    def make_display_widget(self, sourceobject):
+        """Return a QueryDisplay for sourceobject."""
+        selection = QueryDisplay(
+            master=self.ui.view_selection_rules_pw,
+            ui=self.ui,
+            items_manager=self.ui.selection_items,
+            itemgrid=self.ui.base_games,
+            sourceobject=sourceobject,
+        )
+        selection.query_statement.set_database(
+            self.ui.base_games.datasource.dbhome
+        )
+        selection.query_statement.dbset = self.ui.base_games.datasource.dbset
+        selection.query_statement.process_query_statement(
+            sourceobject.get_srvalue()
+        )
+        return selection
+
+    def _edit_selected_item(self, key):
+        """Create a QueryDisplayEdit for game selection rule."""
+        selected = self.get_visible_record(key)
+        if selected is None:
+            return None
+        # Should the Frame containing board and position be created here and
+        # passed to QueryDisplayEdit. (Which needs 'import Tkinter' above.)
+        # Rather than passing the container where the Frame created by
+        # QueryDisplayEdit is to be put.
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Display Edit")
+            return None
+        selection = self.make_edit_widget(selected)
+        self.ui.add_selection_rule_to_display(selection)
+        self.ui.selection_items.increment_object_count(key)
+        self.ui.selection_items.set_itemmap(selection, key)
+        self.set_properties(key)
+        return selection
+
+    def make_edit_widget(self, sourceobject):
+        """Return a QueryDisplayEdit for sourceobject."""
+        selection = QueryDisplayEdit(
+            master=self.ui.view_selection_rules_pw,
+            ui=self.ui,
+            items_manager=self.ui.selection_items,
+            itemgrid=self.ui.base_games,
+            sourceobject=sourceobject,
+        )
+        selection.query_statement.set_database(
+            self.ui.base_games.datasource.dbhome
+        )
+        selection.query_statement.dbset = self.ui.base_games.datasource.dbset
+        selection.query_statement.process_query_statement(
+            sourceobject.get_srvalue()
+        )
+        return selection
+
+    def set_properties(self, key, dodefaultaction=True):
+        """Return True if properties for selection rule key set or False."""
+        if super().set_properties(key, dodefaultaction=False):
+            return True
+        if self.ui.selection_items.object_display_count(key):
+            self._set_background_on_display_row_under_pointer(key)
+            return True
+        if dodefaultaction:
+            self._set_background_normal_row_under_pointer(key)
+            return True
+        return False
+
+    def set_row(self, key, dodefaultaction=True, **kargs):
+        """Return row widget for selection rule key or None."""
+        row = super().set_row(key, dodefaultaction=False, **kargs)
+        if row is not None:
+            return row
+        if key not in self.keys:
+            return None
+        if self.ui.selection_items.object_display_count(key):
+            return self.objects[key].grid_row_on_display(**kargs)
+        if dodefaultaction:
+            return self.objects[key].grid_row_normal(**kargs)
+        return None
+
+    def launch_delete_record(self, key, modal=True):
+        """Create delete dialogue."""
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Delete")
+            return None
+        oldobject = ChessDBrecordQuery()
+        oldobject.set_database(self.ui.base_games.datasource.dbhome)
+        oldobject.value.dbset = self.ui.base_games.datasource.dbset
+        oldobject.load_record(
+            (self.objects[key].key.pack(), self.objects[key].srvalue)
+        )
+        self.create_delete_dialog(
+            self.objects[key], oldobject, modal, title="Delete Selection Rule"
+        )
+        return None
+
+    def launch_edit_record(self, key, modal=True):
+        """Create edit dialogue."""
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Edit")
+            return None
+        self.create_edit_dialog(
+            self.objects[key],
+            ChessDBrecordQuery(),
+            ChessDBrecordQuery(),
+            False,
+            modal,
+            title="Edit Selection Rule",
+        )
+        return None
+
+    def launch_edit_show_record(self, key, modal=True):
+        """Create edit dialogue including reference copy of original."""
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Edit and Show")
+            return None
+        self.create_edit_dialog(
+            self.objects[key],
+            ChessDBrecordQuery(),
+            ChessDBrecordQuery(),
+            True,
+            modal,
+            title="Edit Selection Rule",
+        )
+        return None
+
+    def launch_insert_new_record(self, modal=True):
+        """Create insert dialogue."""
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Insert")
+            return None
+        instance = self.datasource.new_row()
+
+        # Later process_query_statement() causes display of empty title and
+        # query lines.
+        instance.srvalue = repr("\n")
+
+        self.create_edit_dialog(
+            instance,
+            ChessDBrecordQuery(),
+            None,
+            False,
+            modal,
+            title="New Selection Rule",
+        )
+        return None
+
+    def launch_show_record(self, key, modal=True):
+        """Create show dialogue."""
+        if self.ui.is_database_access_inhibited():
+            self._database_not_available_dialogue("Show")
+            return None
+        oldobject = ChessDBrecordQuery()
+        oldobject.set_database(self.ui.base_games.datasource.dbhome)
+        oldobject.value.dbset = self.ui.base_games.datasource.dbset
+        oldobject.load_record(
+            (self.objects[key].key.pack(), self.objects[key].srvalue)
+        )
+        self.create_show_dialog(
+            self.objects[key], oldobject, modal, title="Show Selection Rule"
+        )
+        return None
+
+    def _set_grid_database(self, object_):
+        object_.set_database(self.ui.base_games.datasource.dbhome)
+        object_.value.dbset = self.ui.base_games.datasource.dbset
+
+    def export_selection_rules(self, event=None):
+        """Export selected selection rule definitions."""
+        del event
+        export_selection_rule.export_selected_selection_rules(
+            self, self.ui.get_export_filename("Selection Rules", pgn=False)
+        )
+
+
+class QueryGrid(QueryListGrid):
+    """Customized QueryListGrid for list of game selection rules."""
+
+    def __init__(self, ui):
+        """Extend with definition and bindings for selection rules on grid.
+
+        ui - container for user interface widgets and methods.
+
+        """
+        super().__init__(ui.selection_rules_pw, ui)
+        self.make_header(ChessDBrowQuery.header_specification)
+        self.__bind_on()
+        self._set_popup_bindings(
+            self.menupopup,
+            (
+                (
+                    EventSpec.display_record_from_grid,
+                    self._display_selection_rule_from_popup,
+                ),
+                (
+                    EventSpec.edit_record_from_grid,
+                    self._edit_selection_rule_from_popup,
+                ),
+            ),
+        )
+        bindings = (
+            (
+                EventSpec.navigate_to_position_grid,
+                self.set_focus_position_grid,
+            ),
+            (
+                EventSpec.navigate_to_active_game,
+                self._set_focus_gamepanel_item_command,
+            ),
+            (EventSpec.navigate_to_game_grid, self.set_focus_game_grid),
+            (
+                EventSpec.navigate_to_repertoire_grid,
+                self.set_focus_repertoire_grid,
+            ),
+            (
+                EventSpec.navigate_to_active_repertoire,
+                self._set_focus_repertoirepanel_item_command,
+            ),
+            (
+                EventSpec.navigate_to_repertoire_game_grid,
+                self.set_focus_repertoire_game_grid,
+            ),
+            (
+                EventSpec.navigate_to_active_partial,
+                self._set_focus_partialpanel_item_command,
+            ),
+            (
+                EventSpec.navigate_to_partial_game_grid,
+                self.set_focus_partial_game_grid,
+            ),
+            (EventSpec.navigate_to_partial_grid, self.set_focus_partial_grid),
+            (
+                EventSpec.navigate_to_active_selection_rule,
+                self._set_focus_selectionpanel_item_command,
+            ),
+            (EventSpec.tab_traverse_backward, self.traverse_backward),
+            (EventSpec.tab_traverse_forward, self.traverse_forward),
+        )
+        self._add_cascade_menu_to_popup("Navigation", self.menupopup, bindings)
+        self._add_cascade_menu_to_popup(
+            "Navigation", self.menupopupnorow, bindings
+        )
+
+    def bind_off(self):
+        """Disable all bindings."""
+        super().bind_off()
+        self._set_event_bindings_frame(
+            (
+                (EventSpec.navigate_to_active_partial, ""),
+                (EventSpec.navigate_to_partial_game_grid, ""),
+                (EventSpec.navigate_to_repertoire_grid, ""),
+                (EventSpec.navigate_to_active_repertoire, ""),
+                (EventSpec.navigate_to_repertoire_game_grid, ""),
+                (EventSpec.navigate_to_position_grid, ""),
+                (
+                    EventSpec.navigate_to_active_game,
+                    self.set_focus_gamepanel_item,
+                ),
+                (EventSpec.navigate_to_game_grid, ""),
+                (EventSpec.navigate_to_partial_grid, ""),
+                (EventSpec.navigate_to_active_selection_rule, ""),
+                (EventSpec.display_record_from_grid, ""),
+                (EventSpec.edit_record_from_grid, ""),
+            )
+        )
+
+    def bind_on(self):
+        """Enable all bindings."""
+        super().bind_on()
+        self.__bind_on()
+
+    def __bind_on(self):
+        """Enable all bindings."""
+        self._set_event_bindings_frame(
+            (
+                (
+                    EventSpec.navigate_to_active_partial,
+                    self.set_focus_partialpanel_item,
+                ),
+                (
+                    EventSpec.navigate_to_partial_game_grid,
+                    self.set_focus_partial_game_grid,
+                ),
+                (
+                    EventSpec.navigate_to_repertoire_grid,
+                    self.set_focus_repertoire_grid,
+                ),
+                (
+                    EventSpec.navigate_to_active_repertoire,
+                    self.set_focus_repertoirepanel_item,
+                ),
+                (
+                    EventSpec.navigate_to_repertoire_game_grid,
+                    self.set_focus_repertoire_game_grid,
+                ),
+                (
+                    EventSpec.navigate_to_position_grid,
+                    self.set_focus_position_grid,
+                ),
+                (
+                    EventSpec.navigate_to_active_game,
+                    self.set_focus_gamepanel_item,
+                ),
+                (EventSpec.navigate_to_game_grid, self.set_focus_game_grid),
+                (
+                    EventSpec.navigate_to_partial_grid,
+                    self.set_focus_partial_grid,
+                ),
+                (
+                    EventSpec.navigate_to_active_selection_rule,
+                    self.set_focus_selectionpanel_item,
+                ),
+                (
+                    EventSpec.display_record_from_grid,
+                    self._display_selection_rule,
+                ),
+                (EventSpec.edit_record_from_grid, self._edit_selection_rule),
+            )
+        )
+
+    def _display_selection_rule(self, event=None):
+        """Display selection rule and cancel selection.
+
+        Call _display_selection_rule_after_idle after idle tasks to allow
+        message display.
+
+        """
+        del event
+        if not self.get_visible_selected_key():
+            return
+        self._set_find_selection_rule_name_games(self.selection[0])
+        self.frame.after_idle(
+            self.try_command(
+                self._display_selection_rule_after_idle, self.frame
+            )
+        )
+
+    def _display_selection_rule_from_popup(self, event=None):
+        """Display selection rule selected by pointer.
+
+        Call _display_selection_rule_after_idle after idle tasks to allow
+        message display.
+
+        """
+        del event
+        self._set_find_selection_rule_name_games(self.pointer_popup_selection)
+        self.frame.after_idle(
+            self.try_command(
+                self._display_selection_rule_from_popup_after_idle, self.frame
+            )
+        )
+
+    def _display_selection_rule_after_idle(self):
+        """Display selection rule and cancel selection.
+
+        Call from _display_selection_rule only.
+
+        """
+        self._display_selected_item(self.get_visible_selected_key())
+        self.cancel_selection()
+
+    def _display_selection_rule_from_popup_after_idle(self):
+        """Display selection rule selected by pointer.
+
+        Call from _display_selection_rule_from_popup only.
+
+        """
+        self._display_selected_item(self.pointer_popup_selection)
+
+    def _edit_selection_rule(self, event=None):
+        """Display selection rule allow editing and cancel selection.
+
+        Call _edit_selection_rule_after_idle after idle tasks to allow
+        message display.
+
+        """
+        del event
+        if not self.get_visible_selected_key():
+            return
+        self._set_find_selection_rule_name_games(self.selection[0])
+        self.frame.after_idle(
+            self.try_command(self._edit_selection_rule_after_idle, self.frame)
+        )
+
+    def _edit_selection_rule_from_popup(self, event=None):
+        """Display selection rule with editing allowed selected by pointer.
+
+        Call _edit_selection_rule_after_idle after idle tasks to allow
+        message display.
+
+        """
+        del event
+        self._set_find_selection_rule_name_games(self.pointer_popup_selection)
+        self.frame.after_idle(
+            self.try_command(
+                self._edit_selection_rule_from_popup_after_idle, self.frame
+            )
+        )
+
+    def _edit_selection_rule_after_idle(self):
+        """Display selection rule allow editing and cancel selection.
+
+        Call from _edit_selection_rule only.
+
+        """
+        self._edit_selected_item(self.get_visible_selected_key())
+        self.cancel_selection()
+
+    def _edit_selection_rule_from_popup_after_idle(self):
+        """Display selection rule with editing allowed selected by pointer.
+
+        Call from _edit_selection_rule_from_popup only.
+
+        """
+        self._edit_selected_item(self.pointer_popup_selection)
+
+    def _set_find_selection_rule_name_games(self, key):
+        """Set status text to active selection rule name."""
+        if self.ui.selection_items.count_items_in_stack():
+            # do search at this time only if no selection rules displayed
+            return
+        self.ui.statusbar.set_status_text(
+            "".join(
+                (
+                    "Please wait while finding games for selection rule ",
+                    self.objects[key].value.get_name_text(),
+                )
+            )
+        )
+
+    def set_selection_text(self):
+        """Set status bar to display selection rule name."""
+        if self.selection:
+            value = self.objects[self.selection[0]].value
+            self.ui.statusbar.set_status_text(
+                "".join(
+                    (
+                        value.get_name_text(),
+                        "   (",
+                        value.get_query_statement_text(),
+                        ")",
+                    )
+                )
+            )
+        else:
+            self.ui.statusbar.set_status_text("")
+
+    def is_visible(self):
+        """Return True if list of selection rules is displayed."""
+        return str(self.get_frame()) in self.ui.selection_rules_pw.panes()
+
+    def make_display_widget(self, sourceobject):
+        """Return a QueryDisplay for sourceobject."""
+        selection = super().make_display_widget(sourceobject)
+        selection.set_and_tag_item_text()
+        return selection
+
+    def make_edit_widget(self, sourceobject):
+        """Return a QueryDisplayEdit for sourceobject."""
+        selection = super().make_edit_widget(sourceobject)
+        selection.set_and_tag_item_text(reset_undo=True)
+        return selection
+
+    def focus_set_frame(self, event=None):
+        """Delegate to superclass then set toolbar widget states."""
+        super().focus_set_frame(event=event)
+        self.ui.set_toolbarframe_normal(
+            self.ui.move_to_selection, self.ui.filter_selection
+        )
+
+    def set_selection(self, key):
+        """Hack to fix edge case when inserting records using apsw or sqlite3.
+
+        Workaround a KeyError exception when a record is inserted while a grid
+        keyed by a secondary index with only one key value in the index is on
+        display.
+
+        """
+        try:
+            super().set_selection(key)
+        except KeyError:
+            tkinter.messagebox.showinfo(
+                parent=self.parent,
+                title="Insert Selection Rule Workaround",
+                message="".join(
+                    (
+                        "All records have same name on this display.\n\nThe ",
+                        "new record has been inserted but you need to Hide, ",
+                        "and then Show, the display to see the record in ",
+                        "the list.",
+                    )
+                ),
+            )
