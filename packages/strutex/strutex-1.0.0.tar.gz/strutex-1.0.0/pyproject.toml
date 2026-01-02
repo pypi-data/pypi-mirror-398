@@ -1,0 +1,95 @@
+[tool.poetry]
+name = "strutex"
+version = "1.0.0"
+description = "Structured AI document processing with robust fallback strategies."
+authors = ["aquiles <achillezongo07@gmail.com>"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+homepage = "https://github.com/Aquilesorei/strutex"
+repository = "https://github.com/Aquilesorei/strutex"
+keywords = ["pdf", "ai", "llm", "extraction", "json"]
+
+[tool.poetry.plugins."strutex.providers"]
+"gemini" = "strutex.providers.gemini:GeminiProvider"
+"openai" = "strutex.providers.openai:OpenAIProvider"
+"anthropic" = "strutex.providers.anthropic:AnthropicProvider"
+"ollama" = "strutex.providers.ollama:OllamaProvider"
+"groq" = "strutex.providers.groq:GroqProvider"
+"langdock" = "strutex.providers.langdock:LangdockProvider"
+
+[tool.poetry.plugins."strutex.validators"]
+"gemini" = "strutex.security.output.OutputValidator"
+
+[tool.poetry.scripts]
+strutex = "strutex.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+google-genai = "^1.53.0"
+pypdf = "^6.4.0"
+pdfplumber = "^0.11.8"
+pandas = "^2.3.3"
+openpyxl = "^3.1.5"
+pydantic = "^2.12.5"
+openai = "^2.8.1"
+python-dotenv = "^1.2.1"
+pluggy = "^1.5.0"
+
+# --- Optional Dependencies ---
+click = { version = "^8.1.0", optional = true }
+pdf2image = { version = "^1.17.0", optional = true }
+pytesseract = { version = "^0.3.10", optional = true }
+langchain-core = { version = "^0.3.0", optional = true }
+llama-index-core = { version = "^0.11.0", optional = true }
+haystack-ai = { version = "^2.0.0", optional = true }
+unstructured = { version = "^0.11.0", optional = true }
+
+[tool.poetry.extras]
+cli = ["click"]
+ocr = ["pdf2image", "pytesseract"]
+langchain = ["langchain-core"]
+llamaindex = ["llama-index-core"]
+haystack = ["haystack-ai"]
+fallback = ["unstructured"]
+all = ["click", "pdf2image", "pytesseract", "langchain-core", "llama-index-core", "haystack-ai", "unstructured"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.23.0"
+hypothesis = "^6.92.0"
+mypy = "^1.8.0"
+pyyaml = "^6.0.0"
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.6.0"
+mkdocs-material = "^9.5.0"
+mkdocstrings = {extras = ["python"], version = "^0.27.0"}
+mike = "^2.1.0"
+
+[tool.coverage.run]
+omit = [
+    # CLI
+    "strutex/cli.py",
+    # Integrations (experimental)
+    "strutex/integrations/langchain.py",
+    "strutex/integrations/llamaindex.py",
+    "strutex/integrations/haystack.py",
+    "strutex/integrations/unstructured.py",
+    # Providers (require API keys)
+    "strutex/providers/anthropic.py",
+    "strutex/providers/ollama.py",
+    "strutex/providers/groq.py",
+    "strutex/providers/chain.py",
+    "strutex/providers/hybrid.py",
+    "strutex/providers/streaming.py",
+    # Data schemas (no logic to test)
+    "strutex/schemas/*",
+    # Non-code
+    "docs/*",
+    "examples/*",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
