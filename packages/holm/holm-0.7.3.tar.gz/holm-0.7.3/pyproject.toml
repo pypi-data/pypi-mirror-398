@@ -1,0 +1,115 @@
+[project]
+name = "holm"
+dynamic = []
+description = "Web development framework that brings the Next.js developer experience to Python, built on FastAPI, htmy, and FastHX."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.12",
+    "fasthx>=3.0.1",
+    "htmy[lxml]>=0.8.2",
+    "python-multipart>=0.0.20",
+]
+version = "0.7.3"
+
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mkdocs-material>=9.6.20",
+    "mkdocstrings[python]>=0.30.1",
+    "mypy>=1.15.0",
+    "poethepoet>=0.35.0",
+    "pytest>=8.3.5",
+    "pytest-random-order>=1.1.1",
+    "ruff>=0.12.0",
+    "uvicorn>=0.34.1",
+    "watchfiles>=1.1.0",
+]
+
+[tool.mypy]
+strict = true
+exclude = [
+    "examples/actions-with-htmx",
+    "examples/forms",
+    "examples/minimal",
+    "examples/quick-start-guide",
+    "examples/rendering-apis-with-htmx",
+]
+explicit_package_bases = true
+show_error_codes = true
+
+[tool.pdm.build]
+excludes = [
+    "tests/",
+    "test_app/",
+]
+
+[tool.pdm.version]
+source = "file"
+path = "holm/__init__.py"
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+addopts = "--random-order"
+
+[tool.ruff]
+line-length = 108
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "dist",
+    "docs",
+]
+
+[tool.ruff.lint]
+select = [
+    "B",
+    "C",
+    "E",
+    "F",
+    "I",
+    "S",
+    "W",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = [
+    "S101",
+]
+
+[tool.poe.tasks]
+format = "ruff format . --check"
+format-fix = "ruff format ."
+lint = "ruff check ."
+lint-fix = "ruff check . --fix"
+mypy = "mypy ."
+serve-docs = "mkdocs serve"
+
+[tool.poe.tasks.test-app]
+cmd = "uvicorn test_app.main:app --reload"
+
+[tool.poe.tasks.check]
+sequence = [
+    "format",
+    "lint",
+    "mypy",
+]
+ignore_fail = "return_non_zero"
+
+[tool.poe.tasks.test]
+cmd = "python -m pytest tests"
+
+[tool.poe.tasks.test.env]
+APP_ENV = "test"
