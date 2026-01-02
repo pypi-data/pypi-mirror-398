@@ -1,0 +1,168 @@
+[tool.poetry]
+name = "robo-infra"
+version = "0.2.3"
+description = "Universal robotics infrastructure - control any robot from servo to rocket"
+authors = ["nfraxlab <dev@nfrax.io>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/nfraxlab/robo-infra"
+repository = "https://github.com/nfraxlab/robo-infra"
+documentation = "https://github.com/nfraxlab/robo-infra#readme"
+keywords = ["robotics", "servo", "motor", "sensor", "raspberry-pi", "automation", "iot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware",
+    "Typing :: Typed",
+]
+packages = [{ include = "robo_infra", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+pydantic = ">=2.0"
+typing-extensions = ">=4.0"
+numpy = ">=1.24"
+
+# Optional infrastructure integrations
+svc-infra = {version = "^0.1.716", optional = true}
+ai-infra = {version = "^0.1.166", optional = true}
+
+# Optional hardware communication
+smbus2 = {version = ">=0.4", optional = true}
+spidev = {version = ">=3.6", optional = true, markers = "sys_platform == 'linux'"}
+pyserial = {version = ">=3.5", optional = true}
+python-can = {version = ">=4.0", optional = true}
+
+# Optional GPIO libraries
+gpiozero = {version = ">=2.0", optional = true, markers = "sys_platform == 'linux'"}
+lgpio = {version = ">=0.2", optional = true, markers = "sys_platform == 'linux'"}
+
+# Optional vision libraries
+opencv-python-headless = {version = ">=4.8", optional = true}
+
+# Optional camera SDKs
+pyrealsense2 = {version = ">=2.50", optional = true}
+depthai = {version = ">=2.20", optional = true}
+picamera2 = {version = ">=0.3", optional = true, markers = "sys_platform == 'linux'"}
+
+[tool.poetry.extras]
+# Core integration extras
+ai = ["ai-infra"]
+api = ["svc-infra"]
+
+# Hardware communication extras (granular)
+i2c = ["smbus2"]
+spi = ["spidev"]
+serial = ["pyserial"]
+can = ["python-can"]
+gpio = ["gpiozero", "lgpio"]
+
+# Vision/camera extras (granular)
+vision = ["opencv-python-headless"]
+realsense = ["pyrealsense2"]
+oak = ["depthai"]
+picamera = ["picamera2"]
+
+# Platform-specific bundles
+raspberry-pi = ["smbus2", "spidev", "pyserial", "gpiozero", "lgpio", "picamera2"]
+jetson = ["smbus2", "spidev", "pyserial"]
+
+# Convenience bundles
+hardware = ["smbus2", "spidev", "pyserial", "python-can", "gpiozero", "lgpio"]
+cameras = ["opencv-python-headless", "pyrealsense2", "depthai"]
+full = ["ai-infra", "svc-infra", "smbus2", "spidev", "pyserial", "python-can", "gpiozero", "lgpio", "opencv-python-headless"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+pytest-cov = ">=5.0"
+pytest-asyncio = ">=0.24"
+ruff = ">=0.8"
+mypy = ">=1.10"
+pre-commit = ">=4.0"
+# Documentation
+mkdocs = ">=1.6.0"
+mkdocs-material = ">=9.5.0"
+mkdocstrings = {extras = ["python"], version = ">=0.25.0"}
+bandit = "^1.9.2"
+types-pyserial = "^3.5.0.20251001"
+
+[tool.poetry.scripts]
+robo-infra = "robo_infra.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src/robo_infra"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 75
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "docs", "examples"]
+skips = []  # Add skips only with justification
+targets = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+ignore_missing_imports = true
+disable_error_code = [
+    "import-untyped",
+    "import-not-found",
+    "no-any-return",
+    "no-untyped-call",
+    "no-untyped-def",
+    "attr-defined",
+    # Hardware code with polymorphism and abstract classes
+    "abstract",
+    "override",
+    "return-value",
+    "assignment",
+    "call-arg",
+    "arg-type",
+    "dict-item",
+    "union-attr",
+    "call-overload",
+    "index",
+    "misc",
+]
+
+[[tool.mypy.overrides]]
+module = "robo_infra.*"
+check_untyped_defs = true
