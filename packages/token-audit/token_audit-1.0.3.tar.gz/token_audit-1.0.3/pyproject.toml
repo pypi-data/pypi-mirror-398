@@ -1,0 +1,227 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "token-audit"
+version = "1.0.3"
+description = "Token usage auditor for AI coding tools. Investigate context bloat across Claude Code, Codex CLI & Gemini CLI."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Little Bear Apps", email = "help@littlebearapps.com" }
+]
+keywords = ["mcp", "model-context-protocol", "token-tracking", "context-window", "claude-code", "codex-cli", "gemini-cli", "llm-cost", "ai-coding", "token-usage"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "rich>=13.0.0",
+    "tiktoken>=0.7.0",       # Token estimation for Codex CLI (o200k_base encoding)
+    "sentencepiece>=0.2.0",  # Token estimation for Gemini CLI (100% accurate with Gemma)
+    "jsonschema>=4.0.0",     # Schema validation for token-audit validate command
+    "pyyaml>=6.0.0",         # YAML frontmatter parsing for best practices guidance
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.7.0",
+    "types-PyYAML>=6.0.0",  # Type stubs for PyYAML
+    "ruff>=0.1.0",
+    "black>=23.0.0",
+    "build>=1.0.0",
+    "twine>=4.0.0",
+]
+toml = [
+    "toml>=0.10.2",
+]
+gemma = [
+    "huggingface_hub>=0.20.0",  # For downloading Gemma tokenizer
+]
+server = [
+    "mcp>=1.0.0",               # MCP Python SDK for server mode
+    "pydantic>=2.0.0",          # Schema validation for tool inputs/outputs
+    "filelock>=3.12.0",         # Cross-process file locking for concurrent access
+]
+
+[project.scripts]
+token-audit = "token_audit.cli:main"
+token-audit-server = "token_audit.server.main:run_server"
+
+[project.urls]
+Homepage = "https://github.com/littlebearapps/token-audit"
+Documentation = "https://github.com/littlebearapps/token-audit#readme"
+Repository = "https://github.com/littlebearapps/token-audit"
+Source = "https://github.com/littlebearapps/token-audit"
+Issues = "https://github.com/littlebearapps/token-audit/issues"
+Changelog = "https://github.com/littlebearapps/token-audit/blob/main/CHANGELOG.md"
+Discussions = "https://github.com/littlebearapps/token-audit/discussions"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+token_audit = ["py.typed", "tokenizers/NOTICE", "guidance/best_practices/*.md", "guidance/best_practices/*.yaml"]
+
+# Include schema files in distribution (for token-audit validate command)
+[tool.setuptools.data-files]
+"share/token-audit/schema" = ["docs/schema/session-v1.7.0.json"]
+
+[tool.setuptools.exclude-package-data]
+token_audit = ["tokenizers/*.model"]
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "network: marks tests that require network access (deselect with '-m \"not network\"')",
+]
+
+[tool.coverage.run]
+source = ["src/token_audit"]
+relative_files = true  # Required for CI - converts absolute paths to relative
+omit = [
+    "tests/*",
+    "venv/*",
+    ".venv/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+# Disabled: some type: ignore comments needed for optional dependencies
+warn_unused_ignores = false
+warn_no_return = true
+strict_equality = true
+# Only check src/ - excludes tests and legacy root scripts
+files = ["src"]
+exclude = [
+    "tests/",
+    "live-.*\\.py$",
+    "analyze-.*\\.py$",
+    "investigate-.*\\.py$",
+    # Server module has optional dependencies (mcp, pydantic, fastapi)
+    "src/token_audit/server/",
+]
+
+# Optional dependency - ignore if not installed
+[[tool.mypy.overrides]]
+module = "huggingface_hub"
+ignore_missing_imports = true
+
+# filelock - stubs not always available
+[[tool.mypy.overrides]]
+module = "filelock"
+ignore_missing_imports = true
+
+# Server mode optional dependencies
+[[tool.mypy.overrides]]
+module = "mcp.*"
+ignore_missing_imports = true
+
+# Server module - has many optional dependencies, skip type checking
+[[tool.mypy.overrides]]
+module = "token_audit.server.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "pydantic"
+ignore_missing_imports = true
+
+# YAML parsing for best practices guidance
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+exclude = [
+    "test_*.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG", "S101"]
+"src/token_audit/storage.py" = ["ARG002", "SIM117"]  # Platform arg reserved for future use; nested with for lock ordering
+"src/token_audit/cli.py" = ["ARG001", "ARG002"]  # Args objects from argparse
+"src/token_audit/server/tools.py" = ["ARG001"]  # Stub functions have unused params
+"src/token_audit/server/main.py" = ["SIM105"]  # try-except-pass clearer than contextlib.suppress
+"src/token_audit/server/security.py" = ["SIM102"]  # Nested if is clearer for path sanitization
+"src/token_audit/config_analyzer/discovery.py" = ["SIM108"]  # if-else clearer than ternary for path logic
+"src/token_audit/config_analyzer/parsers.py" = ["ARG001"]  # Platform arg reserved for future use
+"src/token_audit/config_analyzer/pinned_servers.py" = ["SIM102"]  # Nested if is clearer for config checks
+"src/token_audit/display/session_browser.py" = ["SIM102", "B007"]  # Nested ifs for clarity; unused loop vars intentional
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312", "py313"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | _build
+  | build
+  | dist
+)/
+'''
