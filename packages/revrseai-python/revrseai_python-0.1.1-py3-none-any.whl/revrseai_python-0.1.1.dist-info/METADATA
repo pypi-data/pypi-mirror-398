@@ -1,0 +1,153 @@
+Metadata-Version: 2.4
+Name: revrseai-python
+Version: 0.1.1
+Summary: Python RevrseAI client library
+Project-URL: Homepage, https://revrse.ai
+Project-URL: Documentation, https://github.com/revrseai/revrseai-python#readme
+Project-URL: Repository, https://github.com/revrseai/revrseai-python
+Project-URL: Issues, https://github.com/revrseai/revrseai-python/issues
+Author: RevrseAI
+License: MIT
+License-File: LICENSE
+Keywords: android,api,automation,client,revrseai,sdk
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: requests>=2.32.5
+Provides-Extra: dev
+Requires-Dist: mypy>=1.13; extra == 'dev'
+Requires-Dist: ruff>=0.8; extra == 'dev'
+Requires-Dist: types-requests>=2.32; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# RevrseAI Python Library
+
+[![pypi](https://img.shields.io/badge/pypi-v0.1.0-blue.svg)](https://pypi.python.org/pypi/revrseai-python)
+
+A Python client library for interacting with the RevrseAI API. Generate APIs for any Android app using a single prompt — extract data, automate tasks, and build integrations without an emulator. Generated endpoints are deterministic and don't rely on an LLM or emulator at execution time, making them extremely fast, cheap, and stable.
+
+## Getting an API Key
+
+To use this library, you'll need an API key:
+
+1. Go to [https://revrse.ai](https://revrse.ai)
+2. Login or sign up for an account
+3. Navigate to the Settings page
+4. Generate your API key
+
+## Installation
+
+```sh
+pip install revrseai-python
+```
+
+### Requirements
+
+- Python 3.11+
+
+## Usage
+
+The library needs to be configured with your account's API key which is
+available in your RevrseAI settings page. Set it directly or use the `REVRSE_AI_API_KEY`
+environment variable:
+
+```python
+from revrseai import RevrseAI
+
+client = RevrseAI("your_api_key")
+```
+
+### Generate an API
+
+Generate an API for any Android app by describing what you want to do:
+
+```python
+from revrseai import RevrseAI
+
+client = RevrseAI("your_api_key")
+
+task = client.generate(
+    "Log into Job Today and get the jobs on my feed",
+    secrets={
+        "username": "your_username",
+        "password": "your_password"
+    }
+)
+
+# Wait for generation to complete
+result = task.wait_till_done()
+
+# Print the generated API documentation
+result.print_markdown_documentation()
+```
+
+### Execute an Endpoint
+
+Execute endpoints using one of three methods:
+
+**By endpoint ID:**
+
+```python
+result = client.execute(
+    endpoint_id="<endpoint_id>",
+    data={"username": "your_username", "password": "your_password"}
+)
+print(result.status)
+print(result.data)
+```
+
+**By task ID and endpoint name:**
+
+```python
+result = client.execute(
+    task_id="<task_id>",
+    endpoint="login",
+    data={"username": "your_username", "password": "your_password"}
+)
+```
+
+**By app name and endpoint:**
+
+```python
+result = client.execute(
+    app="Job Today",
+    endpoint="login",
+    data={"username": "your_username", "password": "your_password"}
+)
+```
+
+### Get App Info
+
+Retrieve information about existing endpoints for an app:
+
+```python
+info = client.info("Job Today")
+
+# Print available endpoints
+info.print_markdown_documentation()
+
+# Execute an endpoint directly
+endpoint = info.endpoints[0]
+result = endpoint.execute(data={"key": "value"})
+```
+
+### Export Documentation
+
+Export generated API documentation to a file:
+
+```python
+task = client.generate("Natural language instructions to perform the task")
+result = task.wait_till_done()
+
+# Export to markdown file
+result.export_markdown_documentation("api_docs.md")
+```
