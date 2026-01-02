@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Notifications Editor</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.5.1/github-markdown-light.css">
+    <link rel="stylesheet" href="notifications.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-inner">
+            <h1>Bulk Notifications Editor</h1>
+            <div class="header-links">
+                <a class="header-link" href="/app/">All tools</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Controls Section -->
+        <section class="controls">
+            <div class="controls-row">
+                <div class="input-group">
+                    <label for="repo-input">Repository:</label>
+                    <input
+                        type="text"
+                        id="repo-input"
+                        placeholder="owner/repo"
+                        aria-label="Repository in owner/repo format"
+                    >
+                </div>
+                <button id="sync-btn" class="btn btn-primary" type="button">
+                    Quick Sync
+                </button>
+                <button id="full-sync-btn" class="btn" type="button">
+                    Full Sync
+                </button>
+                <span id="auth-status" class="auth-status">Checking auth...</span>
+            </div>
+            <div class="controls-row secondary">
+                <label class="comment-toggle" for="comment-prefetch-toggle">
+                    <input type="checkbox" id="comment-prefetch-toggle">
+                    Fetch comments and reviews for triage filters
+                </label>
+                <label class="comment-expand" for="comment-expand-toggle">
+                    <input type="checkbox" id="comment-expand-toggle">
+                    Show unread comments
+                </label>
+                <label class="comment-hide" for="comment-hide-uninteresting-toggle">
+                    <input type="checkbox" id="comment-hide-uninteresting-toggle">
+                    Hide uninteresting comments
+                </label>
+                <div class="comment-cache-actions">
+                    <span id="comment-cache-status" class="comment-cache-status"></span>
+                    <button id="clear-comment-cache-btn" class="btn btn-small" type="button">
+                        Clear cache
+                    </button>
+                </div>
+            </div>
+            <div id="status-bar" class="status-bar"></div>
+            <div id="rate-limit-box" class="rate-limit-box">Rate limit: unknown</div>
+        </section>
+
+        <!-- Notifications Section -->
+        <section class="notifications-container">
+            <header class="notifications-header">
+                <h2>Notifications</h2>
+                <span id="notification-count"></span>
+            </header>
+
+            <div class="type-filter-bar">
+                <span class="type-filter-label">Type</span>
+                <div
+                    class="type-filter-buttons"
+                    role="radiogroup"
+                    aria-label="Filter by type"
+                >
+                    <button
+                        class="type-filter-btn active"
+                        type="button"
+                        role="radio"
+                        aria-checked="true"
+                        data-type="all"
+                        id="type-filter-all"
+                    >
+                        All
+                    </button>
+                    <button
+                        class="type-filter-btn"
+                        type="button"
+                        role="radio"
+                        aria-checked="false"
+                        data-type="issue"
+                        id="type-filter-issue"
+                    >
+                        Issues
+                    </button>
+                    <button
+                        class="type-filter-btn"
+                        type="button"
+                        role="radio"
+                        aria-checked="false"
+                        data-type="pull"
+                        id="type-filter-pull"
+                    >
+                        PRs
+                    </button>
+                </div>
+            </div>
+
+            <nav class="filter-tabs" role="tablist" aria-label="Filter notifications">
+                <button
+                    class="filter-tab active"
+                    role="tab"
+                    aria-selected="true"
+                    data-filter="all"
+                    id="filter-all"
+                >
+                    All <span class="count" id="count-all">0</span>
+                </button>
+                <button
+                    class="filter-tab"
+                    role="tab"
+                    aria-selected="false"
+                    data-filter="open"
+                    id="filter-open"
+                >
+                    Open <span class="count" id="count-open">0</span>
+                </button>
+                <button
+                    class="filter-tab"
+                    role="tab"
+                    aria-selected="false"
+                    data-filter="closed"
+                    id="filter-closed"
+                >
+                    Closed <span class="count" id="count-closed">0</span>
+                </button>
+                <button
+                    class="filter-tab"
+                    role="tab"
+                    aria-selected="false"
+                    data-filter="needs-review"
+                    id="filter-needs-review"
+                >
+                    Needs review <span class="count" id="count-needs-review">0</span>
+                </button>
+                <button
+                    class="filter-tab"
+                    role="tab"
+                    aria-selected="false"
+                    data-filter="approved"
+                    id="filter-approved"
+                >
+                    Approved <span class="count" id="count-approved">0</span>
+                </button>
+                <button
+                    class="filter-tab"
+                    role="tab"
+                    aria-selected="false"
+                    data-filter="uninteresting"
+                    id="filter-uninteresting"
+                >
+                    Uninteresting <span class="count" id="count-uninteresting">0</span>
+                </button>
+            </nav>
+
+            <div id="select-all-row" class="select-all-row" style="display: none;">
+                <input
+                    type="checkbox"
+                    id="select-all-checkbox"
+                    class="select-all-checkbox"
+                    aria-label="Select all notifications"
+                >
+                <label for="select-all-checkbox" class="select-all-label">Select all</label>
+                <span id="selection-count" class="selection-count"></span>
+                <button id="mark-done-btn" class="btn btn-danger" style="display: none;">
+                    Mark selected as Done
+                </button>
+            </div>
+
+            <div id="progress-container" class="progress-container">
+                <div class="progress-bar-bg">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+                <div id="progress-text" class="progress-text"></div>
+            </div>
+
+            <div id="loading" class="loading">
+                Loading notifications...
+            </div>
+
+            <div id="empty-state" class="empty-state">
+                <h3>No notifications</h3>
+                <p>Enter a repository and click Quick Sync to load notifications.</p>
+            </div>
+
+    <ul id="notifications-list" class="notifications-list" role="list">
+        <!-- Notifications will be rendered here -->
+    </ul>
+</section>
+</main>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <script src="notifications-comments.js"></script>
+    <script src="notifications.js"></script>
+</body>
+</html>
