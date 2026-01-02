@@ -1,0 +1,731 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      test_only:
+        description: 'Test build without publishing'
+        type: boolean
+        default: false
+
+jobs:
+  # Build source distribution
+  build-sdist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  # ============================================================================
+  # Linux: Build native module for CUDA 13.x
+  # NOTE: CUDA 12.x build commented out - kept for future CUDA 14.x parallel builds
+  # ============================================================================
+
+  # build-linux-native-cu12:
+  #   runs-on: ubuntu-22.04
+  #
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #         fetch-depth: 1
+  #
+  #     - name: Set up Python 3.12
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #
+  #     - name: Install CUDA Toolkit 12.6
+  #       uses: Jimver/cuda-toolkit@v0.2.29
+  #       with:
+  #         cuda: "12.6.2"
+  #         method: "network"
+  #         linux-local-args: '["--toolkit"]'
+  #
+  #     - name: Install build dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install pybind11 ninja cmake
+  #
+  #     - name: Build native module (CUDA 12.x)
+  #       run: |
+  #         mkdir -p build-cu12
+  #         cd build-cu12
+  #         cmake ../native \
+  #           -DCMAKE_BUILD_TYPE=Release \
+  #           -DPYBIND11_FINDPYTHON=ON \
+  #           -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())") \
+  #           -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90" \
+  #           -DMODULE_SUFFIX="_cu129"
+  #         cmake --build . --config Release -j$(nproc)
+  #
+  #         # Find and copy the built module
+  #         find . -name "_pygpukit_native_cu129*.so" -exec cp {} ../native_cu129.so \;
+  #         ls -la ../native_cu129.so
+  #
+  #     - name: Upload native module
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: linux-native-cu129
+  #         path: native_cu129.so
+
+  build-linux-native-cu13:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CUDA Toolkit 13.0
+        uses: Jimver/cuda-toolkit@v0.2.29
+        with:
+          cuda: "13.0.2"
+          method: "network"
+          linux-local-args: '["--toolkit"]'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pybind11 ninja cmake
+
+      - name: Build native module (CUDA 13.x)
+        run: |
+          mkdir -p build-cu13
+          cd build-cu13
+          cmake ../native \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPYBIND11_FINDPYTHON=ON \
+            -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())") \
+            -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90;100;120a" \
+            -DMODULE_SUFFIX="_cu131"
+          cmake --build . --config Release -j$(nproc)
+
+          # Find and copy the built module
+          find . -name "_pygpukit_native_cu131*.so" -exec cp {} ../native_cu131.so \;
+          ls -la ../native_cu131.so
+
+      - name: Upload native module
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-native-cu131
+          path: native_cu131.so
+
+  # Merge Linux native modules into final wheel
+  build-linux:
+    runs-on: ubuntu-22.04
+    needs: [build-linux-native-cu13]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install CUDA Toolkit (for headers)
+        uses: Jimver/cuda-toolkit@v0.2.29
+        with:
+          cuda: "13.0.2"
+          method: "network"
+          linux-local-args: '["--toolkit"]'
+
+      # NOTE: CUDA 12.x module download commented out
+      # - name: Download CUDA 12.x native module
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: linux-native-cu129
+      #     path: prebuilt
+
+      - name: Download CUDA 13.x native module
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-native-cu131
+          path: prebuilt
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build scikit-build-core pybind11 ninja cmake auditwheel patchelf maturin
+
+      - name: Prepare prebuilt native modules
+        run: |
+          # Get the correct Python extension suffix
+          SUFFIX=$(python -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+          echo "Python extension suffix: $SUFFIX"
+
+          # Rename and copy to src/pygpukit/
+          # NOTE: Only CUDA 13.x module included
+          cp prebuilt/native_cu131.so "src/pygpukit/_pygpukit_native_cu131${SUFFIX}"
+          ls -la src/pygpukit/_pygpukit_native*
+
+      - name: Build Rust module
+        run: |
+          cd rust/pygpukit-python
+          maturin build --release --interpreter python
+          # Extract and copy the Rust extension to src/pygpukit/
+          cd ../target/wheels
+          unzip -o *.whl -d ../rust-extracted
+          find ../rust-extracted -name "_pygpukit_rust*.so" -exec cp {} ../../../src/pygpukit/ \;
+          ls -la ../../../src/pygpukit/*.so || true
+        env:
+          RUSTFLAGS: ""
+
+      - name: Build wheel (skip native build, use prebuilt)
+        run: |
+          # Create a minimal wheel with just Python code
+          python -m build --wheel
+        env:
+          # Skip native build since we have prebuilt modules
+          PYGPUKIT_SKIP_NATIVE_BUILD: "1"
+          CMAKE_CUDA_ARCHITECTURES: "80;86;89;90;100;120a"
+
+      - name: Inject prebuilt native modules into wheel
+        run: |
+          # scikit-build-core doesn't include prebuilt .so files, so we inject them manually
+          cd dist
+          WHEEL=$(ls *.whl)
+          echo "Injecting native modules into $WHEEL"
+
+          # Unzip wheel
+          unzip -q "$WHEEL" -d wheel-contents
+
+          # Copy prebuilt native modules
+          cp ../src/pygpukit/_pygpukit_native*.so wheel-contents/pygpukit/ || true
+          cp ../src/pygpukit/_pygpukit_rust*.so wheel-contents/pygpukit/ || true
+
+          # Show what we're including
+          echo "=== Files in pygpukit/ ==="
+          ls -la wheel-contents/pygpukit/
+
+          # Update RECORD file (required for valid wheel)
+          cd wheel-contents
+          # Dynamically find dist-info folder
+          DIST_INFO=$(ls -d pygpukit-*.dist-info | head -1)
+          echo "Found dist-info folder: $DIST_INFO"
+
+          # Generate RECORD with ALL files (pygpukit/ + dist-info/)
+          {
+            # All files in pygpukit/
+            find pygpukit -type f | while read f; do
+              hash=$(python -c "import hashlib, base64; print('sha256=' + base64.urlsafe_b64encode(hashlib.sha256(open('$f', 'rb').read()).digest()).rstrip(b'=').decode())")
+              size=$(stat -c%s "$f")
+              echo "$f,$hash,$size"
+            done
+            # All files in dist-info/ except RECORD
+            find "$DIST_INFO" -type f ! -name RECORD | while read f; do
+              hash=$(python -c "import hashlib, base64; print('sha256=' + base64.urlsafe_b64encode(hashlib.sha256(open('$f', 'rb').read()).digest()).rstrip(b'=').decode())")
+              size=$(stat -c%s "$f")
+              echo "$f,$hash,$size"
+            done
+            # RECORD itself (no hash)
+            echo "$DIST_INFO/RECORD,,"
+          } > "$DIST_INFO/RECORD"
+
+          # Repack wheel
+          cd ..
+          rm "$WHEEL"
+          cd wheel-contents
+          zip -rq "../$WHEEL" .
+          cd ../..
+          rm -rf dist/wheel-contents
+
+      - name: Show wheel info before repair
+        run: |
+          ls -la dist/
+          echo "=== Extension modules in wheel ==="
+          python -m zipfile -l dist/*.whl | grep -E '\.so|\.pyd' || echo "No extension modules found!"
+
+      - name: Repair wheel with auditwheel
+        run: |
+          auditwheel repair dist/*.whl \
+            --wheel-dir dist-repaired \
+            --exclude libcudart.so.12 \
+            --exclude libcudart.so.13 \
+            --exclude libcuda.so.1 \
+            --exclude libnvrtc.so.12 \
+            --exclude libnvrtc.so.13 \
+            --exclude libnvrtc-builtins.so.12.6 \
+            --exclude libnvrtc-builtins.so.13.0 \
+            --plat manylinux_2_35_x86_64
+
+          rm dist/*.whl
+          mv dist-repaired/*.whl dist/
+
+      - name: Show wheel info after repair
+        run: |
+          ls -la dist/
+          echo "=== Extension modules in wheel ==="
+          python -m zipfile -l dist/*.whl | grep -E '\.so|\.pyd'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-linux-py312
+          path: dist/*.whl
+
+  # ============================================================================
+  # Windows: Build native module for CUDA 13.x
+  # NOTE: CUDA 12.x build commented out - kept for future CUDA 14.x parallel builds
+  # ============================================================================
+
+  # build-windows-native-cu12:
+  #   runs-on: [self-hosted, Windows, X64, cuda]
+  #
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #         fetch-depth: 1
+  #
+  #     - name: Set up Python 3.12
+  #       shell: pwsh
+  #       run: |
+  #         pyenv install 3.12 --skip-existing
+  #         pyenv local 3.12
+  #         python --version
+  #
+  #     - name: Clean previous builds
+  #       shell: pwsh
+  #       run: |
+  #         if (Test-Path build-cu12) { Remove-Item -Recurse -Force build-cu12 }
+  #
+  #     - name: Install build dependencies
+  #       shell: pwsh
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install pybind11 ninja cmake
+  #
+  #     - name: Build native module (CUDA 12.x)
+  #       shell: cmd
+  #       run: |
+  #         @REM Set up VS environment
+  #         call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+  #         @REM Use CUDA 12.x
+  #         set "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+  #         set "PATH=%CUDA_PATH%\bin;%PATH%"
+  #
+  #         @REM Get pybind11 cmake dir
+  #         for /f "delims=" %%i in ('python -c "import pybind11; print(pybind11.get_cmake_dir())"') do set PYBIND11_DIR=%%i
+  #
+  #         mkdir build-cu12
+  #         cd build-cu12
+  #         cmake ..\native -G Ninja ^
+  #           -DCMAKE_BUILD_TYPE=Release ^
+  #           -DPYBIND11_FINDPYTHON=ON ^
+  #           -Dpybind11_DIR="%PYBIND11_DIR%" ^
+  #           -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90" ^
+  #           -DMODULE_SUFFIX="_cu129"
+  #         cmake --build . --config Release
+  #
+  #     - name: Copy native module
+  #       shell: pwsh
+  #       run: |
+  #         $ext = Get-ChildItem build-cu12 -Filter "_pygpukit_native_cu129*.pyd" -Recurse | Select-Object -First 1
+  #         if ($ext) {
+  #           Copy-Item $ext.FullName "native_cu129.pyd"
+  #           Write-Host "Copied: $($ext.Name)"
+  #         } else {
+  #           Write-Error "Native module not found!"
+  #           exit 1
+  #         }
+  #         Get-ChildItem native_cu129.pyd
+  #
+  #     - name: Upload native module
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: windows-native-cu129
+  #         path: native_cu129.pyd
+
+  build-windows-native-cu13:
+    runs-on: [self-hosted, Windows, X64, cuda]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        shell: pwsh
+        run: |
+          pyenv install 3.12 --skip-existing
+          pyenv local 3.12
+          python --version
+
+      - name: Clean previous builds
+        shell: pwsh
+        run: |
+          if (Test-Path build-cu13) { Remove-Item -Recurse -Force build-cu13 }
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pybind11 ninja cmake
+
+      - name: Build native module (CUDA 13.x)
+        shell: cmd
+        run: |
+          @REM Set up VS environment
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          @REM Use CUDA 13.1
+          set "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1"
+          set "PATH=%CUDA_PATH%\bin;%PATH%"
+
+          @REM Get pybind11 cmake dir
+          for /f "delims=" %%i in ('python -c "import pybind11; print(pybind11.get_cmake_dir())"') do set PYBIND11_DIR=%%i
+
+          mkdir build-cu13
+          cd build-cu13
+          cmake ..\native -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DPYBIND11_FINDPYTHON=ON ^
+            -Dpybind11_DIR="%PYBIND11_DIR%" ^
+            -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90;100;120a" ^
+            -DMODULE_SUFFIX="_cu131"
+          cmake --build . --config Release
+
+      - name: Copy native module
+        shell: pwsh
+        run: |
+          $ext = Get-ChildItem build-cu13 -Filter "_pygpukit_native_cu131*.pyd" -Recurse | Select-Object -First 1
+          if ($ext) {
+            Copy-Item $ext.FullName "native_cu131.pyd"
+            Write-Host "Copied: $($ext.Name)"
+          } else {
+            Write-Error "Native module not found!"
+            exit 1
+          }
+          Get-ChildItem native_cu131.pyd
+
+      - name: Upload native module
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-cu131
+          path: native_cu131.pyd
+
+  # Merge Windows native modules into final wheel
+  build-windows:
+    runs-on: [self-hosted, Windows, X64, cuda]
+    needs: [build-windows-native-cu13]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        shell: pwsh
+        run: |
+          pyenv install 3.12 --skip-existing
+          pyenv local 3.12
+          python --version
+
+      - name: Set up Rust
+        shell: pwsh
+        run: |
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing rustup..."
+            Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+            .\rustup-init.exe -y --default-toolchain stable
+            Remove-Item rustup-init.exe
+            $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+          }
+          rustup default stable
+          rustup update
+          rustc --version
+          cargo --version
+
+      - name: Clean previous builds
+        shell: pwsh
+        run: |
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path rust/target) { Remove-Item -Recurse -Force rust/target }
+          Get-ChildItem -Filter "*.egg-info" -Directory | Remove-Item -Recurse -Force
+
+      # NOTE: CUDA 12.x module download commented out
+      # - name: Download CUDA 12.x native module
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: windows-native-cu129
+      #     path: prebuilt
+
+      - name: Download CUDA 13.x native module
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-native-cu131
+          path: prebuilt
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install build scikit-build-core pybind11 ninja cmake maturin
+
+      - name: Prepare prebuilt native modules
+        shell: pwsh
+        run: |
+          # Get the correct Python extension suffix
+          $suffix = python -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
+          Write-Host "Python extension suffix: $suffix"
+
+          # Rename and copy to src/pygpukit/
+          # NOTE: Only CUDA 13.x module included
+          Copy-Item "prebuilt/native_cu131.pyd" "src/pygpukit/_pygpukit_native_cu131$suffix"
+          Get-ChildItem src/pygpukit/_pygpukit_native*
+
+      - name: Build Rust module
+        shell: pwsh
+        run: |
+          cd rust/pygpukit-python
+          maturin build --release --interpreter python
+          $wheel = Get-ChildItem ../target/wheels/*.whl | Select-Object -First 1
+          Expand-Archive -Path $wheel.FullName -DestinationPath ../target/rust-extracted -Force
+          $ext = Get-ChildItem ../target/rust-extracted/_pygpukit_rust*.pyd -Recurse | Select-Object -First 1
+          if ($ext) {
+            Copy-Item $ext.FullName ../../src/pygpukit/
+            Write-Host "Copied Rust extension: $($ext.Name)"
+          }
+          Get-ChildItem ../../src/pygpukit/*.pyd
+
+      - name: Build wheel (skip native build, use prebuilt)
+        shell: cmd
+        run: |
+          @REM Set up VS environment
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          set "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1"
+          set "PATH=%CUDA_PATH%\bin;%PATH%"
+          set "PYGPUKIT_SKIP_NATIVE_BUILD=1"
+          python -m build --wheel
+        env:
+          CMAKE_CUDA_ARCHITECTURES: "80;86;89;90;100;120a"
+
+      - name: Inject prebuilt native modules into wheel
+        shell: pwsh
+        run: |
+          # scikit-build-core doesn't include prebuilt .pyd files, so we inject them manually
+          cd dist
+          $wheel = Get-ChildItem *.whl | Select-Object -First 1
+          Write-Host "Injecting native modules into $($wheel.Name)"
+
+          # Unzip wheel
+          Expand-Archive -Path $wheel.FullName -DestinationPath wheel-contents -Force
+
+          # Copy prebuilt native modules
+          Get-ChildItem ../src/pygpukit/_pygpukit_native*.pyd | ForEach-Object {
+            Copy-Item $_.FullName wheel-contents/pygpukit/
+            Write-Host "Copied: $($_.Name)"
+          }
+          Get-ChildItem ../src/pygpukit/_pygpukit_rust*.pyd -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName wheel-contents/pygpukit/
+            Write-Host "Copied: $($_.Name)"
+          }
+
+          # Show what we're including
+          Write-Host "=== Files in pygpukit/ ==="
+          Get-ChildItem wheel-contents/pygpukit/
+
+          # Update RECORD file (required for valid wheel)
+          # Dynamically find dist-info folder
+          $distInfo = Get-ChildItem wheel-contents -Directory -Filter "pygpukit-*.dist-info" | Select-Object -First 1
+          $distInfoName = $distInfo.Name
+          Write-Host "Found dist-info folder: $distInfoName"
+          $recordPath = "wheel-contents/$distInfoName/RECORD"
+          $wheelContentsPath = (Resolve-Path "wheel-contents").Path
+          $newRecord = @()
+
+          # All files in pygpukit/ (recursive)
+          Get-ChildItem wheel-contents/pygpukit -File -Recurse | ForEach-Object {
+            $relativePath = $_.FullName.Substring($wheelContentsPath.Length + 1).Replace('\', '/')
+            $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+            $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+            $hashB64 = [Convert]::ToBase64String($hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+            $size = $_.Length
+            $newRecord += "$relativePath,sha256=$hashB64,$size"
+          }
+
+          # All files in dist-info/ except RECORD (including subdirectories like licenses/)
+          Get-ChildItem "wheel-contents/$distInfoName" -File -Recurse | Where-Object { $_.Name -ne "RECORD" } | ForEach-Object {
+            $distInfoPath = (Resolve-Path "wheel-contents/$distInfoName").Path
+            $relativePath = $distInfoName + "/" + $_.FullName.Substring($distInfoPath.Length + 1).Replace('\', '/')
+            $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+            $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+            $hashB64 = [Convert]::ToBase64String($hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+            $size = $_.Length
+            $newRecord += "$relativePath,sha256=$hashB64,$size"
+          }
+
+          # RECORD itself (no hash)
+          $newRecord += "$distInfoName/RECORD,,"
+
+          # Write with Unix line endings (LF only)
+          $newRecord -join "`n" | Set-Content -Path $recordPath -NoNewline -Encoding utf8NoBOM
+          Add-Content -Path $recordPath -Value "" -NoNewline -Encoding utf8NoBOM
+
+          # Repack wheel
+          Remove-Item $wheel.FullName
+          Compress-Archive -Path wheel-contents/* -DestinationPath "$($wheel.Name).zip"
+          Rename-Item "$($wheel.Name).zip" $wheel.Name
+          Remove-Item wheel-contents -Recurse -Force
+
+      - name: Verify wheel contents
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/*.whl | ForEach-Object {
+            Write-Host "Built: $($_.Name)"
+            Write-Host "=== Wheel contents ==="
+            python -m zipfile -l $_.FullName | Select-String -Pattern "\.pyd|\.so"
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-windows-py312
+          path: dist/*.whl
+
+  # ============================================================================
+  # Publish
+  # ============================================================================
+
+  publish-testpypi:
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows, build-sdist]
+    if: github.event_name == 'push' || !inputs.test_only
+    environment: testpypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+      - name: Download Linux wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel-linux-py312
+          path: dist
+
+      - name: Download Windows wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel-windows-py312
+          path: dist
+
+      - name: List dist contents
+        run: |
+          echo "=== Artifacts to publish ==="
+          ls -la dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    runs-on: ubuntu-latest
+    needs: publish-testpypi
+    if: github.event_name == 'push' || !inputs.test_only
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+      - name: Download Linux wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel-linux-py312
+          path: dist
+
+      - name: Download Windows wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel-windows-py312
+          path: dist
+
+      - name: List dist contents
+        run: |
+          echo "=== Artifacts to publish ==="
+          ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs: [build-sdist, build-linux, build-windows, publish-pypi]
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          generate_release_notes: true
