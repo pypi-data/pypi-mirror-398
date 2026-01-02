@@ -1,0 +1,95 @@
+name: Test Package
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Test package building
+        run: |
+          echo "🔨 Building Python package..."
+          python -m build
+          echo "✅ Package built successfully"
+
+      - name: Validate package
+        run: |
+          echo "🔍 Validating package..."
+          twine check dist/*
+          echo "✅ Package validation passed"
+
+      - name: Install package for testing
+        run: |
+          echo "📦 Installing package..."
+          pip install dist/*.whl
+          echo "✅ Package installed"
+
+      - name: Test core functionality
+        run: |
+          echo "🧪 Testing core functionality..."
+          python -c "
+          from elasticache_monitor.cli import auto_monitor, web_server
+          print('✅ CLI functions accessible')
+          from elasticache_monitor.web.main import app
+          print('✅ FastAPI app accessible')
+          from elasticache_monitor.web.models import MonitorJob, RedisCommand
+          print('✅ Database models accessible')
+          from elasticache_monitor.utils import extract_key_pattern
+          print('✅ Utils functions accessible')
+          print('✅ Project validation complete')
+          "
+
+      - name: Test CLI entry points
+        run: |
+          echo "🎯 Testing CLI entry points..."
+          elasticache-monitor --help
+          elasticache-monitor-cli --help
+          elasticache-endpoints --help
+          elasticache-query --help
+          echo "✅ CLI commands working"
+
+  lint-and-format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Lint with ruff
+        run: |
+          echo "🔍 Linting code..."
+          ruff check src/ --select=E9,F63,F7,F82 --output-format=github
+          ruff check src/ --exit-zero --output-format=github
+        continue-on-error: true
+
