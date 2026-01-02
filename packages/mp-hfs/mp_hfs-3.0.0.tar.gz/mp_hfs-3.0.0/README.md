@@ -1,0 +1,82 @@
+# HFS v3 - SET 索引优化版本
+
+基于 v2 的优化版本，主要改进：
+
+## 优化内容
+
+### 1. SET 索引优化
+- 新增 `hfs:project:{proj}:spaces:active` SET 索引
+- 新增 `hfs:account:{user}:spaces:active` SET 索引
+- Lua 脚本原子维护 SET（bind/transition）
+- `get_account_space_count` 从 O(S) 降到 O(1)
+
+### 2. Admin CLI Pipeline 优化
+- `space list` / `account list` 使用 Pipeline 批量获取
+- 减少网络往返，提升响应速度
+
+### 3. 性能提升
+- `select_account`: 26s → 3s
+- `space list` (db6): 18s → 14s
+- 支持 Space 数量: ~100 → 10000+
+
+## 目录结构
+
+```
+v3/
+├── hfs/                    # 核心代码
+│   ├── state.py            # SET 索引 Lua 脚本
+│   ├── account.py          # O(1) 账号查询
+│   ├── admin/              # CLI 命令
+│   └── ...
+├── tools/                  # 实用工具
+│   ├── view_space_logs.py  # 查看 HF 原生日志
+│   ├── chaos_test.py       # 混沌测试
+│   └── multi_project_test.py  # 多项目测试
+├── publish-tools/          # 发布脚本
+└── docs/                   # 文档
+```
+
+## 使用
+
+### 环境配置
+```bash
+# v3 使用独立的 Redis db
+export HFS_REDIS_URL="redis://...../7"  # db7
+```
+
+### 迁移 SET 索引
+```bash
+# 首次部署需要构建 SET 索引
+python tools/migrate.py --redis-url $HFS_REDIS_URL set-index
+
+# 验证一致性
+python tools/migrate.py --redis-url $HFS_REDIS_URL verify
+```
+
+### 运行测试
+```bash
+# 混沌测试
+python tools/chaos_test.py
+
+# 多项目测试
+python tools/multi_project_test.py
+```
+
+## 与 v2 的区别
+
+| 特性 | v2 | v3 |
+|------|----|----|
+| Redis DB | db6 | db7 |
+| 账号查询 | O(S) scan | O(1) SET |
+| CLI 性能 | 逐个 GET | Pipeline |
+| 数据结构 | 无索引 | SET 索引 |
+
+## 发布
+
+```bash
+# Git 发布
+cd publish-tools && ./publish-git.sh hfs-v3 v0.1.0
+
+# PyPI 发布
+./publish-obfuscated.sh
+```
