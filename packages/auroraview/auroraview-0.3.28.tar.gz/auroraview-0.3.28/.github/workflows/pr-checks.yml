@@ -1,0 +1,1216 @@
+name: PR Checks
+
+# This workflow runs comprehensive checks on PRs to ensure quality before merging.
+# Optimized with path-based filtering to run only necessary checks based on changed files.
+#
+# Artifact Reuse Strategy:
+# - sdk-build: Builds SDK once, artifacts reused by gallery-e2e and gallery-pack
+# - cli-build: Builds CLI once, artifacts reused by gallery-pack
+# - pre-build: Builds wheels once, artifacts reused by python-tests, wheel-build, qt-tests, gallery-pack
+# - This eliminates duplicate builds and significantly reduces CI time
+#
+# Path Filter Categories:
+# - rust: Rust source code changes -> triggers Rust builds/tests
+# - python: Python source code changes -> triggers Python tests
+# - sdk: TypeScript SDK changes -> triggers SDK builds
+# - gallery: Gallery app changes -> triggers Gallery tests
+# - docs: Documentation changes -> triggers docs build only
+# - ci: CI configuration changes -> triggers all checks
+# - tests: Test file changes -> triggers relevant tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_HTTP_TIMEOUT: '600'
+  CARGO_NET_RETRY: '10'
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  # =============================================================================
+  # Path Detection - Determines which jobs to run based on changed files
+  # =============================================================================
+  path-filter:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      python: ${{ steps.filter.outputs.python }}
+      sdk: ${{ steps.filter.outputs.sdk }}
+      gallery: ${{ steps.filter.outputs.gallery }}
+      docs: ${{ steps.filter.outputs.docs }}
+      ci: ${{ steps.filter.outputs.ci }}
+      tests: ${{ steps.filter.outputs.tests }}
+      # Composite flags for convenience
+      needs_wheel: ${{ steps.filter.outputs.rust == 'true' || steps.filter.outputs.python == 'true' || steps.filter.outputs.sdk == 'true' || steps.filter.outputs.ci == 'true' }}
+      needs_rust_checks: ${{ steps.filter.outputs.rust == 'true' || steps.filter.outputs.ci == 'true' }}
+      needs_python_tests: ${{ steps.filter.outputs.python == 'true' || steps.filter.outputs.rust == 'true' || steps.filter.outputs.ci == 'true' }}
+      needs_sdk_build: ${{ steps.filter.outputs.sdk == 'true' || steps.filter.outputs.ci == 'true' }}
+      needs_gallery_tests: ${{ steps.filter.outputs.gallery == 'true' || steps.filter.outputs.sdk == 'true' || steps.filter.outputs.ci == 'true' }}
+      needs_docs_build: ${{ steps.filter.outputs.docs == 'true' || steps.filter.outputs.ci == 'true' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'src/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.cargo/**'
+              - 'benches/**'
+              - 'tests/rust/**'
+            python:
+              - 'python/**'
+              - 'pyproject.toml'
+              - 'tests/python/**'
+              - 'noxfile.py'
+            sdk:
+              - 'packages/**'
+            gallery:
+              - 'gallery/**'
+            docs:
+              - 'docs/**'
+              - '*.md'
+              - 'website/**'
+            ci:
+              - '.github/**'
+              - 'justfile'
+              - '.pre-commit-config.yaml'
+              - '.codecov.yml'
+            tests:
+              - 'tests/**'
+              - 'benches/**'
+
+      - name: Summary of detected changes
+        run: |
+          echo "## 🔍 Detected Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Category | Changed | Will Run |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|---------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Rust | ${{ steps.filter.outputs.rust }} | Rust checks, CLI build |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ steps.filter.outputs.python }} | Python tests |" >> $GITHUB_STEP_SUMMARY
+          echo "| SDK | ${{ steps.filter.outputs.sdk }} | SDK build |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gallery | ${{ steps.filter.outputs.gallery }} | Gallery E2E |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docs | ${{ steps.filter.outputs.docs }} | Docs build |" >> $GITHUB_STEP_SUMMARY
+          echo "| CI | ${{ steps.filter.outputs.ci }} | All checks |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Composite Flags" >> $GITHUB_STEP_SUMMARY
+          echo "- needs_wheel: ${{ steps.filter.outputs.rust == 'true' || steps.filter.outputs.python == 'true' || steps.filter.outputs.sdk == 'true' || steps.filter.outputs.ci == 'true' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- needs_rust_checks: ${{ steps.filter.outputs.rust == 'true' || steps.filter.outputs.ci == 'true' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- needs_python_tests: ${{ steps.filter.outputs.python == 'true' || steps.filter.outputs.rust == 'true' || steps.filter.outputs.ci == 'true' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- needs_sdk_build: ${{ steps.filter.outputs.sdk == 'true' || steps.filter.outputs.ci == 'true' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- needs_gallery_tests: ${{ steps.filter.outputs.gallery == 'true' || steps.filter.outputs.sdk == 'true' || steps.filter.outputs.ci == 'true' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- needs_docs_build: ${{ steps.filter.outputs.docs == 'true' || steps.filter.outputs.ci == 'true' }}" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # Quick Checks - Always run for code quality (fast, < 5 min)
+  # =============================================================================
+  quick-checks:
+    name: Quick Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_rust_checks == 'true' || needs.path-filter.outputs.python == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: rustfmt,clippy
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Cache Rust
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-quick-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-quick-
+
+      - name: Check Rust formatting
+        if: needs.path-filter.outputs.needs_rust_checks == 'true'
+        run: cargo fmt --all -- --check
+
+      - name: Check Python formatting (ruff)
+        if: needs.path-filter.outputs.python == 'true' || needs.path-filter.outputs.ci == 'true'
+        run: |
+          uvx ruff check python/ tests/ --select=E,F,W --ignore=E501
+
+      - name: Cargo check (fast compile check)
+        if: needs.path-filter.outputs.needs_rust_checks == 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev pkg-config
+          cargo check --workspace --all-features
+
+  # =============================================================================
+  # Clippy - Rust linting (parallel with quick-checks)
+  # =============================================================================
+  clippy:
+    name: Clippy Lints
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_rust_checks == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: clippy
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev libxdo-dev pkg-config
+
+      - name: Cache Rust
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-clippy-
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # =============================================================================
+  # SDK Build - TypeScript SDK (parallel, no dependencies)
+  # =============================================================================
+  sdk-build:
+    name: SDK CI
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_sdk_build == 'true'
+    uses: ./.github/workflows/sdk-ci.yml
+    with:
+      artifact-prefix: 'pr-'
+    secrets: inherit
+
+  # =============================================================================
+  # Pre-build Wheels - Build ABI3 wheels for all platforms
+  # Only runs when code changes require wheel rebuild
+  # =============================================================================
+  pre-build:
+    name: Pre-build Wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    needs: [path-filter, sdk-build]
+    if: |
+      always() &&
+      (needs.path-filter.outputs.needs_wheel == 'true') &&
+      (needs.sdk-build.result == 'success' || needs.sdk-build.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64
+            artifact-name: wheels-linux-x86_64
+            maturin-args: '--release --out dist --find-interpreter --features python-bindings,ext-module,abi3-py38'
+          - os: windows-latest
+            target: x64
+            artifact-name: wheels-windows-x64
+            maturin-args: '--release --out dist --find-interpreter --features python-bindings,ext-module,abi3-py38,win-webview2'
+          - os: macos-latest
+            target: universal2-apple-darwin
+            artifact-name: wheels-macos-universal2-apple-darwin
+            maturin-args: '--release --out dist --sdist --find-interpreter --features python-bindings,ext-module,abi3-py38'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SDK assets
+        if: needs.sdk-build.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          name: pr-sdk-assets
+          path: crates/auroraview-core/src/assets/js/
+
+      - name: Build and Test Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: '3.11'
+          maturin-args: ${{ matrix.maturin-args }}
+          test-wheel: 'true'
+          artifact-name: ${{ matrix.artifact-name }}
+
+  # =============================================================================
+  # Python 3.7 Test - Separate build for Python 3.7 compatibility
+  # =============================================================================
+  python37-test:
+    name: Python 3.7 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_python_tests == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64
+            artifact-name: wheels-linux-x86_64-py37
+            maturin-args: '--release --out dist -i python3.7 --features python-bindings,ext-module'
+          - os: windows-2019
+            target: x64
+            artifact-name: wheels-windows-x64-py37
+            maturin-args: '--release --out dist -i python3.7 --features python-bindings,ext-module,win-webview2'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build Python 3.7 Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: '3.7'
+          rust-version: '1.90.0'
+          maturin-args: ${{ matrix.maturin-args }}
+          test-wheel: 'true'
+          artifact-name: ${{ matrix.artifact-name }}
+          use-sccache: 'false'
+
+      # Run unit tests on Python 3.7 to catch encoding and compatibility issues
+      - name: Run Python 3.7 Unit Tests
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          # Install test dependencies (pytest only, no Qt for 3.7)
+          pip install pytest pytest-cov pytest-timeout
+
+          # Install the built wheel
+          pip install dist/*.whl
+
+          # Run unit tests (skip Qt tests as PySide6 doesn't support Python 3.7)
+          pytest tests/python/unit/ -v --tb=short --timeout=60 \
+            --ignore=tests/python/unit/test_qt_signals.py \
+            -k "not qt"
+
+  # =============================================================================
+  # Rust Tests - With coverage reporting
+  # =============================================================================
+  rust-tests:
+    name: Rust Tests & Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [path-filter, quick-checks]
+    if: |
+      always() &&
+      needs.path-filter.outputs.needs_rust_checks == 'true' &&
+      (needs.quick-checks.result == 'success' || needs.quick-checks.result == 'skipped')
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Setup Rust with llvm-tools
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: llvm-tools-preview
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev libxdo-dev pkg-config
+
+      - name: Cache Rust
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-coverage-
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run tests with coverage
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path lcov.info \
+            --no-default-features --features "python-bindings,test-helpers,threaded-ipc" \
+            --exclude auroraview-cli \
+            -- --skip window_utils --skip webview::event_loop --skip webview::message_pump \
+               --skip webview::parent_monitor --skip service_discovery::python_bindings \
+               --skip ipc:: --skip tests::test_pymodule_init_registers_symbols
+
+      - name: Run doc tests
+        run: cargo test --doc
+
+      - name: Upload Rust coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          flags: rust
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # =============================================================================
+  # Python Tests - Using pre-built ABI3 wheels (Python 3.8+)
+  # =============================================================================
+  python-tests:
+    name: Python ${{ matrix.python-version }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    needs: [path-filter, quick-checks, pre-build]
+    if: |
+      always() &&
+      needs.path-filter.outputs.needs_python_tests == 'true' &&
+      (needs.quick-checks.result == 'success' || needs.quick-checks.result == 'skipped') &&
+      needs.pre-build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        exclude:
+          # Reduce matrix size - test edge versions on all platforms, middle versions on Linux only
+          - os: windows-latest
+            python-version: "3.9"
+          - os: windows-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.9"
+          - os: macos-latest
+            python-version: "3.10"
+        include:
+          - os: ubuntu-latest
+            artifact-name: wheels-linux-x86_64
+          - os: windows-latest
+            artifact-name: wheels-windows-x64
+          - os: macos-latest
+            artifact-name: wheels-macos-universal2-apple-darwin
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download pre-built wheel
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ matrix.os == 'ubuntu-latest' && 'wheels-linux-x86_64' || matrix.os == 'windows-latest' && 'wheels-windows-x64' || 'wheels-macos-universal2-apple-darwin' }}
+          path: dist/
+
+      - name: Install Qt system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0
+
+      - name: Install wheel and test dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install dist/*.whl
+          # PySide6<6.7 doesn't support Python 3.13+, use PySide6>=6.8 for Python 3.13+
+          if python -c "import sys; exit(0 if sys.version_info >= (3, 13) else 1)"; then
+            pip install pytest pytest-cov pytest-timeout qtpy "PySide6>=6.8"
+          else
+            pip install pytest pytest-cov pytest-timeout qtpy "PySide6<6.7"
+          fi
+
+      - name: Verify import
+        shell: bash
+        run: |
+          python -c "import auroraview; print(f'AuroraView {auroraview.__version__} on Python ${{ matrix.python-version }}')"
+
+      - name: Run tests
+        shell: bash
+        env:
+          QT_API: pyside6
+          CI: 'true'
+          QT_QPA_PLATFORM: offscreen
+          QT_OPENGL: software
+        run: |
+          pytest tests/python/unit/ -v --tb=short --cov=auroraview --cov-report=xml --timeout=60
+
+      - name: Upload coverage (3.11 on ubuntu only)
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          flags: python,py${{ matrix.python-version }}
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # =============================================================================
+  # Wheel Validation - Test pre-built wheels
+  # =============================================================================
+  wheel-build:
+    name: Wheel Validation (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    needs: [path-filter, quick-checks, pre-build]
+    if: |
+      always() &&
+      needs.path-filter.outputs.needs_wheel == 'true' &&
+      (needs.quick-checks.result == 'success' || needs.quick-checks.result == 'skipped') &&
+      needs.pre-build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact-name: wheels-linux-x86_64
+          - os: windows-latest
+            artifact-name: wheels-windows-x64
+          - os: macos-latest
+            artifact-name: wheels-macos-universal2-apple-darwin
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Download pre-built wheel
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: dist/
+
+      - name: Validate wheel
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install dist/*.whl
+          python -c "import auroraview; print(f'Wheel validation OK: {auroraview.__version__}')"
+          # Test CLI entry point
+          auroraview --help || python -m auroraview --help || echo "CLI test skipped"
+
+  # =============================================================================
+  # Qt Integration Tests - Windows only (most critical platform)
+  # =============================================================================
+  qt-tests:
+    name: Qt Tests (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    needs: [path-filter, quick-checks, pre-build]
+    if: |
+      always() &&
+      needs.path-filter.outputs.needs_python_tests == 'true' &&
+      (needs.quick-checks.result == 'success' || needs.quick-checks.result == 'skipped') &&
+      needs.pre-build.result == 'success'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Download pre-built wheel
+        uses: actions/download-artifact@v7
+        with:
+          name: wheels-windows-x64
+          path: dist/
+
+      - name: Install wheel and Qt dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install dist/*.whl
+          pip install qtpy "PySide6<6.7" pytest pytest-qt pytest-cov pytest-timeout
+
+      - name: Run Qt tests (headless)
+        shell: pwsh
+        env:
+          QT_API: pyside6
+          CI: 'true'
+          QT_QPA_PLATFORM: offscreen
+          QT_OPENGL: software
+          QTWEBENGINE_DISABLE_SANDBOX: '1'
+        run: |
+          pytest tests/python/integration/test_qt_backend.py tests/python/integration/test_qt_lifecycle.py -v --tb=short --timeout=60
+
+      - name: Upload Qt coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          flags: python,qt,windows
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # =============================================================================
+  # Performance Benchmark - Detect regressions (parallel)
+  # =============================================================================
+  benchmark:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_rust_checks == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.90.0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev libxdo-dev pkg-config
+
+      - name: Cache Rust
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-bench-
+
+      - name: Run benchmarks
+        run: |
+          cargo bench --no-run 2>/dev/null || echo "No benchmarks defined yet"
+          # TODO: Add criterion benchmarks and compare against baseline
+
+  # =============================================================================
+  # CLI Build Test - Ensures CLI releases will work (parallel)
+  # Uploads artifacts for reuse by gallery-pack job
+  # =============================================================================
+  cli-build:
+    name: CLI Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_rust_checks == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: cli-linux-x86_64
+            exe-name: auroraview-cli
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: cli-windows-x64
+            exe-name: auroraview-cli.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: cli-macos-arm64
+            exe-name: auroraview-cli
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev
+
+      - name: Cache Rust
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-cli-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-cli-
+
+      - name: Build CLI
+        run: cargo build -p auroraview-cli --release --target ${{ matrix.target }}
+
+      - name: Test CLI (--help)
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ./target/${{ matrix.target }}/release/auroraview-cli.exe --help
+            ./target/${{ matrix.target }}/release/auroraview-cli.exe --version
+          else
+            ./target/${{ matrix.target }}/release/auroraview-cli --help
+            ./target/${{ matrix.target }}/release/auroraview-cli --version
+          fi
+
+      # Upload CLI artifact for reuse by gallery-pack
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.exe-name }}
+          retention-days: 1
+
+  # =============================================================================
+  # Gallery E2E Tests - Playwright tests
+  # Reuses SDK build artifacts to avoid duplicate builds
+  # =============================================================================
+  gallery-e2e:
+    name: Gallery E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [path-filter, sdk-build]
+    if: |
+      always() &&
+      needs.path-filter.outputs.needs_gallery_tests == 'true' &&
+      (needs.sdk-build.result == 'success' || needs.sdk-build.result == 'skipped')
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: gallery/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      # Download pre-built SDK package if available
+      - name: Download SDK package
+        if: needs.sdk-build.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          name: pr-sdk-package
+          path: packages/auroraview-sdk/dist/
+
+      # Build SDK only if sdk-build was skipped (no SDK changes)
+      - name: Build SDK (fallback)
+        if: needs.sdk-build.result == 'skipped'
+        shell: bash
+        run: |
+          cd packages/auroraview-sdk
+          rm -rf node_modules package-lock.json
+          npm install
+          npm run build
+
+      - name: Build Gallery frontend
+        shell: bash
+        run: |
+          cd gallery
+          rm -rf node_modules package-lock.json
+          npm install
+          npm run build
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install chromium --with-deps
+
+      - name: Run Gallery Playwright E2E tests
+        run: |
+          python scripts/test_gallery_e2e.py
+
+      - name: Upload test screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: gallery-e2e-screenshots
+          path: test-screenshots/
+          retention-days: 7
+
+      - name: Post screenshots to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const screenshotsDir = 'test-screenshots';
+            if (!fs.existsSync(screenshotsDir)) {
+              console.log('No screenshots directory found');
+              return;
+            }
+            
+            const files = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.png'));
+            if (files.length === 0) {
+              console.log('No screenshots found');
+              return;
+            }
+            
+            // Get artifact URL
+            const runId = context.runId;
+            const artifactUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+            
+            // Build comment body
+            let body = '## 📸 Gallery E2E Screenshots\n\n';
+            body += `Screenshots from this PR's E2E tests. [View all artifacts](${artifactUrl})\n\n`;
+            body += '| Page | Screenshot |\n';
+            body += '|------|------------|\n';
+            
+            const pageNames = {
+              'gallery_home': '🏠 Home',
+              'gallery_getting_started': '🚀 Getting Started',
+              'gallery_api_patterns': '💻 API Patterns',
+              'gallery_window_features': '🪟 Window Features',
+              'gallery_settings': '⚙️ Settings'
+            };
+            
+            for (const file of files) {
+              const name = file.replace('.png', '');
+              const displayName = pageNames[name] || name;
+              body += `| ${displayName} | [View](${artifactUrl}) |\n`;
+            }
+            
+            body += '\n<details><summary>ℹ️ How to view screenshots</summary>\n\n';
+            body += '1. Click "View all artifacts" above\n';
+            body += '2. Scroll to "Artifacts" section\n';
+            body += '3. Download `gallery-e2e-screenshots`\n';
+            body += '</details>';
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && 
+              c.body.includes('Gallery E2E Screenshots')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+  # =============================================================================
+  # Gallery Pack Build Test - Ensures gallery packaging works
+  # Reuses CLI and SDK build artifacts to avoid duplicate builds
+  # =============================================================================
+  gallery-pack:
+    name: Gallery Pack Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    needs: [path-filter, cli-build, pre-build, sdk-build]
+    if: |
+      always() &&
+      needs.path-filter.outputs.needs_gallery_tests == 'true' &&
+      (needs.cli-build.result == 'success' || needs.cli-build.result == 'skipped') &&
+      (needs.pre-build.result == 'success' || needs.pre-build.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe-ext: .exe
+            exe-name: auroraview-cli.exe
+            wheel-artifact: wheels-windows-x64
+            cli-artifact: cli-windows-x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            exe-ext: ''
+            exe-name: auroraview-cli
+            wheel-artifact: wheels-linux-x86_64
+            cli-artifact: cli-linux-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            exe-ext: ''
+            exe-name: auroraview-cli
+            wheel-artifact: wheels-macos-universal2-apple-darwin
+            cli-artifact: cli-macos-arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: gallery/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Download pre-built auroraview wheel
+        if: needs.pre-build.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ matrix.wheel-artifact }}
+          path: dist/
+
+      - name: Install auroraview wheel
+        if: needs.pre-build.result == 'success'
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install dist/*.whl
+          python -c "import auroraview; print(f'auroraview {auroraview.__version__} installed')"
+
+      # Download pre-built CLI from cli-build job
+      - name: Download pre-built CLI
+        if: needs.cli-build.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ matrix.cli-artifact }}
+          path: cli-bin/
+
+      - name: Setup pre-built CLI
+        if: needs.cli-build.result == 'success'
+        shell: bash
+        run: |
+          mkdir -p target/${{ matrix.target }}/release
+          cp cli-bin/${{ matrix.exe-name }} target/${{ matrix.target }}/release/
+          chmod +x target/${{ matrix.target }}/release/${{ matrix.exe-name }} || true
+          echo "Using pre-built CLI:"
+          ls -la target/${{ matrix.target }}/release/${{ matrix.exe-name }}
+
+      # Install runtime libraries for Linux (always needed to run CLI)
+      - name: Install Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-0 libgtk-3-0
+
+      # Fallback: Build CLI only if cli-build was skipped
+      - name: Setup Rust (fallback)
+        if: needs.cli-build.result == 'skipped'
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies (fallback)
+        if: needs.cli-build.result == 'skipped' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # Install both dev and runtime libraries
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libwebkit2gtk-4.1-0 libgtk-3-dev libgtk-3-0 libayatana-appindicator3-dev libxdo-dev
+
+      - name: Cache Rust (fallback)
+        if: needs.cli-build.result == 'skipped'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-gallery-pack-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-gallery-pack-
+
+      - name: Build CLI (fallback)
+        if: needs.cli-build.result == 'skipped'
+        run: cargo build -p auroraview-cli --release --target ${{ matrix.target }}
+
+      # Download pre-built SDK package if available
+      - name: Download SDK package
+        if: needs.sdk-build.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          name: pr-sdk-package
+          path: packages/auroraview-sdk/dist/
+
+      # Build SDK only if sdk-build was skipped
+      - name: Build SDK (fallback)
+        if: needs.sdk-build.result == 'skipped'
+        shell: bash
+        run: |
+          cd packages/auroraview-sdk
+          rm -rf node_modules package-lock.json
+          npm install
+          npm run build
+
+      - name: Build Gallery frontend
+        shell: bash
+        run: |
+          cd gallery
+          rm -rf node_modules package-lock.json
+          npm install
+          npm run build
+
+      - name: Pack Gallery (generate executable)
+        shell: bash
+        env:
+          LD_LIBRARY_PATH: /usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}
+        run: |
+          ./target/${{ matrix.target }}/release/auroraview-cli${{ matrix.exe-ext }} pack \
+            --config gallery/auroraview.pack.toml \
+            --output-dir target/pack
+
+      - name: Verify pack output
+        shell: bash
+        run: |
+          echo "Checking pack output..."
+          ls -la target/pack/
+          # Pack now outputs executable directly, not a project directory
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            expected_exe="target/pack/auroraview-gallery.exe"
+          else
+            expected_exe="target/pack/auroraview-gallery"
+          fi
+          if [ -f "$expected_exe" ]; then
+            echo "Pack executable generated successfully: $expected_exe"
+            ls -la "$expected_exe"
+          else
+            echo "ERROR: Pack executable not found: $expected_exe"
+            exit 1
+          fi
+
+      # Test that the packed executable can start and Python backend initializes correctly
+      # This catches issues like missing _core.pyd that only manifest at runtime
+      - name: Test packed executable startup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          $exe = "target/pack/auroraview-gallery.exe"
+          Write-Host "Testing packed executable startup: $exe"
+          
+          # Start the process
+          $process = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
+          
+          # Wait up to 15 seconds for startup
+          $timeout = 15
+          for ($i = 0; $i -lt $timeout; $i++) {
+            Start-Sleep -Seconds 1
+            Write-Host "Waiting for startup... ($i/$timeout seconds)"
+            
+            # Check if process exited with error
+            if ($process.HasExited) {
+              if ($process.ExitCode -ne 0) {
+                Write-Host "ERROR: Process exited with code $($process.ExitCode)"
+                exit 1
+              }
+              Write-Host "Process exited normally"
+              break
+            }
+          }
+          
+          # If still running after timeout, consider it a success and kill it
+          if (-not $process.HasExited) {
+            Write-Host "SUCCESS: Packed executable started and running for $timeout seconds"
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Test packed executable startup (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          exe="target/pack/auroraview-gallery"
+          echo "Testing packed executable startup: $exe"
+          
+          # Make executable
+          chmod +x "$exe"
+          
+          # On Linux, we need a virtual display for GTK
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb || true
+            xvfb-run --auto-servernum "$exe" &
+            PID=$!
+          else
+            # macOS - run directly
+            "$exe" &
+            PID=$!
+          fi
+          
+          # Wait up to 15 seconds
+          for i in {1..15}; do
+            sleep 1
+            echo "Waiting for startup... ($i/15 seconds)"
+            
+            if ! kill -0 $PID 2>/dev/null; then
+              wait $PID || EXIT_CODE=$?
+              if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+                echo "ERROR: Process exited with code $EXIT_CODE"
+                exit 1
+              fi
+              echo "Process exited normally"
+              break
+            fi
+          done
+          
+          # If still running, success
+          if kill -0 $PID 2>/dev/null; then
+            echo "SUCCESS: Packed executable started and running for 15 seconds"
+            kill $PID 2>/dev/null || true
+          fi
+
+      - name: Upload pack artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: gallery-pack-${{ matrix.os }}
+          path: target/pack/auroraview-gallery${{ matrix.exe-ext }}
+          retention-days: 3
+
+  # =============================================================================
+  # Docs Build - Only for documentation changes
+  # =============================================================================
+  docs-build:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [path-filter]
+    if: needs.path-filter.outputs.needs_docs_build == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm install
+
+      - name: Build docs
+        working-directory: docs
+        run: npm run build
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: docs-build
+          path: docs/.vitepress/dist
+          retention-days: 3
+
+  # =============================================================================
+  # Final Gate - All critical checks must pass
+  # =============================================================================
+  pr-ready:
+    name: PR Ready
+    runs-on: ubuntu-latest
+    needs: [path-filter, pre-build, python37-test, quick-checks, clippy, python-tests, rust-tests, wheel-build, qt-tests, cli-build, gallery-e2e, gallery-pack, sdk-build, benchmark, docs-build]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show what was detected
+          echo "### 🔍 Change Detection" >> $GITHUB_STEP_SUMMARY
+          echo "- Rust: ${{ needs.path-filter.outputs.rust }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Python: ${{ needs.path-filter.outputs.python }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SDK: ${{ needs.path-filter.outputs.sdk }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Gallery: ${{ needs.path-filter.outputs.gallery }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs: ${{ needs.path-filter.outputs.docs }}" >> $GITHUB_STEP_SUMMARY
+          echo "- CI: ${{ needs.path-filter.outputs.ci }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 📋 Job Results" >> $GITHUB_STEP_SUMMARY
+
+          # Define all jobs with their results
+          declare -A jobs=(
+            ["path-filter"]="${{ needs.path-filter.result }}"
+            ["pre-build"]="${{ needs.pre-build.result }}"
+            ["python37-test"]="${{ needs.python37-test.result }}"
+            ["quick-checks"]="${{ needs.quick-checks.result }}"
+            ["clippy"]="${{ needs.clippy.result }}"
+            ["python-tests"]="${{ needs.python-tests.result }}"
+            ["rust-tests"]="${{ needs.rust-tests.result }}"
+            ["wheel-build"]="${{ needs.wheel-build.result }}"
+            ["qt-tests"]="${{ needs.qt-tests.result }}"
+            ["cli-build"]="${{ needs.cli-build.result }}"
+            ["gallery-e2e"]="${{ needs.gallery-e2e.result }}"
+            ["gallery-pack"]="${{ needs.gallery-pack.result }}"
+            ["sdk-build"]="${{ needs.sdk-build.result }}"
+            ["benchmark"]="${{ needs.benchmark.result }}"
+            ["docs-build"]="${{ needs.docs-build.result }}"
+          )
+
+          failed=0
+          for job in "${!jobs[@]}"; do
+            result="${jobs[$job]}"
+            if [[ "$result" == "success" ]]; then
+              echo "- ✅ $job" >> $GITHUB_STEP_SUMMARY
+            elif [[ "$result" == "skipped" ]]; then
+              echo "- ⏭️ $job (skipped - not needed)" >> $GITHUB_STEP_SUMMARY
+            elif [[ "$result" == "cancelled" ]]; then
+              echo "- ⚪ $job (cancelled)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ $job ($result)" >> $GITHUB_STEP_SUMMARY
+              # Only fail if the job was supposed to run (not skipped)
+              if [[ "$result" != "skipped" ]]; then
+                failed=1
+              fi
+            fi
+          done
+
+          if [[ $failed -eq 1 ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **PR is not ready for merge**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **PR is ready for merge!**" >> $GITHUB_STEP_SUMMARY

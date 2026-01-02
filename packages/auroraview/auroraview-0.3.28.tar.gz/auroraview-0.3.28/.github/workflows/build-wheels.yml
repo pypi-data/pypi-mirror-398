@@ -1,0 +1,240 @@
+name: Build Wheels
+
+# Build wheels workflow - only runs on workflow_call (from release.yml) or manual trigger.
+# PR checks build wheels via pr-checks.yml.
+# Main branch pushes are handled by release.yml to avoid duplicate CI runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reuse-pr-artifacts:
+        description: 'Reuse artifacts from PR workflow (run_id)'
+        required: false
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      test-wheel:
+        required: false
+        type: string
+        default: 'true'
+      python-version:
+        required: false
+        type: string
+        default: '3.11'
+      reuse-pr-artifacts:
+        description: 'Reuse artifacts from PR workflow (run_id)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: write # Required for uploading artifacts
+
+jobs:
+  # ============================================================================
+  # Build SDK assets first (shared by all wheel builds)
+  # Build assets directly instead of calling sdk-ci.yml to avoid artifact conflicts
+  # ============================================================================
+  sdk-assets:
+    name: Build SDK Assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SDK dependencies
+        run: |
+          cd packages/auroraview-sdk
+          rm -rf node_modules package-lock.json
+          npm install
+
+      - name: Build SDK assets
+        run: |
+          cd packages/auroraview-sdk
+          npm run build:assets
+
+      - name: Verify assets outputs
+        run: |
+          echo "Checking generated assets..."
+          ls -la crates/auroraview-core/src/assets/js/core/
+          ls -la crates/auroraview-core/src/assets/js/plugins/
+          
+          # Verify core files
+          test -f crates/auroraview-core/src/assets/js/core/event_bridge.js || (echo "Missing event_bridge.js" && exit 1)
+          test -f crates/auroraview-core/src/assets/js/core/state_bridge.js || (echo "Missing state_bridge.js" && exit 1)
+          
+          echo "All SDK assets verified!"
+
+      - name: Upload SDK assets artifact
+        uses: actions/upload-artifact@v6
+        with:
+          # Use 'build-' prefix instead of 'wheels-' to avoid being matched by
+          # 'pattern: wheels-*' in release.yml PyPI publish step
+          name: build-sdk-assets
+          path: |
+            crates/auroraview-core/src/assets/js/core/
+            crates/auroraview-core/src/assets/js/plugins/
+          retention-days: 7
+
+  # ============================================================================
+  # ABI3 builds (Python 3.8+) - Single wheel works for all Python 3.8+ versions
+  # ============================================================================
+
+  # Linux builds (abi3)
+  linux:
+    runs-on: ubuntu-latest
+    needs: [sdk-assets]
+    strategy:
+      matrix:
+        target: [x86_64]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SDK assets
+        uses: actions/download-artifact@v7
+        with:
+          name: build-sdk-assets
+          path: crates/auroraview-core/src/assets/js/
+
+      - name: Build and Test Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: ${{ inputs.python-version }}
+          test-wheel: ${{ inputs.test-wheel }}
+          artifact-name: 'wheels-linux-x86_64'
+
+  # Windows builds (abi3)
+  windows:
+    runs-on: windows-latest
+    needs: [sdk-assets]
+    strategy:
+      matrix:
+        target: [x64]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SDK assets
+        uses: actions/download-artifact@v7
+        with:
+          name: build-sdk-assets
+          path: crates/auroraview-core/src/assets/js/
+
+      - name: Build and Test Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: ${{ inputs.python-version }}
+          maturin-args: '--release --out dist --find-interpreter --features python-bindings,ext-module,abi3-py38,win-webview2'
+          test-wheel: ${{ inputs.test-wheel }}
+          artifact-name: 'wheels-windows-x64'
+
+  # macOS builds (abi3)
+  macos:
+    runs-on: macos-latest
+    needs: [sdk-assets]
+    strategy:
+      matrix:
+        # Only build universal2 on macos-latest (ARM64 runner)
+        # universal2 includes both x86_64 and arm64 architectures
+        # Note: macos-13 (x86_64) was shut down in September 2025
+        target: [universal2-apple-darwin]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SDK assets
+        uses: actions/download-artifact@v7
+        with:
+          name: build-sdk-assets
+          path: crates/auroraview-core/src/assets/js/
+
+      - name: Build and Test Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: ${{ inputs.python-version }}
+          maturin-args: '--release --out dist --sdist --find-interpreter --features python-bindings,ext-module,abi3-py38'
+          test-wheel: ${{ inputs.test-wheel }}
+          artifact-name: 'wheels-macos-universal2-apple-darwin'
+
+  # ============================================================================
+  # Python 3.7 builds (non-abi3) - Separate wheel for each platform
+  # Note: Uses older Rust toolchain (1.80) for GLIBC compatibility with Ubuntu 22.04
+  # ============================================================================
+
+  # Linux Python 3.7 build
+  linux-py37:
+    runs-on: ubuntu-22.04  # Use Ubuntu 22.04 for Python 3.7 availability
+    needs: [sdk-assets]
+    strategy:
+      matrix:
+        target: [x86_64]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SDK assets
+        uses: actions/download-artifact@v7
+        with:
+          name: build-sdk-assets
+          path: crates/auroraview-core/src/assets/js/
+
+      - name: Build Python 3.7 Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: '3.7'
+          # Use Rust 1.90.0 for edition2024 support (required by dependencies)
+          rust-version: '1.90.0'
+          # Non-abi3 build: use python-bindings without abi3 feature
+          maturin-args: '--release --out dist -i python3.7 --features python-bindings,ext-module'
+          test-wheel: ${{ inputs.test-wheel }}
+          artifact-name: 'wheels-linux-x86_64-py37'
+          # Disable sccache to avoid potential compatibility issues
+          use-sccache: 'false'
+
+  # Windows Python 3.7 build
+  windows-py37:
+    runs-on: windows-2019  # Use older Windows for Python 3.7 compatibility
+    needs: [sdk-assets]
+    strategy:
+      matrix:
+        target: [x64]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SDK assets
+        uses: actions/download-artifact@v7
+        with:
+          name: build-sdk-assets
+          path: crates/auroraview-core/src/assets/js/
+
+      - name: Build Python 3.7 Wheel
+        uses: ./.github/actions/build-wheel
+        with:
+          target: ${{ matrix.target }}
+          python-version: '3.7'
+          # Non-abi3 build: use python-bindings without abi3 feature
+          maturin-args: '--release --out dist -i python3.7 --features python-bindings,ext-module,win-webview2'
+          test-wheel: ${{ inputs.test-wheel }}
+          artifact-name: 'wheels-windows-x64-py37'
+          # Disable sccache to avoid potential compatibility issues
+          use-sccache: 'false'
+
+  # Note: macOS Python 3.7 build removed because:
+  # - macOS-13 (x86_64) runners have been retired (Sept 2025)
+  # - macOS-15 (ARM64) does not support Python 3.7
+  # - Python 3.7 reached EOL in June 2023
+  # Users needing Python 3.7 on macOS should use the source distribution
+
