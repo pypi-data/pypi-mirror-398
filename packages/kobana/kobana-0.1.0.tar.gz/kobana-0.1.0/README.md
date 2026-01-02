@@ -1,0 +1,302 @@
+# Kobana Python SDK
+
+A Python client library for the [Kobana](https:/www.kobana.com.br) financial automation API.
+
+## Installation
+
+```bash
+pip install kobana
+```
+
+For development:
+
+```bash
+pip install kobana[dev]
+```
+
+## Quick Start
+
+### Global Configuration (Simple Usage)
+
+```python
+import kobana
+
+# Configure with your API token
+kobana.configure(
+    api_token="your-api-token",
+    environment="sandbox",  # or "production"
+)
+
+# List bank billets
+billets = kobana.charge.bank_billet.all()
+for billet in billets:
+    print(f"Billet {billet.id}: {billet.amount} - {billet.status}")
+
+# Create a new bank billet
+billet = kobana.charge.bank_billet.create(
+    bank_billet_account_id=1,
+    amount=100.00,
+    expire_at="2024-12-31",
+    customer_person_name="John Doe",
+    customer_cnpj_cpf="12345678901",
+    customer_email="john@example.com",
+    description="Payment for services",
+)
+print(f"Created billet: {billet.id}")
+```
+
+### Instance-based Configuration (Multi-tenant)
+
+```python
+from kobana import KobanaClient
+
+# Create a client instance
+client = KobanaClient(
+    api_token="your-api-token",
+    environment="production",
+)
+
+# Use the client
+billets = client.charge.bank_billet.all()
+
+# Or use as context manager
+with KobanaClient(api_token="token") as client:
+    accounts = client.financial.bank_billet_account.all()
+```
+
+## Configuration
+
+### Environment Variables
+
+You can configure the SDK using environment variables:
+
+```bash
+export KOBANA_API_TOKEN="your-api-token"
+export KOBANA_ENVIRONMENT="sandbox"  # sandbox or production
+export KOBANA_DEBUG="false"          # true or false
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `api_token` | str | - | Your Kobana API token (required) |
+| `environment` | str | "sandbox" | API environment: "sandbox" or "production" |
+| `debug` | bool | False | Enable debug logging |
+| `timeout` | float | 30.0 | Request timeout in seconds |
+| `custom_headers` | dict | {} | Additional HTTP headers |
+
+## Resources
+
+### Charge Resources
+
+#### Bank Billet (Boleto)
+
+```python
+# Create
+billet = kobana.charge.bank_billet.create(
+    bank_billet_account_id=1,
+    amount=100.00,
+    expire_at="2024-12-31",
+    customer_person_name="John Doe",
+    customer_cnpj_cpf="12345678901",
+)
+
+# Find by ID
+billet = kobana.charge.bank_billet.find(123)
+
+# List with filters
+billets = kobana.charge.bank_billet.all(
+    status="opened",
+    bank_billet_account_id=1,
+    page=1,
+    per_page=25,
+)
+
+# Check pagination
+print(f"Total: {billets.total_count}")
+print(f"Pages: {billets.total_pages}")
+print(f"Has next page: {billets.has_next_page}")
+
+# Cancel a billet
+billet.cancel()
+
+# Duplicate a billet
+new_billet = billet.duplicate(
+    expire_at="2025-01-31",
+    amount=150.00,
+)
+
+# Status helpers
+if billet.is_paid:
+    print("Payment received!")
+```
+
+#### Pix Charges
+
+```python
+# Create Pix charge
+pix = kobana.charge.pix.create(
+    amount=50.00,
+    expire_in_seconds=3600,
+    customer_person_name="John Doe",
+    customer_cnpj_cpf="12345678901",
+)
+
+print(f"QR Code: {pix.qr_code}")
+print(f"QR Code URL: {pix.qr_code_url}")
+
+# Find by ID
+pix = kobana.charge.pix.find(123)
+
+# List
+charges = kobana.charge.pix.all(status="pending")
+```
+
+### Financial Resources
+
+#### Bank Billet Account
+
+```python
+# Create account
+account = kobana.financial.bank_billet_account.create(
+    bank_contract_slug="bradesco-bs-9",
+    beneficiary_name="My Company",
+    beneficiary_cnpj_cpf="12345678000190",
+    beneficiary_address="Rua Example, 123",
+)
+
+# List accounts
+accounts = kobana.financial.bank_billet_account.all()
+
+# Request homologation
+account.ask_homologation()
+
+# Validate account
+account.validate()
+
+# Set as default
+account.set_default()
+```
+
+#### Account
+
+```python
+# Get current account
+account = kobana.financial.account.current()
+print(f"Balance: {account.balance}")
+
+# Get balance
+balance = kobana.financial.account.balance()
+```
+
+## Error Handling
+
+```python
+from kobana import (
+    KobanaError,
+    ConfigurationError,
+    ConnectionError,
+    UnauthorizedError,
+    ResourceNotFoundError,
+    ValidationError,
+    APIError,
+)
+
+try:
+    billet = kobana.charge.bank_billet.find(999999)
+except ResourceNotFoundError:
+    print("Billet not found")
+except UnauthorizedError:
+    print("Invalid API token")
+except ValidationError as e:
+    print(f"Validation failed: {e.errors}")
+except ConnectionError:
+    print("Network error")
+except APIError as e:
+    print(f"API error: {e.status} - {e.message}")
+except KobanaError as e:
+    print(f"Kobana error: {e}")
+```
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/universokobana/kobana-python-client.git
+cd kobana-python-client
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# Run all tests (unit + integration)
+pytest
+
+# Run with coverage
+pytest --cov=kobana
+
+# Run only unit tests
+pytest tests/test_*.py tests/resources/
+
+# Run only integration tests
+pytest tests/integration/ -v
+```
+
+### Integration Tests
+
+Integration tests use [VCRpy](https://vcrpy.readthedocs.io/) to record and replay HTTP interactions. This allows tests to run offline after the initial recording.
+
+**First run (record cassettes):**
+
+```bash
+# Set your API token
+cp .env.example .env
+# Edit .env and add your KOBANA_API_TOKEN
+
+# Run integration tests (will record HTTP interactions)
+pytest tests/integration/ -v
+```
+
+**Subsequent runs (replay from cassettes):**
+
+```bash
+# Tests run offline using recorded cassettes
+pytest tests/integration/ -v
+```
+
+**Re-record cassettes (when API changes):**
+
+```bash
+# Delete existing cassettes
+rm tests/integration/cassettes/*.yaml
+
+# Run tests to record new cassettes
+pytest tests/integration/ -v
+```
+
+Cassettes are stored in `tests/integration/cassettes/`. Authorization headers are automatically filtered from recordings.
+
+### Code Quality
+
+```bash
+# Format and lint
+ruff check --fix .
+ruff format .
+
+# Type checking
+mypy kobana
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
