@@ -1,0 +1,29 @@
+  version: '3'
+  services:
+    {{container_name}}:
+      image: {{ecr_repository_url}}:latest
+      container_name: {{container_name}}
+      restart: always
+      environment:
+        ALLOWED_HOSTS: "{{primary_domain}},{{container_name}},localhost,127.0.0.1"
+        DECOUPLE_CONFIG: "/home/ec2-user/.env"
+      volumes:
+        - /home/ec2-user/.env:/home/ec2-user/.env:ro
+
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - /home/ec2-user/nginx/conf.d:/etc/nginx/conf.d:ro
+      - /home/ec2-user/certbot/www:/var/www/certbot
+      - /home/ec2-user/certbot/conf:/etc/letsencrypt
+    depends_on:
+      - {{container_name}}
+    restart: always
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - /home/ec2-user/certbot/www:/var/www/certbot
+      - /home/ec2-user/certbot/conf:/etc/letsencrypt
