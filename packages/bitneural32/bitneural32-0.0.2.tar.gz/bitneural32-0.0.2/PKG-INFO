@@ -1,0 +1,413 @@
+Metadata-Version: 2.4
+Name: bitneural32
+Version: 0.0.2
+Summary: BitNeural32: 1.58-bit Ternary Neural Network Compiler & QAT Library for ESP32
+Author-email: Aizhee <aizharjamilano@gmail.com>
+Maintainer-email: Aizhee <aizharjamilano@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/Aizhee/python-bitneural32
+Project-URL: Repository, https://github.com/Aizhee/python-bitneural32.git
+Project-URL: Documentation, https://github.com/Aizhee/python-bitneural32/wiki
+Keywords: ternary,neural-network,ESP32,bitnet,quantization,embedded-ml,qat
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Embedded Systems
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Requires-Python: <4,>=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: keras>=3.0.0
+Requires-Dist: tensorflow>=2.16.0
+Requires-Dist: numpy<2.0,>=1.21.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: flake8>=6.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=5.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.2; extra == "docs"
+Dynamic: license-file
+
+# BitNeural32: 1.58-Bit Ternary Neural Network Compiler for ESP32
+
+[![PyPI](https://img.shields.io/pypi/v/bitneural32.svg)](https://pypi.org/project/bitneural32/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+A Python library for training, quantizing, and compiling neural networks to ultra-efficient 1.58-bit (ternary) format for deployment on ESP32 microcontrollers.
+
+> See also: [BitNeural32 Inference Library](https://github.com/aizhee/arduino-bitneural32)
+
+## Features
+
+**1.58-Bit Quantization**: Extreme compression—weights packed as 2-bit values (4 weights per byte) using ternary {-1, 0, 1}
+
+**Quantization-Aware Training (QAT)**: Custom Keras layers that apply quantization during training for better post-export accuracy
+
+**Production-Ready Compiler**: Convert Keras models to optimized C bytecode with automatic weight flattening, packing, and metadata generation
+
+**Inference Metrics**: Estimate inference time, RAM usage, and Flash size for different ESP32 variants (ESP32, ESP32-S3, ESP32-C3)
+
+**15+ Layer Types**: Dense, Conv1D, Conv2D, LSTM, GRU, ReLU, LeakyReLU, Softmax, Sigmoid, Tanh, MaxPooling1D, Flatten, Dropout, and more
+
+**Type Safe**: Full Python 3.9+ support with comprehensive type hints
+
+## Installation
+
+### From PyPI (recommended)
+
+```bash
+pip install bitneural32
+```
+
+### Requirements
+
+- **Python**: 3.9 or higher
+- **Keras**: 3.0+
+- **TensorFlow**: 2.16+ (or standalone Keras 3.x)
+- **NumPy**: 1.21+
+
+## Quick Start
+
+### 1. Train with Quantization-Aware Training (Recommended)
+
+```python
+import numpy as np
+import keras
+from bitneural32.qat import TernaryDense, TernaryConv1D
+
+# Build a QAT model
+model = keras.Sequential([
+    TernaryConv1D(filters=32, kernel_size=5, padding='same', input_shape=(100, 1)),
+    keras.layers.ReLU(),
+    keras.layers.MaxPooling1D(2),
+    keras.layers.Flatten(),
+    TernaryDense(64),
+    keras.layers.ReLU(),
+    TernaryDense(10, activation='softmax')
+])
+
+# Train normally—quantization happens automatically
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+X_train = np.random.randn(1000, 100, 1).astype('float32')
+Y_train = keras.utils.to_categorical(np.random.randint(0, 10, 1000), 10)
+model.fit(X_train, Y_train, epochs=10, batch_size=32, verbose=1)
+
+# Save for export
+model.save('qat_model.keras')
+```
+
+### 2. Compile to ESP32 Bytecode
+
+```python
+from bitneural32.compiler import BitNeuralCompiler
+
+# Load and compile
+compiler = BitNeuralCompiler(board_type='ESP32-S3')
+compiled_model = keras.models.load_model('qat_model.keras')
+compiler.compile_model(compiled_model, input_data=X_train)
+compiler.save_c_header('model_data.h', include_metrics=True)
+
+# View metrics
+report = compiler.get_compilation_report()
+print(report)
+```
+
+Output example:
+```
+{
+  "board_type": "ESP32-S3",
+  "total_size_bytes": 24576,
+  "num_layers": 8,
+  "inference_time_ms": 12.5,
+  "ram_usage_bytes": 1024,
+  "total_macs": 2500000,
+  "layers": [...]
+}
+```
+
+### 3. Run on ESP32
+
+Include the generated header in your C firmware:
+
+```c
+#include "BitNeural32.h"
+#include "model_data.h"
+
+void app_main() {
+    bn_init();  // Register all kernels
+    
+    float input[100] = {...};
+    float output[10];
+    
+    bn_run_inference(model_data, input, output);
+    printf("Prediction: %d\n", argmax(output, 10));
+}
+```
+
+## API Reference
+
+### QAT Layers
+
+All custom QAT layers support standard Keras layer interfaces and compile seamlessly:
+
+#### `TernaryDense(units, **kwargs)`
+Fully-connected layer with ternary quantization.
+
+```python
+layer = TernaryDense(64, activation='relu')
+```
+
+#### `TernaryConv1D(filters, kernel_size, strides=1, padding='same', **kwargs)`
+1D convolution optimized for single-channel inputs (e.g., time-series).
+
+```python
+layer = TernaryConv1D(32, kernel_size=5, padding='same')
+```
+
+#### `TernaryConv2D(filters, kernel_size, strides=1, padding='same', **kwargs)`
+2D convolution supporting multi-channel inputs and outputs.
+
+```python
+layer = TernaryConv2D(16, kernel_size=3, padding='same')
+```
+
+#### `TernaryLSTM(units, return_sequences=False, **kwargs)`
+LSTM recurrent layer with quantized weights and float32 biases.
+
+```python
+layer = TernaryLSTM(32, return_sequences=True)
+```
+
+#### `TernaryGRU(units, return_sequences=False, **kwargs)`
+GRU recurrent layer with quantized weights and float32 biases.
+
+```python
+layer = TernaryGRU(32, return_sequences=False)
+```
+
+### Compiler API
+
+#### `BitNeuralCompiler(model=None, board_type='ESP32')`
+
+**Parameters**:
+- `board_type` (str): Target ESP32 variant ('ESP32', 'ESP32-S3', 'ESP32-C3')
+
+**Methods**:
+
+- `compile_model(model, input_data=None, allow_metrics=False)`: Compile a Keras model
+- `save_c_header(filepath, include_metrics=False)`: Export to C header file
+- `get_compilation_report()`: Get human-readable report (dict)
+- `export_model(filepath, allow_metrics=False)`: Convenience export function
+
+**Example**:
+```python
+compiler = BitNeuralCompiler(board_type='ESP32-S3')
+compiler.compile_model(model, input_data=X_train, allow_metrics=True)
+compiler.save_c_header('model.h', include_metrics=True)
+```
+
+### Quantization Utilities
+
+#### `quantize_weights_ternary(weights)`
+Quantize float32 weights to {-1, 0, 1} using median-based thresholding.
+
+```python
+from bitneural32.quantize import quantize_weights_ternary
+quantized = quantize_weights_ternary(np.random.randn(100, 100))
+```
+
+#### `pack_weights_2bit(quantized_weights)`
+Pack ternary weights into 2-bit format (4 weights per byte).
+
+```python
+from bitneural32.quantize import pack_weights_2bit
+packed = pack_weights_2bit(quantized)
+```
+
+## Architecture Overview
+
+### Quantization Strategy
+
+BitNeural32 uses **ternary quantization**:
+
+1. **Median-based thresholding**: Set threshold = median(|weights|)
+2. **Ternary encoding**: 
+   - Weight > threshold → 1
+   - Weight < -threshold → -1
+   - Otherwise → 0
+3. **2-bit packing**: 4 weights per byte (2 bits each)
+
+**Encoding**:
+- `00` → 0
+- `01` → 1
+- `10` → -1
+- `11` → reserved
+
+### QAT Training
+
+Quantization-aware training applies quantization in-the-loop:
+
+1. **Forward pass**: Weights quantized to {-1, 0, 1} with learnable scale
+2. **Backward pass**: Straight-through estimator (STE) for gradient computation
+3. **Result**: Network adapts to quantization → 2-5% higher accuracy after export
+
+### Compilation Pipeline
+
+```
+Keras Model
+    ↓
+[Per-Layer Compilation]
+    ↓
+Weight Flattening (layer-specific order)
+    ↓
+Ternary Quantization + 2-Bit Packing
+    ↓
+Binary Blob Generation
+    ↓
+C Header Export
+    ↓
+model_data.h (ready for ESP32 inclusion)
+```
+
+## Performance Characteristics
+
+### Memory Footprint
+
+**Example: 10→64→32→10 network**
+
+| Format | Size |
+|--------|------|
+| Float32 | 40 KB |
+| Ternary (1.58-bit) | 2.5 KB |
+| **Compression** | **94%** |
+
+### Inference Speed (ESP32 @ 240 MHz)
+
+| Layer Type | Input→Output | Approx. Time |
+|-----------|------------|--------------|
+| Dense | 1000→1000 | 10-50 ms |
+| Conv1D | 100 inputs, 32 filters, kernel 5 | 5-20 ms |
+| Conv2D | 28×28→14×14, 32 filters | 20-100 ms |
+| LSTM | 32 hidden, 50 timesteps | 15-80 ms |
+| Full Network | 10→64→32→10 | 1-5 ms |
+
+## Supported Layers
+
+| Layer | QAT Version | Notes |
+|-------|------------|-------|
+| Dense | TernaryDense | ✅ Full support |
+| Conv1D | TernaryConv1D | ✅ Mono-channel optimized |
+| Conv2D | TernaryConv2D | ✅ Multi-channel support |
+| LSTM | TernaryLSTM | ✅ Quantized kernel & recurrent |
+| GRU | TernaryGRU | ✅ Quantized kernel & recurrent |
+| ReLU | Standard | ✅ No quantization needed |
+| LeakyReLU | Standard | ✅ Works as-is |
+| Softmax | Standard | ✅ Uses float32 for stability |
+| Sigmoid | Standard | ✅ Fast Padé approximation on ESP32 |
+| Tanh | Standard | ✅ Fast Padé approximation on ESP32 |
+| MaxPooling1D | Standard | ✅ No quantization |
+| Flatten | Standard | ✅ Memory layout only |
+| Dropout | Standard | ✅ No-op at inference |
+
+## Tips & Best Practices
+
+### Model Design
+
+- **Start with QAT layers** for better accuracy after quantization
+- **Use smaller models**: Ternary networks benefit from depth over width
+- **Avoid BatchNormalization** before quantized layers (fuse into weights)
+- **Use ReLU/LeakyReLU** for better quantization robustness
+
+### Training
+
+- **Learning rate**: Use 10× lower LR than standard training
+- **Epochs**: Train 20-50% longer to adapt to quantization
+- **Batch size**: 32-128 works well for most models
+- **Monitor accuracy**: QAT models may drop 1-3% initially, then recover
+
+### Compilation
+
+- **Always provide input_data**: Needed for input normalization statistics
+- **Check metrics**: Use `allow_metrics=True` to estimate ESP32 performance
+- **Board selection**: ESP32-S3 has more RAM; ESP32-C3 is power-efficient
+
+### Deployment
+
+- **Test on target hardware**: Simulator timings differ from real ESP32
+- **Use dual-core**: Enable Core 1 for real-time audio/sensor processing
+- **Monitor UART**: Check inference logs for bottlenecks
+
+## Troubleshooting
+
+### "Unsupported layer type"
+
+Make sure you're using QAT versions or standard Keras layers. If custom layer:
+```python
+# Add to compiler mapping
+from bitneural32.compiler import BitNeuralCompiler
+BitNeuralCompiler.LAYER_COMPILER_MAP['MyLayer'] = MyLayerCompiler()
+```
+
+### Model accuracy drops significantly after quantization
+
+- Use QAT layers instead of post-training quantization
+- Train longer (2-3× epochs)
+- Lower learning rate by 10×
+- Use warm-up training (standard float → gradual quantization)
+
+### Compiled model is too large
+
+- Reduce model size (fewer filters/units)
+- Use depthwise separable convolutions
+- Remove dense layers, use global pooling instead
+- Prune weights before compilation
+
+### ESP32 inference is slow
+
+- Check clock speed (set to 240 MHz max)
+- Profile with `bn_run_inference()` timing
+- Use Conv1D instead of Dense for temporal data
+- Consider smaller input resolution
+
+
+## Citation
+
+If you use BitNeural32 in your research, please cite:
+
+```bibtex
+@software{bitneural32,
+  title = {BitNeural32: 1.58-Bit Ternary Neural Network Compiler for ESP32},
+  author = {Aizhee},
+  year = {2025},
+  url = {https://github.com/aizhee/python-bitneural32}
+}
+```
+
+## License
+
+MIT License - See [LICENSE](LICENSE) file for details.
+
+## References
+
+- **BitNet Paper**: [arxiv.org/abs/2310.11453](https://arxiv.org/abs/2310.11453)
+- **Ternary Networks**: [arxiv.org/abs/1605.01740](https://arxiv.org/abs/1605.01740)
+- **ESP32 Docs**: [docs.espressif.com](https://docs.espressif.com)
+- **Keras API**: [keras.io](https://keras.io)
+
+---
+
+
+**Made with ❤️ by Aizhee for embedded machine learning**
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O4O0XNVKI)
