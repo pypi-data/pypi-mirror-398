@@ -1,0 +1,281 @@
+architecture: mapreduce
+
+# Business template configuration
+business_template: codebase_analysis
+
+# Template variables for prompt customization
+codebase: "Project Codebase"
+analysis_focus:
+  - "Code Quality"
+  - "Security"
+  - "Performance"
+  - "Maintainability"
+file_patterns: "**/*.py,**/*.js,**/*.ts"
+
+analysis:
+  max_parallel_mappers: 10       # Maximum parallel analysis tasks
+  chunk_size: 50                 # Files per chunk (auto-adjust based on total)
+  aggregation_strategy: weighted # How to combine results (weighted, average, max)
+  min_confidence: 0.7            # Minimum confidence for reported issues
+  enable_caching: true           # Cache analysis results
+  output_format: structured      # structured, markdown, json
+
+mapreduce_config:
+  mapper:
+    name: code_analyzer
+    role: Analyze code chunks for quality issues, technical debt, and patterns
+    tools:
+      - Read         # Read source files
+      - Bash         # Run static analysis tools
+      - Grep         # Search for patterns
+    analysis_depth: comprehensive  # quick, standard, comprehensive
+
+  reducer:
+    name: results_aggregator
+    role: Aggregate and prioritize analysis results across all chunks
+    capabilities:
+      - Deduplication   # Remove duplicate findings
+      - Prioritization  # Rank by severity and impact
+      - Categorization  # Group by type and location
+      - Trend analysis  # Identify patterns across codebase
+
+  coordinator:
+    name: analysis_coordinator
+    role: Orchestrate analysis workflow and ensure completeness
+    responsibilities:
+      - Intelligent chunking based on file relationships
+      - Load balancing across mappers
+      - Progress tracking
+      - Quality assurance
+
+chunking_strategies:
+  by_module:
+    description: Group files by module/package structure
+    when_to_use: Well-organized codebase with clear modules
+    benefits:
+      - Respects code organization
+      - Better context for analysis
+      - Easier to understand results
+
+  by_file_type:
+    description: Group files by extension/language
+    when_to_use: Multi-language codebase
+    benefits:
+      - Language-specific analysis
+      - Parallel language processing
+      - Specialized tool usage
+
+  by_size:
+    description: Balance chunks by total file size
+    when_to_use: Files vary greatly in size
+    benefits:
+      - Even workload distribution
+      - Predictable execution time
+      - Better resource utilization
+
+  by_git_history:
+    description: Group files by change frequency
+    when_to_use: Focus on frequently changed code
+    benefits:
+      - Prioritize high-risk areas
+      - Find hotspots
+      - Target refactoring efforts
+
+analysis_types:
+  code_quality:
+    enabled: true
+    priority: 1
+    checks:
+      - complexity          # Cyclomatic complexity
+      - duplication         # Code duplication
+      - naming_conventions  # Variable/function naming
+      - code_smells         # Common anti-patterns
+      - documentation       # Missing docstrings/comments
+    tools:
+      - pylint
+      - radon
+      - flake8
+    thresholds:
+      max_complexity: 10
+      max_duplication: 5
+      min_documentation: 0.7
+
+  security:
+    enabled: true
+    priority: 1
+    checks:
+      - sql_injection       # SQL injection vulnerabilities
+      - xss                 # Cross-site scripting
+      - hardcoded_secrets   # Passwords, API keys in code
+      - unsafe_functions    # Dangerous function usage
+      - dependency_vulnerabilities
+    tools:
+      - bandit
+      - safety
+    severity_levels:
+      - critical
+      - high
+      - medium
+      - low
+
+  performance:
+    enabled: true
+    priority: 2
+    checks:
+      - n_plus_one_queries  # Database query patterns
+      - inefficient_loops   # Nested loops, unnecessary iterations
+      - memory_leaks        # Potential memory issues
+      - blocking_operations # Blocking I/O in async code
+    focus_areas:
+      - Database queries
+      - Loop efficiency
+      - Resource management
+
+  maintainability:
+    enabled: true
+    priority: 2
+    checks:
+      - technical_debt      # TODOs, FIXMEs, HACKs
+      - deprecated_usage    # Use of deprecated APIs
+      - dead_code           # Unreachable code
+      - long_methods        # Methods exceeding length limits
+      - god_classes         # Classes with too many responsibilities
+    thresholds:
+      max_method_lines: 50
+      max_class_lines: 300
+      max_parameters: 5
+
+  testing:
+    enabled: true
+    priority: 3
+    checks:
+      - test_coverage       # Code coverage percentage
+      - missing_tests       # Untested critical paths
+      - test_quality        # Assertion count, test isolation
+      - flaky_tests         # Tests with inconsistent results
+    target_coverage: 0.8
+    critical_paths:
+      - Authentication
+      - Payment processing
+      - Data validation
+
+issue_categories:
+  critical:
+    description: Must fix immediately - security/data loss risks
+    examples:
+      - SQL injection vulnerability
+      - Hardcoded production credentials
+      - Memory leak in critical path
+    response_time: immediate
+
+  high:
+    description: Should fix soon - significant quality/performance impact
+    examples:
+      - High cyclomatic complexity (>20)
+      - N+1 query problem
+      - Missing input validation
+    response_time: within_sprint
+
+  medium:
+    description: Plan to fix - technical debt, maintainability
+    examples:
+      - Code duplication
+      - Missing documentation
+      - Long methods (>50 lines)
+    response_time: next_quarter
+
+  low:
+    description: Nice to have - style, minor improvements
+    examples:
+      - Naming convention violations
+      - Missing type hints
+      - Minor code smells
+    response_time: backlog
+
+aggregation_rules:
+  deduplication:
+    enabled: true
+    similarity_threshold: 0.85  # 85% similar = duplicate
+    merge_strategy: highest_severity
+
+  prioritization:
+    criteria:
+      - severity: 0.4      # 40% weight
+      - frequency: 0.3     # 30% weight
+      - impact: 0.2        # 20% weight
+      - fix_effort: 0.1    # 10% weight
+
+  categorization:
+    group_by:
+      - category           # critical, high, medium, low
+      - type              # security, performance, quality
+      - module            # File/module location
+
+  trending:
+    enabled: true
+    time_windows:
+      - last_week
+      - last_month
+      - last_quarter
+    metrics:
+      - New issues introduced
+      - Issues resolved
+      - Net change
+
+output_config:
+  report_format: comprehensive  # brief, standard, comprehensive
+  include_sections:
+    - executive_summary      # High-level overview
+    - critical_issues        # Immediate action items
+    - issue_breakdown        # Detailed breakdown by category
+    - module_health          # Per-module quality scores
+    - trends                 # Historical analysis
+    - recommendations        # Prioritized action items
+    - metrics               # Quantitative metrics
+
+  visualizations:
+    - issue_distribution     # Pie chart by severity
+    - complexity_heatmap     # Module complexity visualization
+    - trend_chart           # Issues over time
+    - coverage_map          # Test coverage visualization
+
+  export_formats:
+    - json                  # Machine-readable
+    - markdown              # Human-readable
+    - html                  # Interactive dashboard
+    - csv                   # Spreadsheet import
+
+models:
+  coordinator: sonnet       # Complex orchestration
+  mapper: haiku            # Fast, parallel analysis
+  reducer: sonnet          # Complex aggregation logic
+
+advanced:
+  incremental_analysis: true    # Only analyze changed files
+  git_integration: true         # Use git history for context
+  baseline_comparison: true     # Compare against previous runs
+  auto_fix_suggestions: true    # Suggest automated fixes
+  confidence_scoring: true      # Score each finding
+
+  performance:
+    timeout_per_chunk: 300      # 5 minutes per chunk
+    max_memory_per_mapper: 1024 # 1GB memory limit
+    retry_on_failure: 3         # Retry failed chunks
+
+  filters:
+    exclude_paths:
+      - "*/tests/*"             # Exclude test files
+      - "*/migrations/*"        # Exclude migrations
+      - "*/build/*"            # Exclude build artifacts
+      - "*/node_modules/*"     # Exclude dependencies
+
+    include_extensions:
+      - .py
+      - .js
+      - .ts
+      - .java
+      - .go
+      - .rb
+
+    min_file_size: 10          # Bytes
+    max_file_size: 1000000     # 1MB

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Timeline - {{ stats.session_id }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #e1e8ed;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 70px;
+            margin-bottom: 30px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 20px 20px 20px 70px;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateX(5px);
+        }
+
+        .timeline-marker {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #3498db;
+        }
+
+        .timeline-marker.session { border-color: #9b59b6; background: #9b59b6; }
+        .timeline-marker.agent { border-color: #2ecc71; background: #2ecc71; }
+        .timeline-marker.tool { border-color: #3498db; }
+        .timeline-marker.error { border-color: #e74c3c; background: #e74c3c; }
+        .timeline-marker.plugin { border-color: #f39c12; }
+
+        .timeline-time {
+            font-size: 12px;
+            color: #95a5a6;
+            margin-bottom: 5px;
+        }
+
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .timeline-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .event-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-session_start { background: #ebdef0; color: #7d3c98; }
+        .badge-session_end { background: #d5d8dc; color: #566573; }
+        .badge-agent_spawn { background: #d5f4e6; color: #229954; }
+        .badge-agent_complete { background: #aed6f1; color: #1f618d; }
+        .badge-tool_call { background: #d6eaf8; color: #2874a6; }
+        .badge-tool_result { background: #d1f2eb; color: #117864; }
+        .badge-error { background: #fadbd8; color: #c0392b; }
+        .badge-plugin_hook { background: #fef5e7; color: #d68910; }
+
+        .timeline-message {
+            color: #5d6d7e;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .timeline-metadata {
+            background: #f8f9fa;
+            border-left: 3px solid #3498db;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #5d6d7e;
+        }
+
+        .metadata-item {
+            margin: 4px 0;
+        }
+
+        .metadata-key {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .filter-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-button {
+            padding: 8px 16px;
+            border: 2px solid #e1e8ed;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #5d6d7e;
+            transition: all 0.2s ease;
+        }
+
+        .filter-button:hover {
+            border-color: #3498db;
+            color: #3498db;
+        }
+
+        .filter-button.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        footer {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 40px;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Session Timeline</h1>
+            <div style="color: #7f8c8d; font-size: 14px;">
+                <strong>Session ID:</strong> {{ stats.session_id or 'N/A' }}<br>
+                <strong>Total Events:</strong> {{ stats.total_events }}<br>
+                <strong>Duration:</strong> {{ "%.2f"|format(stats.duration_seconds or 0) }} seconds
+            </div>
+        </header>
+
+        <div class="filter-bar">
+            <div style="font-weight: 600; color: #2c3e50; display: flex; align-items: center;">Filter:</div>
+            <button class="filter-button active" onclick="filterEvents('all')">All Events</button>
+            <button class="filter-button" onclick="filterEvents('session_start')">Session</button>
+            <button class="filter-button" onclick="filterEvents('agent_spawn')">Agents</button>
+            <button class="filter-button" onclick="filterEvents('tool_call')">Tools</button>
+            <button class="filter-button" onclick="filterEvents('error')">Errors</button>
+            <button class="filter-button" onclick="filterEvents('plugin_hook')">Plugins</button>
+        </div>
+
+        <div class="timeline">
+            {% for event in timeline_data %}
+            <div class="timeline-item" data-event-type="{{ event.event_type }}">
+                {% if 'session' in event.event_type %}
+                <div class="timeline-marker session"></div>
+                {% elif 'agent' in event.event_type %}
+                <div class="timeline-marker agent"></div>
+                {% elif 'tool' in event.event_type %}
+                <div class="timeline-marker tool"></div>
+                {% elif 'error' in event.event_type %}
+                <div class="timeline-marker error"></div>
+                {% elif 'plugin' in event.event_type %}
+                <div class="timeline-marker plugin"></div>
+                {% else %}
+                <div class="timeline-marker"></div>
+                {% endif %}
+
+                <div class="timeline-time">{{ event.timestamp }}</div>
+
+                <div class="timeline-header">
+                    <div class="timeline-title">{{ event.message or event.event_type }}</div>
+                    <span class="event-badge badge-{{ event.event_type }}">{{ event.event_type }}</span>
+                </div>
+
+                {% if event.metadata %}
+                <div class="timeline-metadata">
+                    {% for key, value in event.metadata.items() %}
+                    <div class="metadata-item">
+                        <span class="metadata-key">{{ key }}:</span>
+                        {% if value is mapping %}
+                        <pre style="margin: 5px 0; font-size: 11px;">{{ value|tojson(indent=2) }}</pre>
+                        {% else %}
+                        {{ value }}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <footer>
+            Generated by Claude Agent Framework Observability System<br>
+            <small>{{ timeline_data|length }} events in timeline</small>
+        </footer>
+    </div>
+
+    <script>
+        function filterEvents(eventType) {
+            const items = document.querySelectorAll('.timeline-item');
+            const buttons = document.querySelectorAll('.filter-button');
+
+            // Update button states
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Filter items
+            items.forEach(item => {
+                if (eventType === 'all') {
+                    item.style.display = 'block';
+                } else {
+                    const itemType = item.getAttribute('data-event-type');
+                    item.style.display = itemType.includes(eventType) ? 'block' : 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

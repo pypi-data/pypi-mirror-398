@@ -1,0 +1,88 @@
+# PR Code Review Pipeline Configuration
+
+# Architecture to use
+architecture: pipeline
+
+# Business template configuration
+business_template: pr_code_review
+
+# Template variables for prompt customization
+repository: "Project Repository"
+pr_number: ""
+review_focus:
+  - "Code Quality"
+  - "Security"
+  - "Performance"
+  - "Style Compliance"
+
+# Review stages (executed sequentially)
+stages:
+  - name: "architecture_review"
+    description: "Analyze design patterns, dependencies, and architecture"
+    required: true
+    timeout: 300  # seconds
+
+  - name: "code_quality"
+    description: "Check code style, complexity, and maintainability"
+    required: true
+    timeout: 180
+
+  - name: "security_scan"
+    description: "Scan for security vulnerabilities (SAST)"
+    required: true
+    timeout: 240
+
+  - name: "performance_analysis"
+    description: "Analyze performance impact and bottlenecks"
+    required: false  # Optional stage
+    timeout: 180
+
+  - name: "test_coverage"
+    description: "Validate test coverage and quality"
+    required: true
+    timeout: 120
+
+# PR source configuration
+pr_source:
+  # Option 1: GitHub PR URL
+  # pr_url: "https://github.com/owner/repo/pull/123"
+
+  # Option 2: Local directory with changes
+  local_path: "."
+
+  # Git comparison (for local analysis)
+  base_branch: "main"
+  compare_branch: "HEAD"
+
+# Analysis configuration
+analysis:
+  # Code quality thresholds
+  max_complexity: 10
+  max_function_length: 50
+  max_file_length: 500
+
+  # Test coverage threshold
+  min_coverage: 80  # percentage
+
+  # Security scan settings
+  security_severity_threshold: "medium"  # low, medium, high, critical
+
+# Output configuration
+output:
+  directory: "outputs"
+  format: "markdown"  # json, markdown, pdf
+  include_details: true
+  include_recommendations: true
+
+# Model configuration
+models:
+  lead: "sonnet"    # Lead agent model
+  agents: "haiku"   # Stage agents model
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/pr_review.log"
+
+# Failure strategy
+failure_strategy: "stop_on_critical"  # stop_on_critical, continue_on_error, stop_on_any

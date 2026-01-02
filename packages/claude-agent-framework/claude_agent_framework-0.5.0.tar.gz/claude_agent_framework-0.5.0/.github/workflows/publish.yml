@@ -1,0 +1,57 @@
+name: Build and Publish to PyPI
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Publish environment'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - prod
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Add UV to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Build distribution
+        run: uv build
+
+      - name: Display built files
+        run: ls -lh dist/
+
+      - name: Publish to TestPyPI
+        if: |
+          (github.event_name == 'release') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'test')
+        env:
+          UV_PUBLISH_USERNAME: __token__
+          UV_PUBLISH_PASSWORD: ${{ secrets.TESTPYPI_API_TOKEN }}
+        run: uv publish --index-url https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: |
+          (github.event_name == 'release' && !github.event.release.prerelease) ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+        env:
+          UV_PUBLISH_USERNAME: __token__
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish

@@ -1,0 +1,221 @@
+# IT Support Platform Configuration
+# Uses Specialist Pool architecture for intelligent issue routing
+
+architecture: specialist_pool
+
+# Business template configuration
+business_template: it_support
+
+# Template variables for prompt customization
+organization: "TechCorp IT"
+support_level: "Tier 2"
+sla_priority: "standard"
+
+# Specialist configuration
+specialists:
+  # Network specialist
+  - name: "network_specialist"
+    description: "Network infrastructure, connectivity, VPN, firewalls, DNS"
+    keywords:
+      - "network"
+      - "connectivity"
+      - "vpn"
+      - "firewall"
+      - "dns"
+      - "ip address"
+      - "subnet"
+      - "router"
+      - "switch"
+      - "wifi"
+      - "ethernet"
+      - "ping"
+      - "traceroute"
+    priority: 1  # 1=highest, 5=lowest
+
+  # Database specialist
+  - name: "database_specialist"
+    description: "Database administration, SQL, performance tuning, backups"
+    keywords:
+      - "database"
+      - "sql"
+      - "query"
+      - "table"
+      - "index"
+      - "backup"
+      - "restore"
+      - "mysql"
+      - "postgresql"
+      - "mongodb"
+      - "performance"
+      - "slow query"
+    priority: 1
+
+  # Security specialist
+  - name: "security_specialist"
+    description: "Security incidents, access control, authentication, compliance"
+    keywords:
+      - "security"
+      - "breach"
+      - "vulnerability"
+      - "authentication"
+      - "authorization"
+      - "access"
+      - "permission"
+      - "password"
+      - "mfa"
+      - "ssl"
+      - "certificate"
+      - "encryption"
+      - "compliance"
+    priority: 1
+
+  # Cloud specialist
+  - name: "cloud_specialist"
+    description: "AWS, Azure, GCP, cloud infrastructure, containers, Kubernetes"
+    keywords:
+      - "cloud"
+      - "aws"
+      - "azure"
+      - "gcp"
+      - "ec2"
+      - "s3"
+      - "lambda"
+      - "kubernetes"
+      - "k8s"
+      - "docker"
+      - "container"
+      - "deployment"
+    priority: 2
+
+  # Application specialist
+  - name: "application_specialist"
+    description: "Application errors, API issues, service outages"
+    keywords:
+      - "application"
+      - "app"
+      - "api"
+      - "service"
+      - "error"
+      - "exception"
+      - "crash"
+      - "timeout"
+      - "500"
+      - "404"
+      - "deployment"
+    priority: 2
+
+  # DevOps specialist
+  - name: "devops_specialist"
+    description: "CI/CD, automation, infrastructure as code, monitoring"
+    keywords:
+      - "devops"
+      - "ci/cd"
+      - "jenkins"
+      - "github actions"
+      - "terraform"
+      - "ansible"
+      - "monitoring"
+      - "logging"
+      - "alerting"
+      - "prometheus"
+      - "grafana"
+    priority: 3
+
+  # General IT specialist (fallback)
+  - name: "general_it_specialist"
+    description: "General IT support, hardware, software, user issues"
+    keywords:
+      - "laptop"
+      - "desktop"
+      - "printer"
+      - "email"
+      - "outlook"
+      - "microsoft"
+      - "windows"
+      - "mac"
+      - "install"
+      - "update"
+    priority: 5
+
+# Routing configuration
+routing:
+  # Routing strategy
+  strategy: "keyword_match"  # keyword_match, ml_classification, hybrid
+
+  # Minimum keyword matches to route to specialist
+  min_keyword_matches: 1
+
+  # Allow multiple specialists for cross-domain issues
+  allow_multiple: true
+
+  # Max specialists to route to
+  max_specialists: 3
+
+  # Fallback to general specialist if no matches
+  use_fallback: true
+
+# Issue categorization
+categorization:
+  urgency_levels:
+    - name: "critical"
+      sla_hours: 1
+      keywords: ["down", "outage", "breach", "critical", "emergency"]
+
+    - name: "high"
+      sla_hours: 4
+      keywords: ["urgent", "production", "customer-facing"]
+
+    - name: "medium"
+      sla_hours: 24
+      keywords: ["bug", "issue", "problem"]
+
+    - name: "low"
+      sla_hours: 72
+      keywords: ["request", "question", "enhancement"]
+
+# Response template
+response_template:
+  include_diagnosis: true
+  include_steps: true
+  include_prevention: true
+  include_escalation: false
+
+# Model configuration
+models:
+  lead: "sonnet"        # Lead coordinator
+  specialists: "haiku"  # Individual specialists (can be faster/cheaper)
+
+# Output configuration
+output:
+  directory: "outputs"
+  format: "markdown"  # json, markdown, pdf
+
+  # Include specialist routing info
+  include_routing: true
+
+  # Include detailed analysis
+  include_analysis: true
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/it_support.log"
+
+# Example issues for testing
+example_issues:
+  - title: "VPN connection keeps dropping"
+    description: |
+      Users are reporting intermittent VPN disconnections every 10-15 minutes.
+      Affects about 20 remote employees. Started this morning around 9 AM.
+      No recent network changes were made.
+
+  - title: "Database query performance degradation"
+    description: |
+      Customer dashboard loading very slowly (30+ seconds).
+      Looking at logs, several SQL queries are taking 10x longer than normal.
+      Database CPU usage is at 85%. No schema changes recently.
+
+  - title: "Suspicious login attempts detected"
+    description: |
+      Security alerts showing 500+ failed login attempts from unusual IP addresses
+      in the past hour. Targeting admin accounts. Need to investigate and block.
