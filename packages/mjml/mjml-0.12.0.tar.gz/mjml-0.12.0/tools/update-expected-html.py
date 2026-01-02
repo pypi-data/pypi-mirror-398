@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""
+usage: update-expected-html.py [-h] [--single-process] DATA_DIR
+
+Script to update "...-expected.html" test data files with output from mjml
+reference implementation (NodeJS).
+
+positional arguments:
+  DATA_DIR
+
+options:
+  -h, --help        show this help message and exit
+  --single-process  run HTML generation in a single process (slower but easier
+                    to debug)
+"""
+
+import argparse
+import os
+import random
+import re
+import subprocess
+import sys
+from collections.abc import Iterator
+from multiprocessing import Pool
+from pathlib import Path
+from typing import NamedTuple
+
+
+class Job(NamedTuple):
+    mjml_path: str
+    expected_path: str
+    mjml_bin: str
+    keep_comments: bool
+
+
+_THIS_DIR = Path(__file__).parent
+SCRIPT_GENERATE_CUSTOM_COMPONENT = _THIS_DIR / 'create-expected-html-for-custom-component.js'
+
+
+def jobs_for_file(mjml_path: Path, mjml_js: str) -> Iterator[Job]:
+    yield _job_for_file(mjml_path, mjml_js, keep_comments=True)
+    test_id = mjml_path.stem
+    if test_id == 'mjml-comment-merging':
+        yield _job_for_file(mjml_path, mjml_js, keep_comments=False)
+
+def _job_for_file(mjml_path: Path, mjml_js: str, *, keep_comments: bool) -> Job:
+    suffix = '.keep-comments=false' if not keep_comments else ''
+    expected_path = mjml_path.parent / (mjml_path.stem + f'-expected{suffix}.html')
+    return Job(
+        str(mjml_path.resolve()),
+        str(expected_path.resolve()),
+        mjml_bin = mjml_js,
+        keep_comments=keep_comments,
+    )
+
+def _gather_data_files_in_directory(source_dir):
+    for mjml_path in source_dir.glob('*.mjml'):
+        if mjml_path.name.startswith('_'):
+            # "_header.mjml" / "_footer.mjml"
+            continue
+        yield mjml_path
+
+def _gather_jobs(source_path, mjml_js: str) -> Iterator[Job]:
+    if isinstance(source_path, str):
+        source_path = Path(source_path)
+
+    if source_path.is_dir():
+        for mjml_path in _gather_data_files_in_directory(source_path):
+            yield from jobs_for_file(mjml_path, mjml_js)
+    else:
+        assert source_path.suffix == '.mjml'
+        yield from jobs_for_file(source_path, mjml_js)
+
+def _update_expected_html(job):
+    mjml_cmd = str(job.mjml_bin)
+    mjml_basename = os.path.basename(job.mjml_path)
+
+    # Special case: To generate the custom components HTML, we need to insert
+    # a custom JS module which is done by the nodejs helper script.
+    if 'custom' in mjml_basename:
+        cmd = ['node', str(SCRIPT_GENERATE_CUSTOM_COMPONENT), job.mjml_path, job.expected_path]
+    else:
+        cmd = [mjml_cmd, job.mjml_path, '-o', job.expected_path]
+        if not job.keep_comments:
+            cmd.insert(2, '--config.keepComments=false')
+    subprocess.run(cmd)
+
+    _replace_random_ids_if_needed(job, mjml_basename)
+
+
+def _generate_deterministic_ids(count: int) -> list[str]:
+    state = random.getstate()
+    random.seed(42)
+    ids = []
+    for _ in range(count):
+        ids.append(''.join(random.choices('0123456789abcdef', k=16)))
+    random.setstate(state)
+    return ids
+
+
+def _replace_random_ids_if_needed(job: Job, mjml_basename: str) -> None:
+    if mjml_basename not in ('mj-navbar.mjml', 'mj-carousel.mjml'):
+        return
+    expected_path = Path(job.expected_path)
+
+    html = expected_path.read_text(encoding='utf-8')
+
+    _patterns = {
+        'mj-navbar.mjml': r'id="([a-f0-9]{16})" class="mj-menu-checkbox"',
+        'mj-carousel.mjml': r'mj-carousel-radio-([a-f0-9]{16})',
+    }
+    pattern = _patterns[mjml_basename]
+    id_matches = re.findall(pattern, html)
+    unique_ids = list(dict.fromkeys(id_matches))  # preserve order, remove duplicates
+    deterministic_ids = _generate_deterministic_ids(len(unique_ids))
+    id_mapping = dict(zip(unique_ids, deterministic_ids))
+    if mjml_basename == 'mj-navbar.mjml':
+        for upstream_id, deterministic_id in id_mapping.items():
+            html = html.replace(f'id="{upstream_id}"', f'id="{deterministic_id}"')
+            html = html.replace(f'for="{upstream_id}"', f'for="{deterministic_id}"')
+    elif mjml_basename == 'mj-carousel.mjml':
+        for upstream_id, deterministic_id in id_mapping.items():
+            html = html.replace(upstream_id, deterministic_id)
+
+    expected_path.write_text(html, encoding='utf-8')
+
+
+def detect_mjml_js() -> str:
+    if 'MJML' in os.environ:
+        return os.environ['MJML']
+    sys.stderr.write('unable to detect mjml executable, use env variable MJML\n')
+    sys.exit(20)
+
+def main(argv=sys.argv):
+    parser = argparse.ArgumentParser(
+        description='''
+            Script to update "...-expected.html" test data files with output from
+            mjml reference implementation (NodeJS).''',
+    )
+    parser.add_argument('--single-process', action='store_true',
+        help='run HTML generation in a single process (slower but easier to debug)')
+    parser.add_argument('data_dir', metavar='DATA_DIR', type=str)
+    args = parser.parse_args(args=argv[1:])
+    input_ = args.data_dir
+
+    mjml_js = detect_mjml_js()
+
+    # ensure we are using the expected mjml version
+    subprocess.run([str(mjml_js), '--version'])
+
+    jobs = tuple(_gather_jobs(input_, mjml_js))
+    if not jobs:
+        sys.stderr.write('no mjml files found...\n')
+    if args.single_process:
+        num_processes = 1
+    else:
+        num_cpus = os.cpu_count() or 1
+        num_processes = max(len(jobs) // 2, num_cpus)
+
+    if num_processes == 1:
+        for job in jobs:
+            _update_expected_html(job)
+    else:
+        with Pool(num_processes) as p:
+            p.map(_update_expected_html, jobs)
+
+
+if __name__ == '__main__':
+    main()

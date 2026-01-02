@@ -1,0 +1,347 @@
+from collections.abc import Callable, Mapping, Sequence
+from io import BytesIO, StringIO
+from pathlib import Path, PurePath
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypeVar, Union
+
+from bs4 import BeautifulSoup, Comment
+from dotmap import DotMap
+
+from mjml.elements.head._head_base import HeadComponent
+
+from .core import initComponent
+from .core.registry import register_components, register_core_components
+from .helpers import json_to_xml, mergeOutlookConditionals, omit, skeleton_str as default_skeleton
+from .lib import merge_dicts
+
+
+if TYPE_CHECKING:
+    from _typeshed import StrPath, SupportsRead
+
+    from mjml.core.api import Component
+    T = TypeVar("T")
+
+
+class ParseResult(NamedTuple):
+    html: str
+    errors: Sequence[str]
+
+
+FpOrJson = Union[Mapping[str, Any], str, bytes, "SupportsRead[str]", "SupportsRead[bytes]"]
+
+
+def mjml_to_html(
+    xml_fp_or_json: FpOrJson,
+    skeleton: Optional[str] = None,
+    template_dir: Optional["StrPath"] = None,
+    custom_components: Optional[Sequence[type["Component"]]] = None,
+    keep_comments: bool = True,
+) -> ParseResult:
+    register_core_components()
+
+    if isinstance(xml_fp_or_json, dict):
+        xml_fp = StringIO(json_to_xml(xml_fp_or_json))
+    elif isinstance(xml_fp_or_json, str):
+        xml_fp = StringIO(xml_fp_or_json)
+    else:
+        xml_fp = xml_fp_or_json
+
+    if template_dir is None and hasattr(xml_fp, 'name'):
+        template_dir = Path(xml_fp.name).parent
+
+    mjml_doc = BeautifulSoup(xml_fp, 'html.parser')
+
+    if (mjml_root := mjml_doc.mjml) is None:
+        raise ValueError(f"could not parse '{xml_fp.name}'")
+
+    skeleton_path = skeleton
+    if skeleton_path:
+        raise NotImplementedError('not yet implemented')
+    skeleton_func = default_skeleton
+
+    if custom_components:
+        register_components(custom_components)
+
+    fonts = {
+      'Open Sans': 'https://fonts.googleapis.com/css?family=Open+Sans:300,400,500,700',
+      'Droid Sans': 'https://fonts.googleapis.com/css?family=Droid+Sans:300,400,500,700',
+      'Lato': 'https://fonts.googleapis.com/css?family=Lato:300,400,500,700',
+      'Roboto': 'https://fonts.googleapis.com/css?family=Roboto:300,400,500,700',
+      'Ubuntu': 'https://fonts.googleapis.com/css?family=Ubuntu:300,400,500,700',
+    }
+    # LATER: ability to override fonts via **options
+
+    mjml_lang = mjml_root.attrs.get('lang', 'und')
+    mjml_dir = mjml_root.attrs.get('dir', 'auto')
+    globalDatas: Mapping[str, Any] = DotMap({
+        'backgroundColor'    : None,
+        'breakpoint'         : '480px',
+        'classes'            : {},
+        'classesDefault'     : {},
+        'defaultAttributes'  : {},
+        'htmlAttributes'     : {},
+        'fonts'              : fonts,
+        'inlineStyle'        : [],
+        'headStyle'          : {},
+        'componentsHeadStyle': [],
+        'headRaw'            : [],
+        'lang'               : mjml_lang,
+        'dir_'               : mjml_dir,
+        'mediaQueries'       : {},
+        'preview'            : '',
+        'style'              : [],
+        'title'              : '',
+    })
+
+    # "validationLevel" is not used but available upstream - makes it easier to
+    # match the line of code with the upstream sources.
+    validationLevel = 'skip' # noqa: F841
+    errors: list[str] = []
+    # LATER: optional validation
+
+    mjBody = _find_child(mjml_root, 'mj-body')
+    if not mjBody:
+        raise ValueError('Did not find <mj-body>!')
+    mjHead = _find_child(mjml_root, 'mj-head')
+
+    def processing(node: Optional[Any], context: dict[str, Any],
+                   parseMJML: Optional[Callable[[Any], Any]]=None) -> Optional[str]:
+        if node is None:
+            return None
+        # LATER: upstream passes "parseMJML=identity" for head components
+        # but we can not process lxml nodes here. applyAttributes() seems to do
+        # the right thing though...
+        _mjml_data = parseMJML(node) if parseMJML else applyAttributes(node)
+        initialDatas = merge_dicts(_mjml_data, {'context': context})
+        node_tag = getattr(node, 'name', None)
+        component = initComponent(name=node_tag, **initialDatas)
+        if not component:
+            return None
+        if isinstance(component, HeadComponent):
+            return component.handler()
+        elif not hasattr(component, 'render'):
+            raise AssertionError('component has no render() method')
+        return component.render()
+
+    def applyAttributes(mjml_element: Any) -> dict[str, Any]:
+        if len(mjml_element) == 0:
+            return {}
+
+        def parse(_mjml, parentMjClass: str='', *, template_dir: str) -> Any:
+            tagName = _mjml.name
+            if isinstance(_mjml, Comment) and keep_comments:
+                comment_text = str(_mjml)
+                return {
+                    'tagName': 'mj-raw',
+                    'content': f'<!--{comment_text}-->',
+                    'attributes': {},
+                    'globalAttributes': {},
+                    'children': [],
+                }
+            is_tag = isinstance(tagName, str)
+            if not is_tag:
+                # could be NavigableString (text/whitespace), etc.
+                return None
+            attributes = _mjml.attrs
+            children = [child for child in _mjml]
+            classes = ignore_empty(attributes.get('mj-class', '').split(' '))
+
+            # upstream parses text contents (+ comments) in mjml-parser-xml/index.js
+            content = _mjml.decode_contents()
+
+            attributesClasses = {}
+
+            for css_class in classes:
+                mjClassValues = globalDatas.get("classes").get(css_class)
+                if mjClassValues:
+                    attributesClasses.update(mjClassValues)
+
+            parent_mj_classes = ignore_empty(parentMjClass.split(' '))
+
+            def default_attr_classes(value: Any) -> Any:
+                return globalDatas.get("classesDefault").get(value, {}).get(tagName, {})
+
+            defaultAttributesForClasses = merge_dicts(*map(default_attr_classes, parent_mj_classes))
+            nextParentMjClass = attributes.get('mj-class', parentMjClass)
+
+            _attrs_omit = omit(attributes, 'mj-class')
+            _returned_attributes = merge_dicts(
+                globalDatas.get("defaultAttributes").get(tagName, {}),
+                attributesClasses,
+                defaultAttributesForClasses,
+                _attrs_omit,
+            )
+
+            if tagName == 'mj-include':
+                mj_include_subtree = handle_include(attributes['path'],
+                                                    parse_mjml=parse,
+                                                    template_dir=template_dir)
+                return mj_include_subtree
+            result = {
+                'tagName': tagName,
+                'content': content,
+                'attributes': _returned_attributes,
+                'globalAttributes': globalDatas.get("defaultAttributes").get('mj-all', {}).copy(),
+                'children': [], # will be set afterwards
+            }
+            _parse_mjml = lambda mjml: parse(mjml, nextParentMjClass, template_dir=template_dir)
+            for child_result in _map_to_tuple(children, _parse_mjml, filter_none=True):
+                if isinstance(child_result, (tuple, list)):
+                    result['children'].extend(child_result)
+                else:
+                    result['children'].append(child_result)
+            return result
+
+        return parse(mjml_element, template_dir=template_dir)
+
+    def addHeadStyle(identifier, headStyle):
+        globalDatas["headStyle"][identifier] = headStyle
+
+    def addMediaQuery(className, parsedWidth, unit):
+        width_str = f'{parsedWidth}{unit}'
+        width_css = f'{{ width:{width_str} !important; max-width: {width_str}; }}'
+        globalDatas["mediaQueries"][className] = width_css
+
+    def addComponentHeadSyle(headStyle):
+        globalDatas["componentsHeadStyle"].append(headStyle)
+
+    def setBackgroundColor(color):
+        globalDatas["backgroundColor"] = color
+
+    bodyHelpers = dict(
+        addHeadStyle = addHeadStyle,
+        addMediaQuery = addMediaQuery,
+        addComponentHeadSyle = addComponentHeadSyle,
+        setBackgroundColor = setBackgroundColor,
+        backgroundColor = lambda node, context: processing(node, context, applyAttributes),
+        globalData = globalDatas,
+        lang = mjml_lang,
+        dir_ = mjml_dir,
+    )
+
+    def _head_data_add(attr, *params):
+        if attr not in globalDatas:
+            param_str = ''.join(params) if isinstance(params, list) else params
+            exc_msg = f'A mj-head element add an unknown head attribute: {attr} with params {param_str}' # noqa: E501
+            raise ValueError(exc_msg)
+
+        current_attr_value = globalDatas[attr]
+        if isinstance(current_attr_value, (list, tuple)):
+            current_attr_value.extend(params)
+        elif len(params) == 1:
+            assert len(params) == 1
+            globalDatas[attr] = params[0]
+        else:
+            param_key, *param_values = params
+            assert param_key not in current_attr_value, 'Not yet implemented'
+            assert len(param_values) == 1, 'shortcut in implementation'
+            current_attr_value[param_key] = param_values[0]
+
+    headHelpers = dict(
+        add = _head_data_add,
+    )
+    globalDatas["headRaw"] = processing(mjHead, headHelpers)
+    content = processing(mjBody, bodyHelpers, applyAttributes)
+    if content is None:
+        raise ValueError('No <mj-body> content generated!')
+
+    if attrs := globalDatas.get("htmlAttributes"):
+        contentSoup = BeautifulSoup(content, 'html.parser')
+        for selector, data in attrs.items():
+            for attrName, value in data.items():
+                for element in contentSoup.select(selector):
+                    element[attrName] = value or ''
+
+        content = contentSoup.decode_contents()
+
+    content = skeleton_func(
+        content=content,
+        # upstream just passes this extra key to skeleton() as JavaScript
+        # won't complain about additional parameters.
+        **omit(globalDatas, ('classesDefault', 'htmlAttributes')),
+    )
+    # LATER: upstream has also beautify
+    # LATER: upstream has also minify
+
+    if len(globalDatas.get("inlineStyle")) > 0:
+        try:
+            import css_inline
+        except ImportError:
+            raise ImportError('CSS inlining is an optional feature. Run `pip install -e ".[css_inlining]"` to install the required dependencies.') # noqa: E501
+
+        extra_css = ''.join(globalDatas.get("inlineStyle"))
+        inliner = css_inline.CSSInliner(
+            extra_css=extra_css,
+            inline_style_tags=False,
+            keep_link_tags=True,
+            keep_style_tags=True,
+            load_remote_stylesheets=False,
+        )
+        content = inliner.inline(content)
+
+    content = mergeOutlookConditionals(content)
+
+    return ParseResult(
+        html=content,
+        errors=errors,
+    )
+
+
+def _find_child(parent, tagName: str) -> Optional[Any]:
+    # upstream uses lodash's find() which only searches direct children
+    for child in parent.children:
+        if getattr(child, 'name', None) == tagName:
+            return child
+    return None
+
+
+def ignore_empty(values: Sequence[Optional["T"]]) -> Sequence["T"]:
+    result: list["T"] = []
+    for value in values:
+        if value:
+            result.append(value)
+    return tuple(result)
+
+
+def _map_to_tuple(items, map_fn, filter_none=None):
+    results = []
+    for item in items:
+        result = map_fn(item)
+        if filter_none and (result is None):
+            continue
+        results.append(result)
+    return tuple(results)
+
+
+def handle_include(path_value, parse_mjml, *, template_dir):
+    path = PurePath(path_value)
+    if path.is_absolute():
+        included_path = path
+    elif template_dir:
+        included_path = template_dir / path
+    else:
+        included_path = path
+    # Upstream mjml does not raise an error if the included file was not found.
+    # Instead they generate a HTML comment with a failure notice.
+    # using plain "open()" call because "PurePath" does not support ".open()"
+    with open(included_path, 'rb') as fp:
+        included_bytes = fp.read()
+    # Need to load the included file as binary - otherwise non-ascii characters
+    # in utf8-encoded include files were messed up on Windows.
+    # Not sure what happens if lxml needs to handle non-utf8 contents but it
+    # works for me at least for utf8 now.
+    if b'<mjml>' not in included_bytes:
+        included_bytes = b'<mjml><mj-body>' + included_bytes + b'</mj-body></mjml>'
+    # lxml does not like non-ascii StringIO input but utf8-encoded BytesIO works
+    # seen with pypy3 7.3.1, lxml 4.6.3 (Fedora 34)
+    fp_included = BytesIO(included_bytes)
+    mjml_doc = BeautifulSoup(fp_included, 'html.parser')
+    _body = mjml_doc('mj-body')
+    _head = mjml_doc('mj-head')
+    assert (not _head), '<mj-head> within <mj-include> not yet implemented '
+    assert _body
+
+    if _body:
+        body_result = parse_mjml(_body[0], template_dir=included_path.parent)
+        assert body_result['tagName'] == 'mj-body'
+        included_items = body_result['children']
+        return included_items
