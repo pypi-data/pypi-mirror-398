@@ -1,0 +1,321 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2023 Anggit Arfanto
+
+from .exceptions import BadRequest, MethodNotAllowed, NotFound
+from .lib.http_protocol import HTTPProtocol
+from .lib.http_response import CONNECTIONS
+from .lib.sse import SSE
+from .lib.websocket import WebSocket
+
+
+class HTTPServer(HTTPProtocol):
+    async def _connection_made(self):
+        for _, func in self.app.hooks['connect']:
+            if await func(**self.server):
+                break
+
+    async def _connection_lost(self, exc):
+        try:
+            for _, func in reversed(self.app.hooks['close']):
+                if await func(**self.server):
+                    break
+        except Exception as e:
+            self.print_exception(e, '_connection_lost')
+        finally:
+            super().connection_lost(exc)
+
+    def connection_made(self, transport):
+        super().connection_made(transport)
+
+        if self.app.hooks['connect']:
+            self.events['connect'] = self.create_task(self._connection_made())
+            self.app.add_task(self.events['connect'])
+
+    def connection_lost(self, exc):
+        if self.app.hooks['close']:
+            task = self.app.create_task(self._connection_lost(exc))
+            self.loop.call_at(
+                self.loop.time() + self.options['app_close_timeout'],
+                task.cancel
+            )
+        else:
+            super().connection_lost(exc)
+
+    async def run_middlewares(self, name, reverse=False, step=1):
+        if self.is_closing():
+            return
+
+        middlewares = self.app.middlewares[self.server['prefix']][name]
+
+        if reverse and self.server['next'] != -1:
+            self.server['next'] = len(middlewares) - 1
+            step = -1
+
+        while -1 < self.server['next'] < len(middlewares):
+            middleware = middlewares[self.server['next']]
+
+            if await self._handle_middleware(middleware[1], middleware[2]):
+                if reverse:
+                    self.server['next'] = -1
+                else:
+                    self.server['next'] = len(middlewares)
+
+                return True
+
+            self.server['next'] += step
+
+    async def _handle_middleware(self, func, kwargs):
+        response = self.server['response']
+        options = response.request.context.options
+        options.update(kwargs)
+
+        data = await func(**self.server)
+
+        if data is None:
+            return False
+
+        if isinstance(data, (bytes, bytearray, str, tuple)):
+            if 'status' in options:
+                response.set_status(*options['status'])
+
+            if 'content_type' in options:
+                response.set_content_type(options['content_type'])
+
+            encoding = ('utf-8',)
+
+            if isinstance(data, tuple):
+                data, *encoding = data + encoding
+
+            if isinstance(data, str):
+                data = data.encode(encoding[0])
+
+            await response.end(data)
+        else:
+            self.logger.debug('middleware %s has exited with the connection '
+                              'possibly left open', func.__name__)
+
+        return True
+
+    async def _handle_response(self, func, kwargs):
+        response = self.server['response']
+        request = response.request
+        options = request.context.options
+        options.update(kwargs)
+
+        options.setdefault('rate', self.options['download_rate'])
+        options.setdefault('buffer_size', self.options['buffer_size'])
+
+        if not request.has_body:
+            if ('websocket' in options and self.options['ws'] and
+                    b'sec-websocket-key' in request.headers and
+                    b'upgrade' in request.headers and
+                    request.headers[b'upgrade'][0].lower() == b'websocket'):
+                self.server['websocket'] = WebSocket(request, response)
+
+            if 'sse' in options:
+                self.server['sse'] = SSE(request, response)
+
+        if 'status' in options:
+            response.set_status(*options['status'])
+
+        if 'content_type' in options:
+            response.set_content_type(options['content_type'])
+
+        try:
+            coro = func(func=func, kwargs=kwargs, **self.server)
+        except TypeError:  # doesn't accept extra **kwargs
+            coro = func(**{k: self.server.get(k, kwargs[k]) for k in kwargs})
+        finally:
+            self.server.pop('self', None)  # avoid double self in middleware
+
+        next_data = getattr(coro, '__anext__', None)
+
+        if next_data:
+            data = await next_data()
+        else:
+            data = await coro
+
+            if data is None:
+                response.close(keepalive=response.headers_sent())
+                return
+
+            if not isinstance(data, (bytes, bytearray, str, tuple)):
+                self.logger.debug('handler %s has exited with the connection '
+                                  'possibly left open', func.__name__)
+                return
+
+        status = response.get_status()
+        no_content = status[0] in (204, 205, 304) or 100 <= status[0] < 200
+        response.http_chunked = options.get(
+            'chunked', request.version == b'1.1' and not no_content
+        )
+        response.set_status(*status)
+
+        if not no_content:
+            response.set_header(b'Content-Type', response.content_type)
+
+        if response.http_chunked:
+            response.set_header(b'Transfer-Encoding', b'chunked')
+
+        if next_data:
+            response.set_connection(status[0])
+
+            if await self.run_middlewares('response', reverse=True):
+                return
+
+            if request.method == b'HEAD' or no_content:
+                await response.write()
+                return
+
+            buffer_min_size = options['buffer_size'] // 2
+            self.set_watermarks(high=options['buffer_size'] * 4,
+                                low=buffer_min_size)
+
+            if options.get('stream', True):
+                buffer_min_size = None
+
+            if data != b'':
+                await response.write(data,
+                                     rate=options['rate'],
+                                     buffer_size=options['buffer_size'],
+                                     buffer_min_size=buffer_min_size)
+
+            while True:
+                try:
+                    data = await next_data()
+
+                    if data == b'':
+                        continue
+
+                    await response.write(data,
+                                         rate=options['rate'],
+                                         buffer_size=options['buffer_size'],
+                                         buffer_min_size=buffer_min_size)
+                except StopAsyncIteration:
+                    await response.write(b'', buffer_min_size=buffer_min_size)
+                    break
+        else:
+            encoding = ('utf-8',)
+
+            if isinstance(data, tuple):
+                data, *encoding = data + encoding
+
+            if isinstance(data, str):
+                data = data.encode(encoding[0])
+
+            if not (no_content or response.http_chunked):
+                response.set_header(b'Content-Length', b'%d' % len(data))
+
+            response.set_header(
+                b'Connection', CONNECTIONS[request.http_keepalive]
+            )
+
+            if await self.run_middlewares('response', reverse=True):
+                return
+
+            if request.method == b'HEAD' or no_content:
+                await response.write()
+                return
+
+            if data != b'':
+                self.set_watermarks(high=options['buffer_size'] * 4,
+                                    low=options['buffer_size'] // 2)
+                await response.write(data,
+                                     rate=options['rate'],
+                                     buffer_size=options['buffer_size'])
+
+            await response.write(b'')
+
+        response.close(keepalive=True)
+
+    async def request_received(self, request, response):
+        self.server['request'] = request
+        self.server['response'] = response
+        self.server['next'] = 0
+
+        if self.app.hooks['connect']:
+            await self.events['connect']
+
+        path = request.path.strip(b'/')
+
+        if path == b'':
+            key = 1
+            self.server['prefix'] = ()
+        else:
+            parts = path.split(b'/', 254)
+            length = len(parts)
+            key = bytes([length]) + parts[0]
+
+            while length >= 0:
+                self.server['prefix'] = tuple(parts[:length])
+
+                if self.server['prefix'] in self.app.middlewares:
+                    break
+
+                length -= 1
+
+        if await self.run_middlewares('request'):
+            await self.run_middlewares('response', reverse=True)
+            return
+
+        if not request.is_valid:
+            raise BadRequest
+
+        if key not in self.app.routes:
+            key = parts[0]
+
+        if request.method == b'HEAD':
+            method = b'GET'
+        else:
+            method = request.method
+
+        methods = set()
+
+        while True:
+            if key in self.app.routes:
+                i = len(self.app.routes[key])
+
+                while i > 0:
+                    i -= 1
+                    p, func, kwargs, options = self.app.routes[key][i]
+                    m = p.search(request.url)
+
+                    if m:
+                        if (key == -1 and path != '' and
+                                p.pattern.startswith(b'^/' + parts[0])):
+                            if parts[0] in self.app.routes:
+                                self.app.routes[parts[0]].append(
+                                    self.app.routes[-1].pop(i)
+                                )
+                            else:
+                                self.app.routes[parts[0]] = [
+                                    self.app.routes[-1].pop(i)
+                                ]
+
+                        matches = m.groupdict()
+                        request.params['path'] = matches or m.groups()
+
+                        if 'self' in kwargs:
+                            methods.add(func.__name__.upper().encode())
+
+                            if method not in methods:
+                                continue
+
+                            if callable(kwargs['self']):
+                                matches['self'] = kwargs['self'](**options)
+
+                        for k in matches:
+                            self.server.setdefault(k, matches[k])
+
+                        await self._handle_response(func, kwargs)
+                        return
+
+            if methods or key == -1:
+                break
+
+            key = -1
+
+        if methods:
+            raise MethodNotAllowed(allow=b', '.join(methods))
+
+        raise NotFound
