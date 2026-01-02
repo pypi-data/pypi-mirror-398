@@ -1,0 +1,108 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pysearch_mcp"
+version = "0.1.0"
+description = "MCP stdio server for indexing venvs and searching from those or preexisting indexes"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+keywords = ["mcp", "search", "lunr", "python", "documentation", "model-context-protocol"]
+authors = [
+  {name = "Michael Neumeier"}
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "fastmcp>=2.14.0",
+  "lunr==0.8.0"
+  ]
+
+[project.urls]
+Homepage = "https://github.com/mn-90/pysearch_mcp"
+Repository = "https://github.com/mn-90/pysearch_mcp"
+Issues = "https://github.com/mn-90/pysearch_mcp/issues"
+
+[dependency-groups]
+dev = [{include-group="tests"}, {include-group="ruff"}]
+
+ruff = [
+  "ruff==0.14.10" # pinning version to avoid failures due to newer version
+]
+
+tests = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "tox>=4.0",
+  "tox-uv"
+]
+
+[project.scripts]
+pysearch_mcp = "pysearch_mcp.mcp:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pysearch_mcp"]
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/__main__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+env_list = py{310,311,312,313,314}, ruff
+requires =
+    tox>=4
+skip_missing_interpreters = true
+
+[testenv]
+description = Run unit tests with coverage
+usedevelop = true
+passenv = 
+    PYTHONPATH
+    SYSTEMROOT
+setenv =
+    PYTHONDONTWRITEBYTECODE=1
+groups = tests
+commands =
+    pytest --cov=pysearch_mcp --cov-report=term-missing --cov-report=html --cov-fail-under=80 {posargs:tests}
+
+[testenv:coverage]
+description = Run coverage report
+groups = tests
+commands =
+    pytest --cov=pysearch_mcp --cov-report=term-missing --cov-report=html --cov-fail-under=80 tests/
+
+[testenv:ruff]
+description = Run ruff linter and formatter
+skip_install = true
+groups = ruff
+commands =
+    ruff check
+    ruff format --check
+"""
