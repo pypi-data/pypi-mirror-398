@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.services.subscription_manager</title>
+    
+          <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../../_static/theme-vendors.js"></script> -->
+      <script src="../../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../../genindex.html" />
+  <link rel="search" title="Search" href="../../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.services.subscription_manager</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.services.subscription_manager</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Subscription management service.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">structlog</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.events</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SubscriptionCreated</span><span class="p">,</span>
+    <span class="n">SubscriptionPlanChanged</span><span class="p">,</span>
+    <span class="n">SubscriptionUpdated</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">EntityNotFoundError</span><span class="p">,</span> <span class="n">InvalidStateTransitionError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Plan</span><span class="p">,</span>
+    <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="n">Subscription</span><span class="p">,</span>
+    <span class="n">SubscriptionStatus</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubscriptionStateMachine</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.provider</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ChangePlanRequest</span><span class="p">,</span>
+    <span class="n">ChangePreview</span><span class="p">,</span>
+    <span class="n">CreateSubscriptionRequest</span><span class="p">,</span>
+    <span class="n">DiscountRequest</span><span class="p">,</span>
+    <span class="n">PaymentProviderPort</span><span class="p">,</span>
+    <span class="n">ProrationBehavior</span><span class="p">,</span>
+    <span class="n">UpdateSubscriptionRequest</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.event_bus</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventBusPort</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.repository</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">CustomerRepository</span><span class="p">,</span>
+        <span class="n">PlanRepository</span><span class="p">,</span>
+        <span class="n">SubscriptionRepository</span><span class="p">,</span>
+    <span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">structlog</span><span class="o">.</span><span class="n">get_logger</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="SubscriptionManager">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubscriptionManager</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Manages subscriptionkore lifecycle operations.</span>
+
+<span class="sd">    Provides a unified interface for subscriptionkore operations across providers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_repo</span><span class="p">:</span> <span class="n">SubscriptionRepository</span><span class="p">,</span>
+        <span class="n">customer_repo</span><span class="p">:</span> <span class="n">CustomerRepository</span><span class="p">,</span>
+        <span class="n">plan_repo</span><span class="p">:</span> <span class="n">PlanRepository</span><span class="p">,</span>
+        <span class="n">provider</span><span class="p">:</span> <span class="n">PaymentProviderPort</span><span class="p">,</span>
+        <span class="n">event_bus</span><span class="p">:</span> <span class="n">EventBusPort</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span> <span class="o">=</span> <span class="n">subscriptionkore_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span> <span class="o">=</span> <span class="n">customer_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span> <span class="o">=</span> <span class="n">plan_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span> <span class="o">=</span> <span class="n">provider</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span> <span class="o">=</span> <span class="n">event_bus</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span> <span class="o">=</span> <span class="n">SubscriptionStateMachine</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SubscriptionManager.create">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.create">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">plan_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">quantity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">trial_period_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">coupon_code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new subscriptionkore.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            customer_id: Internal customer ID</span>
+<span class="sd">            plan_id: Internal plan ID</span>
+<span class="sd">            quantity:  Subscription quantity</span>
+<span class="sd">            trial_period_days: Override trial period (None uses plan default)</span>
+<span class="sd">            coupon_code: Optional coupon code to apply</span>
+<span class="sd">            metadata: Additional metadata</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Created subscriptionkore</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            EntityNotFoundError: If customer or plan not found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">plan_id</span><span class="o">=</span><span class="n">plan_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Get customer and plan</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Customer&quot;</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="n">plan</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">plan_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Plan&quot;</span><span class="p">,</span> <span class="n">plan_id</span><span class="p">)</span>
+
+        <span class="c1"># Get provider references</span>
+        <span class="n">customer_ref</span> <span class="o">=</span> <span class="n">customer</span><span class="o">.</span><span class="n">get_provider_ref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span>
+                <span class="s2">&quot;CustomerProviderRef&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">customer_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">plan_ref</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">get_provider_ref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plan_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span>
+                <span class="s2">&quot;PlanProviderRef&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">plan_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Determine trial period</span>
+        <span class="n">effective_trial</span> <span class="o">=</span> <span class="n">trial_period_days</span>
+        <span class="k">if</span> <span class="n">effective_trial</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">plan</span><span class="o">.</span><span class="n">trial_period_days</span><span class="p">:</span>
+            <span class="n">effective_trial</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">trial_period_days</span>
+
+        <span class="c1"># Create subscriptionkore in provider</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="n">CreateSubscriptionRequest</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">plan_id</span><span class="o">=</span><span class="n">plan_id</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="n">quantity</span><span class="p">,</span>
+            <span class="n">trial_period_days</span><span class="o">=</span><span class="n">effective_trial</span><span class="p">,</span>
+            <span class="n">coupon_code</span><span class="o">=</span><span class="n">coupon_code</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span> <span class="ow">or</span> <span class="p">{},</span>
+        <span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">create_subscriptionkore</span><span class="p">(</span>
+            <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">customer_provider_ref</span><span class="o">=</span><span class="n">customer_ref</span><span class="p">,</span>
+            <span class="n">plan_provider_ref</span><span class="o">=</span><span class="n">plan_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Set internal IDs</span>
+        <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">customer_id</span>
+        <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">plan_id</span>
+
+        <span class="c1"># Save to repository</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+
+        <span class="c1"># Emit event</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span>
+            <span class="n">SubscriptionCreated</span><span class="p">(</span>
+                <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">plan_id</span><span class="o">=</span><span class="n">plan_id</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Subscription created&quot;</span><span class="p">,</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">subscriptionkore</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.get">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.get">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get subscriptionkore by ID.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Subscription&quot;</span><span class="p">,</span> <span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">subscriptionkore</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.get_by_customer">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.get_by_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_by_customer</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">include_canceled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Subscription</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get all subscriptionkores for a customer.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">list_by_customer</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">include_canceled</span><span class="o">=</span><span class="n">include_canceled</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.get_active_by_customer">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.get_active_by_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_active_by_customer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Subscription</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get active subscriptionkores for a customer.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">list_active_by_customer</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.update">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.update">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">quantity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update subscriptionkore quantity or metadata.&quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Updating subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="n">request</span> <span class="o">=</span> <span class="n">UpdateSubscriptionRequest</span><span class="p">(</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="n">quantity</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">update_subscriptionkore</span><span class="p">(</span>
+            <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="c1"># Determine changed fields</span>
+        <span class="n">changed_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">quantity</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">quantity</span> <span class="o">!=</span> <span class="n">quantity</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;quantity&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;metadata&quot;</span><span class="p">)</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">changed_fields</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span>
+                <span class="n">SubscriptionUpdated</span><span class="p">(</span>
+                    <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+                    <span class="n">customer_id</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                    <span class="n">changed_fields</span><span class="o">=</span><span class="n">changed_fields</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Subscription updated&quot;</span><span class="p">,</span> <span class="n">changed_fields</span><span class="o">=</span><span class="n">changed_fields</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.cancel">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.cancel">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">immediate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Cancel a subscriptionkore.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            subscriptionkore_id:  Subscription ID</span>
+<span class="sd">            immediate: If True, cancel immediately.  If False, cancel at period end.</span>
+<span class="sd">            reason: Optional cancellation reason</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Updated subscriptionkore</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span> <span class="n">immediate</span><span class="o">=</span><span class="n">immediate</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Canceling subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="c1"># Cancel in provider</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">cancel_subscriptionkore</span><span class="p">(</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+            <span class="n">immediate</span><span class="o">=</span><span class="n">immediate</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Apply state transition</span>
+        <span class="k">if</span> <span class="n">immediate</span><span class="p">:</span>
+            <span class="n">target_status</span> <span class="o">=</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">CANCELED</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">target_status</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span>  <span class="c1"># Stay in current status</span>
+            <span class="n">updated</span><span class="o">.</span><span class="n">cancel_at_period_end</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">updated</span><span class="o">.</span><span class="n">canceled_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">target_status</span><span class="p">,</span>
+            <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">,</span>
+            <span class="n">immediate</span><span class="o">=</span><span class="n">immediate</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span> <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">result</span><span class="o">.</span><span class="n">error</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+
+        <span class="c1"># Publish events</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish_many</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Subscription canceled&quot;</span><span class="p">,</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+            <span class="n">cancel_at_period_end</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">cancel_at_period_end</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.pause">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.pause">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">resumes_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pause a subscriptionkore.&quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Pausing subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">capabilities</span><span class="o">.</span><span class="n">supports_pausing</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidStateTransitionError</span><span class="p">(</span>
+                <span class="n">from_state</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+                <span class="n">to_state</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">,</span>
+                <span class="n">reason</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Provider </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="si">}</span><span class="s2"> does not support pausing&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Pause in provider</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">pause_subscriptionkore</span><span class="p">(</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+            <span class="n">resumes_at</span><span class="o">=</span><span class="n">resumes_at</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Apply state transition</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span> <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">result</span><span class="o">.</span><span class="n">error</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish_many</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Subscription paused&quot;</span><span class="p">,</span> <span class="n">resumes_at</span><span class="o">=</span><span class="n">resumes_at</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.resume">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.resume">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resume a paused subscriptionkore.&quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Resuming subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidStateTransitionError</span><span class="p">(</span>
+                <span class="n">from_state</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+                <span class="n">to_state</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">,</span>
+                <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Can only resume paused subscriptionkores&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Resume in provider</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">resume_subscriptionkore</span><span class="p">(</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Apply state transition</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span> <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">result</span><span class="o">.</span><span class="n">error</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish_many</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Subscription resumed&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.change_plan">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.change_plan">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">change_plan</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">new_plan_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">proration_behavior</span><span class="p">:</span> <span class="n">ProrationBehavior</span> <span class="o">=</span> <span class="n">ProrationBehavior</span><span class="o">.</span><span class="n">CREATE_PRORATIONS</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Change subscriptionkore plan (upgrade/downgrade).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            subscriptionkore_id:  Subscription ID</span>
+<span class="sd">            new_plan_id:  New plan ID</span>
+<span class="sd">            proration_behavior:  How to handle proration</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Updated subscriptionkore</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span> <span class="n">new_plan_id</span><span class="o">=</span><span class="n">new_plan_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Changing subscriptionkore plan&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="n">old_plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="c1"># Get new plan</span>
+        <span class="n">new_plan</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">new_plan_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_plan</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Plan&quot;</span><span class="p">,</span> <span class="n">new_plan_id</span><span class="p">)</span>
+
+        <span class="n">new_plan_ref</span> <span class="o">=</span> <span class="n">new_plan</span><span class="o">.</span><span class="n">get_provider_ref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_plan_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span>
+                <span class="s2">&quot;PlanProviderRef&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">new_plan_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Get old plan for comparison</span>
+        <span class="n">old_plan</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">old_plan_id</span><span class="p">)</span>
+        <span class="n">is_upgrade</span> <span class="o">=</span> <span class="n">new_plan</span><span class="o">.</span><span class="n">is_upgrade_from</span><span class="p">(</span><span class="n">old_plan</span><span class="p">)</span> <span class="k">if</span> <span class="n">old_plan</span> <span class="k">else</span> <span class="kc">False</span>
+
+        <span class="c1"># Change plan in provider</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="n">ChangePlanRequest</span><span class="p">(</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+            <span class="n">new_plan_id</span><span class="o">=</span><span class="n">new_plan_id</span><span class="p">,</span>
+            <span class="n">proration_behavior</span><span class="o">=</span><span class="n">proration_behavior</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">change_plan</span><span class="p">(</span>
+            <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+            <span class="n">new_plan_provider_ref</span><span class="o">=</span><span class="n">new_plan_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Preserve internal IDs and update plan</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">new_plan_id</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+
+        <span class="c1"># Emit event</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span>
+            <span class="n">SubscriptionPlanChanged</span><span class="p">(</span>
+                <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">previous_plan_id</span><span class="o">=</span><span class="n">old_plan_id</span><span class="p">,</span>
+                <span class="n">new_plan_id</span><span class="o">=</span><span class="n">new_plan_id</span><span class="p">,</span>
+                <span class="n">is_upgrade</span><span class="o">=</span><span class="n">is_upgrade</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Subscription plan changed&quot;</span><span class="p">,</span>
+            <span class="n">old_plan_id</span><span class="o">=</span><span class="n">old_plan_id</span><span class="p">,</span>
+            <span class="n">is_upgrade</span><span class="o">=</span><span class="n">is_upgrade</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.preview_plan_change">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.preview_plan_change">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">preview_plan_change</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">new_plan_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">proration_behavior</span><span class="p">:</span> <span class="n">ProrationBehavior</span> <span class="o">=</span> <span class="n">ProrationBehavior</span><span class="o">.</span><span class="n">CREATE_PRORATIONS</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangePreview</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Preview costs for a plan change.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="n">new_plan</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">new_plan_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_plan</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Plan&quot;</span><span class="p">,</span> <span class="n">new_plan_id</span><span class="p">)</span>
+
+        <span class="n">new_plan_ref</span> <span class="o">=</span> <span class="n">new_plan</span><span class="o">.</span><span class="n">get_provider_ref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_plan_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span>
+                <span class="s2">&quot;PlanProviderRef&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">new_plan_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">request</span> <span class="o">=</span> <span class="n">ChangePlanRequest</span><span class="p">(</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+            <span class="n">new_plan_id</span><span class="o">=</span><span class="n">new_plan_id</span><span class="p">,</span>
+            <span class="n">proration_behavior</span><span class="o">=</span><span class="n">proration_behavior</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">preview_plan_change</span><span class="p">(</span>
+            <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+            <span class="n">new_plan_provider_ref</span><span class="o">=</span><span class="n">new_plan_ref</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.apply_discount">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.apply_discount">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">apply_discount</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">coupon_code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply a discount to a subscriptionkore.&quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span> <span class="n">coupon_code</span><span class="o">=</span><span class="n">coupon_code</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Applying discount&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">apply_discount</span><span class="p">(</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+            <span class="n">discount</span><span class="o">=</span><span class="n">DiscountRequest</span><span class="p">(</span><span class="n">coupon_code</span><span class="o">=</span><span class="n">coupon_code</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Discount applied&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.remove_discount">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.remove_discount">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove_discount</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove discount from a subscriptionkore.&quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Removing discount&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">remove_discount</span><span class="p">(</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Discount removed&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionManager.reactivate">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.SubscriptionManager.reactivate">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">reactivate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subscriptionkore_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reactivate a subscriptionkore that was scheduled to cancel.</span>
+
+<span class="sd">        Removes the cancel_at_period_end flag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Reactivating subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore_id</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">cancel_at_period_end</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Subscription not scheduled to cancel, no action needed&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">subscriptionkore</span>
+
+        <span class="c1"># Update in provider</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="n">UpdateSubscriptionRequest</span><span class="p">(</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+            <span class="n">cancel_at_period_end</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">update_subscriptionkore</span><span class="p">(</span>
+            <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">subscriptionkore_provider_ref</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Update local state</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">cancel_at_period_end</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">canceled_at</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span>
+            <span class="n">SubscriptionUpdated</span><span class="p">(</span>
+                <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">changed_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cancel_at_period_end&quot;</span><span class="p">],</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Subscription reactivated&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>

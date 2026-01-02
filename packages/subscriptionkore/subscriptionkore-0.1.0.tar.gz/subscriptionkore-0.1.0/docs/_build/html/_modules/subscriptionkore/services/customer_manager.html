@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.services.customer_manager</title>
+    
+          <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../../_static/theme-vendors.js"></script> -->
+      <script src="../../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../../genindex.html" />
+  <link rel="search" title="Search" href="../../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.services.customer_manager</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.services.customer_manager</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Customer management service.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">structlog</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.events</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomerCreated</span><span class="p">,</span> <span class="n">CustomerUpdated</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">DuplicateEntityError</span><span class="p">,</span> <span class="n">EntityNotFoundError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Customer</span><span class="p">,</span> <span class="n">ProviderType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.customer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Address</span><span class="p">,</span> <span class="n">TaxInfo</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.event_bus</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventBusPort</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.provider</span><span class="w"> </span><span class="kn">import</span> <span class="n">PaymentProviderPort</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.repository</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomerRepository</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">structlog</span><span class="o">.</span><span class="n">get_logger</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="CustomerManager">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CustomerManager</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Manages customer lifecycle operations.</span>
+
+<span class="sd">    Provides a unified interface for customer operations across providers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_repo</span><span class="p">:</span> <span class="n">CustomerRepository</span><span class="p">,</span>
+        <span class="n">provider</span><span class="p">:</span> <span class="n">PaymentProviderPort</span><span class="p">,</span>
+        <span class="n">event_bus</span><span class="p">:</span> <span class="n">EventBusPort</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span> <span class="o">=</span> <span class="n">customer_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span> <span class="o">=</span> <span class="n">provider</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span> <span class="o">=</span> <span class="n">event_bus</span>
+
+<div class="viewcode-block" id="CustomerManager.create">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.create">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">external_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">tax_info</span><span class="p">:</span> <span class="n">TaxInfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">billing_address</span><span class="p">:</span> <span class="n">Address</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sync_to_provider</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Customer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new customer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            external_id: Your application&#39;s user ID</span>
+<span class="sd">            email:  Customer email</span>
+<span class="sd">            name: Customer name</span>
+<span class="sd">            tax_info: Tax information</span>
+<span class="sd">            billing_address:  Billing address</span>
+<span class="sd">            metadata: Additional metadata</span>
+<span class="sd">            sync_to_provider: Whether to create in payment provider</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Created customer</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            DuplicateEntityError: If customer with external_id exists</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">external_id</span><span class="o">=</span><span class="n">external_id</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating customer&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Check for existing customer</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">get_by_external_id</span><span class="p">(</span><span class="n">external_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">DuplicateEntityError</span><span class="p">(</span><span class="s2">&quot;Customer&quot;</span><span class="p">,</span> <span class="n">external_id</span><span class="p">)</span>
+
+        <span class="c1"># Create customer model</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="n">Customer</span><span class="p">(</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">external_id</span><span class="p">,</span>
+            <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">tax_info</span><span class="o">=</span><span class="n">tax_info</span><span class="p">,</span>
+            <span class="n">billing_address</span><span class="o">=</span><span class="n">billing_address</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span> <span class="ow">or</span> <span class="p">{},</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Sync to provider if requested</span>
+        <span class="k">if</span> <span class="n">sync_to_provider</span><span class="p">:</span>
+            <span class="n">provider_ref</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">create_customer</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+            <span class="n">customer</span><span class="o">.</span><span class="n">add_provider_ref</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">)</span>
+
+        <span class="c1"># Save to repository</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+
+        <span class="c1"># Emit event</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">CustomerCreated</span><span class="p">(</span><span class="n">customer</span><span class="o">=</span><span class="n">customer</span><span class="p">))</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Customer created&quot;</span><span class="p">,</span> <span class="n">customer_id</span><span class="o">=</span><span class="n">customer</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">customer</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.get">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.get">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Customer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get customer by internal ID.&quot;&quot;&quot;</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Customer&quot;</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">customer</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.get_by_external_id">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.get_by_external_id">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_by_external_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">external_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Customer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get customer by external (application) ID.&quot;&quot;&quot;</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">get_by_external_id</span><span class="p">(</span><span class="n">external_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntityNotFoundError</span><span class="p">(</span><span class="s2">&quot;Customer&quot;</span><span class="p">,</span> <span class="n">external_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">customer</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.get_or_create">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.get_or_create">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_or_create</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">external_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sync_to_provider</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Customer</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get existing customer or create new one.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tuple of (customer, created) where created is True if new</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">get_by_external_id</span><span class="p">(</span><span class="n">external_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">existing</span><span class="p">,</span> <span class="kc">False</span>
+
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">external_id</span><span class="p">,</span>
+            <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">sync_to_provider</span><span class="o">=</span><span class="n">sync_to_provider</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">customer</span><span class="p">,</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.update">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.update">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">tax_info</span><span class="p">:</span> <span class="n">TaxInfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">billing_address</span><span class="p">:</span> <span class="n">Address</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sync_to_provider</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Customer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update customer information.&quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Updating customer&quot;</span><span class="p">)</span>
+
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="c1"># Track changed fields</span>
+        <span class="n">changed_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">email</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">customer</span><span class="o">.</span><span class="n">email</span> <span class="o">!=</span> <span class="n">email</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">customer</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="n">name</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tax_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;tax_info&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">billing_address</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;billing_address&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">changed_fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;metadata&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Update local model</span>
+        <span class="n">customer</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">tax_info</span><span class="o">=</span><span class="n">tax_info</span><span class="p">,</span>
+            <span class="n">billing_address</span><span class="o">=</span><span class="n">billing_address</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Sync to provider</span>
+        <span class="k">if</span> <span class="n">sync_to_provider</span> <span class="ow">and</span> <span class="n">customer</span><span class="o">.</span><span class="n">provider_refs</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">update_customer</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+
+        <span class="c1"># Save to repository</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+
+        <span class="c1"># Emit event if changed</span>
+        <span class="k">if</span> <span class="n">changed_fields</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span>
+                <span class="n">CustomerUpdated</span><span class="p">(</span>
+                    <span class="n">customer</span><span class="o">=</span><span class="n">customer</span><span class="p">,</span>
+                    <span class="n">changed_fields</span><span class="o">=</span><span class="n">changed_fields</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Customer updated&quot;</span><span class="p">,</span> <span class="n">changed_fields</span><span class="o">=</span><span class="n">changed_fields</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">customer</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.delete">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.delete">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">delete_from_provider</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Delete a customer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            customer_id:  Customer ID</span>
+<span class="sd">            delete_from_provider: Whether to delete from payment provider</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            True if deleted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Deleting customer&quot;</span><span class="p">)</span>
+
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="c1"># Delete from provider</span>
+        <span class="k">if</span> <span class="n">delete_from_provider</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">customer</span><span class="o">.</span><span class="n">provider_refs</span><span class="p">:</span>
+                <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">delete_customer</span><span class="p">(</span><span class="n">ref</span><span class="p">)</span>
+
+        <span class="c1"># Delete from repository</span>
+        <span class="n">deleted</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Customer deleted&quot;</span><span class="p">,</span> <span class="n">deleted</span><span class="o">=</span><span class="n">deleted</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">deleted</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.sync_to_provider">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.sync_to_provider">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">sync_to_provider</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">provider</span><span class="p">:</span> <span class="n">ProviderType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Customer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sync customer to payment provider.</span>
+
+<span class="sd">        Creates customer in provider if not exists, or updates if exists.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+        <span class="n">target_provider</span> <span class="o">=</span> <span class="n">provider</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">provider_type</span>
+
+        <span class="n">existing_ref</span> <span class="o">=</span> <span class="n">customer</span><span class="o">.</span><span class="n">get_provider_ref</span><span class="p">(</span><span class="n">target_provider</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">existing_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Create in provider</span>
+            <span class="n">provider_ref</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">create_customer</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+            <span class="n">customer</span><span class="o">.</span><span class="n">add_provider_ref</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Update in provider</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider</span><span class="o">.</span><span class="n">update_customer</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CustomerManager.list">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.CustomerManager.list">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+        <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Customer</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;List customers with pagination.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>

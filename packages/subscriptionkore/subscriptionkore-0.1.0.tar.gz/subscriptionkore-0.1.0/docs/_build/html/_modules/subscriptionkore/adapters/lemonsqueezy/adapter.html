@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.adapters.lemonsqueezy.adapter</title>
+    
+          <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../../../_static/theme-vendors.js"></script> -->
+      <script src="../../../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../../../genindex.html" />
+  <link rel="search" title="Search" href="../../../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../../../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.adapters.lemonsqueezy.adapter</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.adapters.lemonsqueezy.adapter</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;LemonSqueezy payment provider adapter.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hmac</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">structlog</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tenacity</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">retry</span><span class="p">,</span>
+    <span class="n">retry_if_exception_type</span><span class="p">,</span>
+    <span class="n">stop_after_attempt</span><span class="p">,</span>
+    <span class="n">wait_exponential_jitter</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">LemonSqueezyConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ProviderAPIError</span><span class="p">,</span>
+    <span class="n">ProviderAuthenticationError</span><span class="p">,</span>
+    <span class="n">ProviderNetworkError</span><span class="p">,</span>
+    <span class="n">ProviderRateLimitError</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Customer</span><span class="p">,</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">InvoiceStatus</span><span class="p">,</span>
+    <span class="n">Plan</span><span class="p">,</span>
+    <span class="n">Product</span><span class="p">,</span>
+    <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="n">ProviderType</span><span class="p">,</span>
+    <span class="n">Subscription</span><span class="p">,</span>
+    <span class="n">SubscriptionStatus</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.invoice</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceLineItem</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.subscription</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AppliedDiscount</span><span class="p">,</span>
+    <span class="n">PauseBehavior</span><span class="p">,</span>
+    <span class="n">PauseConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.value_objects</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BillingPeriod</span><span class="p">,</span>
+    <span class="n">Currency</span><span class="p">,</span>
+    <span class="n">DateRange</span><span class="p">,</span>
+    <span class="n">Interval</span><span class="p">,</span>
+    <span class="n">Money</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.provider</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ChangePlanRequest</span><span class="p">,</span>
+    <span class="n">ChangePreview</span><span class="p">,</span>
+    <span class="n">CheckoutRequest</span><span class="p">,</span>
+    <span class="n">CheckoutSession</span><span class="p">,</span>
+    <span class="n">CreateSubscriptionRequest</span><span class="p">,</span>
+    <span class="n">DiscountRequest</span><span class="p">,</span>
+    <span class="n">PaymentProviderPort</span><span class="p">,</span>
+    <span class="n">PortalSession</span><span class="p">,</span>
+    <span class="n">ProviderCapabilities</span><span class="p">,</span>
+    <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="n">UpdateSubscriptionRequest</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">structlog</span><span class="o">.</span><span class="n">get_logger</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LemonSqueezyAdapter</span><span class="p">(</span><span class="n">PaymentProviderPort</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    LemonSqueezy payment provider implementation.</span>
+
+<span class="sd">    Implements the LemonSqueezy API for subscriptionkore management.</span>
+<span class="sd">    Reference: https://docs.lemonsqueezy.com/api</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">BASE_URL</span> <span class="o">=</span> <span class="s2">&quot;https://api.lemonsqueezy.com/v1&quot;</span>
+
+    <span class="n">STATUS_MAP</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;on_trial&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">TRIALING</span><span class="p">,</span>
+        <span class="s2">&quot;active&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">,</span>
+        <span class="s2">&quot;paused&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">,</span>
+        <span class="s2">&quot;past_due&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAST_DUE</span><span class="p">,</span>
+        <span class="s2">&quot;unpaid&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">UNPAID</span><span class="p">,</span>
+        <span class="s2">&quot;cancelled&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">CANCELED</span><span class="p">,</span>
+        <span class="s2">&quot;expired&quot;</span><span class="p">:</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">EXPIRED</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">LemonSqueezyConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">:</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_get_client</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span>
+                <span class="n">base_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">BASE_URL</span><span class="p">,</span>
+                <span class="n">headers</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s2">&quot;Authorization&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;Bearer </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">api_key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Accept&quot;</span><span class="p">:</span> <span class="s2">&quot;application/vnd.api+json&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Content-Type&quot;</span><span class="p">:</span> <span class="s2">&quot;application/vnd.api+json&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="n">timeout</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.close">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.close">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">aclose</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">provider_type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProviderType</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">capabilities</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProviderCapabilities</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ProviderCapabilities</span><span class="p">(</span>
+            <span class="n">supports_pausing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_trials</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_quantity</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_immediate_cancel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_proration</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_coupons</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_metered_billing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">supports_customer_portal</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">supports_checkout_sessions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_handle_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Response</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle LemonSqueezy API errors.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">429</span><span class="p">:</span>
+            <span class="n">retry_after</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Retry-After&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ProviderRateLimitError</span><span class="p">(</span>
+                <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+                <span class="n">retry_after</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">retry_after</span><span class="p">)</span> <span class="k">if</span> <span class="n">retry_after</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">401</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProviderAuthenticationError</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">400</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">error_data</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+                <span class="n">errors</span> <span class="o">=</span> <span class="n">error_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;errors&quot;</span><span class="p">,</span> <span class="p">[{}])</span>
+                <span class="n">first_error</span> <span class="o">=</span> <span class="n">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">errors</span> <span class="k">else</span> <span class="p">{}</span>
+                <span class="k">raise</span> <span class="n">ProviderAPIError</span><span class="p">(</span>
+                    <span class="n">message</span><span class="o">=</span><span class="n">first_error</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;detail&quot;</span><span class="p">,</span> <span class="s2">&quot;Unknown LemonSqueezy error&quot;</span><span class="p">),</span>
+                    <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+                    <span class="n">status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+                    <span class="n">provider_message</span><span class="o">=</span><span class="n">first_error</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;detail&quot;</span><span class="p">),</span>
+                    <span class="n">provider_code</span><span class="o">=</span><span class="n">first_error</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">),</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ProviderAPIError</span><span class="p">(</span>
+                    <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;LemonSqueezy API error: </span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+                    <span class="n">status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+                <span class="p">)</span>
+
+    <span class="nd">@retry</span><span class="p">(</span>
+        <span class="n">retry</span><span class="o">=</span><span class="n">retry_if_exception_type</span><span class="p">((</span><span class="n">ProviderRateLimitError</span><span class="p">,</span> <span class="n">ProviderNetworkError</span><span class="p">)),</span>
+        <span class="n">stop</span><span class="o">=</span><span class="n">stop_after_attempt</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+        <span class="n">wait</span><span class="o">=</span><span class="n">wait_exponential_jitter</span><span class="p">(</span><span class="n">initial</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="mi">60</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_request</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Make authenticated request to LemonSqueezy API.&quot;&quot;&quot;</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_client</span><span class="p">()</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">request</span><span class="p">(</span>
+                <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span>
+                <span class="n">url</span><span class="o">=</span><span class="n">endpoint</span><span class="p">,</span>
+                <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+                <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">NetworkError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProviderNetworkError</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span> <span class="n">original_error</span><span class="o">=</span><span class="n">e</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle_error</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="c1"># Customer Operations</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.create_customer">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.create_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_customer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer</span><span class="p">:</span> <span class="n">Customer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProviderReference</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;customers&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">customer</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="n">customer</span><span class="o">.</span><span class="n">email</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;@&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">customer</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;relationships&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;store&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;stores&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">store_id</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="p">}</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;/customers&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">customer_data</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="k">return</span> <span class="n">ProviderReference</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">,</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">customer_data</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]),</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">customer_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">),</span>
+                <span class="s2">&quot;subscriptionkore_id&quot;</span><span class="p">:</span> <span class="n">customer</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="s2">&quot;external_id&quot;</span><span class="p">:</span> <span class="n">customer</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.update_customer">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.update_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update_customer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer</span><span class="p">:</span> <span class="n">Customer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">provider_ref</span> <span class="o">=</span> <span class="n">customer</span><span class="o">.</span><span class="n">get_provider_ref</span><span class="p">(</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">provider_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProviderAPIError</span><span class="p">(</span>
+                <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Customer has no LemonSqueezy reference&quot;</span><span class="p">,</span>
+                <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+                <span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;customers&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">customer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">customer</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;PATCH&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;/customers/</span><span class="si">{</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.delete_customer">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.delete_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete_customer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;LemonSqueezy does not support customer deletion&quot;</span><span class="p">,</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.get_customer">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.get_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_customer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Customer</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;/customers/</span><span class="si">{</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="k">return</span> <span class="n">Customer</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionkore_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;external_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">email</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">),</span>
+            <span class="n">provider_refs</span><span class="o">=</span><span class="p">[</span><span class="n">provider_ref</span><span class="p">],</span>
+            <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+                <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+
+
+    <span class="c1"># Subscription Operations</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.create_subscriptionkore">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.create_subscriptionkore">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">request</span><span class="p">:</span> <span class="n">CreateSubscriptionRequest</span><span class="p">,</span>
+        <span class="n">customer_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">plan_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ProviderAPIError</span><span class="p">(</span>
+            <span class="n">message</span><span class="o">=</span><span class="s2">&quot;LemonSqueezy requires checkout for subscriptionkore creation.  Use create_checkout_session instead.&quot;</span><span class="p">,</span>
+            <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+            <span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.update_subscriptionkore">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.update_subscriptionkore">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">request</span><span class="p">:</span> <span class="n">UpdateSubscriptionRequest</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptionkores&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">cancel_at_period_end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="s2">&quot;attributes&quot;</span><span class="p">][</span><span class="s2">&quot;cancelled&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">cancel_at_period_end</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;PATCH&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.cancel_subscriptionkore">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.cancel_subscriptionkore">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cancel_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">immediate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">immediate</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+                <span class="s2">&quot;DELETE&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+                <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptionkores&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                    <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;cancelled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+                <span class="s2">&quot;PATCH&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.pause_subscriptionkore">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.pause_subscriptionkore">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">pause_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">resumes_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="n">pause_data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mode&quot;</span><span class="p">:</span> <span class="s2">&quot;void&quot;</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">resumes_at</span><span class="p">:</span>
+            <span class="n">pause_data</span><span class="p">[</span><span class="s2">&quot;resumes_at&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">resumes_at</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;Z&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptionkores&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;pause&quot;</span><span class="p">:</span> <span class="n">pause_data</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;PATCH&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.resume_subscriptionkore">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.resume_subscriptionkore">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resume_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptionkores&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;pause&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;PATCH&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.get_subscriptionkore">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.get_subscriptionkore">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
+
+
+    <span class="c1"># Plan Change Operations</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.change_plan">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.change_plan">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">change_plan</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">request</span><span class="p">:</span> <span class="n">ChangePlanRequest</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">new_plan_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptionkores&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;variant_id&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">new_plan_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">),</span>
+                    <span class="s2">&quot;invoice_immediately&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">proration_behavior</span> <span class="o">!=</span> <span class="s2">&quot;none&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;PATCH&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">new_plan_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.preview_plan_change">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.preview_plan_change">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">preview_plan_change</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">request</span><span class="p">:</span> <span class="n">ChangePlanRequest</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">new_plan_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangePreview</span><span class="p">:</span>
+        <span class="n">variant_result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;/variants/</span><span class="si">{</span><span class="n">new_plan_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">variant</span> <span class="o">=</span> <span class="n">variant_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="n">price</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">variant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="mi">100</span>
+        <span class="n">currency</span> <span class="o">=</span> <span class="n">Currency</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ChangePreview</span><span class="p">(</span>
+            <span class="n">immediate_charge</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">price</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">next_invoice_amount</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">price</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">proration_amount</span><span class="o">=</span><span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">credit_amount</span><span class="o">=</span><span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">next_billing_date</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">(),</span>
+        <span class="p">)</span></div>
+
+
+    <span class="c1"># Discount Operations</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.apply_discount">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.apply_discount">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">apply_discount</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">discount</span><span class="p">:</span> <span class="n">DiscountRequest</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">discount</span><span class="o">.</span><span class="n">coupon_code</span><span class="p">:</span>
+            <span class="n">discounts_result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+                <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;/discounts&quot;</span><span class="p">,</span>
+                <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;filter[code]&quot;</span><span class="p">:</span> <span class="n">discount</span><span class="o">.</span><span class="n">coupon_code</span><span class="p">},</span>
+            <span class="p">)</span>
+            <span class="n">discounts</span> <span class="o">=</span> <span class="n">discounts_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">discounts</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ProviderAPIError</span><span class="p">(</span>
+                    <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Discount code &#39;</span><span class="si">{</span><span class="n">discount</span><span class="o">.</span><span class="n">coupon_code</span><span class="si">}</span><span class="s2">&#39; not found&quot;</span><span class="p">,</span>
+                    <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+                    <span class="n">status_code</span><span class="o">=</span><span class="mi">404</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="n">discount_id</span> <span class="o">=</span> <span class="n">discounts</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+
+            <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptionkores&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                    <span class="s2">&quot;relationships&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;discount&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;discounts&quot;</span><span class="p">,</span>
+                                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">discount_id</span><span class="p">,</span>
+                            <span class="p">}</span>
+                        <span class="p">}</span>
+                    <span class="p">},</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+
+            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+                <span class="s2">&quot;PATCH&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;/subscriptionkores/</span><span class="si">{</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_subscriptionkore</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_subscriptionkore</span><span class="p">(</span><span class="n">subscriptionkore_provider_ref</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.remove_discount">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.remove_discount">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove_discount</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;LemonSqueezy does not support removing discounts from active subscriptionkores&quot;</span><span class="p">,</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_subscriptionkore</span><span class="p">(</span><span class="n">subscriptionkore_provider_ref</span><span class="p">)</span></div>
+
+
+    <span class="c1"># Billing Operations</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.get_invoice">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.get_invoice">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_invoice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Invoice</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;/subscriptionkore-invoices/</span><span class="si">{</span><span class="n">provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_map_invoice</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}))</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.list_invoices">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.list_invoices">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_invoices</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+        <span class="n">starting_after</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Invoice</span><span class="p">]:</span>
+        <span class="n">subs_result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/subscriptionkores&quot;</span><span class="p">,</span>
+            <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;filter[customer_id]&quot;</span><span class="p">:</span> <span class="n">customer_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="n">all_invoices</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Invoice</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">subs_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="n">invoices_result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+                <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;/subscriptionkore-invoices&quot;</span><span class="p">,</span>
+                <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;filter[subscriptionkore_id]&quot;</span><span class="p">:</span> <span class="n">sub</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span> <span class="s2">&quot;page[size]&quot;</span><span class="p">:</span> <span class="n">limit</span><span class="p">},</span>
+            <span class="p">)</span>
+            <span class="n">all_invoices</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_map_invoice</span><span class="p">(</span><span class="n">inv</span><span class="p">)</span> <span class="k">for</span> <span class="n">inv</span> <span class="ow">in</span> <span class="n">invoices_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[])])</span>
+
+        <span class="k">return</span> <span class="n">all_invoices</span><span class="p">[:</span><span class="n">limit</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.get_upcoming_invoice">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.get_upcoming_invoice">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_upcoming_invoice</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">subscriptionkore_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Invoice</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+    <span class="c1"># Checkout / Portal</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.create_checkout_session">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.create_checkout_session">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_checkout_session</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">request</span><span class="p">:</span> <span class="n">CheckoutRequest</span><span class="p">,</span>
+        <span class="n">plan_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">customer_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CheckoutSession</span><span class="p">:</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;checkouts&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;checkout_data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;custom&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">metadata</span><span class="p">,</span>
+                    <span class="p">},</span>
+                    <span class="s2">&quot;product_options&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;redirect_url&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">success_url</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;relationships&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;store&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;stores&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">store_id</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="p">},</span>
+                    <span class="s2">&quot;variant&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;variants&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">plan_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">customer_provider_ref</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="s2">&quot;attributes&quot;</span><span class="p">][</span><span class="s2">&quot;checkout_data&quot;</span><span class="p">][</span><span class="s2">&quot;email&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">customer_provider_ref</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">request</span><span class="o">.</span><span class="n">customer_email</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="s2">&quot;attributes&quot;</span><span class="p">][</span><span class="s2">&quot;checkout_data&quot;</span><span class="p">][</span><span class="s2">&quot;email&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">customer_email</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;/checkouts&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">checkout_data</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">checkout_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="k">return</span> <span class="n">CheckoutSession</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">checkout_data</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]),</span>
+            <span class="n">url</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">expires_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+                <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;expires_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.create_portal_session">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.create_portal_session">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_portal_session</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">,</span>
+        <span class="n">return_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PortalSession</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/subscriptionkores&quot;</span><span class="p">,</span>
+            <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;filter[customer_id]&quot;</span><span class="p">:</span> <span class="n">customer_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="n">subscriptionkores</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">subscriptionkores</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProviderAPIError</span><span class="p">(</span>
+                <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Customer has no subscriptionkores&quot;</span><span class="p">,</span>
+                <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;lemonsqueezy&quot;</span><span class="p">,</span>
+                <span class="n">status_code</span><span class="o">=</span><span class="mi">404</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">sub</span> <span class="o">=</span> <span class="n">subscriptionkores</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">urls</span> <span class="o">=</span> <span class="n">sub</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;urls&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">portal_url</span> <span class="o">=</span> <span class="n">urls</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;customer_portal&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">PortalSession</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">sub</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]),</span>
+            <span class="n">url</span><span class="o">=</span><span class="n">portal_url</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="c1"># Webhook Handling</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.verify_webhook">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.verify_webhook">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">verify_webhook</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">payload</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
+        <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify LemonSqueezy webhook signature.&quot;&quot;&quot;</span>
+        <span class="n">signature</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;x-signature&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">signature</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">expected_sig</span> <span class="o">=</span> <span class="n">hmac</span><span class="o">.</span><span class="n">new</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">webhook_secret</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">),</span>
+            <span class="n">payload</span><span class="p">,</span>
+            <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">hmac</span><span class="o">.</span><span class="n">compare_digest</span><span class="p">(</span><span class="n">expected_sig</span><span class="p">,</span> <span class="n">signature</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.parse_webhook">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.parse_webhook">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">parse_webhook</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">payload</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
+        <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProviderWebhookEvent</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Parse LemonSqueezy webhook payload.&quot;&quot;&quot;</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;meta&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="k">return</span> <span class="n">ProviderWebhookEvent</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">,</span>
+            <span class="n">event_id</span><span class="o">=</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">event_type</span><span class="o">=</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;event_name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="n">occurred_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+                <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="n">raw_payload</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="c1"># Sync Operations</span>
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.sync_products">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.sync_products">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">sync_products</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Product</span><span class="p">]:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/products&quot;</span><span class="p">,</span>
+            <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;filter[store_id]&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">store_id</span><span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="n">products</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="n">prod</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="n">products</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">Product</span><span class="p">(</span>
+                    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">name</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+                    <span class="n">description</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;description&quot;</span><span class="p">),</span>
+                    <span class="n">provider_refs</span><span class="o">=</span><span class="p">[</span>
+                        <span class="n">ProviderReference</span><span class="p">(</span>
+                            <span class="n">provider</span><span class="o">=</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">,</span>
+                            <span class="n">external_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">prod</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]),</span>
+                        <span class="p">)</span>
+                    <span class="p">],</span>
+                    <span class="n">active</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;published&quot;</span><span class="p">,</span>
+                    <span class="n">metadata</span><span class="o">=</span><span class="p">{},</span>
+                    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+                        <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+                            <span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span>
+                        <span class="p">)</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">products</span></div>
+
+
+<div class="viewcode-block" id="LemonSqueezyAdapter.sync_plans">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.adapters.lemonsqueezy.LemonSqueezyAdapter.sync_plans">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">sync_plans</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product_provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Plan</span><span class="p">]:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span>
+            <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/variants&quot;</span><span class="p">,</span>
+            <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;filter[product_id]&quot;</span><span class="p">:</span> <span class="n">product_provider_ref</span><span class="o">.</span><span class="n">external_id</span><span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="n">plans</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">variant</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="n">variant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+            <span class="n">interval_str</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;interval&quot;</span><span class="p">,</span> <span class="s2">&quot;month&quot;</span><span class="p">)</span>
+            <span class="n">interval_map</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;day&quot;</span><span class="p">:</span> <span class="n">Interval</span><span class="o">.</span><span class="n">DAY</span><span class="p">,</span>
+                <span class="s2">&quot;week&quot;</span><span class="p">:</span> <span class="n">Interval</span><span class="o">.</span><span class="n">WEEK</span><span class="p">,</span>
+                <span class="s2">&quot;month&quot;</span><span class="p">:</span> <span class="n">Interval</span><span class="o">.</span><span class="n">MONTH</span><span class="p">,</span>
+                <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="n">Interval</span><span class="o">.</span><span class="n">YEAR</span><span class="p">,</span>
+            <span class="p">}</span>
+
+            <span class="n">plans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">Plan</span><span class="p">(</span>
+                    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">product_id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">name</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+                    <span class="n">description</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;description&quot;</span><span class="p">),</span>
+                    <span class="n">provider_refs</span><span class="o">=</span><span class="p">[</span>
+                        <span class="n">ProviderReference</span><span class="p">(</span>
+                            <span class="n">provider</span><span class="o">=</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">,</span>
+                            <span class="n">external_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">variant</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]),</span>
+                        <span class="p">)</span>
+                    <span class="p">],</span>
+                    <span class="n">price</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span>
+                        <span class="n">amount</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="mi">100</span><span class="p">,</span>
+                        <span class="n">currency</span><span class="o">=</span><span class="n">Currency</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">),</span>
+                    <span class="p">),</span>
+                    <span class="n">billing_period</span><span class="o">=</span><span class="n">BillingPeriod</span><span class="p">(</span>
+                        <span class="n">interval</span><span class="o">=</span><span class="n">interval_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">interval_str</span><span class="p">,</span> <span class="n">Interval</span><span class="o">.</span><span class="n">MONTH</span><span class="p">),</span>
+                        <span class="n">interval_count</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;interval_count&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+                    <span class="p">),</span>
+                    <span class="n">trial_period_days</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;trial_interval_count&quot;</span><span class="p">),</span>
+                    <span class="n">active</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;published&quot;</span><span class="p">,</span>
+                    <span class="n">metadata</span><span class="o">=</span><span class="p">{},</span>
+                    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+                        <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+                            <span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span>
+                        <span class="p">)</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">plans</span></div>
+
+
+    <span class="c1"># Mapping Helpers</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_map_subscriptionkore</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">plan_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Map LemonSqueezy subscriptionkore to domain model.&quot;&quot;&quot;</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">STATUS_MAP</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;active&quot;</span><span class="p">),</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">)</span>
+
+        <span class="c1"># Handle pause</span>
+        <span class="n">pause_config</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">pause_data</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;pause&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pause_data</span><span class="p">:</span>
+            <span class="n">pause_config</span> <span class="o">=</span> <span class="n">PauseConfig</span><span class="p">(</span>
+                <span class="n">resumes_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">pause_data</span><span class="p">[</span><span class="s2">&quot;resumes_at&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">pause_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;resumes_at&quot;</span><span class="p">)</span>
+                <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">behavior</span><span class="o">=</span><span class="n">PauseBehavior</span><span class="o">.</span><span class="n">VOID</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Handle trial</span>
+        <span class="n">trial_end</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;trial_ends_at&quot;</span><span class="p">):</span>
+            <span class="n">trial_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;trial_ends_at&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">))</span>
+
+        <span class="c1"># Parse dates</span>
+        <span class="n">renews_at</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;renews_at&quot;</span><span class="p">)</span>
+        <span class="n">current_period_end</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">renews_at</span><span class="p">:</span>
+            <span class="n">current_period_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">renews_at</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">))</span>
+
+        <span class="n">created_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+            <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Subscription</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">plan_id</span><span class="o">=</span><span class="n">plan_id</span><span class="p">,</span>
+            <span class="n">provider_ref</span><span class="o">=</span><span class="n">ProviderReference</span><span class="p">(</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">,</span>
+                <span class="n">external_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]),</span>
+                <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s2">&quot;customer_id&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;customer_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)),</span>
+                    <span class="s2">&quot;variant_id&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;variant_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)),</span>
+                <span class="p">},</span>
+            <span class="p">),</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span>
+            <span class="n">current_period</span><span class="o">=</span><span class="n">DateRange</span><span class="p">(</span>
+                <span class="n">start</span><span class="o">=</span><span class="n">created_at</span><span class="p">,</span>
+                <span class="n">end</span><span class="o">=</span><span class="n">current_period_end</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">trial_end</span><span class="o">=</span><span class="n">trial_end</span><span class="p">,</span>
+            <span class="n">cancel_at_period_end</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cancelled&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+            <span class="n">canceled_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;cancelled_at&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cancelled_at&quot;</span><span class="p">)</span>
+            <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">ended_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;ends_at&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ends_at&quot;</span><span class="p">)</span>
+            <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">pause_collection</span><span class="o">=</span><span class="n">pause_config</span><span class="p">,</span>
+            <span class="n">discount</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="p">{},</span>
+            <span class="n">created_at</span><span class="o">=</span><span class="n">created_at</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_map_invoice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Invoice</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Map LemonSqueezy subscriptionkore invoice to domain model.&quot;&quot;&quot;</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">currency</span> <span class="o">=</span> <span class="n">Currency</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">)</span>
+
+        <span class="n">status_map</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;pending&quot;</span><span class="p">:</span> <span class="n">InvoiceStatus</span><span class="o">.</span><span class="n">OPEN</span><span class="p">,</span>
+            <span class="s2">&quot;paid&quot;</span><span class="p">:</span> <span class="n">InvoiceStatus</span><span class="o">.</span><span class="n">PAID</span><span class="p">,</span>
+            <span class="s2">&quot;void&quot;</span><span class="p">:</span> <span class="n">InvoiceStatus</span><span class="o">.</span><span class="n">VOID</span><span class="p">,</span>
+            <span class="s2">&quot;refunded&quot;</span><span class="p">:</span> <span class="n">InvoiceStatus</span><span class="o">.</span><span class="n">VOID</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">total_amount</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;total&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="mi">100</span>
+        <span class="n">subtotal_amount</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subtotal&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="mi">100</span>
+        <span class="n">tax_amount</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tax&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="mi">100</span>
+        <span class="n">discount_amount</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;discount_total&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="mi">100</span>
+
+        <span class="k">return</span> <span class="n">Invoice</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionkore_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)),</span>
+            <span class="n">provider_ref</span><span class="o">=</span><span class="n">ProviderReference</span><span class="p">(</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">,</span>
+                <span class="n">external_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)),</span>
+            <span class="p">),</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">status_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;pending&quot;</span><span class="p">),</span> <span class="n">InvoiceStatus</span><span class="o">.</span><span class="n">OPEN</span><span class="p">),</span>
+            <span class="n">subtotal</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">subtotal_amount</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">tax</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">tax_amount</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">discount_amount</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">discount_amount</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">total</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">total_amount</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">amount_paid</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">total_amount</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;paid&quot;</span>
+            <span class="k">else</span> <span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">amount_due</span><span class="o">=</span><span class="n">Money</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">total_amount</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">&quot;paid&quot;</span>
+            <span class="k">else</span> <span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(</span><span class="n">currency</span><span class="p">),</span>
+            <span class="n">currency</span><span class="o">=</span><span class="n">currency</span><span class="p">,</span>
+            <span class="n">line_items</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">invoice_pdf_url</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;urls&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;invoice_url&quot;</span><span class="p">),</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="p">{},</span>
+            <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span>
+                <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="s2">&quot;+00:00&quot;</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>

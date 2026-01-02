@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.factory</title>
+    
+          <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../_static/theme-vendors.js"></script> -->
+      <script src="../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../genindex.html" />
+  <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.factory</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.factory</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Main factory for creating SubscriptionKore instances.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy.ext.asyncio</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncSession</span><span class="p">,</span> <span class="n">async_sessionmaker</span><span class="p">,</span> <span class="n">create_async_engine</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.adapters.chargebee</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChargebeeAdapter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.adapters.lemonsqueezy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LemonSqueezyAdapter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.adapters.paddle</span><span class="w"> </span><span class="kn">import</span> <span class="n">PaddleAdapter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.adapters.stripe</span><span class="w"> </span><span class="kn">import</span> <span class="n">StripeAdapter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubscriptionKoreConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProviderType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.infrastructure.cache.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">InMemoryCache</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.infrastructure.cache.redis</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisCache</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.infrastructure.event_bus.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">InMemoryEventBus</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.infrastructure.repositories.sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SQLAlchemyCustomerRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyEntitlementOverrideRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyEntitlementRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyInvoiceRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyPaymentEventRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyPlanRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyProcessedEventRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemyProductRepository</span><span class="p">,</span>
+    <span class="n">SQLAlchemySubscriptionRepository</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.infrastructure.repositories.sqlalchemy.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Base</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">CachePort</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.event_bus</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventBusPort</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.provider</span><span class="w"> </span><span class="kn">import</span> <span class="n">PaymentProviderPort</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.services</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CustomerManager</span><span class="p">,</span>
+    <span class="n">EntitlementService</span><span class="p">,</span>
+    <span class="n">SubscriptionManager</span><span class="p">,</span>
+    <span class="n">WebhookProcessor</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Awaitable</span><span class="p">,</span> <span class="n">Callable</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.events</span><span class="w"> </span><span class="kn">import</span> <span class="n">DomainEvent</span>
+
+
+<div class="viewcode-block" id="SubscriptionKore">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubscriptionKore</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main entry point for the SubscriptionKore library.</span>
+
+<span class="sd">    Provides access to all subscription management functionality.</span>
+
+<span class="sd">    Example:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        from subscriptionkore import SubscriptionKore, SubscriptionKoreConfig</span>
+<span class="sd">        from subscriptionkore.config import StripeConfig</span>
+
+<span class="sd">        config = SubscriptionKoreConfig(</span>
+<span class="sd">            database_url=&quot;postgresql+asyncpg://user:pass@localhost/db&quot;,</span>
+<span class="sd">            stripe=StripeConfig(</span>
+<span class="sd">                api_key=&quot;sk_test_...&quot;,</span>
+<span class="sd">                webhook_secret=&quot;whsec_...&quot;,</span>
+<span class="sd">            ),</span>
+<span class="sd">        )</span>
+
+<span class="sd">        async with SubscriptionKore(config) as subscriptionkore:</span>
+<span class="sd">            # Create a customer</span>
+<span class="sd">            customer = await subscriptionkore.customers.create(</span>
+<span class="sd">                external_id=&quot;user_123&quot;,</span>
+<span class="sd">                email=&quot;user@example.com&quot;,</span>
+<span class="sd">            )</span>
+
+<span class="sd">            # Create a subscription</span>
+<span class="sd">            subscription = await subscriptionkore.subscriptions.create(</span>
+<span class="sd">                customer_id=customer.id,</span>
+<span class="sd">                plan_id=&quot;plan_abc&quot;,</span>
+<span class="sd">            )</span>
+
+<span class="sd">            # Check entitlements</span>
+<span class="sd">            has_access = await subscriptionkore.entitlements.has_access(</span>
+<span class="sd">                customer_id=customer.id,</span>
+<span class="sd">                entitlement_key=&quot;premium_features&quot;,</span>
+<span class="sd">            )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">SubscriptionKoreConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_engine</span><span class="p">:</span> <span class="nb">any</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_session_factory</span><span class="p">:</span> <span class="n">async_sessionmaker</span><span class="p">[</span><span class="n">AsyncSession</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">ProviderType</span><span class="p">,</span> <span class="n">PaymentProviderPort</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="p">:</span> <span class="n">InMemoryEventBus</span> <span class="o">=</span> <span class="n">InMemoryEventBus</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span> <span class="n">CachePort</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialized</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__aenter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;SubscriptionKore&quot;</span><span class="p">:</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__aexit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SubscriptionKore.initialize">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.initialize">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize all components.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialized</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Create database engine</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_engine</span> <span class="o">=</span> <span class="n">create_async_engine</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">database_url</span><span class="p">,</span>
+            <span class="n">echo</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">pool_pre_ping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Create tables</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_engine</span><span class="o">.</span><span class="n">begin</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">run_sync</span><span class="p">(</span><span class="n">Base</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">create_all</span><span class="p">)</span>
+
+        <span class="c1"># Create session factory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_session_factory</span> <span class="o">=</span> <span class="n">async_sessionmaker</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_engine</span><span class="p">,</span>
+            <span class="n">class_</span><span class="o">=</span><span class="n">AsyncSession</span><span class="p">,</span>
+            <span class="n">expire_on_commit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Initialize cache</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">redis_url</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">RedisCache</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">redis_url</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">InMemoryCache</span><span class="p">()</span>
+
+        <span class="c1"># Initialize all configured providers</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">stripe</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">[</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">]</span> <span class="o">=</span> <span class="n">StripeAdapter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">stripe</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">paddle</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">[</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">]</span> <span class="o">=</span> <span class="n">PaddleAdapter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">paddle</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">lemonsqueezy</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">[</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">]</span> <span class="o">=</span> <span class="n">LemonSqueezyAdapter</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">lemonsqueezy</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">chargebee</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">[</span><span class="n">ProviderType</span><span class="o">.</span><span class="n">CHARGEBEE</span><span class="p">]</span> <span class="o">=</span> <span class="n">ChargebeeAdapter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">chargebee</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialized</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.close">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.close">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Close all connections and clean up resources.&quot;&quot;&quot;</span>
+        <span class="c1"># Close provider connections</span>
+        <span class="k">for</span> <span class="n">provider</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="s2">&quot;close&quot;</span><span class="p">):</span>
+                <span class="k">await</span> <span class="n">provider</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="c1"># Close cache</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">,</span> <span class="s2">&quot;close&quot;</span><span class="p">):</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="c1"># Close database engine</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_engine</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_engine</span><span class="o">.</span><span class="n">dispose</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialized</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_initialized</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialized</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;SubscriptionKore not initialized. Call initialize() first or use async context manager.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncSession</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_initialized</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_factory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Session factory not initialized&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_factory</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_provider</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PaymentProviderPort</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_initialized</span><span class="p">()</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">provider_type</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">default_provider</span>
+        <span class="n">provider</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">provider</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Provider </span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> not configured&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">provider</span>
+
+<div class="viewcode-block" id="SubscriptionKore.get_provider">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.get_provider">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_provider</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PaymentProviderPort</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a specific provider adapter.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_provider</span><span class="p">(</span><span class="n">provider_type</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">configured_providers</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">ProviderType</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get list of configured providers.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">event_bus</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EventBusPort</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Access the event bus for subscribing to domain events.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span>
+
+<div class="viewcode-block" id="SubscriptionKore.on_event">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.on_event">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_event</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">event_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;DomainEvent&quot;</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span>
+        <span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="s2">&quot;DomainEvent&quot;</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]],</span> <span class="n">Callable</span><span class="p">[[</span><span class="s2">&quot;DomainEvent&quot;</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span>
+    <span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Decorator to subscribe to domain events.</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            @subscriptionkore.on_event(SubscriptionActivated)</span>
+<span class="sd">            async def handle_activation(event: SubscriptionActivated):</span>
+<span class="sd">                await send_welcome_email(event.customer_id)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">decorator</span><span class="p">(</span>
+            <span class="n">handler</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="s2">&quot;DomainEvent&quot;</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="s2">&quot;DomainEvent&quot;</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">subscribe</span><span class="p">(</span><span class="n">event_type</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">handler</span>
+
+        <span class="k">return</span> <span class="n">decorator</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.get_subscription_manager">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.get_subscription_manager">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_subscription_manager</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SubscriptionManager</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a subscription manager instance.&quot;&quot;&quot;</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_session</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">SubscriptionManager</span><span class="p">(</span>
+            <span class="n">subscription_repo</span><span class="o">=</span><span class="n">SQLAlchemySubscriptionRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">customer_repo</span><span class="o">=</span><span class="n">SQLAlchemyCustomerRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">plan_repo</span><span class="o">=</span><span class="n">SQLAlchemyPlanRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">provider</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_provider</span><span class="p">(</span><span class="n">provider_type</span><span class="p">),</span>
+            <span class="n">event_bus</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.get_customer_manager">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.get_customer_manager">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_customer_manager</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CustomerManager</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a customer manager instance.&quot;&quot;&quot;</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_session</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">CustomerManager</span><span class="p">(</span>
+            <span class="n">customer_repo</span><span class="o">=</span><span class="n">SQLAlchemyCustomerRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">provider</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_provider</span><span class="p">(</span><span class="n">provider_type</span><span class="p">),</span>
+            <span class="n">event_bus</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.get_entitlement_service">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.get_entitlement_service">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_entitlement_service</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EntitlementService</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get an entitlement service instance.&quot;&quot;&quot;</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_session</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">EntitlementService</span><span class="p">(</span>
+            <span class="n">entitlement_repo</span><span class="o">=</span><span class="n">SQLAlchemyEntitlementRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">override_repo</span><span class="o">=</span><span class="n">SQLAlchemyEntitlementOverrideRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">subscription_repo</span><span class="o">=</span><span class="n">SQLAlchemySubscriptionRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">plan_repo</span><span class="o">=</span><span class="n">SQLAlchemyPlanRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">cache</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">,</span>
+            <span class="n">cache_ttl</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">entitlement_cache_ttl</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.get_webhook_processor">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.get_webhook_processor">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_webhook_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WebhookProcessor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a webhook processor instance.&quot;&quot;&quot;</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_session</span><span class="p">()</span>
+        <span class="n">entitlement_service</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entitlement_service</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">WebhookProcessor</span><span class="p">(</span>
+            <span class="n">providers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">,</span>
+            <span class="n">subscription_repo</span><span class="o">=</span><span class="n">SQLAlchemySubscriptionRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">customer_repo</span><span class="o">=</span><span class="n">SQLAlchemyCustomerRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">plan_repo</span><span class="o">=</span><span class="n">SQLAlchemyPlanRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">invoice_repo</span><span class="o">=</span><span class="n">SQLAlchemyInvoiceRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">payment_event_repo</span><span class="o">=</span><span class="n">SQLAlchemyPaymentEventRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">processed_event_repo</span><span class="o">=</span><span class="n">SQLAlchemyProcessedEventRepository</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+            <span class="n">event_bus</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="p">,</span>
+            <span class="n">entitlement_service</span><span class="o">=</span><span class="n">entitlement_service</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="c1"># Convenience methods for common operations</span>
+
+<div class="viewcode-block" id="SubscriptionKore.create_customer">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.create_customer">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_customer</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">external_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Customer&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convenience method to create a customer.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Customer</span>
+
+        <span class="n">manager</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_customer_manager</span><span class="p">(</span><span class="n">provider_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">manager</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">external_id</span><span class="o">=</span><span class="n">external_id</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.create_subscription">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.create_subscription">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_subscription</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">plan_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">quantity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">trial_period_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Subscription&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convenience method to create a subscription.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Subscription</span>
+
+        <span class="n">manager</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_subscription_manager</span><span class="p">(</span><span class="n">provider_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">manager</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">plan_id</span><span class="o">=</span><span class="n">plan_id</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="n">quantity</span><span class="p">,</span>
+            <span class="n">trial_period_days</span><span class="o">=</span><span class="n">trial_period_days</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.check_entitlement">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.check_entitlement">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check_entitlement</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;CustomerEntitlement&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convenience method to check an entitlement.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomerEntitlement</span>
+
+        <span class="n">service</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entitlement_service</span><span class="p">()</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">service</span><span class="o">.</span><span class="n">check</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubscriptionKore.has_access">
+<a class="viewcode-back" href="../../api.html#subscriptionkore.SubscriptionKore.has_access">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">has_access</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convenience method to check feature access.&quot;&quot;&quot;</span>
+        <span class="n">service</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entitlement_service</span><span class="p">()</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">service</span><span class="o">.</span><span class="n">has_access</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>

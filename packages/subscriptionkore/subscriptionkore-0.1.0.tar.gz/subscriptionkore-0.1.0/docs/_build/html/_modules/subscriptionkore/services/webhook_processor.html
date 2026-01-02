@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.services.webhook_processor</title>
+    
+          <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../../_static/theme-vendors.js"></script> -->
+      <script src="../../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../../genindex.html" />
+  <link rel="search" title="Search" href="../../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.services.webhook_processor</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.services.webhook_processor</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Webhook processing service.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">structlog</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.events</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DomainEvent</span><span class="p">,</span>
+    <span class="n">InvoiceCreated</span><span class="p">,</span>
+    <span class="n">InvoicePaid</span><span class="p">,</span>
+    <span class="n">PaymentFailed</span><span class="p">,</span>
+    <span class="n">PaymentSucceeded</span><span class="p">,</span>
+    <span class="n">SubscriptionActivated</span><span class="p">,</span>
+    <span class="n">SubscriptionCanceled</span><span class="p">,</span>
+    <span class="n">SubscriptionCreated</span><span class="p">,</span>
+    <span class="n">SubscriptionPastDue</span><span class="p">,</span>
+    <span class="n">SubscriptionPaused</span><span class="p">,</span>
+    <span class="n">SubscriptionResumed</span><span class="p">,</span>
+    <span class="n">SubscriptionUpdated</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">WebhookPayloadInvalidError</span><span class="p">,</span>
+    <span class="n">WebhookProcessingError</span><span class="p">,</span>
+    <span class="n">WebhookSignatureInvalidError</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">InvoiceStatus</span><span class="p">,</span>
+    <span class="n">PaymentEvent</span><span class="p">,</span>
+    <span class="n">ProviderType</span><span class="p">,</span>
+    <span class="n">Subscription</span><span class="p">,</span>
+    <span class="n">SubscriptionStatus</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubscriptionStateMachine</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.event_bus</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventBusPort</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.provider</span><span class="w"> </span><span class="kn">import</span> <span class="n">PaymentProviderPort</span><span class="p">,</span> <span class="n">ProviderWebhookEvent</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.repository</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">CustomerRepository</span><span class="p">,</span>
+        <span class="n">InvoiceRepository</span><span class="p">,</span>
+        <span class="n">PaymentEventRepository</span><span class="p">,</span>
+        <span class="n">PlanRepository</span><span class="p">,</span>
+        <span class="n">ProcessedEventRepository</span><span class="p">,</span>
+        <span class="n">SubscriptionRepository</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.services.entitlement_service</span><span class="w"> </span><span class="kn">import</span> <span class="n">EntitlementService</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">structlog</span><span class="o">.</span><span class="n">get_logger</span><span class="p">()</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CanonicalEventType</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Canonical event types for normalized webhooks.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Subscription events</span>
+    <span class="n">SUBSCRIPTION_CREATED</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.created&quot;</span>
+    <span class="n">SUBSCRIPTION_ACTIVATED</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.activated&quot;</span>
+    <span class="n">SUBSCRIPTION_UPDATED</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.updated&quot;</span>
+    <span class="n">SUBSCRIPTION_CANCELED</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.canceled&quot;</span>
+    <span class="n">SUBSCRIPTION_PAUSED</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore. paused&quot;</span>
+    <span class="n">SUBSCRIPTION_RESUMED</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.resumed&quot;</span>
+    <span class="n">SUBSCRIPTION_PAST_DUE</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.past_due&quot;</span>
+    <span class="n">SUBSCRIPTION_TRIAL_END</span> <span class="o">=</span> <span class="s2">&quot;subscriptionkore.trial_end&quot;</span>
+
+    <span class="c1"># Payment events</span>
+    <span class="n">PAYMENT_SUCCEEDED</span> <span class="o">=</span> <span class="s2">&quot;payment.succeeded&quot;</span>
+    <span class="n">PAYMENT_FAILED</span> <span class="o">=</span> <span class="s2">&quot;payment. failed&quot;</span>
+    <span class="n">PAYMENT_REFUNDED</span> <span class="o">=</span> <span class="s2">&quot;payment. refunded&quot;</span>
+
+    <span class="c1"># Invoice events</span>
+    <span class="n">INVOICE_CREATED</span> <span class="o">=</span> <span class="s2">&quot;invoice.created&quot;</span>
+    <span class="n">INVOICE_PAID</span> <span class="o">=</span> <span class="s2">&quot;invoice.paid&quot;</span>
+    <span class="n">INVOICE_PAYMENT_FAILED</span> <span class="o">=</span> <span class="s2">&quot;invoice.payment_failed&quot;</span>
+
+    <span class="c1"># Customer events</span>
+    <span class="n">CUSTOMER_CREATED</span> <span class="o">=</span> <span class="s2">&quot;customer.created&quot;</span>
+    <span class="n">CUSTOMER_UPDATED</span> <span class="o">=</span> <span class="s2">&quot;customer. updated&quot;</span>
+
+
+<div class="viewcode-block" id="WebhookProcessor">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.WebhookProcessor">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WebhookProcessor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Processes webhooks from payment providers.</span>
+
+<span class="sd">    Responsibilities:</span>
+<span class="sd">    - Verify webhook signatures</span>
+<span class="sd">    - Parse provider-specific payloads</span>
+<span class="sd">    - Normalize to canonical event format</span>
+<span class="sd">    - Apply state changes</span>
+<span class="sd">    - Emit domain events</span>
+<span class="sd">    - Ensure idempotency</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">providers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">ProviderType</span><span class="p">,</span> <span class="n">PaymentProviderPort</span><span class="p">],</span>
+        <span class="n">subscriptionkore_repo</span><span class="p">:</span> <span class="n">SubscriptionRepository</span><span class="p">,</span>
+        <span class="n">customer_repo</span><span class="p">:</span> <span class="n">CustomerRepository</span><span class="p">,</span>
+        <span class="n">plan_repo</span><span class="p">:</span> <span class="n">PlanRepository</span><span class="p">,</span>
+        <span class="n">invoice_repo</span><span class="p">:</span> <span class="n">InvoiceRepository</span><span class="p">,</span>
+        <span class="n">payment_event_repo</span><span class="p">:</span> <span class="n">PaymentEventRepository</span><span class="p">,</span>
+        <span class="n">processed_event_repo</span><span class="p">:</span> <span class="n">ProcessedEventRepository</span><span class="p">,</span>
+        <span class="n">event_bus</span><span class="p">:</span> <span class="n">EventBusPort</span><span class="p">,</span>
+        <span class="n">entitlement_service</span><span class="p">:</span> <span class="n">EntitlementService</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span> <span class="o">=</span> <span class="n">providers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span> <span class="o">=</span> <span class="n">subscriptionkore_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span> <span class="o">=</span> <span class="n">customer_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span> <span class="o">=</span> <span class="n">plan_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_invoice_repo</span> <span class="o">=</span> <span class="n">invoice_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_payment_event_repo</span> <span class="o">=</span> <span class="n">payment_event_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_processed_event_repo</span> <span class="o">=</span> <span class="n">processed_event_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span> <span class="o">=</span> <span class="n">event_bus</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span> <span class="o">=</span> <span class="n">entitlement_service</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span> <span class="o">=</span> <span class="n">SubscriptionStateMachine</span><span class="p">()</span>
+
+<div class="viewcode-block" id="WebhookProcessor.process">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.WebhookProcessor.process">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">payload</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
+        <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WebhookResult</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process a webhook from a payment provider.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            provider:  Provider name (e.g., &quot;stripe&quot;, &quot;paddle&quot;)</span>
+<span class="sd">            payload:  Raw webhook payload bytes</span>
+<span class="sd">            headers: HTTP headers from webhook request</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            WebhookResult with processing outcome</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            WebhookSignatureInvalidError:  If signature verification fails</span>
+<span class="sd">            WebhookPayloadInvalidError:  If payload cannot be parsed</span>
+<span class="sd">            WebhookProcessingError: If processing fails</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Processing webhook&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Get provider adapter</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">provider_type</span> <span class="o">=</span> <span class="n">ProviderType</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">WebhookPayloadInvalidError</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Unknown provider: </span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+
+        <span class="n">adapter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">adapter</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">WebhookPayloadInvalidError</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Provider not configured: </span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Verify signature</span>
+        <span class="n">is_valid</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adapter</span><span class="o">.</span><span class="n">verify_webhook</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">headers</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_valid</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Webhook signature verification failed&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">WebhookSignatureInvalidError</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
+
+        <span class="c1"># Parse webhook</span>
+        <span class="n">provider_event</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adapter</span><span class="o">.</span><span class="n">parse_webhook</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">headers</span><span class="p">)</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span>
+            <span class="n">event_id</span><span class="o">=</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+            <span class="n">event_type</span><span class="o">=</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_type</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Idempotency check</span>
+        <span class="n">already_processed</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_processed_event_repo</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span>
+            <span class="n">event_id</span><span class="o">=</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">already_processed</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Webhook already processed, skipping&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">WebhookResult</span><span class="p">(</span>
+                <span class="n">event_id</span><span class="o">=</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+                <span class="n">status</span><span class="o">=</span><span class="s2">&quot;duplicate&quot;</span><span class="p">,</span>
+                <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Event already processed&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Normalize and process</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">canonical_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_event_type</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">provider_event</span><span class="o">.</span><span class="n">event_type</span><span class="p">)</span>
+            <span class="n">log</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">canonical_type</span><span class="o">=</span><span class="n">canonical_type</span><span class="p">)</span>
+
+            <span class="n">domain_events</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_event</span><span class="p">(</span>
+                <span class="n">provider_type</span><span class="o">=</span><span class="n">provider_type</span><span class="p">,</span>
+                <span class="n">canonical_type</span><span class="o">=</span><span class="n">canonical_type</span><span class="p">,</span>
+                <span class="n">event</span><span class="o">=</span><span class="n">provider_event</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Mark as processed</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_processed_event_repo</span><span class="o">.</span><span class="n">mark_processed</span><span class="p">(</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span>
+                <span class="n">event_id</span><span class="o">=</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Publish domain events</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_event_bus</span><span class="o">.</span><span class="n">publish_many</span><span class="p">(</span><span class="n">domain_events</span><span class="p">)</span>
+
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Webhook processed successfully&quot;</span><span class="p">,</span> <span class="n">events_emitted</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">domain_events</span><span class="p">))</span>
+
+            <span class="k">return</span> <span class="n">WebhookResult</span><span class="p">(</span>
+                <span class="n">event_id</span><span class="o">=</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+                <span class="n">status</span><span class="o">=</span><span class="s2">&quot;processed&quot;</span><span class="p">,</span>
+                <span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Processed </span><span class="si">{</span><span class="n">canonical_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">events_emitted</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">domain_events</span><span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Webhook processing failed&quot;</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">WebhookProcessingError</span><span class="p">(</span><span class="n">provider_event</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_normalize_event_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span> <span class="n">event_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Normalize provider-specific event type to canonical type.&quot;&quot;&quot;</span>
+        <span class="c1"># Stripe mappings</span>
+        <span class="n">stripe_map</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;customer.subscriptionkore.created&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CREATED</span><span class="p">,</span>
+            <span class="s2">&quot;customer.subscriptionkore.updated&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_UPDATED</span><span class="p">,</span>
+            <span class="s2">&quot;customer.subscriptionkore. deleted&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CANCELED</span><span class="p">,</span>
+            <span class="s2">&quot;customer.subscriptionkore.paused&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAUSED</span><span class="p">,</span>
+            <span class="s2">&quot;customer.subscriptionkore.resumed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_RESUMED</span><span class="p">,</span>
+            <span class="s2">&quot;customer.subscriptionkore. trial_will_end&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_TRIAL_END</span><span class="p">,</span>
+            <span class="s2">&quot;invoice.created&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">INVOICE_CREATED</span><span class="p">,</span>
+            <span class="s2">&quot;invoice.paid&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">INVOICE_PAID</span><span class="p">,</span>
+            <span class="s2">&quot;invoice.payment_failed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">INVOICE_PAYMENT_FAILED</span><span class="p">,</span>
+            <span class="s2">&quot;payment_intent.succeeded&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_SUCCEEDED</span><span class="p">,</span>
+            <span class="s2">&quot;payment_intent.payment_failed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_FAILED</span><span class="p">,</span>
+            <span class="s2">&quot;charge.refunded&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_REFUNDED</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Paddle mappings</span>
+        <span class="n">paddle_map</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;subscriptionkore.created&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CREATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore.activated&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_ACTIVATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore.updated&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_UPDATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore.canceled&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CANCELED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore.paused&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAUSED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore.resumed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_RESUMED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore.past_due&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAST_DUE</span><span class="p">,</span>
+            <span class="s2">&quot;transaction.completed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_SUCCEEDED</span><span class="p">,</span>
+            <span class="s2">&quot;transaction.payment_failed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_FAILED</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="c1"># LemonSqueezy mappings</span>
+        <span class="n">lemonsqueezy_map</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;subscriptionkore_created&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CREATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_updated&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_UPDATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_cancelled&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CANCELED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_resumed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_RESUMED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_paused&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAUSED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_payment_success&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_SUCCEEDED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_payment_failed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_FAILED</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Chargebee mappings</span>
+        <span class="n">chargebee_map</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;subscriptionkore_created&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CREATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_activated&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_ACTIVATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_changed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_UPDATED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_cancelled&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CANCELED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_paused&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAUSED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_resumed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_RESUMED</span><span class="p">,</span>
+            <span class="s2">&quot;subscriptionkore_renewal_reminder&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAST_DUE</span><span class="p">,</span>
+            <span class="s2">&quot;payment_succeeded&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_SUCCEEDED</span><span class="p">,</span>
+            <span class="s2">&quot;payment_failed&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_FAILED</span><span class="p">,</span>
+            <span class="s2">&quot;invoice_generated&quot;</span><span class="p">:</span> <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">INVOICE_CREATED</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">mappings</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">:</span> <span class="n">stripe_map</span><span class="p">,</span>
+            <span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">:</span> <span class="n">paddle_map</span><span class="p">,</span>
+            <span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">:</span> <span class="n">lemonsqueezy_map</span><span class="p">,</span>
+            <span class="n">ProviderType</span><span class="o">.</span><span class="n">CHARGEBEE</span><span class="p">:</span> <span class="n">chargebee_map</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">provider_map</span> <span class="o">=</span> <span class="n">mappings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">return</span> <span class="n">provider_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">event_type</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;unknown. </span><span class="si">{</span><span class="n">event_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_event</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">canonical_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle normalized event and return domain events to emit.&quot;&quot;&quot;</span>
+        <span class="n">handlers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CREATED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_created</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_ACTIVATED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_activated</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_UPDATED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_updated</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_CANCELED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_canceled</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAUSED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_paused</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_RESUMED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_resumed</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">SUBSCRIPTION_PAST_DUE</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_subscriptionkore_past_due</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_SUCCEEDED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_payment_succeeded</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">PAYMENT_FAILED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_payment_failed</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">INVOICE_CREATED</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_invoice_created</span><span class="p">,</span>
+            <span class="n">CanonicalEventType</span><span class="o">.</span><span class="n">INVOICE_PAID</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_invoice_paid</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">handler</span> <span class="o">=</span> <span class="n">handlers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">canonical_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">handler</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No handler for event type&quot;</span><span class="p">,</span> <span class="n">canonical_type</span><span class="o">=</span><span class="n">canonical_type</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="n">handler</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_created</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore created webhook.&quot;&quot;&quot;</span>
+        <span class="n">adapter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">[</span><span class="n">provider_type</span><span class="p">]</span>
+
+        <span class="c1"># Get subscriptionkore from provider</span>
+        <span class="n">provider_sub_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_subscriptionkore_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.value_objects</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProviderReference</span>
+
+        <span class="n">provider_ref</span> <span class="o">=</span> <span class="n">ProviderReference</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="p">,</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">provider_sub_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adapter</span><span class="o">.</span><span class="n">get_subscriptionkore</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">)</span>
+
+        <span class="c1"># Look up internal customer and plan IDs</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_customer</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">plan</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_plan</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">customer</span><span class="p">:</span>
+            <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">customer</span><span class="o">.</span><span class="n">id</span>
+        <span class="k">if</span> <span class="n">plan</span><span class="p">:</span>
+            <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">id</span>
+
+        <span class="c1"># Save subscriptionkore</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+
+        <span class="c1"># Invalidate entitlements</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">SubscriptionCreated</span><span class="p">(</span>
+                <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">plan_id</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_activated</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore activated webhook.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_subscriptionkore_from_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">events</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_updated</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore updated webhook.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_subscriptionkore_from_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="c1"># Update from provider data</span>
+        <span class="n">adapter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_providers</span><span class="p">[</span><span class="n">provider_type</span><span class="p">]</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adapter</span><span class="o">.</span><span class="n">get_subscriptionkore</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">provider_ref</span><span class="p">)</span>
+
+        <span class="c1"># Preserve internal IDs</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span>
+        <span class="n">updated</span><span class="o">.</span><span class="n">plan_id</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span>
+
+        <span class="c1"># Check for status change</span>
+        <span class="n">events</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">updated</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+                <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+                <span class="n">new_status</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">events</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">SubscriptionUpdated</span><span class="p">(</span>
+                    <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">updated</span><span class="p">,</span>
+                    <span class="n">customer_id</span><span class="o">=</span><span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                    <span class="n">changed_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;updated_from_webhook&quot;</span><span class="p">],</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">updated</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">events</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_canceled</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore canceled webhook.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_subscriptionkore_from_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">CANCELED</span><span class="p">,</span>
+            <span class="n">immediate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">events</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_paused</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore paused webhook.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_subscriptionkore_from_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">events</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_resumed</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore resumed webhook.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_subscriptionkore_from_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_service</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">events</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_subscriptionkore_past_due</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle subscriptionkore past due webhook.&quot;&quot;&quot;</span>
+        <span class="n">subscriptionkore</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_subscriptionkore_from_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subscriptionkore</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_machine</span><span class="o">.</span><span class="n">transition</span><span class="p">(</span>
+            <span class="n">subscriptionkore</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="p">,</span>
+            <span class="n">new_status</span><span class="o">=</span><span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAST_DUE</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">events</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_payment_succeeded</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle payment succeeded webhook.&quot;&quot;&quot;</span>
+        <span class="n">payment_event</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_payment_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">payment_event</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="c1"># Save payment event</span>
+        <span class="n">payment_event</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_payment_event_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">payment_event</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">PaymentSucceeded</span><span class="p">(</span>
+                <span class="n">payment_event</span><span class="o">=</span><span class="n">payment_event</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+                <span class="n">invoice_id</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">invoice_id</span><span class="p">,</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">amount</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_payment_failed</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle payment failed webhook.&quot;&quot;&quot;</span>
+        <span class="n">payment_event</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_payment_event</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">payment_event</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="c1"># Save payment event</span>
+        <span class="n">payment_event</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_payment_event_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">payment_event</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">PaymentFailed</span><span class="p">(</span>
+                <span class="n">payment_event</span><span class="o">=</span><span class="n">payment_event</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+                <span class="n">invoice_id</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">invoice_id</span><span class="p">,</span>
+                <span class="n">amount</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">amount</span><span class="p">,</span>
+                <span class="n">failure_reason</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">failure_reason</span><span class="p">,</span>
+                <span class="n">failure_code</span><span class="o">=</span><span class="n">payment_event</span><span class="o">.</span><span class="n">failure_code</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_invoice_created</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle invoice created webhook.&quot;&quot;&quot;</span>
+        <span class="n">invoice</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_invoice</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">invoice</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="c1"># Resolve customer</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_customer</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer</span><span class="p">:</span>
+            <span class="n">invoice</span><span class="o">.</span><span class="n">customer_id</span> <span class="o">=</span> <span class="n">customer</span><span class="o">.</span><span class="n">id</span>
+
+        <span class="n">invoice</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoice_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">invoice</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">InvoiceCreated</span><span class="p">(</span>
+                <span class="n">invoice</span><span class="o">=</span><span class="n">invoice</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handle_invoice_paid</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">DomainEvent</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle invoice paid webhook.&quot;&quot;&quot;</span>
+        <span class="n">provider_invoice_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_invoice_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="n">invoice</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoice_repo</span><span class="o">.</span><span class="n">get_by_provider_ref</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">provider_invoice_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">invoice</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Create invoice if not exists</span>
+            <span class="n">invoice</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_invoice</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">invoice</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">invoice</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">InvoiceStatus</span><span class="o">.</span><span class="n">PAID</span>
+        <span class="n">invoice</span><span class="o">.</span><span class="n">paid_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+
+        <span class="n">invoice</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoice_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">invoice</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">InvoicePaid</span><span class="p">(</span>
+                <span class="n">invoice</span><span class="o">=</span><span class="n">invoice</span><span class="p">,</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">subscriptionkore_id</span><span class="p">,</span>
+                <span class="n">amount_paid</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">amount_paid</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="c1"># Helper methods</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_get_subscriptionkore_from_event</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Subscription</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get subscriptionkore from webhook event data.&quot;&quot;&quot;</span>
+        <span class="n">provider_sub_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_subscriptionkore_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">provider_sub_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">get_by_provider_ref</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">provider_sub_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_customer</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve internal customer from webhook data.&quot;&quot;&quot;</span>
+        <span class="n">customer_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_customer_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_customer_repo</span><span class="o">.</span><span class="n">get_by_provider_ref</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_plan</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve internal plan from webhook data.&quot;&quot;&quot;</span>
+        <span class="n">plan_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_plan_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plan_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span><span class="o">.</span><span class="n">get_by_provider_ref</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">external_id</span><span class="o">=</span><span class="n">plan_id</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_subscriptionkore_id</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract subscriptionkore ID from provider webhook data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;subscriptionkore&quot;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionkore&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionkore_id&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">CHARGEBEE</span><span class="p">:</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="n">content</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionkore&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_customer_id</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract customer ID from provider webhook data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;customer&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;customer_id&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">:</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;customer_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">CHARGEBEE</span><span class="p">:</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="n">content</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;customer&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_plan_id</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract plan/price ID from provider webhook data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;items&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">items</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">items</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">:</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;items&quot;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">items</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">items</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">LEMONSQUEEZY</span><span class="p">:</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;attributes&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;variant_id&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">CHARGEBEE</span><span class="p">:</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="n">content</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subscriptionkore&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;plan_id&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_invoice_id</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract invoice ID from provider webhook data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;invoice&quot;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;invoice&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">CHARGEBEE</span><span class="p">:</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="n">content</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;invoice&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_payment_event</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PaymentEvent</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract payment event from webhook data.&quot;&quot;&quot;</span>
+        <span class="c1"># This would be fully implemented per provider</span>
+        <span class="c1"># Simplified implementation for now</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">PaymentEventType</span><span class="p">,</span> <span class="n">PaymentStatus</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.value_objects</span><span class="w"> </span><span class="kn">import</span> <span class="n">Money</span><span class="p">,</span> <span class="n">ProviderReference</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span>
+
+        <span class="n">payment_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_payment_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">payment_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="n">customer_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_customer_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">PaymentEvent</span><span class="p">(</span>
+            <span class="n">provider_ref</span><span class="o">=</span><span class="n">ProviderReference</span><span class="p">(</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="p">,</span>
+                <span class="n">external_id</span><span class="o">=</span><span class="n">payment_id</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_extract_subscriptionkore_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">data</span><span class="p">),</span>
+            <span class="n">invoice_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_extract_invoice_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">data</span><span class="p">),</span>
+            <span class="n">event_type</span><span class="o">=</span><span class="n">PaymentEventType</span><span class="o">.</span><span class="n">PAYMENT_SUCCEEDED</span><span class="p">,</span>
+            <span class="n">amount</span><span class="o">=</span><span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(),</span>  <span class="c1"># Would extract from data</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">PaymentStatus</span><span class="o">.</span><span class="n">SUCCEEDED</span><span class="p">,</span>
+            <span class="n">occurred_at</span><span class="o">=</span><span class="n">event</span><span class="o">.</span><span class="n">occurred_at</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_payment_id</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract payment ID from webhook data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">STRIPE</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">provider_type</span> <span class="o">==</span> <span class="n">ProviderType</span><span class="o">.</span><span class="n">PADDLE</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_extract_invoice</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">provider_type</span><span class="p">:</span> <span class="n">ProviderType</span><span class="p">,</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">ProviderWebhookEvent</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Invoice</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract invoice from webhook data.&quot;&quot;&quot;</span>
+        <span class="c1"># Simplified - would be fully implemented per provider</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.value_objects</span><span class="w"> </span><span class="kn">import</span> <span class="n">Money</span><span class="p">,</span> <span class="n">ProviderReference</span>
+
+        <span class="n">invoice_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_invoice_id</span><span class="p">(</span><span class="n">provider_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">invoice_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="n">Invoice</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>  <span class="c1"># Would be resolved</span>
+            <span class="n">provider_ref</span><span class="o">=</span><span class="n">ProviderReference</span><span class="p">(</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">provider_type</span><span class="p">,</span>
+                <span class="n">external_id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">subtotal</span><span class="o">=</span><span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(),</span>
+            <span class="n">total</span><span class="o">=</span><span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(),</span>
+            <span class="n">amount_due</span><span class="o">=</span><span class="n">Money</span><span class="o">.</span><span class="n">zero</span><span class="p">(),</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WebhookResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Result of webhook processing.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">event_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">status</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">events_emitted</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">=</span> <span class="n">event_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">status</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">events_emitted</span> <span class="o">=</span> <span class="n">events_emitted</span>
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>

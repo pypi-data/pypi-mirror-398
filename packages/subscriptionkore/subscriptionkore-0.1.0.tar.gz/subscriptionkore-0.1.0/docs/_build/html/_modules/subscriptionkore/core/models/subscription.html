@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.core.models.subscription</title>
+    
+          <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../../../_static/theme-vendors.js"></script> -->
+      <script src="../../../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../../../genindex.html" />
+  <link rel="search" title="Search" href="../../../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../../../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.core.models.subscription</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.core.models.subscription</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Subscription domain model.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ulid</span><span class="w"> </span><span class="kn">import</span> <span class="n">ULID</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models.value_objects</span><span class="w"> </span><span class="kn">import</span> <span class="n">DateRange</span><span class="p">,</span> <span class="n">Money</span><span class="p">,</span> <span class="n">ProviderReference</span>
+
+
+<div class="viewcode-block" id="SubscriptionStatus">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.SubscriptionStatus">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SubscriptionStatus</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subscription status values.&quot;&quot;&quot;</span>
+
+    <span class="n">INCOMPLETE</span> <span class="o">=</span> <span class="s2">&quot;incomplete&quot;</span>
+    <span class="n">INCOMPLETE_EXPIRED</span> <span class="o">=</span> <span class="s2">&quot;incomplete_expired&quot;</span>
+    <span class="n">TRIALING</span> <span class="o">=</span> <span class="s2">&quot;trialing&quot;</span>
+    <span class="n">ACTIVE</span> <span class="o">=</span> <span class="s2">&quot;active&quot;</span>
+    <span class="n">PAST_DUE</span> <span class="o">=</span> <span class="s2">&quot;past_due&quot;</span>
+    <span class="n">PAUSED</span> <span class="o">=</span> <span class="s2">&quot;paused&quot;</span>
+    <span class="n">CANCELED</span> <span class="o">=</span> <span class="s2">&quot;canceled&quot;</span>
+    <span class="n">UNPAID</span> <span class="o">=</span> <span class="s2">&quot;unpaid&quot;</span>
+    <span class="n">EXPIRED</span> <span class="o">=</span> <span class="s2">&quot;expired&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="PauseBehavior">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.PauseBehavior">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PauseBehavior</span><span class="p">(</span><span class="n">StrEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pause behavior options.&quot;&quot;&quot;</span>
+
+    <span class="n">VOID</span> <span class="o">=</span> <span class="s2">&quot;void&quot;</span>  <span class="c1"># Void upcoming invoices</span>
+    <span class="n">KEEP_AS_DRAFT</span> <span class="o">=</span> <span class="s2">&quot;keep_as_draft&quot;</span>  <span class="c1"># Keep upcoming invoices as drafts</span>
+    <span class="n">MARK_UNCOLLECTIBLE</span> <span class="o">=</span> <span class="s2">&quot;mark_uncollectible&quot;</span>  <span class="c1"># Mark as uncollectible</span></div>
+
+
+
+<div class="viewcode-block" id="PauseConfig">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.PauseConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PauseConfig</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subscription pause configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">resumes_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">behavior</span><span class="p">:</span> <span class="n">PauseBehavior</span> <span class="o">=</span> <span class="n">PauseBehavior</span><span class="o">.</span><span class="n">VOID</span></div>
+
+
+
+<div class="viewcode-block" id="AppliedDiscount">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.AppliedDiscount">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AppliedDiscount</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Discount applied to a subscriptionn.&quot;&quot;&quot;</span>
+
+    <span class="n">discount_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">coupon_code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">amount_off</span><span class="p">:</span> <span class="n">Money</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">percent_off</span><span class="p">:</span> <span class="n">Decimal</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">valid_until</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="Subscription">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Subscription</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subscription domain entity.&quot;&quot;&quot;</span>
+
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">ULID</span><span class="p">()))</span>
+    <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">plan_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">provider_ref</span><span class="p">:</span> <span class="n">ProviderReference</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">SubscriptionStatus</span> <span class="o">=</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">INCOMPLETE</span>
+    <span class="n">current_period</span><span class="p">:</span> <span class="n">DateRange</span>
+    <span class="n">trial_end</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">cancel_at_period_end</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">canceled_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">ended_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">pause_collection</span><span class="p">:</span> <span class="n">PauseConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">discount</span><span class="p">:</span> <span class="n">AppliedDiscount</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">quantity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">)</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Subscription.is_active">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.is_active">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_active</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn is in an active state.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">{</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">,</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">TRIALING</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="Subscription.is_canceled">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.is_canceled">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_canceled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn is canceled.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">CANCELED</span></div>
+
+
+<div class="viewcode-block" id="Subscription.is_trialing">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.is_trialing">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_trialing</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn is in trial.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">TRIALING</span></div>
+
+
+<div class="viewcode-block" id="Subscription.is_paused">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.is_paused">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_paused</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn is paused.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAUSED</span></div>
+
+
+<div class="viewcode-block" id="Subscription.is_past_due">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.is_past_due">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_past_due</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn has payment issues.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">{</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">PAST_DUE</span><span class="p">,</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">UNPAID</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="Subscription.has_ended">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.has_ended">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">has_ended</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn has permanently ended.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">{</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">CANCELED</span><span class="p">,</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">EXPIRED</span><span class="p">,</span>
+            <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">INCOMPLETE_EXPIRED</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="Subscription.will_cancel_at_period_end">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.will_cancel_at_period_end">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">will_cancel_at_period_end</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if subscriptionn is scheduled to cancel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cancel_at_period_end</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_canceled</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Subscription.days_until_trial_ends">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.days_until_trial_ends">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">days_until_trial_ends</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get days until trial ends, or None if not trialing.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_trialing</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">trial_end</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trial_end</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">days</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Subscription.apply_discount">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.apply_discount">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_discount</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">discount</span><span class="p">:</span> <span class="n">AppliedDiscount</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply a discount to the subscriptionn.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">discount</span> <span class="o">=</span> <span class="n">discount</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updated_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Subscription.remove_discount">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.remove_discount">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove_discount</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove discount from subscriptionn.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">discount</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updated_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Subscription.schedule_cancellation">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.schedule_cancellation">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">schedule_cancellation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Schedule cancellation at period end.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cancel_at_period_end</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updated_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Subscription.unschedule_cancellation">
+<a class="viewcode-back" href="../../../../api.html#subscriptionkore.Subscription.unschedule_cancellation">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">unschedule_cancellation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove scheduled cancellation.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cancel_at_period_end</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canceled_at</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updated_at</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>

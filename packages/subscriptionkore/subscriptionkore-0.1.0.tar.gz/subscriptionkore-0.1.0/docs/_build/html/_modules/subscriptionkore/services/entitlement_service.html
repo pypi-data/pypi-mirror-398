@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html  lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>subscriptionkore.services.entitlement_service</title>
+    
+          <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+          <link rel="stylesheet" href="../../../_static/theme.css " type="text/css" />
+      
+      <!-- sphinx script_files -->
+        <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+
+      
+      <!-- bundled in js (rollup iife) -->
+      <!-- <script src="../../../_static/theme-vendors.js"></script> -->
+      <script src="../../../_static/theme.js" defer></script>
+    
+  <link rel="index" title="Index" href="../../../genindex.html" />
+  <link rel="search" title="Search" href="../../../search.html" /> 
+  </head>
+
+  <body>
+    <div id="app">
+    <div class="theme-container" :class="pageClasses"><navbar @toggle-sidebar="toggleSidebar">
+  <router-link to="../../../index.html" class="home-link">
+    
+      <span class="site-name">SubscriptionKore</span>
+    
+  </router-link>
+
+  <div class="links">
+    <navlinks class="can-hide">
+
+
+
+    </navlinks>
+  </div>
+</navbar>
+
+      
+      <div class="sidebar-mask" @click="toggleSidebar(false)">
+      </div>
+        <sidebar @toggle-sidebar="toggleSidebar">
+          
+          <navlinks>
+            
+
+
+
+            
+          </navlinks><div id="searchbox" class="searchbox" role="search">
+  <div class="caption"><span class="caption-text">Quick search</span>
+    <div class="searchformwrapper">
+      <form class="search" action="../../../search.html" method="get">
+        <input type="text" name="q" />
+        <input type="submit" value="Search" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+      </form>
+    </div>
+  </div>
+</div><div class="sidebar-links" role="navigation" aria-label="main navigation">
+  
+    <div class="sidebar-group">
+      <p class="caption">
+        <span class="caption-text"><a href="../../../index.html#welcome-to-subscriptionkore-s-documentation">Contents:</a></span>
+      </p>
+      <ul class="">
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../installation.html" class="reference internal ">Installation</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../quickstart.html" class="reference internal ">Quickstart</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../configuration.html" class="reference internal ">Configuration</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../usage.html" class="reference internal ">Usage Guide</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../api.html" class="reference internal ">API Reference</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../examples.html" class="reference internal ">Examples</a>
+            
+
+            
+          </li>
+
+        
+          <li class="toctree-l1 ">
+            
+              <a href="../../../contributing.html" class="reference internal ">Contributing</a>
+            
+
+            
+          </li>
+
+        
+      </ul>
+    </div>
+  
+</div>
+        </sidebar>
+
+      <page>
+          <div class="body-header" role="navigation" aria-label="navigation">
+  
+  <ul class="breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+    
+      <li><a href="../../index.html">Module code</a> &raquo;</li>
+    
+    <li>subscriptionkore.services.entitlement_service</li>
+  </ul>
+  
+
+  <ul class="page-nav">
+</ul>
+  
+</div>
+<hr>
+          <div class="content" role="main" v-pre>
+            
+  <h1>Source code for subscriptionkore.services.entitlement_service</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Entitlement resolution service.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">structlog</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">EntitlementNotFoundError</span><span class="p">,</span> <span class="n">UsageLimitExceededError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CustomerEntitlement</span><span class="p">,</span>
+    <span class="n">EntitlementOverride</span><span class="p">,</span>
+    <span class="n">EntitlementSource</span><span class="p">,</span>
+    <span class="n">EntitlementValueType</span><span class="p">,</span>
+    <span class="n">SubscriptionStatus</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">CachePort</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">subscriptionkore.ports.repository</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">EntitlementOverrideRepository</span><span class="p">,</span>
+        <span class="n">EntitlementRepository</span><span class="p">,</span>
+        <span class="n">PlanRepository</span><span class="p">,</span>
+        <span class="n">SubscriptionRepository</span><span class="p">,</span>
+    <span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">structlog</span><span class="o">.</span><span class="n">get_logger</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="EntitlementService">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EntitlementService</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Resolves and manages customer entitlements.</span>
+
+<span class="sd">    Entitlements are derived from:</span>
+<span class="sd">    1. Customer-level overrides (highest priority)</span>
+<span class="sd">    2. Active subscriptionkore plan entitlements</span>
+<span class="sd">    3. Trial entitlements</span>
+<span class="sd">    4. Default entitlements (lowest priority)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">entitlement_repo</span><span class="p">:</span> <span class="n">EntitlementRepository</span><span class="p">,</span>
+        <span class="n">override_repo</span><span class="p">:</span> <span class="n">EntitlementOverrideRepository</span><span class="p">,</span>
+        <span class="n">subscriptionkore_repo</span><span class="p">:</span> <span class="n">SubscriptionRepository</span><span class="p">,</span>
+        <span class="n">plan_repo</span><span class="p">:</span> <span class="n">PlanRepository</span><span class="p">,</span>
+        <span class="n">cache</span><span class="p">:</span> <span class="n">CachePort</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">cache_ttl</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_repo</span> <span class="o">=</span> <span class="n">entitlement_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_override_repo</span> <span class="o">=</span> <span class="n">override_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span> <span class="o">=</span> <span class="n">subscriptionkore_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span> <span class="o">=</span> <span class="n">plan_repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">cache</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache_ttl</span> <span class="o">=</span> <span class="n">cache_ttl</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_cache_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;entitlements:</span><span class="si">{</span><span class="n">customer_id</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<div class="viewcode-block" id="EntitlementService.check">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.check">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CustomerEntitlement</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check a specific entitlement for a customer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            customer_id: Customer ID</span>
+<span class="sd">            entitlement_key: Entitlement key to check</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Resolved CustomerEntitlement</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            EntitlementNotFoundError: If entitlement key doesn&#39;t exist</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">all_entitlements</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_all</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">ent</span> <span class="ow">in</span> <span class="n">all_entitlements</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">ent</span><span class="o">.</span><span class="n">entitlement_key</span> <span class="o">==</span> <span class="n">entitlement_key</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">ent</span>
+
+        <span class="c1"># Check if entitlement definition exists</span>
+        <span class="n">entitlement_def</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_repo</span><span class="o">.</span><span class="n">get_by_key</span><span class="p">(</span><span class="n">entitlement_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entitlement_def</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntitlementNotFoundError</span><span class="p">(</span><span class="n">entitlement_key</span><span class="p">)</span>
+
+        <span class="c1"># Return default value</span>
+        <span class="k">return</span> <span class="n">CustomerEntitlement</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">entitlement_key</span><span class="o">=</span><span class="n">entitlement_key</span><span class="p">,</span>
+            <span class="n">current_value</span><span class="o">=</span><span class="n">entitlement_def</span><span class="o">.</span><span class="n">default_value</span> <span class="ow">or</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">value_type</span><span class="o">=</span><span class="n">entitlement_def</span><span class="o">.</span><span class="n">value_type</span><span class="p">,</span>
+            <span class="n">source</span><span class="o">=</span><span class="n">EntitlementSource</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.check_many">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.check_many">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check_many</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_keys</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">CustomerEntitlement</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check multiple entitlements at once.&quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">CustomerEntitlement</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">entitlement_keys</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">check</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.check_all">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.check_all">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CustomerEntitlement</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get all resolved entitlements for a customer.</span>
+
+<span class="sd">        Results are cached for performance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="c1"># Check cache</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span>
+            <span class="n">cached</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache_key</span><span class="p">(</span><span class="n">customer_id</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Entitlements cache hit&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">CustomerEntitlement</span><span class="o">.</span><span class="n">model_validate</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cached</span><span class="p">]</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Resolving entitlements&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Collect entitlements from all sources</span>
+        <span class="n">entitlements</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">CustomerEntitlement</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># 1. Load defaults from entitlement definitions</span>
+        <span class="n">all_definitions</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_repo</span><span class="o">.</span><span class="n">list_all</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">definition</span> <span class="ow">in</span> <span class="n">all_definitions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">definition</span><span class="o">.</span><span class="n">default_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">entitlements</span><span class="p">[</span><span class="n">definition</span><span class="o">.</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">CustomerEntitlement</span><span class="p">(</span>
+                    <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+                    <span class="n">entitlement_key</span><span class="o">=</span><span class="n">definition</span><span class="o">.</span><span class="n">key</span><span class="p">,</span>
+                    <span class="n">current_value</span><span class="o">=</span><span class="n">definition</span><span class="o">.</span><span class="n">default_value</span><span class="p">,</span>
+                    <span class="n">value_type</span><span class="o">=</span><span class="n">definition</span><span class="o">.</span><span class="n">value_type</span><span class="p">,</span>
+                    <span class="n">source</span><span class="o">=</span><span class="n">EntitlementSource</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">,</span>
+                <span class="p">)</span>
+
+        <span class="c1"># 2. Load from active subscriptionkores (overrides defaults)</span>
+        <span class="n">subscriptionkores</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptionkore_repo</span><span class="o">.</span><span class="n">list_active_by_customer</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">subscriptionkore</span> <span class="ow">in</span> <span class="n">subscriptionkores</span><span class="p">:</span>
+            <span class="n">plan</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_plan_repo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">plan_id</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">source</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">EntitlementSource</span><span class="o">.</span><span class="n">TRIAL</span>
+                <span class="k">if</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">SubscriptionStatus</span><span class="o">.</span><span class="n">TRIALING</span>
+                <span class="k">else</span> <span class="n">EntitlementSource</span><span class="o">.</span><span class="n">PLAN</span>
+            <span class="p">)</span>
+
+            <span class="n">expires_at</span> <span class="o">=</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">trial_end</span> <span class="k">if</span> <span class="n">subscriptionkore</span><span class="o">.</span><span class="n">is_trialing</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span>
+
+            <span class="k">for</span> <span class="n">plan_ent</span> <span class="ow">in</span> <span class="n">plan</span><span class="o">.</span><span class="n">entitlements</span><span class="p">:</span>
+                <span class="n">existing</span> <span class="o">=</span> <span class="n">entitlements</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">plan_ent</span><span class="o">.</span><span class="n">entitlement_key</span><span class="p">)</span>
+
+                <span class="c1"># Resolve value based on type</span>
+                <span class="n">new_value</span> <span class="o">=</span> <span class="n">plan_ent</span><span class="o">.</span><span class="n">value</span>
+                <span class="k">if</span> <span class="n">existing</span> <span class="ow">and</span> <span class="n">plan_ent</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">new_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_value</span><span class="p">(</span>
+                        <span class="n">existing</span><span class="o">.</span><span class="n">current_value</span><span class="p">,</span>
+                        <span class="n">plan_ent</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                        <span class="n">plan_ent</span><span class="o">.</span><span class="n">value_type</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">new_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">entitlements</span><span class="p">[</span><span class="n">plan_ent</span><span class="o">.</span><span class="n">entitlement_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">CustomerEntitlement</span><span class="p">(</span>
+                        <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+                        <span class="n">entitlement_key</span><span class="o">=</span><span class="n">plan_ent</span><span class="o">.</span><span class="n">entitlement_key</span><span class="p">,</span>
+                        <span class="n">current_value</span><span class="o">=</span><span class="n">new_value</span><span class="p">,</span>
+                        <span class="n">value_type</span><span class="o">=</span><span class="n">plan_ent</span><span class="o">.</span><span class="n">value_type</span><span class="p">,</span>
+                        <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+                        <span class="n">expires_at</span><span class="o">=</span><span class="n">expires_at</span><span class="p">,</span>
+                        <span class="n">subscriptionkore_id</span><span class="o">=</span><span class="n">subscriptionkore</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                        <span class="n">plan_id</span><span class="o">=</span><span class="n">plan</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+        <span class="c1"># 3. Load overrides (highest priority)</span>
+        <span class="n">overrides</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_override_repo</span><span class="o">.</span><span class="n">list_by_customer</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">include_expired</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">override</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">is_expired</span><span class="p">():</span>
+                <span class="k">continue</span>
+
+            <span class="n">entitlements</span><span class="p">[</span><span class="n">override</span><span class="o">.</span><span class="n">entitlement_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">CustomerEntitlement</span><span class="p">(</span>
+                <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+                <span class="n">entitlement_key</span><span class="o">=</span><span class="n">override</span><span class="o">.</span><span class="n">entitlement_key</span><span class="p">,</span>
+                <span class="n">current_value</span><span class="o">=</span><span class="n">override</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="n">value_type</span><span class="o">=</span><span class="n">override</span><span class="o">.</span><span class="n">value_type</span><span class="p">,</span>
+                <span class="n">source</span><span class="o">=</span><span class="n">EntitlementSource</span><span class="o">.</span><span class="n">OVERRIDE</span><span class="p">,</span>
+                <span class="n">expires_at</span><span class="o">=</span><span class="n">override</span><span class="o">.</span><span class="n">expires_at</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">entitlements</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+
+        <span class="c1"># Cache result</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span>
+            <span class="c1"># Find shortest expiration for TTL</span>
+            <span class="n">min_ttl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache_ttl</span>
+            <span class="k">for</span> <span class="n">ent</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">ent</span><span class="o">.</span><span class="n">expires_at</span><span class="p">:</span>
+                    <span class="n">remaining</span> <span class="o">=</span> <span class="p">(</span><span class="n">ent</span><span class="o">.</span><span class="n">expires_at</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">())</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">remaining</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">min_ttl</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">min_ttl</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">remaining</span><span class="p">))</span>
+
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_cache_key</span><span class="p">(</span><span class="n">customer_id</span><span class="p">),</span>
+                <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">result</span><span class="p">],</span>
+                <span class="n">ttl_seconds</span><span class="o">=</span><span class="n">min_ttl</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_value</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">existing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">new</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">value_type</span><span class="p">:</span> <span class="n">EntitlementValueType</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve value when multiple sources provide the same entitlement.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">new</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">existing</span>
+
+        <span class="k">if</span> <span class="n">value_type</span> <span class="o">==</span> <span class="n">EntitlementValueType</span><span class="o">.</span><span class="n">BOOLEAN</span><span class="p">:</span>
+            <span class="c1"># Any true source wins</span>
+            <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">existing</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">bool</span><span class="p">(</span><span class="n">new</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">value_type</span> <span class="o">==</span> <span class="n">EntitlementValueType</span><span class="o">.</span><span class="n">NUMERIC</span><span class="p">:</span>
+            <span class="c1"># Maximum value wins</span>
+            <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">existing</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">new</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">value_type</span> <span class="o">==</span> <span class="n">EntitlementValueType</span><span class="o">.</span><span class="n">UNLIMITED</span><span class="p">:</span>
+            <span class="c1"># Unlimited always wins</span>
+            <span class="k">return</span> <span class="n">new</span>
+
+        <span class="c1"># String:  new value wins (higher priority source)</span>
+        <span class="k">return</span> <span class="n">new</span>
+
+<div class="viewcode-block" id="EntitlementService.has_access">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.has_access">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">has_access</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if customer has access to a feature.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ent</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">check</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">ent</span><span class="o">.</span><span class="n">as_bool</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">EntitlementNotFoundError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.get_limit">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.get_limit">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_limit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get numeric limit for an entitlement.</span>
+
+<span class="sd">        Returns None for unlimited entitlements.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ent</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">check</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ent</span><span class="o">.</span><span class="n">as_int</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.check_within_limit">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.check_within_limit">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check_within_limit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">current_usage</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">requested</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check if usage is within limit.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            customer_id: Customer ID</span>
+<span class="sd">            entitlement_key: Entitlement key</span>
+<span class="sd">            current_usage: Current usage count</span>
+<span class="sd">            requested: Additional usage being requested</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tuple of (within_limit, remaining)</span>
+<span class="sd">            remaining is None for unlimited</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_limit</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Unlimited</span>
+            <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">None</span>
+
+        <span class="n">new_usage</span> <span class="o">=</span> <span class="n">current_usage</span> <span class="o">+</span> <span class="n">requested</span>
+        <span class="n">within_limit</span> <span class="o">=</span> <span class="n">new_usage</span> <span class="o">&lt;=</span> <span class="n">limit</span>
+        <span class="n">remaining</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">limit</span> <span class="o">-</span> <span class="n">current_usage</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">within_limit</span><span class="p">,</span> <span class="n">remaining</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.enforce_limit">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.enforce_limit">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enforce_limit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">current_usage</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">requested</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Enforce usage limit, raising exception if exceeded.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            customer_id: Customer ID</span>
+<span class="sd">            entitlement_key:  Entitlement key</span>
+<span class="sd">            current_usage:  Current usage count</span>
+<span class="sd">            requested: Additional usage being requested</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Remaining quota (None for unlimited)</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            UsageLimitExceededError:  If limit would be exceeded</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_limit</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="n">new_usage</span> <span class="o">=</span> <span class="n">current_usage</span> <span class="o">+</span> <span class="n">requested</span>
+        <span class="k">if</span> <span class="n">new_usage</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UsageLimitExceededError</span><span class="p">(</span>
+                <span class="n">entitlement_key</span><span class="o">=</span><span class="n">entitlement_key</span><span class="p">,</span>
+                <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+                <span class="n">current_usage</span><span class="o">=</span><span class="n">current_usage</span><span class="p">,</span>
+                <span class="n">requested</span><span class="o">=</span><span class="n">requested</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">limit</span> <span class="o">-</span> <span class="n">new_usage</span></div>
+
+
+    <span class="c1"># Override Management</span>
+
+<div class="viewcode-block" id="EntitlementService.grant_override">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.grant_override">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">grant_override</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">expires_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EntitlementOverride</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Grant an entitlement override to a customer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            customer_id: Customer ID</span>
+<span class="sd">            entitlement_key: Entitlement key</span>
+<span class="sd">            value:  Override value</span>
+<span class="sd">            expires_at: When override expires (None for permanent)</span>
+<span class="sd">            reason: Reason for override</span>
+<span class="sd">            created_by: Who created the override</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Created override</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="o">=</span><span class="n">entitlement_key</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Granting entitlement override&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Get entitlement definition</span>
+        <span class="n">entitlement_def</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entitlement_repo</span><span class="o">.</span><span class="n">get_by_key</span><span class="p">(</span><span class="n">entitlement_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entitlement_def</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EntitlementNotFoundError</span><span class="p">(</span><span class="n">entitlement_key</span><span class="p">)</span>
+
+        <span class="c1"># Delete existing override if any</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_override_repo</span><span class="o">.</span><span class="n">delete_by_customer_and_key</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span>
+
+        <span class="c1"># Create new override</span>
+        <span class="n">override</span> <span class="o">=</span> <span class="n">EntitlementOverride</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">entitlement_key</span><span class="o">=</span><span class="n">entitlement_key</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">value_type</span><span class="o">=</span><span class="n">entitlement_def</span><span class="o">.</span><span class="n">value_type</span><span class="p">,</span>
+            <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">,</span>
+            <span class="n">expires_at</span><span class="o">=</span><span class="n">expires_at</span><span class="p">,</span>
+            <span class="n">created_by</span><span class="o">=</span><span class="n">created_by</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">override</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_override_repo</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">override</span><span class="p">)</span>
+
+        <span class="c1"># Invalidate cache</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Entitlement override granted&quot;</span><span class="p">,</span> <span class="n">override_id</span><span class="o">=</span><span class="n">override</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">override</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.revoke_override">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.revoke_override">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">revoke_override</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">entitlement_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Revoke an entitlement override.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            True if override was deleted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logger</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="o">=</span><span class="n">entitlement_key</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Revoking entitlement override&quot;</span><span class="p">)</span>
+
+        <span class="n">deleted</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_override_repo</span><span class="o">.</span><span class="n">delete_by_customer_and_key</span><span class="p">(</span><span class="n">customer_id</span><span class="p">,</span> <span class="n">entitlement_key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">deleted</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">invalidate</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Entitlement override revoked&quot;</span><span class="p">,</span> <span class="n">deleted</span><span class="o">=</span><span class="n">deleted</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">deleted</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.list_overrides">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.list_overrides">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_overrides</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">include_expired</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">EntitlementOverride</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;List all overrides for a customer.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_override_repo</span><span class="o">.</span><span class="n">list_by_customer</span><span class="p">(</span>
+            <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">,</span>
+            <span class="n">include_expired</span><span class="o">=</span><span class="n">include_expired</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="c1"># Cache Management</span>
+
+<div class="viewcode-block" id="EntitlementService.invalidate">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.invalidate">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invalidate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidate entitlement cache for a customer.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache_key</span><span class="p">(</span><span class="n">customer_id</span><span class="p">))</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Entitlement cache invalidated&quot;</span><span class="p">,</span> <span class="n">customer_id</span><span class="o">=</span><span class="n">customer_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="EntitlementService.invalidate_all">
+<a class="viewcode-back" href="../../../api.html#subscriptionkore.services.EntitlementService.invalidate_all">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invalidate_all</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidate all entitlement caches.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">delete_pattern</span><span class="p">(</span><span class="s2">&quot;entitlements:*&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;All entitlement caches invalidated&quot;</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="n">count</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          <div class="page-nav">
+            <div class="inner"><ul class="page-nav">
+</ul><div class="footer" role="contentinfo">
+      &#169; Copyright 2025, InnerKore Team.
+    <br>
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 8.2.3 with <a href="https://github.com/schettino72/sphinx_press_theme">Press Theme</a> 0.9.1.
+</div>
+            </div>
+          </div>
+      </page>
+    </div></div>
+    
+    
+  </body>
+</html>
