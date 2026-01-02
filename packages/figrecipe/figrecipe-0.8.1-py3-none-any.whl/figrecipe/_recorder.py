@@ -1,0 +1,442 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# Timestamp: "2025-12-23 09:57:28 (ywatanabe)"
+# File: /home/ywatanabe/proj/figrecipe/src/figrecipe/_recorder.py
+
+
+"""Core recording functionality for figrecipe."""
+
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+import matplotlib
+import numpy as np
+
+
+@dataclass
+class CallRecord:
+    """Record of a single plotting call."""
+
+    id: str
+    function: str
+    args: List[Dict[str, Any]]
+    kwargs: Dict[str, Any]
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    ax_position: Tuple[int, int] = (0, 0)
+    # Statistics associated with this plot call (e.g., n, mean, sem)
+    stats: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        result = {
+            "id": self.id,
+            "function": self.function,
+            "args": self.args,
+            "kwargs": self.kwargs,
+            "timestamp": self.timestamp,
+        }
+        if self.stats is not None:
+            result["stats"] = self.stats
+        return result
+
+    @classmethod
+    def from_dict(
+        cls, data: Dict[str, Any], ax_position: Tuple[int, int] = (0, 0)
+    ) -> "CallRecord":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            function=data["function"],
+            args=data["args"],
+            kwargs=data["kwargs"],
+            timestamp=data.get("timestamp", ""),
+            ax_position=ax_position,
+            stats=data.get("stats"),
+        )
+
+
+@dataclass
+class AxesRecord:
+    """Record of all calls on a single axes."""
+
+    position: Tuple[int, int]
+    calls: List[CallRecord] = field(default_factory=list)
+    decorations: List[CallRecord] = field(default_factory=list)
+    # Panel-level caption (e.g., "(A) Description of this panel")
+    caption: Optional[str] = None
+    # Panel-level statistics (e.g., summary stats, comparison results)
+    stats: Optional[Dict[str, Any]] = None
+    # Panel visibility (for composition)
+    visible: bool = True
+
+    def add_call(self, record: CallRecord) -> None:
+        """Add a plotting call record."""
+        self.calls.append(record)
+
+    def add_decoration(self, record: CallRecord) -> None:
+        """Add a decoration call (set_xlabel, etc.)."""
+        self.decorations.append(record)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        result = {
+            "calls": [c.to_dict() for c in self.calls],
+            "decorations": [d.to_dict() for d in self.decorations],
+        }
+        if self.caption is not None:
+            result["caption"] = self.caption
+        if self.stats is not None:
+            result["stats"] = self.stats
+        if not self.visible:  # Only serialize if hidden (default is True)
+            result["visible"] = False
+        return result
+
+
+@dataclass
+class FigureRecord:
+    """Record of an entire figure."""
+
+    id: str = field(default_factory=lambda: f"fig_{uuid.uuid4().hex[:8]}")
+    created: str = field(default_factory=lambda: datetime.now().isoformat())
+    matplotlib_version: str = field(default_factory=lambda: matplotlib.__version__)
+    figsize: Tuple[float, float] = (6.4, 4.8)
+    dpi: int = 300
+    axes: Dict[str, AxesRecord] = field(default_factory=dict)
+    # Layout parameters (subplots_adjust)
+    layout: Optional[Dict[str, float]] = None
+    # Style parameters
+    style: Optional[Dict[str, Any]] = None
+    # Constrained layout flag
+    constrained_layout: bool = False
+    # Figure-level decorations (suptitle, supxlabel, supylabel)
+    suptitle: Optional[Dict[str, Any]] = None
+    supxlabel: Optional[Dict[str, Any]] = None
+    supylabel: Optional[Dict[str, Any]] = None
+    # Panel labels (A, B, C, D for multi-panel figures)
+    panel_labels: Optional[Dict[str, Any]] = None
+    # Metadata for scientific figures (not rendered, stored in recipe)
+    title_metadata: Optional[str] = None  # Figure title for publication/reference
+    caption: Optional[str] = None  # Figure caption (e.g., "Fig. 1. Description...")
+    # Figure-level statistics (e.g., comparisons across panels, summary)
+    stats: Optional[Dict[str, Any]] = None
+
+    def get_axes_key(self, row: int, col: int) -> str:
+        """Get dictionary key for axes at position."""
+        return f"ax_{row}_{col}"
+
+    def get_or_create_axes(self, row: int, col: int) -> AxesRecord:
+        """Get or create axes record at position."""
+        key = self.get_axes_key(row, col)
+        if key not in self.axes:
+            self.axes[key] = AxesRecord(position=(row, col))
+        return self.axes[key]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        result = {
+            "figrecipe": "1.0",
+            "id": self.id,
+            "created": self.created,
+            "matplotlib_version": self.matplotlib_version,
+            "figure": {
+                "figsize": list(self.figsize),
+                "dpi": self.dpi,
+            },
+            "axes": {k: v.to_dict() for k, v in self.axes.items()},
+        }
+        # Add layout if set
+        if self.layout is not None:
+            result["figure"]["layout"] = self.layout
+        # Add style if set
+        if self.style is not None:
+            result["figure"]["style"] = self.style
+        # Add constrained_layout if True
+        if self.constrained_layout:
+            result["figure"]["constrained_layout"] = True
+        # Add suptitle if set
+        if self.suptitle is not None:
+            result["figure"]["suptitle"] = self.suptitle
+        # Add supxlabel if set
+        if self.supxlabel is not None:
+            result["figure"]["supxlabel"] = self.supxlabel
+        # Add supylabel if set
+        if self.supylabel is not None:
+            result["figure"]["supylabel"] = self.supylabel
+        # Add panel_labels if set
+        if self.panel_labels is not None:
+            result["figure"]["panel_labels"] = self.panel_labels
+        # Add metadata section for scientific figures
+        metadata = {}
+        if self.title_metadata is not None:
+            metadata["title"] = self.title_metadata
+        if self.caption is not None:
+            metadata["caption"] = self.caption
+        if self.stats is not None:
+            metadata["stats"] = self.stats
+        if metadata:
+            result["metadata"] = metadata
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "FigureRecord":
+        """Create from dictionary."""
+        fig_data = data.get("figure", {})
+        metadata = data.get("metadata", {})
+        record = cls(
+            id=data.get("id", f"fig_{uuid.uuid4().hex[:8]}"),
+            created=data.get("created", ""),
+            matplotlib_version=data.get("matplotlib_version", ""),
+            figsize=tuple(fig_data.get("figsize", [6.4, 4.8])),
+            dpi=fig_data.get("dpi", 300),
+            layout=fig_data.get("layout"),
+            style=fig_data.get("style"),
+            constrained_layout=fig_data.get("constrained_layout", False),
+            suptitle=fig_data.get("suptitle"),
+            supxlabel=fig_data.get("supxlabel"),
+            supylabel=fig_data.get("supylabel"),
+            panel_labels=fig_data.get("panel_labels"),
+            title_metadata=metadata.get("title"),
+            caption=metadata.get("caption"),
+            stats=metadata.get("stats"),
+        )
+
+        # Reconstruct axes
+        for ax_key, ax_data in data.get("axes", {}).items():
+            # Parse position from key like "ax_0_1"
+            parts = ax_key.split("_")
+            if len(parts) >= 3:
+                row, col = int(parts[1]), int(parts[2])
+            else:
+                row, col = 0, 0
+
+            ax_record = AxesRecord(
+                position=(row, col),
+                caption=ax_data.get("caption"),
+                stats=ax_data.get("stats"),
+                visible=ax_data.get("visible", True),
+            )
+            for call_data in ax_data.get("calls", []):
+                ax_record.calls.append(CallRecord.from_dict(call_data, (row, col)))
+            for dec_data in ax_data.get("decorations", []):
+                ax_record.decorations.append(CallRecord.from_dict(dec_data, (row, col)))
+
+            record.axes[ax_key] = ax_record
+
+        return record
+
+
+class Recorder:
+    """Central recorder for tracking matplotlib calls."""
+
+    from ._params import DECORATION_METHODS, PLOTTING_METHODS
+
+    def __init__(self):
+        self._figure_record: Optional[FigureRecord] = None
+        self._method_counters: Dict[str, int] = {}
+
+    def start_figure(
+        self,
+        figsize: Tuple[float, float] = (6.4, 4.8),
+        dpi: int = 300,
+    ) -> FigureRecord:
+        """Start recording a new figure."""
+        self._figure_record = FigureRecord(figsize=figsize, dpi=dpi)
+        self._method_counters = {}
+        return self._figure_record
+
+    @property
+    def figure_record(self) -> Optional[FigureRecord]:
+        """Get current figure record."""
+        return self._figure_record
+
+    def _generate_call_id(self, method_name: str) -> str:
+        """Generate unique call ID."""
+        counter = self._method_counters.get(method_name, 0)
+        self._method_counters[method_name] = counter + 1
+        return f"{method_name}_{counter:03d}"
+
+    def record_call(
+        self,
+        ax_position: Tuple[int, int],
+        method_name: str,
+        args: tuple,
+        kwargs: Dict[str, Any],
+        call_id: Optional[str] = None,
+    ) -> CallRecord:
+        """Record a plotting call.
+
+        Parameters
+        ----------
+        ax_position : tuple
+            (row, col) position of axes.
+        method_name : str
+            Name of the method called.
+        args : tuple
+            Positional arguments.
+        kwargs : dict
+            Keyword arguments.
+        call_id : str, optional
+            Custom ID for this call.
+
+        Returns
+        -------
+        CallRecord
+            The recorded call.
+        """
+        if self._figure_record is None:
+            self.start_figure()
+
+        # Generate ID if not provided
+        if call_id is None:
+            call_id = self._generate_call_id(method_name)
+
+        # Extract stats from kwargs before processing (stats is metadata, not matplotlib arg)
+        call_stats = kwargs.pop("stats", None) if "stats" in kwargs else None
+
+        # Process args into serializable format
+        processed_args = self._process_args(args, method_name)
+
+        # Filter kwargs to non-default only (if signature available)
+        processed_kwargs = self._process_kwargs(kwargs, method_name)
+
+        record = CallRecord(
+            id=call_id,
+            function=method_name,
+            args=processed_args,
+            kwargs=processed_kwargs,
+            ax_position=ax_position,
+            stats=call_stats,
+        )
+
+        # Add to appropriate axes
+        ax_record = self._figure_record.get_or_create_axes(*ax_position)
+
+        if method_name in self.DECORATION_METHODS:
+            ax_record.add_decoration(record)
+        else:
+            ax_record.add_call(record)
+
+        return record
+
+    def _process_args(
+        self,
+        args: tuple,
+        method_name: str,
+    ) -> List[Dict[str, Any]]:
+        """Process positional arguments for storage."""
+        from ._recorder_utils import process_args
+
+        return process_args(
+            args, method_name, self._get_arg_names, self._is_serializable
+        )
+
+    def _get_arg_names(self, method_name: str, n_args: int) -> List[str]:
+        """Get argument names for a method from signatures.
+
+        Parameters
+        ----------
+        method_name : str
+            Name of the method.
+        n_args : int
+            Number of arguments.
+
+        Returns
+        -------
+        list
+            List of argument names.
+        """
+        try:
+            from ._signatures import get_signature
+
+            sig = get_signature(method_name)
+            names = [arg["name"] for arg in sig["args"][:n_args]]
+            # Pad with generic names if needed
+            while len(names) < n_args:
+                names.append(f"arg{len(names)}")
+            return names
+        except Exception:
+            # Fallback to generic names
+            return [f"arg{i}" for i in range(n_args)]
+
+    def _process_kwargs(
+        self,
+        kwargs: Dict[str, Any],
+        method_name: str,
+    ) -> Dict[str, Any]:
+        """Process keyword arguments for storage.
+
+        Only stores non-default kwargs to keep recipes minimal.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Raw keyword arguments.
+        method_name : str
+            Name of the method.
+
+        Returns
+        -------
+        dict
+            Processed kwargs (non-default only).
+        """
+        # Get defaults from signature
+        defaults = {}
+        try:
+            from ._signatures import get_defaults
+
+            defaults = get_defaults(method_name)
+        except Exception:
+            pass
+
+        # Remove internal keys (stats is handled separately as metadata)
+        skip_keys = {"id", "track", "_array", "stats"}
+        processed = {}
+
+        for key, value in kwargs.items():
+            if key in skip_keys:
+                continue
+
+            # Skip if value matches default
+            if key in defaults:
+                default_val = defaults[key]
+                # Compare values (handle None specially)
+                if default_val is not None and value == default_val:
+                    continue
+                # Also skip if both are None
+                if default_val is None and value is None:
+                    continue
+
+            if self._is_serializable(value):
+                processed[key] = value
+            elif isinstance(value, np.ndarray):
+                processed[key] = value.tolist()
+            elif hasattr(value, "values"):
+                processed[key] = np.asarray(value).tolist()
+            else:
+                # Try to convert to string
+                try:
+                    processed[key] = str(value)
+                except Exception:
+                    pass
+
+        return processed
+
+    def _is_serializable(self, value: Any) -> bool:
+        """Check if value is directly serializable to YAML."""
+        if value is None:
+            return True
+        if isinstance(value, (bool, int, float, str)):
+            return True
+        if isinstance(value, (list, tuple)):
+            return all(self._is_serializable(v) for v in value)
+        if isinstance(value, dict):
+            return all(
+                isinstance(k, str) and self._is_serializable(v)
+                for k, v in value.items()
+            )
+        return False
+
+
+# EOF
