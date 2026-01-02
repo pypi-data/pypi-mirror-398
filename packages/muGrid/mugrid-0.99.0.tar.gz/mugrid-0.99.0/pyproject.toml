@@ -1,0 +1,86 @@
+[build-system]
+requires = ["scikit-build-core>=0.8", "pybind11>=2.11", "numpy>=2.1", "setuptools-scm>=8"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "muGrid"
+description = "MPI-parallel regular grids"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Ali Falsafi", email = "ali.falsafi@epfl.ch" },
+    { name = "Till Junge", email = "till.junge@altermail.ch" },
+    { name = "Richard Leute", email = "richard.leute@imtek.uni-freiburg.de" },
+    { name = "Lars Pastewka", email = "lars.pastewka@imtek.uni-freiburg.de" },
+    { name = "Yizhen Wang", email = "yizhen.wang@imtek.uni-freiburg.de" }
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: C++",
+    "Programming Language :: Python"
+]
+requires-python = ">=3.10"
+dynamic = ["version"]
+dependencies = [
+    "numpy>=2.1"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "NuMPI[test]>=0.7.3",
+    "netCDF4"
+]
+
+[project.urls]
+documentation = "https://muspectre.github.io/muGrid/"
+repository = "https://github.com/muSpectre/muGrid"
+changelog = "https://github.com/muSpectre/muGrid/blob/main/CHANGELOG.md"
+
+[tool.scikit-build]
+cmake.version = ">=3.18"
+cmake.build-type = "Release"
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+
+[tool.scikit-build.cmake.define]
+MUGRID_ENABLE_TESTS = "OFF"
+MUGRID_ENABLE_EXAMPLES = "OFF"
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
+
+[[tool.cibuildwheel.overrides]]
+select = "*manylinux*"
+# Build static NetCDF library
+before-all = [
+    "NETCDF_VERSION='4.9.3'",
+    "curl -L https://github.com/Unidata/netcdf-c/archive/refs/tags/v${NETCDF_VERSION}.tar.gz | tar -xzC /tmp",
+    "mkdir /tmp/build-netcdf",
+    "pushd /tmp/build-netcdf",
+    "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DBUILD_TESTSETS=OFF -DNETCDF_BUILD_UTILITIES=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DNETCDF_ENABLE_CDF5=ON -DNETCDF_ENABLE_DAP=OFF -DNETCDF_ENABLE_DAP2=OFF -DNETCDF_ENABLE_DAP4=OFF -DNETCDF_ENABLE_HDF5=OFF -DNETCDF_ENABLE_PLUGINS=OFF /tmp/netcdf-c-${NETCDF_VERSION}",
+    "make install",
+    "popd",
+    "rm -rf /tmp/build-netcdf /tmp/netcdf-c-${NETCDF_VERSION}"
+]
+
+[[tool.cibuildwheel.overrides]]
+select = "*musllinux*"
+before-all = [
+    "apk add libexecinfo libexecinfo-dev"
+]
+
+[tool.pytest.ini_options]
+python_files = "python_*_tests.py"
+testpaths = ["tests"]
+
+[tool.flake8]
+max-line-length = 88
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312", "py313", "py314"]
+
+[tool.isort]
+profile = "black"
