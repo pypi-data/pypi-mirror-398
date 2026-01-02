@@ -1,0 +1,634 @@
+import logging
+from PyQt6.QtWidgets import (
+  QWidget, QFormLayout, QVBoxLayout, QHBoxLayout, QTabWidget, QTreeView, QPushButton,
+  QLabel, QSpinBox, QCheckBox, QComboBox, QLineEdit, QTextEdit, QSizePolicy,
+  QMessageBox, QAbstractItemView
+)
+from PyQt6.QtCore import Qt, QAbstractItemModel, QModelIndex, QItemSelection
+from PyQt6.QtGui import QIcon, QFont
+from importlib.metadata import version, PackageNotFoundError
+
+from streamcondor.model import Configuration, Stream, TrayIconColor, TrayIconAction
+from streamcondor.slhelper import launch_process, build_sl_command
+from streamcondor.favicons import get_stream_icon
+from streamcondor.ui.stream import StreamDialog
+
+# Determine version: prefer installed distribution metadata, fallback to package __version__
+try:
+  dist_ver = version('streamcondor')
+except PackageNotFoundError:
+  import streamcondor
+  dist_ver = getattr(streamcondor, '__version__', 'dev')
+
+log = logging.getLogger(__name__)
+
+
+class StreamTreeNode:
+
+  def __init__(self, data: Stream | str | None, parent: 'StreamTreeNode' | None = None):
+    """Initialize tree node.
+
+    Args:
+      data: Either a Stream object or a type string (for group nodes)
+      parent: Parent node
+    """
+    self.data = data
+    self.parent = parent
+    self.children: list[StreamTreeNode] = []
+
+  def is_group(self) -> bool:
+    return isinstance(self.data, str)
+
+  def is_stream(self) -> bool:
+    return isinstance(self.data, Stream)
+
+  def add_child(self, child: 'StreamTreeNode') -> None:
+    self.children.append(child)
+
+  def child(self, row: int) -> 'StreamTreeNode' | None:
+    if 0 <= row < len(self.children):
+      return self.children[row]
+    return None
+
+  def child_count(self) -> int:
+    return len(self.children)
+
+  def row(self) -> int:
+    if self.parent:
+      return self.parent.children.index(self)
+    return 0
+
+
+class StreamListModel(QAbstractItemModel):
+
+  def __init__(self, configuration: Configuration):
+    super().__init__()
+    self.cfg = configuration
+    self.root_node = StreamTreeNode(None)
+    self.blockSignals(True)
+    self._build_tree()
+    self.blockSignals(False)
+
+  def _build_tree(self) -> None:
+    # Clear existing tree
+    self.root_node = StreamTreeNode(None)
+    # Group streams by type
+    streams_by_type: dict[str, list[Stream]] = {}
+    for stream in self.cfg.streams.values():
+      if stream.type not in streams_by_type:
+        streams_by_type[stream.type] = []
+      streams_by_type[stream.type].append(stream)
+    # Build tree with sorted types
+    for stream_type in sorted(streams_by_type.keys()):
+      # Create type group node
+      type_node = StreamTreeNode(stream_type, self.root_node)
+      self.root_node.add_child(type_node)
+      # Add streams sorted by name
+      streams = sorted(
+        streams_by_type[stream_type],
+        key=lambda s: (s.name or s.url or 'Unknown').lower()
+      )
+      for stream in streams:
+        stream_node = StreamTreeNode(stream, type_node)
+        type_node.add_child(stream_node)
+
+  def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    if not self.hasIndex(row, column, parent):
+      return QModelIndex()
+    if not parent.isValid():
+      parent_node = self.root_node
+    else:
+      parent_node = parent.internalPointer()
+    child_node = parent_node.child(row)
+    if child_node:
+      return self.createIndex(row, column, child_node)
+    return QModelIndex()
+
+  def parent(self, index: QModelIndex) -> QModelIndex:
+    if not index.isValid():
+      return QModelIndex()
+    child_node = index.internalPointer()
+    parent_node = child_node.parent
+    if parent_node == self.root_node or parent_node is None:
+      return QModelIndex()
+    return self.createIndex(parent_node.row(), 0, parent_node)
+
+  def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    if parent.column() > 0:
+      return 0
+    if not parent.isValid():
+      parent_node = self.root_node
+    else:
+      parent_node = parent.internalPointer()
+    return parent_node.child_count()
+
+  def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    return 3  # Name (with checkbox/icon), Quality, Player
+
+  def headerData(self, section: int, orientation, role: int):
+    if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+      if section == 0:
+        return 'Stream'
+      elif section == 1:
+        return 'Pref. quality'
+      elif section == 2:
+        return 'Player'
+    return None
+
+  def data(self, index: QModelIndex, role: int):
+    if not index.isValid():
+      return None
+    node = index.internalPointer()
+    if role == Qt.ItemDataRole.UserRole:
+      return node
+    column = index.column()
+    if role == Qt.ItemDataRole.DisplayRole:
+      if column == 0:
+        return node.data.capitalize() if node.is_group() else node.data.name
+      if node.is_stream():
+        stream = node.data
+        if column == 1:
+          return stream.quality or self.cfg.default_quality
+        if column == 2:
+          return stream.player or self.cfg.default_player
+      return None
+    if role == Qt.ItemDataRole.DecorationRole and column == 0:
+      if node.is_group():
+        stream = node.children[0].data
+        pixmap = get_stream_icon(stream, 16)
+        return QIcon(pixmap) if pixmap else None
+      if node.is_stream():
+        stream = node.data
+        if stream.always_on:
+          return QIcon.fromTheme('network-wireless', QIcon.fromTheme('network-transmit-receive'))
+      return None
+    if role == Qt.ItemDataRole.CheckStateRole and column == 0:
+      if node.is_stream():
+        stream = node.data
+        return None if stream.always_on \
+          else Qt.CheckState.PartiallyChecked if stream.notify is None \
+          else Qt.CheckState.Checked if stream.notify \
+          else Qt.CheckState.Unchecked
+      return None
+    return None
+
+  def getData(self, index: QModelIndex) -> StreamTreeNode | None:
+    return None if not index.isValid() else index.internalPointer()
+
+  def setData(self, index: QModelIndex, value, role: int) -> bool:
+    node = self.getData(index)
+    if not (node and node.is_stream() and role == Qt.ItemDataRole.CheckStateRole):
+      return False
+    stream = node.data
+    # the value argument seems only useful to toggle True/False, so we'll cycle through our three states
+    is_true = stream.notify
+    if is_true is None:
+      stream.notify = True # PartiallyChecked (None) -> Checked
+    elif is_true:
+      stream.notify = False # Checked -> Unchecked
+    else:
+      stream.notify = None # Unchecked -> PartiallyChecked (None)
+    self.cfg.save()
+    self.dataChanged.emit(index, index, [Qt.ItemDataRole.CheckStateRole])
+    return True
+
+  def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+    if not index.isValid():
+      return Qt.ItemFlag.NoItemFlags
+    node = index.internalPointer()
+    column = index.column()
+    flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+    # Only non-always_on stream nodes in first column have checkboxes (tristate for indeterminate support)
+    if column == 0 and node.is_stream():
+      stream = node.data
+      if not stream.always_on:
+        flags |= Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsUserTristate
+    return flags
+
+  def refresh(self) -> None:
+    self.beginResetModel()
+    self._build_tree()
+    self.endResetModel()
+
+
+class SettingsWindow(QWidget):
+
+  def __init__(self, configuration: Configuration):
+    super().__init__()
+    self.cfg = configuration
+    self._init_ui()
+    self._load_settings()
+    self._restore_geometry()
+
+  def _init_ui(self) -> None:
+    self.setWindowTitle('StreamCondor Settings')
+    self.tabs = QTabWidget()
+    self.tab_streams = self._create_streams_tab()
+    self.tabs.addTab(self.tab_streams, 'Streams')
+    self.tab_settings = self._create_settings_tab()
+    self.tabs.addTab(self.tab_settings, 'Settings')
+    self.tab_about = self._create_about_tab()
+    self.tabs.addTab(self.tab_about, 'About')
+    layout = QVBoxLayout()
+    layout.addWidget(self.tabs)
+    self.setLayout(layout)
+    self._on_stream_selected(None, None)
+
+  def _create_streams_tab(self) -> QWidget:
+    widget = QWidget()
+    layout = QHBoxLayout()
+    # Stream list
+    self.stream_model = StreamListModel(self.cfg)
+    self.stream_list = QTreeView()
+    self.stream_list.setModel(self.stream_model)
+    self.stream_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+    self.stream_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    self.stream_list.setRootIsDecorated(True)  # Show expand/collapse indicators
+    self.stream_list.setItemsExpandable(True)
+    self.stream_list.setExpandsOnDoubleClick(False)  # Don't expand on double-click (we use it for edit)
+    self.stream_list.expandAll()  # Expand all groups by default
+    self.stream_list.doubleClicked.connect(self._edit_stream)
+    self.stream_list.setHeaderHidden(False)  # Show header for multiple columns
+    self.stream_list.header().setStretchLastSection(False)
+    self.stream_list.header().resizeSection(0, 300)  # Name column
+    self.stream_list.header().resizeSection(1, 100)  # Quality column
+    self.stream_list.header().resizeSection(2, 100)  # Player column
+    self.stream_list.selectionModel().selectionChanged.connect(self._on_stream_selected)
+    layout.addWidget(self.stream_list)
+    # Buttons on the right side
+    self.btn_add = QPushButton('Add')
+    self.btn_add.clicked.connect(self._add_stream)
+    self.btn_edit = QPushButton('Edit')
+    self.btn_edit.clicked.connect(self._edit_stream)
+    self.btn_clone = QPushButton('Clone')
+    self.btn_clone.clicked.connect(self._clone_stream)
+    self.btn_delete = QPushButton('Delete')
+    self.btn_delete.clicked.connect(self._delete_stream)
+    self.btn_run_defp = QPushButton('Launch\ndefault')
+    self.btn_run_defp.setToolTip('Launch stream with default media player')
+    self.btn_run_defp.clicked.connect(self._launch_stream_default_player)
+    self.btn_run_altp = QPushButton('Launch\naltern.')
+    self.btn_run_altp.setToolTip('Launch stream with alternate media player')
+    self.btn_run_altp.clicked.connect(self._launch_stream_alternate_player)
+    btn_box = QVBoxLayout()
+    btn_box.addWidget(self.btn_add)
+    btn_box.addWidget(self.btn_edit)
+    btn_box.addWidget(self.btn_clone)
+    btn_box.addWidget(self.btn_delete)
+    btn_box.addSpacing(20)
+    btn_box.addWidget(self.btn_run_defp)
+    btn_box.addWidget(self.btn_run_altp)
+    btn_box.addStretch()
+    layout.addLayout(btn_box)
+    widget.setLayout(layout)
+    return widget
+
+  def _create_settings_tab(self) -> QWidget:
+    # Auto-start monitoring
+    self.check_autostart_monitoring = QCheckBox("to start monitoring on application launch")
+    self.check_autostart_monitoring.setMinimumHeight(24)
+    self.check_autostart_monitoring.stateChanged.connect(
+      lambda state: self.cfg.set('autostart_monitoring', state == Qt.CheckState.Checked.value)
+    )
+    # Check interval (minutes)
+    self.spin_check_interval = QSpinBox()
+    self.spin_check_interval.setMinimum(1)   # 1 minute
+    self.spin_check_interval.setMaximum(60)  # 1 hour
+    self.spin_check_interval.setValue(5)     # default: 5 minutes
+    self.spin_check_interval.setSuffix(' min')
+    self.spin_check_interval.setToolTip('Interval between stream checks (in minutes)')
+    self.spin_check_interval.valueChanged.connect(
+      lambda value: self.cfg.set('check_interval_mins', value)
+    )
+    # Default notify
+    self.check_default_notify = QCheckBox("to notify when streams go online")
+    self.check_default_notify.setMinimumHeight(24)
+    self.check_default_notify.stateChanged.connect(
+      lambda state: self.cfg.set('default_notify', state == Qt.CheckState.Checked.value)
+    )
+    # tray icon color
+    self.combo_tray_icon_color = QComboBox()
+    for color in TrayIconColor:
+      self.combo_tray_icon_color.addItem(color.value.capitalize(), color)
+    self.combo_tray_icon_color.currentIndexChanged.connect(
+      lambda index: self.cfg.set('tray_icon_color', self.combo_tray_icon_color.itemData(index).value)
+    )
+    # tray icon action
+    self.combo_tray_icon_action = QComboBox()
+    for action in TrayIconAction:
+      self.combo_tray_icon_action.addItem(action.display_name, action)
+    self.combo_tray_icon_action.currentIndexChanged.connect(
+      lambda index: self.cfg.set('tray_icon_action', self.combo_tray_icon_action.itemData(index).value)
+    )
+    # Default quality
+    self.combo_default_quality = QComboBox()
+    self.combo_default_quality.addItems(['best', '1080p', '720p', '480p', '360p', '160p', 'worst'])
+    self.combo_default_quality.currentTextChanged.connect(
+      lambda text: self.cfg.set('default_quality', text)
+    )
+    # Default streamlink args (text area with monospace font)
+    self.text_default_sl_args = QTextEdit()
+    font = QFont('monospace')
+    self.text_default_sl_args.setFont(font)
+    self.text_default_sl_args.setPlaceholderText('e.g., --retry-max 5 --stream-segment-timeout 20')
+    self.text_default_sl_args.textChanged.connect(
+      lambda: self.cfg.set('default_streamlink_args', self.text_default_sl_args.toPlainText())
+    )
+    hint_sl_args = QLabel('''<html><head/><body>
+      <a href="https://streamlink.github.io/cli.html#command-line-usage" title="asd">
+        <span style=" text-decoration: underline; color:#4285f4;">Streamlink args</span>
+      </a>
+    </body></html>''')
+    hint_sl_args.setOpenExternalLinks(True)
+    hint_sl_args.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+    hint_sl_args.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    hint_sl_args.setToolTip('Click to open Streamlink command-line usage documentation')
+    # Default media player
+    self.text_default_player = QLineEdit()
+    self.text_default_player.setPlaceholderText('e.g., mpv, vlc')
+    self.text_default_player.textChanged.connect(self._default_player_changed)
+    # Default media player args (text area with monospace font)
+    self.text_default_player_args = QTextEdit()
+    font = QFont('monospace')
+    self.text_default_player_args.setFont(font)
+    self.text_default_player_args.setPlaceholderText('e.g., --no-border --no-osc')
+    self.text_default_player_args.setMaximumHeight(60)
+    self.text_default_player_args.textChanged.connect(
+      lambda: self.cfg.set('default_player_args', self.text_default_player_args.toPlainText())
+    )
+    # Alternate media player
+    self.text_alternate_player = QLineEdit()
+    self.text_alternate_player.setPlaceholderText('e.g., mpv, vlc')
+    self.text_alternate_player.textChanged.connect(self._alternate_player_changed)
+    # Alternate media player args (text area with monospace font)
+    self.text_alternate_player_args = QTextEdit()
+    font = QFont('monospace')
+    self.text_alternate_player_args.setFont(font)
+    self.text_alternate_player_args.setPlaceholderText('e.g., --no-border --no-osc')
+    self.text_alternate_player_args.setMaximumHeight(60)
+    self.text_alternate_player_args.textChanged.connect(
+      lambda: self.cfg.set('alternate_player_args', self.text_alternate_player_args.toPlainText())
+    )
+    # Form
+    form_layout = QFormLayout()
+    form_layout.setVerticalSizeConstraint(QFormLayout.SizeConstraint.SetMinimumSize)
+    form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+    form_layout.addRow('Monitoring', self.check_autostart_monitoring)
+    form_layout.addRow('Check interval', self.spin_check_interval)
+    form_layout.addRow('Notifications', self.check_default_notify)
+    form_layout.addRow('Icon base color', self.combo_tray_icon_color)
+    form_layout.addRow('Icon left click', self.combo_tray_icon_action)
+    form_layout.addRow('Default quality', self.combo_default_quality)
+    form_layout.addRow(hint_sl_args, self.text_default_sl_args)
+    form_layout.addRow('Default player', self.text_default_player)
+    form_layout.addRow('Def. player args', self.text_default_player_args)
+    form_layout.addRow('Alternate player', self.text_alternate_player)
+    form_layout.addRow('Alt. player args', self.text_alternate_player_args)
+    widget = QWidget()
+    widget.setLayout(form_layout)
+    return widget
+
+  def _create_about_tab(self) -> QWidget:
+    widget = QWidget()
+    layout = QVBoxLayout()
+    layout.addStretch(1)
+    title = QLabel('<h1>StreamCondor</h1>')
+    title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(title)
+    description = QLabel('<h4>A system tray application for monitoring livestreams status.</h4>')
+    description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    description.setWordWrap(True)
+    layout.addWidget(description)
+    version = QLabel(f'<p>Version {dist_ver}</p>')
+    version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(version)
+    links = QLabel(
+      '<p><a href="https://github.com/tarzasai/StreamCondor">GitHub Repository</a></p>'
+      '<p><a href="https://github.com/tarzasai/StreamCondor/wiki">Documentation</a></p>'
+    )
+    links.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    links.setOpenExternalLinks(True)
+    layout.addWidget(links)
+    copyright_text = QLabel('<p>© 2025 Tarzasai</p>')
+    copyright_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(copyright_text)
+    layout.addStretch(2)
+    widget.setLayout(layout)
+    return widget
+
+  def _load_settings(self) -> None:
+    # Temporarily block signals to avoid triggering saves during load
+    self.check_autostart_monitoring.blockSignals(True)
+    self.check_default_notify.blockSignals(True)
+    self.combo_tray_icon_color.blockSignals(True)
+    self.combo_tray_icon_action.blockSignals(True)
+    self.spin_check_interval.blockSignals(True)
+    self.combo_default_quality.blockSignals(True)
+    self.text_default_sl_args.blockSignals(True)
+    self.text_default_player.blockSignals(True)
+    self.text_default_player_args.blockSignals(True)
+    self.text_alternate_player.blockSignals(True)
+    self.text_alternate_player_args.blockSignals(True)
+    # Settings tab values
+    self.check_autostart_monitoring.setChecked(self.cfg.autostart_monitoring)
+    self.check_default_notify.setChecked(self.cfg.default_notify)
+    for i in range(self.combo_tray_icon_action.count()):
+      if self.combo_tray_icon_action.itemData(i) == self.cfg.tray_icon_action:
+        self.combo_tray_icon_action.setCurrentIndex(i)
+        break
+    for i in range(self.combo_tray_icon_color.count()):
+      if self.combo_tray_icon_color.itemData(i) == self.cfg.tray_icon_color:
+        self.combo_tray_icon_color.setCurrentIndex(i)
+        break
+    self.spin_check_interval.setValue(self.cfg.check_interval_mins)
+    default_quality = self.cfg.default_quality
+    index = self.combo_default_quality.findText(default_quality)
+    if index >= 0:
+      self.combo_default_quality.setCurrentIndex(index)
+    self.text_default_sl_args.setPlainText(self.cfg.default_streamlink_args)
+    self.text_default_player.setText(self.cfg.default_player)
+    self.text_default_player_args.setPlainText(self.cfg.default_player_args)
+    self.text_alternate_player.setText(self.cfg.alternate_player)
+    self.text_alternate_player_args.setPlainText(self.cfg.alternate_player_args)
+    # Re-enable signals and connect to auto-save
+    self.check_autostart_monitoring.blockSignals(False)
+    self.check_default_notify.blockSignals(False)
+    self.combo_tray_icon_color.blockSignals(False)
+    self.combo_tray_icon_action.blockSignals(False)
+    self.spin_check_interval.blockSignals(False)
+    self.combo_default_quality.blockSignals(False)
+    self.text_default_sl_args.blockSignals(False)
+    self.text_default_player.blockSignals(False)
+    self.text_default_player_args.blockSignals(False)
+    self.text_alternate_player.blockSignals(False)
+    self.text_alternate_player_args.blockSignals(False)
+
+  def _on_stream_selected(self, selected:QItemSelection, deselected:QItemSelection) -> None:
+    if not selected or selected.isEmpty():
+      self.btn_edit.setEnabled(False)
+      self.btn_clone.setEnabled(False)
+      self.btn_delete.setEnabled(False)
+      self.btn_run_defp.setVisible(False)
+      self.btn_run_altp.setVisible(False)
+      return
+    index = selected.indexes()[0]
+    if not index.isValid():
+      self.btn_edit.setEnabled(False)
+      self.btn_clone.setEnabled(False)
+      self.btn_delete.setEnabled(False)
+      self.btn_run_defp.setVisible(False)
+      self.btn_run_altp.setVisible(False)
+      return
+    node = self.stream_model.getData(index)
+    if not node or node.is_group():
+      self.btn_edit.setEnabled(False)
+      self.btn_clone.setEnabled(False)
+      self.btn_delete.setEnabled(False)
+      self.btn_run_defp.setVisible(False)
+      self.btn_run_altp.setVisible(False)
+    else:
+      self.btn_edit.setEnabled(True)
+      self.btn_clone.setEnabled(True)
+      self.btn_delete.setEnabled(True)
+      self.btn_run_defp.setVisible(True)
+      self.btn_run_altp.setVisible(self.cfg.alternate_player is not None and self.cfg.alternate_player.strip() != '')
+
+  def _reload_treeview(self) -> None:
+    # Save Treeview current expansion state
+    expanded_groups = set()
+    for row in range(self.stream_model.rowCount()):
+      index = self.stream_model.index(row, 0)
+      if self.stream_list.isExpanded(index):
+        node = self.stream_model.getData(index)
+        if node and node.is_group():
+          expanded_groups.add(node.data)
+    # Config is already saved by property setters
+    self.stream_model.refresh()
+    # Restore Treeview expansion state
+    for row in range(self.stream_model.rowCount()):
+      index = self.stream_model.index(row, 0)
+      node = self.stream_model.getData(index)
+      if node and node.is_group():
+        if node.data in expanded_groups:
+          self.stream_list.expand(index)
+        else:
+          self.stream_list.collapse(index)
+
+  def _add_stream(self) -> None:
+    dialog = StreamDialog(
+      self,
+      self.cfg,
+      stream=None,
+    )
+    if dialog.exec():
+      stream = dialog.get_stream()
+      self.cfg.set_stream(stream)
+      self._reload_treeview()
+
+  def _edit_stream(self) -> None:
+    index = self.stream_list.currentIndex()
+    if not index.isValid():
+      return
+    node = self.stream_model.getData(index)
+    if not node or node.is_group():
+      return
+    dialog = StreamDialog(
+      self,
+      self.cfg,
+      stream=node.data,
+    )
+    if dialog.exec():
+      updated_stream = dialog.get_stream()
+      self.cfg.set_stream(updated_stream)
+      if not dialog.is_clone and updated_stream.url != node.data.url:
+        self.cfg.del_stream(node.data)  ## URL changed, remove old stream entry
+      self._reload_treeview()
+
+  def _clone_stream(self) -> None:
+    index = self.stream_list.currentIndex()
+    if not index.isValid():
+      return
+    node = self.stream_model.getData(index)
+    if not node or node.is_group():
+      return
+    dialog = StreamDialog(
+      self,
+      self.cfg,
+      stream=node.data,
+      is_clone=True,
+    )
+    if dialog.exec():
+      cloned_stream = dialog.get_stream()
+      self.cfg.set_stream(cloned_stream)
+      self._reload_treeview()
+
+  def _delete_stream(self) -> None:
+    index = self.stream_list.currentIndex()
+    if not index.isValid():
+      return
+    node = self.stream_model.getData(index)
+    if not node or node.is_group():
+      return
+    stream = node.data
+    reply = QMessageBox.question(
+      self,
+      f"Delete {stream.type} stream",
+      f"Are you sure you want to delete '{stream.name}'?",
+      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+    )
+    if reply == QMessageBox.StandardButton.Yes:
+      self.cfg.del_stream(stream)
+      self._reload_treeview()
+
+  def _launch_stream_default_player(self) -> None:
+    index = self.stream_list.currentIndex()
+    if not index.isValid():
+      return
+    node = self.stream_model.getData(index)
+    if not node or node.is_group():
+      return
+    launch_process(build_sl_command(self.cfg, node.data))
+
+  def _launch_stream_alternate_player(self) -> None:
+    index = self.stream_list.currentIndex()
+    if not index.isValid():
+      return
+    node = self.stream_model.getData(index)
+    if not node or node.is_group():
+      return
+    launch_process(build_sl_command(self.cfg, node.data, True))
+
+  def _default_player_changed(self, text: str) -> None:
+    self.cfg.default_player = text
+    no_player = text is None or text.strip() == ''
+    self.text_default_player_args.setDisabled(no_player)
+    self.text_alternate_player.setDisabled(no_player)
+    self.text_alternate_player_args.setDisabled(no_player)
+
+  def _alternate_player_changed(self, text: str) -> None:
+    self.cfg.alternate_player = text
+    no_player = text is None or text.strip() == ''
+    self.text_alternate_player_args.setDisabled(no_player)
+
+  def _restore_geometry(self) -> None:
+    geometry = self.cfg.get_geometry('settings_window')
+    self.setGeometry(
+      geometry.x or 100,
+      geometry.y or 100,
+      geometry.width or 700,
+      geometry.height or 600
+    )
+
+  def _save_geometry(self) -> None:
+    geometry = self.geometry()
+    self.cfg.set_geometry('settings_window', {
+      'x': geometry.x(),
+      'y': geometry.y(),
+      'width': geometry.width(),
+      'height': geometry.height(),
+    })
+
+  def closeEvent(self, event) -> None:
+    if self.isVisible():
+      self._save_geometry()
+    event.accept()
