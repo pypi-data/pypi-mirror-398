@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --group dev --group test --group lint --group typing
+
+    - name: Check code formatting with ruff
+      run: uv run ruff format . --check
+
+    - name: Check import sorting with ruff
+      run: uv run ruff check --select I .
+
+    - name: Run ruff linting
+      run: uv run ruff check .
+
+    - name: Run mypy type checking
+      run: |
+        mkdir -p .mypy_cache
+        uv run mypy . --cache-dir .mypy_cache
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --group dev --group test
+
+    - name: Run unit tests
+      run: uv run pytest tests/unit_tests/ --verbose --cov=langchain_salesforce --cov-report=term-missing --cov-report=xml
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  integration-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'integration-tests'))
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --group dev --group test
+
+    - name: Run integration tests
+      run: uv run pytest tests/integration_tests/ --verbose
+      env:
+        SALESFORCE_USERNAME: ${{ secrets.SALESFORCE_USERNAME }}
+        SALESFORCE_PASSWORD: ${{ secrets.SALESFORCE_PASSWORD }}
+        SALESFORCE_SECURITY_TOKEN: ${{ secrets.SALESFORCE_SECURITY_TOKEN }}
+        SALESFORCE_DOMAIN: ${{ secrets.SALESFORCE_DOMAIN }}
+
+  check-spelling:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --group codespell
+
+    - name: Check spelling
+      run: uv run codespell --toml pyproject.toml
