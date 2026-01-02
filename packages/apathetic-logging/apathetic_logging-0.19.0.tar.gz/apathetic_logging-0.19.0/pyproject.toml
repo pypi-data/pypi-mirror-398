@@ -1,0 +1,454 @@
+# pyproject.toml
+
+[project]
+name = "apathetic-logging"
+version = "0.19.0"
+description = "Small quality-of-life features on top of stdlib."
+authors = [
+    { name = "Apathetic Tools" }
+]
+readme = "README.md"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+]
+keywords = ["library", "logging", "logger"]
+# https://pypi.org/classifiers/
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+]
+
+[project.urls]
+Homepage = "https://github.com/apathetic-tools/python-logging"
+Documentation = "https://apathetic-tools.github.io/python-logging/"
+Repository = "https://github.com/apathetic-tools/python-logging"
+Issues = "https://github.com/apathetic-tools/python-logging/issues"
+Changelog = "https://github.com/apathetic-tools/python-logging/releases"
+
+# --- Development tasks ---
+[tool.poe.tasks]
+# 🧩 All-in-one
+"check:fix" = ["pre-commit:install", "fix", "typecheck", "test:parallel"]
+"check:fix:notests" = ["pre-commit:install", "fix", "typecheck"]
+
+# 🔍 Linting and static checks
+check = ["lint", "typecheck", "validate:classifiers", "test:parallel"]
+lint = ["lint:ruff"]
+"lint:ruff" = "ruff check ."
+"validate:classifiers" = "python dev/validate_classifiers.py"
+
+# 🧠 Type checking
+typecheck = ["typecheck:mypy", "typecheck:pyright"]
+"typecheck:mypy" = "mypy src tests --no-error-summary"
+# run pyright to simulate pylance for AI CLI auto-fix
+"typecheck:pyright" = "bash dev/pyright-quiet.sh src tests"
+
+# 🧪 Tests (runs all three: package + stitched + zipapp)
+test = [
+  "test:pytest:package",
+  "test:pytest:stitched",
+  "test:pytest:zipapp"
+]
+"test:pytest:package" = "pytest"
+"test:pytest:package:parallel" = "pytest -n auto"
+"test:pytest:stitched" = [
+  "build:stitched",
+  { cmd = "pytest", env = { RUNTIME_MODE="stitched" } }
+]
+"test:pytest:stitched:parallel" = [
+  "build:stitched",
+  { cmd = "pytest -n auto", env = { RUNTIME_MODE="stitched" } }
+]
+"test:pytest:zipapp" = [
+  "build:zipapp",
+  { cmd = "pytest", env = { RUNTIME_MODE="zipapp" } }
+]
+"test:pytest:zipapp:parallel" = [
+  "build:zipapp",
+  { cmd = "pytest -n auto", env = { RUNTIME_MODE="zipapp" } }
+]
+
+# 🚀 Fast test runs (for development)
+# Fast: package mode only, parallel, skip slow tests
+"test:fast" = "pytest -n auto -m 'not slow'"
+# Fast: all three modes, parallel, skip slow tests
+"test:fast:package" = "pytest -n auto -m 'not slow'"
+"test:fast:stitched" = [
+  "build:stitched",
+  { cmd = "pytest -n auto -m 'not slow'", env = { RUNTIME_MODE="stitched" } }
+]
+"test:fast:zipapp" = [
+  "build:zipapp",
+  { cmd = "pytest -n auto -m 'not slow'", env = { RUNTIME_MODE="zipapp" } }
+]
+"test:fast:all" = [
+  "test:fast:package",
+  "test:fast:stitched",
+  "test:fast:zipapp"
+]
+# Parallel: all three modes with parallel execution
+"test:parallel" = [
+  "test:pytest:package:parallel",
+  "test:pytest:stitched:parallel",
+  "test:pytest:zipapp:parallel"
+]
+
+# 📊 Coverage reporting
+"coverage:clean" = { shell = "rm -f .coverage .coverage.*" }
+"coverage:run:package" = { cmd = "pytest --cov=src --cov-report= --cov-context=test", env = { COVERAGE_FILE=".coverage.package" } }
+"coverage:run:stitched" = { cmd = "pytest --cov=src --cov-report= --cov-context=test", env = { RUNTIME_MODE="stitched", COVERAGE_FILE=".coverage.stitched" } }
+"coverage:run:zipapp" = { cmd = "pytest --cov=src --cov-report= --cov-context=test", env = { RUNTIME_MODE="zipapp", COVERAGE_FILE=".coverage.zipapp" } }
+"coverage:combine" = { cmd = "coverage combine .coverage.package .coverage.stitched .coverage.zipapp" }
+"coverage:base" = [
+  "coverage:clean",
+  "coverage:run:package",
+  "build:stitched",
+  "coverage:run:stitched",
+  "build:zipapp",
+  "coverage:run:zipapp",
+  "coverage:combine",
+]
+
+"coverage" = [
+  "coverage:base",
+  { cmd = "coverage report --show-missing" },
+  { cmd = "coverage html" },
+]
+"coverage:html" = [
+  "coverage:base",
+  { cmd = "coverage html" },
+]
+
+# 🧹 Automated fixing / formatting
+fix = ["sync:ai:guidance", "fix:ruff:package", "fix:format:package"]
+"fix:dist" = ["fix:ruff:dist", "fix:format:dist"]
+"fix:ruff:package" = "ruff check . --fix -q"
+"fix:ruff:dist" = { shell = "if [ -d dist ]; then ruff check dist --fix -q; fi" }
+"fix:format:package" = "ruff format . -q"
+"fix:format:dist" = { shell = "if [ -d dist ]; then ruff format dist -q; fi" }
+
+# 🧩 Build and license
+#"sync:ai:guidance" = "python -m sync_ai_guidance --quiet"
+"sync:ai:guidance" = "echo 'currently disabled'"
+# this creates the stitched script from the module, it need to use serger not zipbundler to do that
+"build:stitched" = "python -m serger --quiet"
+"build:zipapp" = "python -m zipbundler -c -o dist/apathetic_logging.pyz src --quiet"
+
+# 🚀 Release management (semantic-release)
+"release:version" = "semantic-release version --noop"
+"release:publish" = "semantic-release publish"
+"release:changelog" = "semantic-release changelog"
+
+# 🔧 Setup and installation
+"pre-commit:install" = "bash dev/install_pre_commit_hooks.sh"
+
+# 📤 Git operations
+"git:push:rebase" = { shell = "git pull --rebase && git push" }
+
+# 🐍 Python version management
+"env:py310" = "bash dev/env_use_py310.sh"
+"env:py311" = "bash dev/env_use_py311.sh"
+"env:py312" = "bash dev/env_use_py312.sh"
+"env:py313" = "bash dev/env_use_py313.sh"
+"env:py314" = "bash dev/env_use_py314.sh"
+"env:py3x" = "bash dev/env_use_py3x.sh"
+"test:py310" = [
+  "env:py310",
+  "test:parallel",
+  "env:py3x"
+]
+"test:py311" = [
+  "env:py311",
+  "test:parallel",
+  "env:py3x"
+]
+"test:py312" = [
+  "env:py312",
+  "test:parallel",
+  "env:py3x"
+]
+"test:py313" = [
+  "env:py313",
+  "test:parallel",
+  "env:py3x"
+]
+"test:py314" = [
+  "env:py314",
+  "test:parallel",
+  "env:py3x"
+]
+"test:py310:zipapp" = [
+  "env:py310",
+  "build:zipapp",
+  { cmd = "pytest -n auto", env = { RUNTIME_MODE="zipapp" } },
+  "env:py3x"
+]
+
+# 🐍 Python setup helpers (for Python 3.10 testing)
+"setup:python:check" = "bash dev/setup_python_check.sh"
+
+# 💎 Ruby setup helpers (for Jekyll documentation)
+"setup:ruby:check" = "bash dev/setup_ruby_check.sh"
+
+# 🧪 Internal verification
+[tool.poe.tasks."verify:pytest"]
+cmd = "pytest tests/test_pytest.py"
+env = { RUNTIME_DEBUG = "1" }
+
+# --- Development dependencies ---
+[dependency-groups]
+dev = [
+    "ruff (>=0.14.0,<0.15.0)",
+    "mypy (>=1.18.2,<2.0.0)",
+    "pytest (>=9.0.0,<10.0.0)",
+    "poethepoet (>=0.37.0,<1.0.0)",
+    "pre-commit (>=4.3.0,<5.0.0)",
+    "colorama (>=0.4.6,<0.5.0)",
+    "pytest-dependency (>=0.6.0,<0.7.0)",
+    "pytest-timeout (>=2.4.0,<3.0.0)",
+    "pytest-benchmark (>=5.1.0,<6.0.0)",
+    "pytest-cov (>=7.0.0,<8.0.0)",
+    "pytest-xdist (>=3.8.0,<4.0.0)",
+    "pyright (>=1.1.407,<2.0.0)",
+    "python-semantic-release (>=10.0.0,<11.0.0)",
+    "trove-classifiers (>=2025.11.14.15,<2026.0.0.0)",
+    "serger (>=0.1.0,<2.0.0)",
+    "zipbundler (>=0.1.0,<2.0.0)",
+    "sheave (>=0.3.0,<2.0.0)",
+    "apathetic-utils (>=0.2.0,<2.0.0)",
+]
+
+# --- Ruff: formatter and linter ---
+[tool.ruff]
+# target-version = # project.requires-python instead
+line-length = 88
+fix = true
+respect-gitignore = true
+
+[tool.ruff.lint]
+allowed-confusables = [
+  "’", # ai uses produces this
+  "–", # ai uses produces this
+]
+
+# we select all then ignore so we can buy-into new rulesets we would otherwise miss
+select = [
+  "ALL"
+]
+
+
+# https://docs.astral.sh/ruff/rules/
+ignore = [
+  "ANN401", # Dynamically typed expressions
+
+  "COM812", # missing trailing comma (redundant with the formatter)
+  "COM819", # trailing comma prohibited (redundant with the formatter)
+
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D103", # Missing docstring in public function
+  "D104", # Missing docstring in public package
+  "D105", # Missing docstring in magic method
+  "D106", # Missing docstring in public nested class
+  "D107", # Missing docstring in `__init__`
+  "D200", # One-line docstring should fit on one line
+  "D203", # Force blank between class and docstring
+  "D205", # 1 blank line required between summary line and description
+  "D209", # Multi-line docstring closing quotes should be on a separate line
+  "D212", # Multi-line docstring summary should start at the first line
+  "D213", # Force first line of docstring """ to not have text
+  "D400", # First line should end with a period
+  "D401", # First line of docstring should be in imperative mood
+  "D413", # Missing blank line after last section ("Example")
+  "D415", # First line should end with a period, question mark, or exclamation point
+
+  "ERA001", # Found commented-out code (too aggresive)
+
+  "EXE001", # shebang files must be executable
+
+  "FBT003", # Boolean positional value in function call (too aggresive, includes class instantiation)
+
+  "RET504", # Unnecessary assignment to `var` before `return` statement
+
+  # "RUF002", # Docstring contains ambiguous -- allow specific ambiguous via lint.allowed-confusables
+  # "RUF003", # Comment contains ambiguous -- allow specific ambiguous via lint.allowed-confusables
+
+  "TC003", # Move standard library import into TYPE_CHECKING block (too pedantic with __future__ annotations)
+
+#  "TRY300", # Consider moving this statement to an `else` block
+
+  # because the apathetic_logging library
+  #   specifically uses CamelCase to match the stdlib we extend,
+  #   don't complain:
+  "N802", # invalid-function-name (function names should be lowercase)
+  "N806", # Variable `MockBaseClass` in function should be lowercase
+  "N815", # mixed-case-variable-in-class-scope (class variables should be lowercase)
+  "N816", # mixed-case-variable-in-global-scope (global variables should be lowercase)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"bin/**/*.py" = [
+  "ICN001", # Allow from imports in bin
+  "INP001", # missing __init__.py
+  "T201", # print found
+]
+"dev/**/*.py" = [
+  "ICN001", # Allow from imports in dev
+  "INP001", # missing __init__.py
+  "T201", # print found
+]
+"src/**/*.py" = [
+  "ICN001", # Allow from imports in src
+]
+"tests/**/*.py" = [
+  "INP001", # missing __init__.py
+  "S101", # Use of `assert` detected
+  "T201", # print found
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint.flake8-import-conventions]
+banned-from = ["apathetic_logging"] # only in tests, see per-file ignores
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["apathetic_logging"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.lint.mccabe]
+# Flag errors (`C901`) whenever the complexity level exceeds 15.
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-args = 10
+max-returns = 5
+
+# --- isort: kept in case someone runs it by accident in their editor ---
+[tool.isort]
+profile = "black"                # Matches Ruff formatter style
+line_length = 88                 # Keep consistent with Ruff
+combine_as_imports = true        # Same as Ruff’s setting
+known_first_party = ["apathetic_logging"]
+skip_gitignore = true            # Avoid touching ignored files
+force_single_line = false        # Don’t explode imports unnecessarily
+atomic = true                    # Fail instead of partial reordering if conflicts occur
+
+
+# --- Mypy: stricter typing options ---
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+# --- Pyright: static type checker (powers Pylance) ---
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+
+# --- Coverage: code coverage tracking ---
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*.py"]
+# Enable subprocess coverage tracking (for python -m <package> calls)
+concurrency = ["thread", "multiprocessing"]
+sigterm = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# --- pytest: testing framework ---
+# see pytest.ini
+#   it has a alrge number of ignores
+#   so we keep it separate
+# [tool.pytest.ini_options]
+
+# --- Black: kept in case someone runs it by accident in their editor ---
+[tool.black]
+# target-version = [] # project.requires-python instead
+line-length = 88
+skip-string-normalization = false
+
+# --- python-semantic-release: automated versioning and releases ---
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variable = []
+changelog_file = "RELEASES.md"
+changelog_encoding = "utf-8"
+commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+commit_message = "chore: release v{version} [skip ci]"
+allow_zero_version = true  # Required for major_on_zero to work (defaults to false in v10.0.0+)
+major_on_zero = false
+upload_to_pypi = false  # We handle PyPI publishing in GitHub Actions
+upload_to_release = true
+hvcs = "github"
+remote = { name = "origin" }
+tag_commit = true
+prerelease_tag = "rc"
+build_commit_message = "chore: build release v{version} [skip ci]"
+
+[tool.semantic_release.publish]
+dist_glob_patterns = []  # Empty list = don't look for any files to upload
+upload_to_vcs_release = false  # Disabled - workflow handles asset uploads manually to avoid 422 errors
+
+[tool.semantic_release.changelog]
+sections = [
+    ["breaking", "💥 Breaking Changes"],
+    ["feature", "🎉 What's New"],
+    ["fix", "🐛 Bug Fixes"],
+    ["documentation", "📚 Documentation"],
+    ["refactor", "♻️ Refactoring"],
+    ["style", "💄 Style"],
+    ["test", "🧪 Tests"],
+    ["chore", "🔧 Chores"],
+    ["build", "🔨 Build"],
+    ["ci", "👷 CI"],
+    ["perf", "⚡ Performance"],
+    ["security", "🔒 Security"],
+]
+
+[tool.semantic_release.changelog.environment]
+block_start_string = "{%"
+block_end_string = "%}"
+variable_start_string = "{{"
+variable_end_string = "}}"
+comment_start_string = "{#"
+comment_end_string = "#}"
+trim_blocks = false
+lstrip_blocks = false
+newline_sequence = "\n"
+keep_trailing_newline = false
+
+# --- Poetry Build System ---
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = true
+packages = [{ include = "apathetic_logging", from = "src" }]
