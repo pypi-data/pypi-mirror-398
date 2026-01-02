@@ -1,0 +1,100 @@
+[package]
+name = "haze-library"
+version = "1.0.5"
+edition = "2021"
+description = "Rust backend for Haze quantitative trading indicators library"
+license = "CC-BY-NC-4.0"
+homepage = "https://github.com/kwannz/haze"
+repository = "https://github.com/kwannz/haze"
+
+[lib]
+name = "haze_library"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# PyO3 0.27+ 支持 Python 3.8-3.14（本项目目标：Python 3.14+ only）
+# 注意：不要在依赖上直接启用 `extension-module`，否则 `cargo test` / `cargo test --all-features`
+# 会在本地环境（尤其是 macOS）遇到链接问题。maturin 会通过 `PYO3_BUILD_EXTENSION_MODULE`
+# 等方式为扩展模块构建提供正确行为。
+pyo3 = { version = "0.27.2", optional = true }
+numpy = { version = "0.27.1", optional = true }
+rayon = "1.11.0"
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.17"
+
+# 流式计算（tokio 异步运行时）
+tokio = { version = "1.48.0", optional = true, features = ["rt-multi-thread", "sync"] }
+
+# ML 框架 (linfa 0.8)
+linfa = "0.8.1"
+linfa-svm = "0.8.1"
+linfa-linear = "0.8.1"
+linfa-preprocessing = "0.8.1"
+
+# 模型序列化 (bincode 2.0 - 需要 Encode/Decode traits)
+bincode = "2.0.1"
+serde_json = "1.0.148"
+
+# 数值计算
+[dependencies.ndarray]
+version = "0.16.1"
+features = ["rayon"]
+
+[build-dependencies]
+pyo3-build-config = { version = "0.27.2", features = ["resolve-config"] }
+
+[features]
+default = []
+python = ["pyo3", "numpy"]
+streaming = ["dep:tokio"]
+simd = []  # 可选 SIMD 优化
+full = ["python", "streaming"]
+
+# ============================================================================
+# 构建优化配置
+# ============================================================================
+
+[profile.release]
+opt-level = 3           # 最高优化级别
+lto = "thin"            # 使用thin LTO避免过度优化Python导出函数
+codegen-units = 1       # 单代码生成单元，更好优化
+panic = "abort"         # 减少二进制大小
+strip = false           # 保留符号表，确保Python FFI导出
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true            # 保留调试信息用于 profiling
+strip = false
+
+[profile.bench]
+inherits = "release"
+debug = true            # 基准测试保留调试信息
+
+# ============================================================================
+# Benchmarks
+# ============================================================================
+
+[[bench]]
+name = "kahan_benchmark"
+harness = false
+
+[[bench]]
+name = "numerical_precision"
+harness = false
+
+[[bench]]
+name = "hotspots"
+harness = false
+
+[dev-dependencies]
+criterion = "0.8.1"
+
+# ============================================================================
+# Documentation Configuration
+# ============================================================================
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-pc-windows-msvc"]
