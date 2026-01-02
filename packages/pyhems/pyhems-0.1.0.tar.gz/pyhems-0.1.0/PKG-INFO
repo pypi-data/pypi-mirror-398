@@ -1,0 +1,74 @@
+Metadata-Version: 2.4
+Name: pyhems
+Version: 0.1.0
+Summary: ECHONET Lite library for Home Energy Management System (HEMS)
+Author: Sayurin
+License-Expression: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: bidict>=0.23.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Dynamic: license-file
+
+# pyhems
+
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+ECHONET Lite library for Home Energy Management System (HEMS).
+
+**[🇯🇵 日本語ドキュメント](README.ja.md)**
+
+## Features
+
+- ECHONET Lite frame encoding/decoding
+- UDP multicast device discovery
+- Async runtime client with event subscription
+- MRA (Machine Readable Appendix) data fetcher
+- Full type hints (`py.typed`)
+
+## Requirements
+
+- Python 3.13+
+- bidict>=0.23.0
+
+## License
+
+MIT License
+
+## Installation
+
+```bash
+pip install pyhems
+```
+
+## Quick Start
+
+```python
+import asyncio
+from pyhems.runtime import HemsClient, HemsInstanceListEvent
+
+async def main():
+    client = HemsClient(interface="0.0.0.0")
+    await client.start()
+
+    def on_event(event):
+        if isinstance(event, HemsInstanceListEvent):
+            print(f"Node: {event.node_id}, Instances: {event.instances}")
+
+    unsubscribe = client.subscribe(on_event)
+    await asyncio.sleep(60)
+    unsubscribe()
+    await client.stop()
+
+asyncio.run(main())
+```
