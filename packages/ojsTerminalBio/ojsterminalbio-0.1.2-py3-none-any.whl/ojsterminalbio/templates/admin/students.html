@@ -1,0 +1,278 @@
+{% extends "admin/base.html" %}
+{% block title %}Students{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-8">
+    <div>
+        <h1 class="text-2xl font-bold text-white mb-2">Students</h1>
+        <p class="text-white/50 text-sm">Manage PhD and MTech students</p>
+    </div>
+    <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+        class="bg-cyan text-black px-4 py-2 text-sm font-bold hover:bg-white transition-colors">
+        + Add Student
+    </button>
+</div>
+
+<!-- Students List -->
+<div class="terminal-box">
+    <table class="w-full">
+        <thead class="border-b border-white/10">
+            <tr class="text-left text-xs text-white/40 uppercase tracking-wider">
+                <th class="p-4">Name</th>
+                <th class="p-4">Program</th>
+                <th class="p-4">Thesis</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Supervision</th>
+                <th class="p-4">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr class="border-b border-white/5 hover:bg-white/5">
+                <td class="p-4 text-white text-sm">{{ student.name }}</td>
+                <td class="p-4">
+                    <span
+                        class="text-xs px-2 py-1 rounded {% if student.program == 'PhD' %}bg-cyan/20 text-cyan{% else %}bg-amber/20 text-amber{% endif %}">
+                        {{ student.program }}
+                    </span>
+                </td>
+                <td class="p-4 text-white/60 text-sm">{{ (student.thesis_title or '-')[:50] }}{% if student.thesis_title
+                    and student.thesis_title|length > 50 %}...{% endif %}</td>
+                <td class="p-4">
+                    <span
+                        class="text-xs {% if student.status == 'Completed' %}text-green-400{% elif student.status == 'Ongoing' %}text-cyan{% else %}text-amber{% endif %}">
+                        {{ student.status or '-' }}
+                    </span>
+                </td>
+                <td class="p-4 text-white/60 text-xs">{{ student.supervision or '-' }}</td>
+                <td class="p-4 flex gap-2">
+                    <button onclick="openEditModal(this)" data-id="{{ student.id }}" data-name="{{ student.name }}"
+                        data-program="{{ student.program or '' }}" data-thesis-title="{{ student.thesis_title or '' }}"
+                        data-status="{{ student.status or '' }}" data-category="{{ student.category or '' }}"
+                        data-supervision="{{ student.supervision or '' }}"
+                        data-start-year="{{ student.start_year or '' }}" data-end-year="{{ student.end_year or '' }}"
+                        class="text-cyan hover:text-white text-xs">Edit</button>
+                    <form method="POST" action="/admin/students/delete/{{ student.id }}" class="inline">
+                        <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                            onclick="return confirm('Delete this student?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="p-8 text-center text-white/40">No students yet</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Modal -->
+<div id="add-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Student</h2>
+            <button onclick="document.getElementById('add-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/students/add" class="space-y-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Name *</label>
+                <input type="text" name="name" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Program *</label>
+                    <div class="relative">
+                        <input list="programs-list" name="program" required placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Status</label>
+                    <div class="relative">
+                        <input list="statuses-list" name="status" placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Thesis Title</label>
+                <input type="text" name="thesis_title"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Category</label>
+                    <div class="relative">
+                        <input list="categories-list" name="category" placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Supervision</label>
+                    <div class="relative">
+                        <input list="supervisions-list" name="supervision" placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Start Year</label>
+                    <input type="text" name="start_year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="e.g., Aug 2021">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">End Year</label>
+                    <input type="text" name="end_year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="e.g., May 2022">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Edit Student</h2>
+            <button onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form id="edit-form" method="POST" action="" class="space-y-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Name *</label>
+                <input type="text" name="name" id="edit-name" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Program *</label>
+                    <div class="relative">
+                        <input list="programs-list" name="program" id="edit-program" required
+                            placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Status</label>
+                    <div class="relative">
+                        <input list="statuses-list" name="status" id="edit-status" placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Thesis Title</label>
+                <input type="text" name="thesis_title" id="edit-thesis_title"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Category</label>
+                    <div class="relative">
+                        <input list="categories-list" name="category" id="edit-category" placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Supervision</label>
+                    <div class="relative">
+                        <input list="supervisions-list" name="supervision" id="edit-supervision"
+                            placeholder="Select or type..."
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none pr-8">
+                        <div class="absolute right-2 top-2 pointer-events-none text-white/40 font-bold">+</div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Start Year</label>
+                    <input type="text" name="start_year" id="edit-start_year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">End Year</label>
+                    <input type="text" name="end_year" id="edit-end_year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-pink text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Update</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditModal(btn) {
+        const id = btn.dataset.id;
+        document.getElementById('edit-form').action = '/admin/students/update/' + id;
+        document.getElementById('edit-name').value = btn.dataset.name;
+        document.getElementById('edit-program').value = btn.dataset.program || '';
+        document.getElementById('edit-thesis_title').value = btn.dataset.thesisTitle;
+        document.getElementById('edit-status').value = btn.dataset.status || '';
+        document.getElementById('edit-category').value = btn.dataset.category || '';
+        document.getElementById('edit-supervision').value = btn.dataset.supervision || '';
+        document.getElementById('edit-start_year').value = btn.dataset.startYear;
+        document.getElementById('edit-end_year').value = btn.dataset.endYear;
+        document.getElementById('edit-modal').classList.remove('hidden');
+    }
+</script>
+
+<!-- Datalists for Autocomplete -->
+<datalist id="programs-list">
+    {% for p in programs %}
+    <option value="{{ p }}">
+        {% endfor %}
+    <option value="PhD">
+    <option value="MTech">
+    <option value="BTech">
+</datalist>
+
+<datalist id="statuses-list">
+    {% for s in statuses %}
+    <option value="{{ s }}">
+        {% endfor %}
+    <option value="Ongoing">
+    <option value="Completed">
+    <option value="Submitted">
+</datalist>
+
+<datalist id="categories-list">
+    {% for c in categories %}
+    <option value="{{ c }}">
+        {% endfor %}
+    <option value="Regular">
+    <option value="Part Time">
+</datalist>
+
+<datalist id="supervisions-list">
+    {% for s in supervisions %}
+    <option value="{{ s }}">
+        {% endfor %}
+    <option value="Single">
+    <option value="Joint">
+</datalist>
+{% endblock %}
