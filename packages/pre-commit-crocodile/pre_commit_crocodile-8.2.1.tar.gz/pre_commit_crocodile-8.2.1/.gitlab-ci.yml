@@ -1,0 +1,602 @@
+include:
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/commits@$CI_COMMIT_SHA
+    inputs:
+      stage: prepare
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/clean.yml
+    ref: main
+    inputs:
+      stage: development
+      paths: ./build ./dist ./*.egg-info ./.eggs
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/preview.yml
+    ref: main
+    inputs:
+      stage: development
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:preview
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/changelog.yml
+    ref: main
+    inputs:
+      stage: development
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/gitlab-protections.yml
+    ref: main
+    inputs:
+      stage: development
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/registry.yml
+    ref: main
+    inputs:
+      stage: registry
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-codestyle.yml
+    ref: main
+    inputs:
+      stage: prepare
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:codestyle
+      paths: ./docs/*.py ./src/*.py ./src/*/*.py ./setup.py
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-lint.yml
+    ref: main
+    inputs:
+      stage: prepare
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:codestyle
+      paths: ./docs/ ./src/ ./setup.py
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-typings.yml
+    ref: main
+    inputs:
+      stage: prepare
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:codestyle
+      paths: ./docs/ ./src/ ./setup.py
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-build.yml
+    ref: main
+    inputs:
+      stage: build
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:build
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-install.yml
+    ref: main
+    inputs:
+      stage: build
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-readme.yml
+    ref: main
+    inputs:
+      stage: build
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-test.yml
+    ref: main
+    inputs:
+      stage: test
+      package: pre-commit-crocodile
+      timeout: 10m
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-coverage.yml
+    ref: main
+    inputs:
+      stage: test
+      package: pre-commit-crocodile
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-quality.yml
+    ref: main
+    inputs:
+      stage: quality
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:test-coverage-linux
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/sonarcloud.yml
+    ref: main
+    inputs:
+      stage: quality
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/sonarsource/sonar-scanner-cli:latest
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/python-deploy.yml
+    ref: main
+    inputs:
+      stage: deploy
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:deploy
+  - project: RadianDevCore/gitlab-ci/components
+    file: /templates/pages.yml
+    ref: main
+    inputs:
+      stage: deploy
+      image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:pages
+      pdf: pre-commit-crocodile
+      watch: ./.cz.yaml ./config/* ./docs/.* ./docs/* ./mkdocs.yml ./README.md
+
+stages:
+  - development
+  - registry
+  - prepare
+  - build
+  - test
+  - quality
+  - deploy
+
+variables:
+  CI_LOCAL_REAL_PATHS: 'true'
+  CI_LOCAL_SOCKETS: 'true'
+  EXECUTOR_HOST: preview
+  EXECUTOR_TOOL: pre-commit-crocodile
+  REGISTRY_HOST: registry.gitlab.com
+  REGISTRY_NAMESPACE: radiandevcore/tools
+  REGISTRY_PROJECT: pre-commit-crocodile
+
+.local:
+  include:
+    'gitlab.com/RadianDevCore/tools/pre-commit-crocodile/commits@$CI_COMMIT_SHA': 'templates/commits.yml'
+    'RadianDevCore/gitlab-ci/components': '.gitlab-ci.d'
+  no_regex: true
+  version: 12.0
+  volumes:
+    - ${HOME}/.docker/config.json:/root/.docker/config.json:ro
+
+preview:
+  variables:
+    EDITOR: nano
+    PIPX_BIN_DIR: /usr/local/bin
+  before_script:
+    # Inherit before_script
+    - !reference ['.test:template', before_script]
+    # Bind project sources
+    - project="${PWD}"
+    - remote=$(git config --get remote.origin.url | sed 's#git@gitlab.com:#https://gitlab.com/#g')
+    # Prepare package revision
+    - export DEBUG_REVISION_SHA=$(git rev-parse --short origin/develop)
+    # Create temporary sources
+    - |
+      sources=$(mktemp -d)
+      mkdir -p "${sources}/"
+      cd "${sources}/"
+    # Configure Git settings
+    - git config --global user.email 'firstname.lastname@example.com'
+    - git config --global user.name 'Firstname LASTNAME'
+    - git config --global color.ui 'always'
+    - git config --global core.pager 'cat'
+    # Prepare temporary commits
+    - |
+      git init
+      git remote add origin "${remote}"
+      git fetch origin main
+    - |
+      echo '# Project' >./README.md
+      git add -v ./README.md
+      git commit -m 'docs(readme): initial commit' -s
+    - |
+      echo '' >>./README.md
+      echo 'Description of the project' >>./README.md
+      git add -v ./README.md
+      git commit -m 'docs(readme): add project description' -s
+    - |
+      mkdir -p ./docs/
+      echo '# Tutorial' >./docs/tutorial.md
+      git add -v ./docs/
+      git commit -m 'docs(tutorial): initial tutorial commit' -s
+    - |
+      mkdir -p ./src/cli/
+      echo '# Sources' >./src/cli/entrypoint.py
+      echo '# Sources' >./src/cli/main.py
+      git add -v ./src/cli/
+      git commit -m 'feat(cli): initial CLI commit' -s
+    - |
+      {
+        echo ''
+        echo '# New changes'
+      } >>./docs/tutorial.md
+      {
+        echo ''
+        echo '# New changes'
+      } >>./src/cli/entrypoint.py
+      {
+        echo ''
+        echo '# New changes'
+      } >>./src/cli/main.py
+
+registry:build:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13-alpine
+    CONTAINER_FOLDER: build
+    CONTAINER_IMAGE_TAG: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/build/Dockerfile
+        - containers/rehost/images.txt
+        - requirements/build.txt
+        - requirements/runtime.txt
+
+registry:codestyle:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13-alpine
+    CONTAINER_FOLDER: codestyle
+    CONTAINER_IMAGE_TAG: codestyle
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/codestyle/Dockerfile
+        - containers/rehost/images.txt
+        - requirements/quality.txt
+        - requirements/runtime.txt
+        - requirements/tests.txt
+
+registry:commits:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13-alpine
+    CONTAINER_FOLDER: commits
+    CONTAINER_IMAGE_TAG: commits
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/commits/Dockerfile
+        - containers/rehost/images.txt
+        - requirements/commits.txt
+
+registry:deploy:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13-alpine
+    CONTAINER_FOLDER: deploy
+    CONTAINER_IMAGE_TAG: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/deploy/Dockerfile
+        - containers/rehost/images.txt
+        - requirements/deploy.txt
+
+registry:pages:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13-slim
+    CONTAINER_FOLDER: pages
+    CONTAINER_IMAGE_TAG: pages
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/pages/Dockerfile
+        - containers/rehost/images.txt
+        - requirements/coverage.txt
+        - requirements/pages.txt
+
+registry:preview:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13-alpine
+    CONTAINER_FOLDER: preview
+    CONTAINER_IMAGE_TAG: preview
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/preview/Dockerfile
+        - containers/rehost/images.txt
+        - requirements/docs.txt
+        - requirements/tests.txt
+
+registry:test-coverage-linux:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13
+    CONTAINER_FOLDER: test-coverage-linux
+    CONTAINER_IMAGE_TAG: test-coverage-linux
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/rehost/images.txt
+        - containers/test-coverage-linux/Dockerfile
+        - requirements/coverage.txt
+        - requirements/runtime.txt
+        - requirements/tests.txt
+
+registry:test-coverage-windows:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: tobix/pywine:3.10
+    CONTAINER_FOLDER: test-coverage-windows
+    CONTAINER_IMAGE_TAG: test-coverage-windows
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/rehost/images.txt
+        - containers/test-coverage-windows/Dockerfile
+        - requirements/coverage.txt
+        - requirements/runtime.txt
+        - requirements/tests.txt
+
+registry:test-oldest:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.9
+    CONTAINER_FOLDER: test-linux
+    CONTAINER_IMAGE_TAG: test-oldest
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/rehost/images.txt
+        - containers/test-linux/Dockerfile
+        - requirements/tests.txt
+
+registry:test-latest:
+  extends:
+    - .registry:container
+  variables:
+    BASEIMAGE_NAME: python:3.13
+    CONTAINER_FOLDER: test-linux
+    CONTAINER_IMAGE_TAG: test-latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/rehost/images.txt
+        - containers/test-linux/Dockerfile
+        - requirements/tests.txt
+
+codestyle:
+  needs:
+    - job: registry:codestyle
+      artifacts: false
+      optional: true
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'docs/**/*'
+        - 'requirements/**/*'
+        - 'setup.py'
+        - 'src/**/*'
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: on_success
+
+lint:
+  needs:
+    - job: registry:codestyle
+      artifacts: false
+      optional: true
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'docs/**/*'
+        - 'requirements/**/*'
+        - 'setup.py'
+        - 'src/**/*'
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: on_success
+
+typings:
+  needs:
+    - job: registry:codestyle
+      artifacts: false
+      optional: true
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'docs/**/*'
+        - 'requirements/**/*'
+        - 'setup.py'
+        - 'src/**/*'
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: on_success
+
+build:
+  extends:
+    - .build
+  needs:
+    - job: registry:build
+      artifacts: false
+      optional: true
+    - job: codestyle
+      artifacts: false
+      optional: true
+    - job: commits
+      artifacts: false
+      optional: true
+    - job: lint
+      artifacts: false
+      optional: true
+    - job: typings
+      artifacts: false
+      optional: true
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'requirements/**/*'
+        - 'src/**/*'
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: on_success
+
+.test:rules:
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'requirements/**/*'
+        - 'src/**/*'
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: on_success
+
+.coverage:rules:
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'requirements/**/*'
+        - 'sonar-project.properties'
+        - 'src/**/*'
+        - 'tests/**/*'
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+coverage:linux:
+  extends:
+    - .coverage:template
+    - .coverage:rules
+  image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:test-coverage-linux
+  needs:
+    - job: registry:test-coverage-linux
+      artifacts: false
+      optional: true
+  variables:
+    COVERAGE_EXCLUDE_ALSO: 'pragma: macos cover|pragma: windows cover'
+    COVERAGE_FILE: ${CI_PROJECT_DIR}/coverage-reports/.coverage-linux
+    COVERAGE_XML: ${CI_PROJECT_DIR}/coverage-reports/coverage-linux.xml
+
+coverage:windows:
+  extends:
+    - .coverage:template
+    - .coverage:rules
+  image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:test-coverage-windows
+  needs:
+    - job: registry:test-coverage-windows
+      artifacts: false
+      optional: true
+  variables:
+    COVERAGE_FILE: ${CI_PROJECT_DIR}/coverage-reports/.coverage-windows
+    COVERAGE_EXCLUDE_ALSO: 'pragma: linux cover|pragma: macos cover'
+    COVERAGE_XML: ${CI_PROJECT_DIR}/coverage-reports/coverage-windows.xml
+    SUITE: 'colors\|versions\|windows'
+
+py3.9:
+  extends:
+    - .test:template
+    - .test:rules
+  image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:test-oldest
+
+py3.13:
+  extends:
+    - .test:template
+    - .test:rules
+  image: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:test-latest
+
+quality:coverage:
+  needs:
+    - job: registry:test-coverage-linux
+      artifacts: false
+      optional: true
+    - job: coverage:linux
+    - job: coverage:windows
+  variables:
+    COVERAGE_FILE: !reference ['.coverage:scripts', variables, COVERAGE_COMMON_FILE]
+    COVERAGE_RCFILE: !reference ['.coverage:scripts', variables, COVERAGE_RCFILE]
+  rules: !reference ['.coverage:rules', rules]
+
+quality:sonarcloud:
+  needs:
+    - job: registry:rehost
+      artifacts: false
+      optional: true
+    - job: coverage:linux
+    - job: coverage:windows
+  rules:
+    - if: $SONAR_HOST_URL == null || $SONAR_TOKEN == null
+      when: never
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
+        - 'CHANGELOG.md'
+        - 'requirements/**/*'
+        - 'sonar-project.properties'
+        - 'src/**/*'
+        - 'tests/**/*'
+      when: always
+    - if: $CI_COMMIT_REF_NAME == 'main'
+      when: always
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+    - when: never
+
+deploy:release:
+  needs:
+    - job: registry:deploy
+      artifacts: false
+      optional: true
+    - job: build
+    - job: coverage:linux
+      artifacts: false
+    - job: coverage:windows
+      artifacts: false
+    - job: py3.9
+      artifacts: false
+    - job: py3.13
+      artifacts: false
+
+deploy:trial:
+  needs:
+    - job: registry:deploy
+      artifacts: false
+      optional: true
+    - job: build
+    - job: coverage:linux
+      artifacts: false
+    - job: coverage:windows
+      artifacts: false
+    - job: py3.9
+      artifacts: false
+    - job: py3.13
+      artifacts: false
+
+.pages:rules:
+  rules:
+    changes:
+      - '.cz.yaml'
+      - '.gitlab-ci.yml'
+      - 'CHANGELOG.md'
+      - 'mkdocs.yml'
+      - 'LICENSE'
+      - 'README.md'
+      - 'docs/**/*'
+      - 'requirements/**/*'
+
+pages:
+  extends:
+    - .pages
+  needs:
+    - job: registry:pages
+      artifacts: false
+      optional: true
+    - job: build
+      artifacts: false
+      optional: true
+    - job: py3.9
+      artifacts: false
+      optional: true
+    - job: py3.13
+      artifacts: false
+      optional: true
+    - job: quality:coverage
+      artifacts: true
+      optional: true
+  cache:
+    key: '${CI_JOB_NAME}'
+    paths:
+      - coverage-reports/html
+  rules:
+    - if: $CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes: !reference ['.pages:rules', rules, changes]
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_REF_PROTECTED
+      changes: !reference ['.pages:rules', rules, changes]
+      allow_failure: true
+      when: manual
+
+pdf:
+  extends:
+    - pages
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
+      changes: !reference ['.pages:rules', rules, changes]

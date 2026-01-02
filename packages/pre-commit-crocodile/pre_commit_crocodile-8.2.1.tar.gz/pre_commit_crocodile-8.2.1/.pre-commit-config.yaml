@@ -1,0 +1,143 @@
+# pre-commit configurations
+default_install_hook_types:
+  - commit-msg
+  - pre-commit
+  - pre-push
+  - prepare-commit-msg
+default_stages:
+  - commit-msg
+  - pre-commit
+  - pre-push
+  - prepare-commit-msg
+minimum_pre_commit_version: 3.8.0
+minimum_prek_version: 0.2.1
+
+# pre-commit exclusions
+exclude: >
+  (?x)(
+    ^archives/|
+    \.drawio$|
+    \.patch$|
+    \.svg$|
+    \.vhd$|
+    \.xci$|
+    \.xdc$|
+    eicar\..*$|
+    CHANGELOG.md$|
+    COPYING.*$|
+    LICENSE.*$|
+    README\.md$
+  )
+
+# pre-commit repositories
+repos:
+
+  # Repository: pre-commit
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      # - id: check-useless-excludes
+
+  # Repository: pre-commit-hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+        exclude: >
+          (?x)(
+            package-lock\.json$|
+            pnpm-lock\.yaml$|
+            yarn\.lock$
+          )
+      - id: check-case-conflict
+        exclude: >
+          (?x)(
+            \.nmconnection$
+          )
+      - id: check-executables-have-shebangs
+      - id: check-json
+      - id: check-merge-conflict
+      # - id: check-toml
+      # - id: check-xml
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: destroyed-symlinks
+        stages: [pre-commit, pre-push, manual]
+      # - id: detect-private-key
+      - id: double-quote-string-fixer
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md']
+        exclude: >
+          (?x)(
+            .*.md$
+          )
+
+  # Repository: pre-commit-hooks
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+      - id: python-check-blanket-type-ignore
+      - id: python-no-eval
+
+  # Repository: commitizen
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
+    hooks:
+      - id: commitizen
+        stages:
+          - commit-msg
+      - id: commitizen-branch
+        entry: python ./src/hooks/check_commitizen_branch.py
+        args: []
+        stages:
+          - pre-push
+
+  # Repository: pre-commit-crocodile
+  - repo: local
+    hooks:
+      - id: check-yaml-ruamel-pure
+        name: Check YAML (ruamel.yaml pure Python)
+        entry: python ./src/hooks/check_yaml_ruamel_pure.py
+        types: [yaml]
+        args: []
+        language: python
+        description: Check YAML (ruamel.yaml pure Python implementation)
+        stages:
+          - pre-commit
+          - pre-push
+          - manual
+        additional_dependencies:
+          - ruamel.yaml>=0.18.6
+      - id: prepare-commit-message
+        name: Prepare commit message automatically
+        entry: python ./src/hooks/prepare_commit_message.py
+        args: []
+        language: python
+        description: Automatically prepare the commit message for manual edition
+        stages:
+          - prepare-commit-msg
+        additional_dependencies:
+          - PyYAML>=6.0
+
+  # Repository: gcil
+  - repo: https://gitlab.com/RadianDevCore/tools/gcil
+    rev: 13.0.1
+    hooks:
+      - id: run-gcil-push
+        name: Run GitLab CI job with gcil (codestyle)
+        description: Automatically run GitLab CI job with gcil (codestyle)
+        args:
+          - 'codestyle'
+      - id: run-gcil-push
+        name: Run GitLab CI job with gcil (lint)
+        description: Automatically run GitLab CI job with gcil (lint)
+        args:
+          - 'lint'
+      - id: run-gcil-push
+        name: Run GitLab CI job with gcil (typings)
+        description: Automatically run GitLab CI job with gcil (typings)
+        args:
+          - 'typings'

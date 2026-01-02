@@ -1,0 +1,186 @@
+spec:
+  inputs:
+    name:
+      default: commits
+      description: 'Defines the commits job name (Default: commits)'
+    stage:
+      default: test
+      description: 'Defines the commits stage (Default: test)'
+    image:
+      default: registry.gitlab.com/radiandevcore/tools/pre-commit-crocodile/pre-commit-crocodile:commits
+      description: 'Specify the commits image (Default: pre-commit-crocodile:commits public image)'
+    skip:
+      default: ''
+      description: 'Defines the commits jobs names to skip (Default: "")'
+    version_minimal:
+      default: 7
+      description: 'Defines the commits image minimal version (Default: 7)'
+    pre_commit:
+      default: prek
+      description: 'Defines the commits pre-commit engine name (pre-commmit or prek, default: prek)'
+    validate_commitizen_config:
+      type: boolean
+      default: true
+      description: 'Defines the commits commitizen configuration validation (default: true)'
+    validate_commitizen_range:
+      type: boolean
+      default: true
+      description: 'Defines the commits commitizen range validation (default: true)'
+    validate_hooks_checks:
+      type: boolean
+      default: true
+      description: 'Defines the commits hooks checks validation (default: true)'
+    validate_duplicated_commits:
+      type: boolean
+      default: true
+      description: 'Defines the commits duplicated titles validation (default: true)'
+    validate_merge_commits:
+      type: boolean
+      default: false
+      description: 'Defines the commits merged histories validation (default: false)'
+    validate_wip_commits:
+      type: boolean
+      default: true
+      description: 'Defines the commits WIP titles validation (default: true)'
+---
+$[[ inputs.name ]]:
+  image: $[[ inputs.image ]]
+  stage: $[[ inputs.stage ]]
+  needs: []
+  variables:
+    GIT_SUBMODULE_STRATEGY: none
+    PRE_COMMIT_SKIP: $[[ inputs.skip ]]
+    VERSION_MINIMAL: $[[ inputs.version_minimal ]]
+  before_script:
+    # Validate image version
+    - |
+      version_image=$(cat /VERSION 2>/dev/null || echo '0')
+      if [ -z "${version_image}" ] || [ "${version_image}" -lt "${VERSION_MINIMAL}" ]; then
+        set +x
+        echo ' '
+        echo " [ERROR] Commits image is outdated and needs to be pulled (${version_image} < ${VERSION_MINIMAL})"
+        echo ' '
+        sleep 3
+        exit 1
+      fi
+    # Check commitizen system context
+    - |
+      if $[[ inputs.validate_commitizen_config ]]; then
+        set +x
+        git cz --config ./.cz.yaml version -r
+      fi
+    # Show commitizen commits documentation
+    - |
+      if $[[ inputs.validate_commitizen_config ]]; then
+        (
+          set +x
+          echo ' '
+          for hint in 'example:33' 'info:36' 'schema:32'; do
+            command="${hint%%:*}"
+            color="${hint##*:}"
+            echo '---'
+            echo "git cz ${command}:"
+            echo -e "\033[1;${color}m"
+            git cz --config ./.cz.yaml "${command}" | sed 's#^$# #g'
+            echo -e '\033[0m '
+          done
+          echo '---'
+        )
+      fi
+  script:
+    # Detect commits range
+    - set +x
+    - remote=$(git remote -v | grep '(fetch)' | awk '{print $1}' | head -n1)
+    - none_sha='0000000000000000000000000000000000000000'
+    - head_sha=$(git rev-parse "${CI_COMMIT_SHA:-HEAD}")
+    - |
+      if [ ! -z "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-}" ]; then
+        git fetch "${remote}" "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" || true
+        base_sha=$(git rev-parse "${remote}/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}")
+        base_branch=$(git rev-parse --abbrev-ref "${remote}/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}")
+        range_sha="${base_sha}..${head_sha}"
+      elif ! git log --pretty=%P -n1 'HEAD' | grep -q '.'; then
+        base_sha=$(git rev-parse 'HEAD')
+        base_branch=$(git rev-parse --abbrev-ref 'HEAD')
+        range_sha="${head_sha}"
+      elif [ ! -z "${CI_LOCAL:-}" ]; then
+        base_sha=$(git rev-parse "${remote}/HEAD")
+        base_branch=$(git rev-parse --abbrev-ref "${remote}/HEAD")
+        range_sha="${base_sha}..${head_sha}"
+      elif [ ! "${CI_COMMIT_BEFORE_SHA:-${none_sha}}" = "${none_sha}" ] && git cat-file -e "${CI_COMMIT_BEFORE_SHA}" 2>/dev/null; then
+        base_sha="${CI_COMMIT_BEFORE_SHA}"
+        base_branch="${CI_COMMIT_REF_NAME:-}"
+        range_sha="${base_sha}..${head_sha}"
+      else
+        base_sha=$(git rev-parse 'HEAD~1')
+        base_branch=$(git rev-parse --abbrev-ref 'HEAD')
+        range_sha="${base_sha}..${head_sha}"
+      fi
+    # Validate commitizen commits range
+    - |
+      if $[[ inputs.validate_commitizen_range ]]; then
+        set +x
+        echo ' '
+        echo '---'
+        echo -e "\033[0m\033[1mINFO: Commitizen checks from \033[1m'\033[1;36m${base_sha:0:8}\033[0m\033[1m' (\033[1;33m${base_branch}\033[0m\033[1m) to '\033[1;36m${head_sha:0:8}\033[0m\033[1m' (\033[1;33mHEAD\033[0m\033[1m)\033[0m"
+        echo ' '
+        git log --pretty=oneline --abbrev-commit "${range_sha}" | sed "s#^\([^ ]*\) #$(printf '\033[1;33m')\1$(printf '\033[0m') #g"
+        echo ' '
+        git cz --config ./.cz.yaml --no-raise 3 check --rev-range "${range_sha}"
+      fi
+    # Validate engine version
+    - |
+      if $[[ inputs.pre_commit ]] run --from-ref HEAD --to-ref HEAD 2>&1 | grep -q 'is required but version\|is greater than current version'; then
+        $[[ inputs.pre_commit ]] run --from-ref HEAD --to-ref HEAD || true
+        pip3 install -q --no-cache-dir --root-user-action=ignore --upgrade $[[ inputs.pre_commit ]]
+      fi
+    # Validate hooks checks
+    - |
+      if $[[ inputs.validate_hooks_checks ]]; then
+        set +x
+        echo ' '
+        skip=$(
+          {
+            grep 'id: run-gcil-' .pre-commit-config.yaml | sed 's/.* id: //g'
+            echo -n "${PRE_COMMIT_SKIP}" | tr ' ' '\n'
+          } | tr '\n' ',' | sed 's/,$//g' || true
+        )
+        if [ -z "${CI_LOCAL:-}" ]; then
+          $[[ inputs.pre_commit ]] install --install-hooks
+        fi
+        SKIP="${skip}" $[[ inputs.pre_commit ]] run --all-files --show-diff-on-failure
+      fi
+    # Validate duplicated commits
+    - |
+      if $[[ inputs.validate_duplicated_commits ]] && git log --pretty='%s' "${range_sha}" | sort | uniq -D | grep '.'; then
+        set +x
+        echo ' '
+        echo " [ERROR] Detected duplicated commits titles in range '${range_sha}'"
+        echo ' '
+        false
+      fi
+    # Validate merge commits
+    - |
+      if $[[ inputs.validate_merge_commits ]] && git rev-list --merges --pretty "${range_sha}" | grep '.'; then
+        set +x
+        echo ' '
+        echo " [ERROR] Detected merged histories commits in range '${range_sha}'"
+        echo ' '
+        false
+      fi
+    # Validate WIP commits
+    - |
+      if $[[ inputs.validate_wip_commits ]] && git log --pretty='%s' "${range_sha}" | grep -i '^WIP'; then
+        set +x
+        echo ' '
+        echo " [ERROR] Detected WIP commits in range '${range_sha}'"
+        echo ' '
+        false
+      fi
+  after_script:
+    # Resolve ownership
+    - chown --recursive --reference ./.gitlab-ci.yml ./.git/hooks || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - when: always
