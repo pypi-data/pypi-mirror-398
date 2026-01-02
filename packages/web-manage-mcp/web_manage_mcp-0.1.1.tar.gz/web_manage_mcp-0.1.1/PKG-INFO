@@ -1,0 +1,333 @@
+Metadata-Version: 2.4
+Name: web-manage-mcp
+Version: 0.1.1
+Summary: A powerful MCP server supporting Douban API and Java API CRUD operations
+Project-URL: Homepage, https://github.com/yourusername/web-manage-mcp
+Project-URL: Repository, https://github.com/yourusername/web-manage-mcp
+Project-URL: Issues, https://github.com/yourusername/web-manage-mcp/issues
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Keywords: api,claude,douban,mcp,server
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Requires-Dist: asyncio-throttle>=1.0.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: path>=17.1.1
+Requires-Dist: pydantic>=2.0.0
+Description-Content-Type: text/markdown
+
+# Web管理MCP服务器
+
+一个功能强大的MCP（Model Context Protocol）服务器，支持豆瓣API调用和通用Java API的CRUD操作。
+
+## 🎯 功能特性
+
+### 豆瓣API工具
+- 🎬 **电影搜索**: 根据关键词搜索豆瓣电影
+- 📖 **图书搜索**: 根据关键词搜索豆瓣图书  
+- ⭐ **收藏管理**: 完整的CRUD操作（增删改查）
+- 📝 **详情获取**: 获取电影/图书详细信息
+
+### Java API工具
+- 🔧 **API配置**: 动态添加和管理多个API端点
+- 📊 **CRUD操作**: CREATE、READ、UPDATE、DELETE
+- 🔍 **搜索功能**: 通用资源搜索接口
+- 📦 **批量操作**: 支持批量处理数据
+- 🔐 **认证支持**: Bearer Token认证
+
+## 🚀 快速开始
+
+### 方式1: 通过 uvx 安装（推荐）
+
+```bash
+# 直接运行（无需安装）
+uvx run web-manage-mcp
+
+# 或者安装后使用
+uvx install web-manage-mcp
+web-manage-mcp
+
+# 从本地源码安装
+uvx install .
+```
+
+### 方式2: 传统安装方式
+
+```bash
+# 1. 安装依赖
+uv sync
+
+# 2. 启动服务器
+python main.py
+
+# 或使用包模块方式
+python -m web_manage_mcp_server
+```
+
+### 3. 自动配置 MCP 客户端
+
+```bash
+# 自动配置 Claude Desktop
+python install.py --configure
+
+# 查看安装指南
+python install.py
+```
+
+## 🔧 MCP客户端配置
+
+### Claude Desktop配置
+
+在Claude Desktop的配置文件中添加以下内容：
+
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "web-manage-mcp": {
+      "command": "uvx",
+      "args": ["web-manage-mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+### Cursor配置
+
+在Cursor的设置中添加MCP服务器：
+
+```json
+{
+  "mcpServers": {
+    "web-manage-mcp": {
+      "command": "uvx",
+      "args": ["web-manage-mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+### 其他AI编辑器
+
+对于支持MCP协议的其他AI编辑器，使用类似的配置格式：
+
+```json
+{
+  "mcpServers": {
+    "web-manage-mcp": {
+      "command": "uvx",
+      "args": ["web-manage-mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+## 📋 可用工具列表
+
+### 豆瓣API工具
+
+| 工具名称 | 描述 | 参数 |
+|---------|------|------|
+| `search_movies` | 搜索电影 | `query`, `count?` |
+| `get_movie_detail` | 获取电影详情 | `movie_id` |
+| `search_books` | 搜索图书 | `query`, `count?` |
+| `add_favorite` | 添加收藏 | `item_type`, `item_id`, `title`, `rating?`, `comment?` |
+| `get_favorite` | 获取收藏详情 | `favorite_id` |
+| `list_favorites` | 列出收藏列表 | `item_type?` |
+| `update_favorite` | 更新收藏 | `favorite_id`, `rating?`, `comment?` |
+| `delete_favorite` | 删除收藏 | `favorite_id` |
+
+### Java API工具
+
+| 工具名称 | 描述 | 参数 |
+|---------|------|------|
+| `java_add_api` | 添加API配置 | `name`, `base_url`, `auth_token?`, `timeout?`, `headers?` |
+| `java_create_item` | 创建资源 (POST) | `api_name`, `endpoint`, `data` |
+| `java_get_item` | 获取资源 (GET) | `api_name`, `endpoint`, `item_id?`, `params?` |
+| `java_update_item` | 更新资源 (PUT) | `api_name`, `endpoint`, `item_id`, `data` |
+| `java_patch_item` | 部分更新 (PATCH) | `api_name`, `endpoint`, `item_id`, `data` |
+| `java_delete_item` | 删除资源 (DELETE) | `api_name`, `endpoint`, `item_id` |
+| `java_list_items` | 列出资源列表 | `api_name`, `endpoint`, `params?` |
+| `java_search_items` | 搜索资源 | `api_name`, `endpoint`, `query`, `params?` |
+| `java_batch_operation` | 批量操作 | `api_name`, `endpoint`, `operation`, `items` |
+| `java_list_apis` | 列出已配置的API | 无 |
+
+## 💡 使用示例
+
+### 豆瓣API使用
+
+```javascript
+// 搜索电影
+search_movies({
+  "query": "肖申克的救赎",
+  "count": 5
+})
+
+// 添加收藏
+add_favorite({
+  "item_type": "movie",
+  "item_id": "1292052",
+  "title": "肖申克的救赎",
+  "rating": "9.7",
+  "comment": "经典电影"
+})
+```
+
+### Java API使用
+
+```javascript
+// 添加API配置
+java_add_api({
+  "name": "my_api",
+  "base_url": "https://api.example.com",
+  "auth_token": "your_token_here"
+})
+
+// 创建资源
+java_create_item({
+  "api_name": "my_api",
+  "endpoint": "users",
+  "data": {
+    "name": "张三",
+    "email": "zhangsan@example.com"
+  }
+})
+
+// 获取资源列表
+java_list_items({
+  "api_name": "my_api",
+  "endpoint": "users",
+  "params": {
+    "page": 1,
+    "limit": 10
+  }
+})
+```
+
+## 🔧 配置管理
+
+服务器配置文件 `config.json` 会在首次运行时自动生成：
+
+```json
+{
+  "server": {
+    "name": "web-manage-mcp",
+    "version": "1.0.0",
+    "debug": false
+  },
+  "apis": {
+    "douban": {
+      "enabled": true,
+      "rate_limit": 10
+    },
+    "java": {
+      "enabled": true,
+      "rate_limit": 30
+    }
+  },
+  "storage": {
+    "type": "memory",
+    "file_path": "data.json"
+  }
+}
+```
+
+## 📁 项目结构
+
+```
+web_manage_mcp/
+├── web_manage_mcp_server/          # 主代码包
+│   ├── apis/                       # API调用模块
+│   │   ├── douban_api.py          # 豆瓣API实现
+│   │   └── java_api.py            # Java API通用客户端
+│   ├── tools/                      # MCP工具模块
+│   │   ├── douban_tools.py        # 豆瓣MCP工具
+│   │   └── java_tools.py          # Java API MCP工具
+│   └── utils/                      # 工具模块
+│       └── config.py              # 配置管理
+├── scripts/                        # 脚本目录
+├── tests/                          # 测试目录
+├── main.py                         # MCP服务器主程序
+├── run_server.py                   # 启动脚本
+└── pyproject.toml                  # 项目配置
+```
+
+## 🛠️ 技术栈
+
+- **MCP协议**: Model Context Protocol
+- **HTTP客户端**: httpx
+- **数据验证**: pydantic  
+- **异步编程**: asyncio
+- **请求限流**: asyncio-throttle
+- **项目管理**: uv
+
+## 📈 扩展开发
+
+### 添加新的API模块
+
+1. 在 `web_manage_mcp_server/apis/` 创建新的API客户端
+2. 在 `web_manage_mcp_server/tools/` 创建对应的MCP工具
+3. 在 `main.py` 中注册新工具
+4. 更新配置文件支持新API
+
+### 示例：添加GitHub API
+
+```python
+# web_manage_mcp_server/apis/github_api.py
+class GitHubAPI:
+    # 实现GitHub API调用逻辑
+    pass
+
+# web_manage_mcp_server/tools/github_tools.py  
+class GitHubTools:
+    # 实现GitHub相关MCP工具
+    pass
+
+# 在main.py中注册
+github_tools = GitHubTools()
+```
+
+## 🐛 故障排除
+
+### 常见问题
+
+1. **Python版本错误**: 确保使用Python 3.10+
+2. **依赖安装失败**: 运行 `uv sync` 重新安装
+3. **MCP连接失败**: 检查配置文件路径和权限
+4. **API调用失败**: 检查网络连接和API配置
+
+### 调试模式
+
+在 `config.json` 中启用调试模式：
+
+```json
+{
+  "server": {
+    "debug": true
+  }
+}
+```
+
+## 📄 许可证
+
+MIT License
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request！
+
+---
