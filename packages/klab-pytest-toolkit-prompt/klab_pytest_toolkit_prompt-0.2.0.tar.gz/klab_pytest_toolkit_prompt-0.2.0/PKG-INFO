@@ -1,0 +1,99 @@
+Metadata-Version: 2.4
+Name: klab-pytest-toolkit-prompt
+Version: 0.2.0
+Summary: Pytest prompt fixtures for the Klab Pytest Toolkit
+Project-URL: Changelog, https://github.com/klab365/klab-pytest-toolkit/blob/main/CHANGELOG.md
+Project-URL: Repository, https://github.com/klab365/klab-pytest-toolkit
+Project-URL: Issues, https://github.com/klab365/klab-pytest-toolkit/issues
+Author-email: Burak Kizilkaya <burak.kizilkaya@outlook.com>
+License-Expression: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: <4,>=3.11
+Requires-Dist: pytest>=8.3.5
+Description-Content-Type: text/markdown
+
+# Klab Pytest Toolkit - Prompt
+
+Custom pytest fixtures for interactive user prompts during test execution using tkinter UI dialogs.
+The goal is to allow testers to interact with the test process, providing confirmations or displaying important information.
+
+At the moment the package provides the following fixtures:
+
+- `ui_prompt_factory`: Factory for creating multiple prompt instance. With the factory you can create the prompt fixture.
+
+## Installation
+
+```bash
+pip install klab-pytest-toolkit-prompt
+```
+
+## Usage
+
+### UI Prompt
+
+**Create the fixture**
+
+The factory class `PromptFactory` can be used to create multiple prompt instances.
+This is already provided as a pytest fixture `prompt_factory`.
+
+```python
+
+@pytest.fixture
+def ui_prompt(prompt_factory) -> PromptInterface:
+    """Fixture to provide a UI prompt interface for user interaction during tests."""
+    return prompt_factory.create_prompt(prompt_type=PromptFactory.PromptType.UI_PROMPT)
+```
+
+**Functions**
+
+The following functions are available on the `PromptInterface` instance:
+
+**Show Information Dialog**
+
+```python
+def test_with_info(ui_prompt):
+    """Display information to the user."""
+    ui_prompt.show_info("Test is about to perform a critical operation")
+    
+    # Continue with test
+    perform_operation()
+```
+
+**Get User Confirmation**
+
+```python
+def test_with_confirmation(ui_prompt):
+    """Get user confirmation before proceeding."""
+    if ui_prompt.confirm_action("Continue with destructive test?"):
+        # User clicked Yes
+        perform_destructive_operation()
+    else:
+        # User clicked No
+        pytest.skip("User cancelled the test")
+```
+
+**With Timeout (Auto-close)**
+
+```python
+def test_with_timeout(ui_prompt):
+    """Show dialog that auto-closes after timeout."""
+    # Dialog closes automatically after 5 seconds
+    ui_prompt.show_info("This will auto-close in 5 seconds", timeout=5)
+    
+    # Confirmation dialog with timeout (returns False if timeout expires)
+    result = ui_prompt.confirm_action(
+        "Click within 10 seconds",
+        timeout=10
+    )
+```
+
+## Examples
+
+See the `tests` directory for example test cases demonstrating the usage of the prompt fixtures.
+
+## License
+
+MIT
