@@ -1,0 +1,198 @@
+[project]
+name = "emotional"
+description = "A Commitizen plugin for conventional commit with emojis and integrations"
+authors = [
+    { name = "Axel H.", email = "noirbizarre@gmail.com" },
+]
+requires-python = ">=3.10"
+dependencies = [
+    "commitizen>=4.0",
+]
+dynamic = []
+readme = "README.md"
+version = "0.6.0"
+
+[project.license]
+text = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/noirbizarre/emotional"
+Repository = "https://github.com/noirbizarre/emotional"
+Issues = "https://github.com/noirbizarre/emotional/issues"
+
+[project.entry-points."commitizen.plugin"]
+emotional = "emotional.plugin:Emotional"
+
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+plugins = [
+    "sync-pre-commit-lock",
+]
+
+[tool.pdm.version]
+source = "scm"
+write_to = "emotional/VERSION"
+
+[tool.pdm.scripts]
+pre_cover = "coverage erase"
+
+[tool.pdm.scripts.test]
+help = "Run the test suite"
+cmd = "pytest"
+
+[tool.pdm.scripts.lint]
+help = "Lint all tracked files using pre-commit"
+cmd = "prek run --all-files"
+
+[tool.pdm.scripts.format]
+help = "Format the code according to known rules"
+composite = [
+    "codespell --write-changes --interactive 2",
+    "ruff check --select I --fix-only --show-fixes emotional tests",
+    "ruff format emotional tests",
+]
+
+[tool.pdm.scripts.typing]
+help = "Full typing linting (includes imported packages and uncommmited files)"
+cmd = "mypy extensions tests --warn-unused-ignores"
+
+[tool.pdm.scripts.cover]
+help = "Run the test suite with coverage"
+composite = [
+    "  test\n    --cov-report=term\n    --cov=emotional\n    --cov-report=html:reports/coverage\n    --cov-report=xml:reports/coverage.xml\n    --no-cov-on-fail\n    --junitxml=reports/junit.xml\n  ",
+]
+
+[tool.pdm.scripts."cover:all"]
+help = "Run the test suite against all supported Python version"
+cmd = "tox --parallel"
+
+[tool.pdm.scripts.check]
+help = "Check everything"
+composite = [
+    "echo '🚦 Tests & Coverage 📸'",
+    "cover:all",
+    "echo '\n🎨 Style'",
+    "lint",
+]
+
+[tool.pdm.scripts.changelog]
+help = "Generate/update the changelog"
+cmd = "cz changelog --incremental"
+
+[tool.pdm.scripts.bump]
+help = "Bump the version using commitizen"
+cmd = "cz bump --changelog --check-consistency"
+
+[tool.commitizen]
+name = "emotional"
+github = "noirbizarre/emotional"
+version_provider = "scm"
+order_by_scope = true
+major_version_zero = true
+breaking_change_exclamation_in_title = true
+allowed_prefixes = [
+    "Merge",
+    "Revert",
+    "Pull request",
+    "fixup!",
+    "squash!",
+    "Initial",
+    "[pre-commit.ci]",
+]
+
+[tool.codespell]
+ignore-words = ".codespellignore"
+
+[tool.pytest]
+addopts = [
+    "-ra",
+]
+norecursedirs = [
+    ".git",
+    "build",
+    "dist",
+]
+testpaths = [
+    "emotional/",
+    "tests/",
+]
+markers = [
+    "settings: Provide key-value commitizen settings pair",
+]
+
+[tool.coverage.run]
+source = [
+    "emotional",
+]
+branch = true
+omit = [
+    "tests/*",
+]
+relative_files = true
+
+[tool.coverage.paths]
+source = [
+    "emotional/",
+    ".tox/*/lib/*/site-packages/emotional/",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "if TYPE_CHECKING:",
+]
+ignore_errors = true
+
+[tool.ruff]
+line-length = 100
+respect-gitignore = true
+src = [
+    ".",
+    "tests",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "C",
+    "UP",
+    "I001",
+]
+
+[tool.ruff.lint.isort]
+known-third-party = [
+    "commitizen",
+    "pytest",
+]
+lines-between-types = 1
+
+[tool.ruff.lint.per-file-ignores]
+"emotional/defaults.py" = [
+    "C408",
+]
+
+[dependency-groups]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+]
+test = [
+    "pytest>=9.0",
+    "pytest-sugar>=0.9.5",
+    "pytest-cov>=3.0.0",
+    "syrupy>=5.0",
+    "pytest-mock>=3.12.0",
+]
+lint = [
+    "codespell>=2.2.6",
+    "mypy>=1.7.0",
+    "ruff>=0.3.0",
+    "prek",
+]
