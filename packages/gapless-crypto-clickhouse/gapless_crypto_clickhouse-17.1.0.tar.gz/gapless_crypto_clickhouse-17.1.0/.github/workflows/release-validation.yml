@@ -1,0 +1,180 @@
+name: Release Validation
+
+# ADR-0037: Release Validation Observability Flow
+# ADR-0038: Real Binance Data Validation
+# Triggered after semantic-release completion to validate:
+# 1. GitHub Release existence
+# 2. PyPI package version match
+# 3. Production environment health
+# 4. Real Binance data pipeline (9-stage)
+
+on:
+  workflow_run:
+    workflows: ["Semantic Release"]
+    types: [completed]
+  workflow_dispatch:
+    # Allow manual triggering for testing
+    inputs:
+      release_version:
+        description: 'Release version to validate (e.g., v9.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-validation:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true  # Non-blocking: never fail the release
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+          fetch-tags: true  # Explicitly fetch tags
+
+      - name: Setup Earthly
+        uses: earthly/actions-setup@v1
+        with:
+          version: latest
+
+      - name: Detect release version
+        id: release_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RELEASE_VERSION="${{ github.event.inputs.release_version }}"
+          else
+            RELEASE_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          fi
+
+          GITHUB_RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_VERSION}"
+
+          echo "release_version=${RELEASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "release_url=${GITHUB_RELEASE_URL}" >> $GITHUB_OUTPUT
+          echo "git_commit=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+          echo "Release Version: ${RELEASE_VERSION}"
+          echo "Release URL: ${GITHUB_RELEASE_URL}"
+          echo "Git Commit: ${GITHUB_SHA}"
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Run Earthly validation pipeline
+        continue-on-error: true
+        run: |
+          echo "=========================================="
+          echo "Running Earthly Release Validation Pipeline"
+          echo "=========================================="
+
+          # Run validation targets directly to export artifacts (AS LOCAL only works when target is explicitly built)
+          # Use GitHub Actions template syntax for secrets to avoid bash variable substitution issues
+          # Use --strict instead of EARTHLY_CI=true to enable artifact export while maintaining CI safety
+          echo "Running individual validation targets to export artifacts..."
+          earthly --strict \
+            --secret GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            +github-release-check \
+            --RELEASE_VERSION="${{ steps.release_info.outputs.release_version }}" \
+            --GIT_COMMIT="${{ steps.release_info.outputs.git_commit }}" \
+            --GITHUB_REPOSITORY="${{ github.repository }}" \
+          || echo "GitHub release check failed (non-fatal)"
+
+          earthly --strict \
+            +pypi-version-check \
+            --RELEASE_VERSION="${{ steps.release_info.outputs.release_version }}" \
+            --GIT_COMMIT="${{ steps.release_info.outputs.git_commit }}" \
+          || echo "PyPI version check failed (non-fatal)"
+
+          earthly --strict \
+            --secret CLICKHOUSE_HOST="${{ secrets.CLICKHOUSE_HOST }}" \
+            --secret CLICKHOUSE_PORT="${{ secrets.CLICKHOUSE_PORT }}" \
+            --secret CLICKHOUSE_USER="${{ secrets.CLICKHOUSE_USER }}" \
+            --secret CLICKHOUSE_PASSWORD="${{ secrets.CLICKHOUSE_PASSWORD }}" \
+            +production-health-check \
+            --RELEASE_VERSION="${{ steps.release_info.outputs.release_version }}" \
+            --GIT_COMMIT="${{ steps.release_info.outputs.git_commit }}" \
+          || echo "Production health check failed (non-fatal)"
+
+          # ADR-0038: Real Binance data validation (9-stage pipeline)
+          earthly --strict \
+            --secret CLICKHOUSE_HOST="${{ secrets.CLICKHOUSE_HOST }}" \
+            --secret CLICKHOUSE_PORT="${{ secrets.CLICKHOUSE_PORT }}" \
+            --secret CLICKHOUSE_USER="${{ secrets.CLICKHOUSE_USER }}" \
+            --secret CLICKHOUSE_PASSWORD="${{ secrets.CLICKHOUSE_PASSWORD }}" \
+            +binance-real-data-check \
+            --RELEASE_VERSION="${{ steps.release_info.outputs.release_version }}" \
+            --GIT_COMMIT="${{ steps.release_info.outputs.git_commit }}" \
+          || echo "Binance real data validation failed (non-fatal)"
+
+          # Run downstream pipeline (write to ClickHouse, send Pushover)
+          # +write-to-clickhouse COPYs from dependent targets, so needs all their secrets
+          echo "Running downstream validation pipeline..."
+          earthly --strict \
+            --secret GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            --secret CLICKHOUSE_HOST="${{ secrets.CLICKHOUSE_HOST }}" \
+            --secret CLICKHOUSE_PORT="${{ secrets.CLICKHOUSE_PORT }}" \
+            --secret CLICKHOUSE_USER="${{ secrets.CLICKHOUSE_USER }}" \
+            --secret CLICKHOUSE_PASSWORD="${{ secrets.CLICKHOUSE_PASSWORD }}" \
+            +write-to-clickhouse \
+            --RELEASE_VERSION="${{ steps.release_info.outputs.release_version }}" \
+            --GIT_COMMIT="${{ steps.release_info.outputs.git_commit }}" \
+            --GITHUB_REPOSITORY="${{ github.repository }}" \
+          || echo "ClickHouse write failed (non-fatal)"
+
+          # +send-pushover-alert COPYs from dependent targets, so needs all their secrets
+          earthly --strict \
+            --secret GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            --secret CLICKHOUSE_HOST="${{ secrets.CLICKHOUSE_HOST }}" \
+            --secret CLICKHOUSE_PORT="${{ secrets.CLICKHOUSE_PORT }}" \
+            --secret CLICKHOUSE_USER="${{ secrets.CLICKHOUSE_USER }}" \
+            --secret CLICKHOUSE_PASSWORD="${{ secrets.CLICKHOUSE_PASSWORD }}" \
+            --secret PUSHOVER_APP_TOKEN="${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --secret PUSHOVER_USER_KEY="${{ secrets.PUSHOVER_USER_KEY }}" \
+            +send-pushover-alert \
+            --RELEASE_VERSION="${{ steps.release_info.outputs.release_version }}" \
+            --GITHUB_RELEASE_URL="${{ steps.release_info.outputs.release_url }}" \
+            --GIT_COMMIT="${{ steps.release_info.outputs.git_commit }}" \
+            --GITHUB_REPOSITORY="${{ github.repository }}" \
+          || echo "Pushover notification failed (non-fatal)"
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-validation-results
+          path: artifacts/*.json
+          retention-days: 90
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Release Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release**: ${{ steps.release_info.outputs.release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: ${{ steps.release_info.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f artifacts/github-release-result.json ]; then
+            STATUS=$(jq -r '.status' artifacts/github-release-result.json)
+            echo "- **GitHub Release**: ${STATUS}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f artifacts/pypi-version-result.json ]; then
+            STATUS=$(jq -r '.status' artifacts/pypi-version-result.json)
+            echo "- **PyPI Version**: ${STATUS}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f artifacts/production-health-result.json ]; then
+            STATUS=$(jq -r '.status' artifacts/production-health-result.json)
+            echo "- **Production Health**: ${STATUS}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f artifacts/binance-validation-result.json ]; then
+            STATUS=$(jq -r '.status' artifacts/binance-validation-result.json)
+            echo "- **Binance Real Data**: ${STATUS}" >> $GITHUB_STEP_SUMMARY
+          fi

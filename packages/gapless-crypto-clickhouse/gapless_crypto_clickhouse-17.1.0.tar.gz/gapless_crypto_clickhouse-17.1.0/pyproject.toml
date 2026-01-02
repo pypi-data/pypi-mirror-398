@@ -1,0 +1,164 @@
+[project]
+name = "gapless-crypto-clickhouse"
+# NOTE: semantic-release does not update this field (uses git tags instead)
+# Latest release version is tracked via git tags (e.g., v2.1.2)
+# See .releaserc.json - @semantic-release/npm only updates package.json, not pyproject.toml
+version = "17.1.0"
+description = "ClickHouse-based cryptocurrency data collection with zero-gap guarantee. 22x faster via Binance public repository with persistent database storage, USDT-margined futures support, and production-ready ReplacingMergeTree schema."
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+    { name = "Eon Labs", email = "terry@eonlabs.com" }
+]
+maintainers = [
+    { name = "Terry Li", email = "terry@eonlabs.com" }
+]
+license = { text = "MIT" }
+keywords = [
+    "clickhouse", "cryptocurrency", "crypto", "binance", "database",
+    "trading", "OHLCV", "gap-filling", "financial-data", "time-series",
+    "microstructure", "order-flow", "liquidity", "persistent-storage",
+    "futures", "perpetual", "USDT-margined", "data-warehouse",
+    "replacing-mergetree", "deterministic-versioning", "sql-queries",
+    "zero-gaps", "22x-faster", "production-ready", "gapless"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "binance-futures-availability>=1.4.0",  # 715 validated USDT-margined futures symbols with daily S3 Vision probes (ADR-0021)
+    "clickhouse-connect>=0.10.0,<1.0.0",  # ClickHouse HTTP client with Arrow support (ADR-0023: pinned to match installed 0.10.0)
+    "duckdb>=1.1.0",  # Single-file OLAP database for validation report persistence
+    "httpx>=0.25.0",
+    "requests>=2.31.0",  # PyPI version validation + Pushover notifications (ADR-0037)
+    "numpy>=1.23.2,<2.0.0",  # Explicit NumPy 1.x constraint for Alpha Forge compatibility (TA-Lib requires <2.0)
+    "pandas>=2.2.0,<3.0.0",  # Python 3.14 compatibility (pandas 2.2+ required for C API fixes)
+    "pydantic>=2.0.0",  # Data validation and OpenAPI schema generation for validation reports
+    "pyarrow>=14.0.0",  # Apache Arrow for zero-copy DataFrame creation (ADR-0023: 4x less memory)
+    "tenacity>=8.0.0",  # Retry logic for REST API gap filling (ADR-0040)
+    "click>=8.0.0",  # CLI framework for gcch commands (ADR: 2025-12-21-sdk-first-run-experience)
+]
+
+[project.urls]
+Homepage = "https://github.com/terrylica/gapless-crypto-clickhouse"
+Documentation = "https://github.com/terrylica/gapless-crypto-clickhouse#readme"
+Repository = "https://github.com/terrylica/gapless-crypto-clickhouse.git"
+Issues = "https://github.com/terrylica/gapless-crypto-clickhouse/issues"
+Changelog = "https://github.com/terrylica/gapless-crypto-clickhouse/blob/main/CHANGELOG.md"
+
+# CLI commands for setup and diagnostics (ADR: 2025-12-21-sdk-first-run-experience)
+[project.scripts]
+gcch = "gapless_crypto_clickhouse.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gapless_crypto_clickhouse"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/gapless_crypto_clickhouse/py.typed" = "gapless_crypto_clickhouse/py.typed"
+
+# NOTE: pytest configuration in pytest.ini (takes precedence over pyproject.toml)
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "C901",  # function too complex (legacy code)
+    "F841",  # unused variables (test files)
+    "W291",  # trailing whitespace
+    "W293",  # blank line contains whitespace
+    "B904",  # exception chaining warnings (non-critical for publishing)
+    "B007",  # unused loop variables (non-critical for publishing)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gapless_crypto_clickhouse"]
+
+[tool.black]
+target-version = ['py311']
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+# Gradually improve type checking
+disallow_untyped_defs = false
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_optional = true
+
+# Ignore missing imports for now
+ignore_missing_imports = false
+
+# Per-module configuration for gradual adoption
+[[tool.mypy.overrides]]
+module = "gapless_crypto_clickhouse.__init__"
+disallow_untyped_defs = true
+
+# Enforce strict mode on SDK entry points (v3.2.0)
+[[tool.mypy.overrides]]
+module = "gapless_crypto_clickhouse.api"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "gapless_crypto_clickhouse.__probe__"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+# pytest configuration moved to pytest.ini (separate file takes precedence)
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.1",
+    "pandas-stubs>=2.2.2.240807",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=0.26.0",  # Required for session-scoped async fixtures
+    "pytest-timeout>=2.3.1",
+    "playwright>=1.56.0",
+    "pytest-playwright-asyncio>=0.7.1",  # Official async support (replaces pytest-playwright)
+    "ruff>=0.13.0",
+    "yamllint>=1.37.1",
+    "commitizen>=4.9.1",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver"
+version_provider = "pep621"
+major_version_zero = false
+bump_message = "chore(release): bump version $current_version → $new_version [skip ci]"
