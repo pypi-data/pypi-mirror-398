@@ -1,0 +1,46 @@
+{# Traefik reverse proxy service template #}
+traefik:
+  image: traefik:v2.10
+  container_name: {{ project_name }}_traefik
+  restart: unless-stopped
+  command:
+    - "--api.insecure=true"
+    - "--providers.docker=true"
+    - "--providers.docker.exposedbydefault=false"
+    - "--entrypoints.web.address=:80"
+{% if enable_https %}
+    - "--entrypoints.websecure.address=:443"
+    - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+    - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+    - "--certificatesresolvers.letsencrypt.acme.email={{ letsencrypt_email }}"
+    - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+{% endif %}
+  ports:
+    - "80:80"
+    - "8080:8080"
+{% if enable_https %}
+    - "443:443"
+{% endif %}
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+{% if enable_https %}
+    - traefik_letsencrypt:/letsencrypt
+{% endif %}
+  networks:
+    - stackweaver-network
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.traefik.rule=Host(`traefik.{{ domain | default('localhost') }}`)"
+    - "traefik.http.routers.traefik.service=api@internal"
+{% if enable_https %}
+    - "traefik.http.routers.traefik.entrypoints=websecure"
+    - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+{% else %}
+    - "traefik.http.routers.traefik.entrypoints=web"
+{% endif %}
+  healthcheck:
+    test: ["CMD", "traefik", "healthcheck", "--ping"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 5s

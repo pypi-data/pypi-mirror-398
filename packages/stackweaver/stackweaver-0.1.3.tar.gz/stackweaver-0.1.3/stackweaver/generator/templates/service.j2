@@ -1,0 +1,49 @@
+{# Service partial template - can be included in docker-compose.j2 or used standalone #}
+{{ service.name }}:
+  image: {{ service.docker_image }}
+  container_name: {{ project_name }}_{{ service.name }}
+  restart: unless-stopped
+{% if service.env_vars %}
+  environment:
+{% for env_var in service.env_vars %}
+    {{ env_var.key }}: {{ "${" ~ env_var.key ~ "}" }}
+{% endfor %}
+{% endif %}
+{% if service.ports %}
+  ports:
+{% for port in service.ports %}
+    - "{{ port }}:{{ port }}"
+{% endfor %}
+{% endif %}
+{% if service.volumes %}
+  volumes:
+{% for volume in service.volumes %}
+    - {{ volume.name }}:{{ volume.mount_path }}
+{% endfor %}
+{% endif %}
+  networks:
+    - stackweaver-network
+{% if service.traefik_enabled %}
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.{{ service.name }}.rule=Host(`{{ service.name }}.${TRAEFIK_DOMAIN}`)"
+    - "traefik.http.routers.{{ service.name }}.entrypoints=websecure"
+    - "traefik.http.routers.{{ service.name }}.tls.certresolver=letsencrypt"
+{% if service.ports %}
+    - "traefik.http.services.{{ service.name }}.loadbalancer.server.port={{ service.ports[0] }}"
+{% endif %}
+{% endif %}
+{% if service.dependencies %}
+  depends_on:
+{% for dep in service.dependencies %}
+    - {{ dep }}
+{% endfor %}
+{% endif %}
+{% if service.healthcheck %}
+  healthcheck:
+    test: {{ service.healthcheck.test }}
+    interval: {{ service.healthcheck.interval | default('30s') }}
+    timeout: {{ service.healthcheck.timeout | default('10s') }}
+    retries: {{ service.healthcheck.retries | default(3) }}
+    start_period: {{ service.healthcheck.start_period | default('40s') }}
+{% endif %}
