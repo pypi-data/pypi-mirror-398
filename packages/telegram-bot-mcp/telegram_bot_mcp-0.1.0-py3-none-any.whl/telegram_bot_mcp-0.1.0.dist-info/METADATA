@@ -1,0 +1,429 @@
+Metadata-Version: 2.4
+Name: telegram-bot-mcp
+Version: 0.1.0
+Summary: Telegram Bot MCP Server - publish, edit, and search messages in Telegram channels
+Author-email: Synteles <info@synteles.com>
+License-File: LICENSE
+Keywords: bot,mcp,model-context-protocol,server,telegram
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: python-telegram-bot>=21.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Telegram Bot MCP Server
+
+A Model Context Protocol (MCP) server that enables AI assistants to publish, edit, search, and manage messages in Telegram channels.
+
+## Features
+
+- **Publish Text Messages**: Post new text messages to Telegram channels with formatting support (Markdown/HTML)
+- **Publish Photos**: Post photos with optional captions to Telegram channels
+- **Edit Text Messages**: Modify existing text-only messages in channels
+- **Edit Photo Captions**: Update captions of existing photo messages
+- **Delete Messages**: Remove messages from channels
+- **Search Messages**: Search through cached messages (local cache)
+- **Channel Info**: Retrieve channel metadata and statistics
+
+## Quick Reference
+
+| Task | Message Type | Tool to Use |
+|------|-------------|-------------|
+| Publish a text message | Text | `publish_message` |
+| Publish a photo | Photo | `publish_photo` |
+| Edit a text-only message | Text | `edit_message` |
+| Edit a photo's caption | Photo | `edit_message_caption` |
+| Delete any message | Any | `delete_message` |
+| Search cached messages | Any | `search_messages` |
+| Get channel info | - | `get_channel_info` |
+
+**Important:** You cannot use `edit_message` on photo messages or `edit_message_caption` on text messages!
+
+## Installation
+
+### Prerequisites
+
+1. **Python 3.10+** is required
+2. **Create a Telegram Bot**:
+   - Open Telegram and search for [@BotFather](https://t.me/botfather)
+   - Send `/newbot` and follow the instructions
+   - Copy the bot token (format: `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
+
+3. **Add Bot to Your Channel**:
+   - Create a Telegram channel or use an existing one
+   - Add your bot as an administrator to the channel
+   - Grant the bot permissions:
+     - Post messages
+     - Edit messages of others
+     - Delete messages of others
+
+4. **Get Channel ID**:
+   - For public channels, use the username format: `@channelname`
+   - For private channels, you need the numeric chat ID (e.g., `-1001234567890`)
+   - You can get this by:
+     - Adding the bot to the channel
+     - Sending a message to the channel
+     - Checking the update using: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+
+### Install from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/synteles/telegram-bot-mcp.git
+cd telegram-bot-mcp
+
+# Install with pip
+pip install -e .
+
+# Or install with uv (recommended)
+uv pip install -e .
+```
+
+### For Development
+
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Or with uv
+uv pip install -e ".[dev]"
+```
+
+## Configuration
+
+### Environment Variable
+
+Set your Telegram bot token as an environment variable:
+
+```bash
+export TELEGRAM_BOT_TOKEN="your-bot-token-here"
+```
+
+Or add it to your `.env` file:
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+```
+
+### Claude Desktop Integration
+
+Add this to your Claude Desktop configuration file:
+
+**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "telegram-bot": {
+      "command": "python",
+      "args": ["-m", "telegram_bot"],
+      "env": {
+        "TELEGRAM_BOT_TOKEN": "your-bot-token-here"
+      }
+    }
+  }
+}
+```
+
+Or if installed via uv:
+
+```json
+{
+  "mcpServers": {
+    "telegram-bot": {
+      "command": "uvx",
+      "args": ["telegram-bot-mcp"],
+      "env": {
+        "TELEGRAM_BOT_TOKEN": "your-bot-token-here"
+      }
+    }
+  }
+}
+```
+
+## Usage
+
+Once configured, the server will be available to your MCP client (like Claude Desktop). You can ask the AI assistant to:
+
+- "Post a message to @mychannel saying 'Hello from AI!'"
+- "Publish a photo from /path/to/image.jpg to @mychannel with caption 'Check this out!'"
+- "Edit message 12345 in @mychannel to say 'Updated message'"
+- "Search for messages containing 'important' in @mychannel"
+- "Delete message 12345 from @mychannel"
+- "Get information about @mychannel"
+
+## Available Tools
+
+### `publish_message`
+
+Publish a new message to a Telegram channel.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username (`@mychannel`) or chat ID
+- `text` (str, required): Message text to publish
+- `parse_mode` (str, optional): Text formatting - `"Markdown"`, `"HTML"`, or `"None"`. Default: `"Markdown"`
+- `disable_web_page_preview` (bool, optional): Disable link previews. Default: `False`
+- `disable_notification` (bool, optional): Send silently. Default: `False`
+
+**Returns:**
+```json
+{
+  "message_id": 12345,
+  "chat_id": -1001234567890,
+  "date": "2024-01-15T10:30:00",
+  "text": "Your message text",
+  "link": "https://t.me/mychannel/12345"
+}
+```
+
+### `publish_photo`
+
+Publish a photo to a Telegram channel with an optional caption.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username (`@mychannel`) or chat ID
+- `photo` (str, required): Photo to send (file path, URL, or file_id)
+- `caption` (str, optional): Caption text with Markdown/HTML formatting. Max 1024 characters
+- `parse_mode` (str, optional): Caption formatting - `"Markdown"`, `"HTML"`, or `"None"`. Default: `"Markdown"`
+- `disable_notification` (bool, optional): Send silently. Default: `False`
+
+**Returns:**
+```json
+{
+  "message_id": 12345,
+  "chat_id": -1001234567890,
+  "date": "2024-01-15T10:30:00",
+  "caption": "Photo caption text",
+  "photo": {
+    "file_id": "AgACAgIAAxkBAAMCY...",
+    "file_unique_id": "AQADAgATxxx",
+    "width": 1280,
+    "height": 720,
+    "file_size": 102400
+  },
+  "link": "https://t.me/mychannel/12345"
+}
+```
+
+### `edit_message`
+
+Edit an existing TEXT-ONLY message in a channel.
+
+**IMPORTANT:** This only works for text messages. If the message contains a photo, use `edit_message_caption` instead.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username or chat ID
+- `message_id` (int, required): ID of the message to edit
+- `new_text` (str, required): New message text
+- `parse_mode` (str, optional): Text formatting. Default: `"Markdown"`
+
+### `edit_message_caption`
+
+Edit the caption of an existing PHOTO message in a channel.
+
+**IMPORTANT:** This only works for messages with media. For text-only messages, use `edit_message` instead.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username or chat ID
+- `message_id` (int, required): ID of the photo message to edit
+- `new_caption` (str, required): New caption text
+- `parse_mode` (str, optional): Caption formatting. Default: `"Markdown"`
+
+### `delete_message`
+
+Delete a message from a channel.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username or chat ID
+- `message_id` (int, required): ID of the message to delete
+
+### `search_messages`
+
+Search messages in local cache (messages published/edited in current session).
+
+**Note:** Telegram Bot API doesn't support native message search. This searches locally cached messages.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username or chat ID
+- `query` (str, optional): Search query (case-insensitive). If None, returns all cached messages
+- `limit` (int, optional): Maximum results to return. Default: `10`
+
+### `get_channel_info`
+
+Get information about a Telegram channel.
+
+**Parameters:**
+- `channel_id` (str, required): Channel username or chat ID
+
+**Returns:**
+```json
+{
+  "id": -1001234567890,
+  "title": "My Channel",
+  "username": "mychannel",
+  "type": "channel",
+  "description": "Channel description",
+  "invite_link": "https://t.me/mychannel",
+  "member_count": 1234,
+  "status": "success"
+}
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run tests with verbose output
+pytest -v
+
+# Run tests with coverage
+pytest --cov=telegram_bot --cov-report=html
+
+# Run specific test
+pytest tests/test_telegram.py::TestTelegramClient::test_publish_message
+```
+
+### Code Quality
+
+```bash
+# Type checking
+mypy telegram_bot
+
+# Linting
+ruff check .
+
+# Formatting
+ruff format .
+```
+
+### Running the Server Locally
+
+For testing purposes, you can run the server directly:
+
+```bash
+# Set your bot token
+export TELEGRAM_BOT_TOKEN="your-token"
+
+# Run the server
+python -m telegram_bot
+```
+
+The server will start and communicate via stdio, following the MCP protocol.
+
+## Architecture
+
+### Component Structure
+
+```
+telegram-bot-mcp/
+├── main.py                  # Entry point for the server
+├── telegram_bot/
+│   ├── __init__.py          # Package initialization
+│   ├── server.py            # FastMCP server implementation with tool decorators
+│   └── telegram_bot_client.py  # TelegramBotClient wrapper
+└── tests/
+    └── test_telegram.py     # Comprehensive tests
+```
+
+### Design Patterns
+
+- **Singleton Client**: Global `TelegramBotClient` instance reused across tool calls
+- **Async-First**: All I/O operations are async for better performance
+- **Error Handling**: Graceful error responses with status information
+- **Local Cache**: Message caching for search functionality (since Telegram API doesn't support search)
+
+## Limitations
+
+1. **Message Types and Editing**:
+   - **Text messages**: Use `edit_message` (won't work on photo messages)
+   - **Photo messages**: Use `edit_message_caption` (won't work on text-only messages)
+   - You cannot change a text message to a photo or vice versa
+   - The bot can only edit messages it sent itself
+
+2. **Message Search**: Only searches locally cached messages from current session (Telegram Bot API limitation)
+   - Messages are cached in-memory during the current session
+   - Cache is cleared when the server restarts
+   - You can still edit messages from previous sessions if you know the message_id
+
+3. **Message Retrieval**: Telegram Bot API doesn't provide a way to fetch arbitrary messages by ID
+
+4. **Bot Permissions**: Bot must be channel admin with appropriate permissions:
+   - Post messages
+   - Edit messages
+   - Delete messages
+
+5. **Edit Time Limit**: Telegram has a 48-hour limit for editing messages
+
+6. **Rate Limits**: Telegram enforces rate limits on bot API calls
+
+## Troubleshooting
+
+### "Telegram bot token is required" Error
+
+Make sure you've set the `TELEGRAM_BOT_TOKEN` environment variable or configured it in your MCP client.
+
+### "Chat not found" Error
+
+- For public channels, ensure you use `@channelname` format
+- For private channels, use numeric chat ID (e.g., `-1001234567890`)
+- Verify the bot is added to the channel as an admin
+
+### "Not enough rights to send messages" Error
+
+The bot needs admin permissions in the channel with:
+- Post messages
+- Edit messages
+- Delete messages
+
+### "Message can't be edited" Error
+
+This usually means:
+1. **Wrong edit method for message type**: Use `edit_message_caption` for photos, `edit_message` for text
+2. **Bot didn't send the message**: Bots can only edit messages they sent themselves
+3. **Message is too old**: Telegram has a 48-hour limit for editing messages
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## Resources
+
+- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [Telegram Bot API Documentation](https://core.telegram.org/bots/api)
+- [python-telegram-bot Library](https://python-telegram-bot.readthedocs.io/)
+
+## Support
+
+For issues and questions:
+- GitHub Issues: [Report a bug](https://github.com/synteles/telegram-bot-mcp/issues)
+- MCP Discord: [Join the community](https://discord.gg/mcp)
