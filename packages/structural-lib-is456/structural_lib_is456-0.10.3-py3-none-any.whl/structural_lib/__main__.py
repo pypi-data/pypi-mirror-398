@@ -1,0 +1,767 @@
+"""
+Unified CLI entrypoint for structural_lib.
+
+Usage:
+    python -m structural_lib design input.csv -o results.json
+    python -m structural_lib bbs results.json -o bbs.csv
+    python -m structural_lib dxf results.json -o drawings.dxf
+    python -m structural_lib job job.json -o output/
+
+This module provides a unified command-line interface with subcommands
+for beam design, bar bending schedules, DXF generation, and job processing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import sys
+from pathlib import Path
+from typing import List
+
+from . import bbs
+from . import beam_pipeline
+from . import detailing
+from . import dxf_export
+from . import excel_integration
+from . import job_runner
+
+
+def _fmt_cell(v: object) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "TRUE" if v else "FALSE"
+    if isinstance(v, float):
+        return repr(v)
+    return str(v)
+
+
+def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: _fmt_cell(row.get(k)) for k in fieldnames})
+
+
+def cmd_design(args: argparse.Namespace) -> int:
+    """
+    Run beam design from CSV/JSON input file.
+
+    Reads beam parameters from CSV or JSON, performs IS456 design calculations
+    using the canonical beam_pipeline, and outputs design results in JSON format.
+    """
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}", file=sys.stderr)
+        return 1
+
+    try:
+        # Load beam data
+        print(f"Loading beam data from {input_path}...", file=sys.stderr)
+
+        if input_path.suffix.lower() == ".csv":
+            beams = excel_integration.load_beam_data_from_csv(str(input_path))
+        elif input_path.suffix.lower() == ".json":
+            beams = excel_integration.load_beam_data_from_json(str(input_path))
+        else:
+            print(
+                f"Error: Unsupported file format: {input_path.suffix}", file=sys.stderr
+            )
+            print("Supported formats: .csv, .json", file=sys.stderr)
+            return 1
+
+        print(f"Loaded {len(beams)} beam(s)", file=sys.stderr)
+
+        crack_width_params = None
+        if args.crack_width_params:
+            params_path = Path(args.crack_width_params)
+            if not params_path.exists():
+                print(
+                    f"Error: crack width params file not found: {params_path}",
+                    file=sys.stderr,
+                )
+                return 1
+            with params_path.open("r", encoding="utf-8") as f:
+                crack_width_params = json.load(f)
+            if not isinstance(crack_width_params, dict):
+                print(
+                    "Error: crack width params must be a JSON object.",
+                    file=sys.stderr,
+                )
+                return 1
+            # Warn if applying global params to multiple beams
+            if len(beams) > 1:
+                print(
+                    "Warning: --crack-width-params applies the same parameters to all "
+                    f"{len(beams)} beams. For mixed geometry/materials, consider "
+                    "per-beam crack width input.",
+                    file=sys.stderr,
+                )
+
+        # Process each beam using canonical pipeline
+        results: list[beam_pipeline.BeamDesignOutput] = []
+        for beam in beams:
+            print(f"  Processing {beam.story}/{beam.beam_id}...", file=sys.stderr)
+
+            # Calculate stirrup area (2-legged)
+            asv_mm2 = 3.14159 * (beam.stirrup_dia / 2) ** 2 * 2
+            deflection_params = None
+            if args.deflection:
+                deflection_params = {
+                    "span_mm": beam.span,
+                    "d_mm": beam.d,
+                    "support_condition": args.support_condition,
+                }
+
+            # Use canonical pipeline for design
+            result = beam_pipeline.design_single_beam(
+                units="IS456",
+                beam_id=beam.beam_id,
+                story=beam.story,
+                b_mm=beam.b,
+                D_mm=beam.D,
+                d_mm=beam.d,
+                span_mm=beam.span,
+                cover_mm=beam.cover,
+                fck_nmm2=beam.fck,
+                fy_nmm2=beam.fy,
+                mu_knm=beam.Mu,
+                vu_kn=beam.Vu,
+                case_id=f"{beam.story}_{beam.beam_id}",
+                d_dash_mm=beam.cover,
+                asv_mm2=asv_mm2,
+                include_detailing=True,
+                stirrup_dia_mm=beam.stirrup_dia,
+                stirrup_spacing_start_mm=beam.stirrup_spacing,
+                stirrup_spacing_mid_mm=beam.stirrup_spacing * 1.33,
+                stirrup_spacing_end_mm=beam.stirrup_spacing,
+                deflection_params=deflection_params,
+                crack_width_params=crack_width_params,
+            )
+
+            results.append(result)
+
+        # Build multi-beam output using canonical schema
+        output = beam_pipeline.MultiBeamOutput(
+            schema_version=beam_pipeline.SCHEMA_VERSION,
+            code="IS456",
+            units="IS456",
+            beams=results,
+            summary={
+                "total_beams": len(results),
+                "passed": sum(1 for r in results if r.is_ok),
+                "failed": sum(1 for r in results if not r.is_ok),
+            },
+        )
+
+        # Write output
+        if args.output:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w", encoding="utf-8") as f:
+                json.dump(output.to_dict(), f, indent=2)
+
+            print(f"Design results written to {output_path}", file=sys.stderr)
+        else:
+            # Print to stdout
+            print(json.dumps(output.to_dict(), indent=2))
+
+        if args.summary is not None:
+            if args.summary == "":
+                if args.output:
+                    summary_path = Path(args.output).with_name("design_summary.csv")
+                else:
+                    summary_path = Path("design_summary.csv")
+            else:
+                summary_path = Path(args.summary)
+
+            rows = []
+            for res in results:
+                rows.append(
+                    {
+                        "beam_id": res.beam_id,
+                        "story": res.story,
+                        "is_ok": res.is_ok,
+                        "governing_utilization": res.governing_utilization,
+                        "governing_check": res.governing_check,
+                        "util_flexure": res.flexure.utilization,
+                        "util_shear": res.shear.utilization,
+                        "util_deflection": res.serviceability.deflection_utilization,
+                        "util_crack_width": res.serviceability.crack_width_utilization,
+                        "mu_knm": res.loads.mu_knm,
+                        "vu_kn": res.loads.vu_kn,
+                        "ast_required_mm2": res.flexure.ast_required_mm2,
+                        "sv_required_mm": res.shear.sv_required_mm,
+                    }
+                )
+
+            fieldnames = [
+                "beam_id",
+                "story",
+                "is_ok",
+                "governing_utilization",
+                "governing_check",
+                "util_flexure",
+                "util_shear",
+                "util_deflection",
+                "util_crack_width",
+                "mu_knm",
+                "vu_kn",
+                "ast_required_mm2",
+                "sv_required_mm",
+            ]
+            _write_csv(summary_path, rows, fieldnames)
+            print(f"Summary written to {summary_path}", file=sys.stderr)
+
+        print(f"Design complete: {len(results)} beam(s) processed", file=sys.stderr)
+        return 0
+
+    except beam_pipeline.UnitsValidationError as e:
+        print(f"Units error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+
+def _extract_beam_params_from_schema(beam: dict) -> dict:
+    """
+    Extract beam parameters from either old or new schema format.
+
+    Supports both:
+    - New schema (v1 canonical): geometry.b_mm, materials.fck_nmm2, etc.
+    - Old schema: geometry.b, materials.fck, etc.
+
+    Returns normalized dict with short keys (b, D, d, fck, fy, etc.)
+    """
+    geom = beam.get("geometry") or {}
+    mat = beam.get("materials") or {}
+    flex = beam.get("flexure") or {}
+    det = beam.get("detailing") or {}  # Guard against explicit null
+
+    # Handle new schema keys (with _mm, _nmm2 suffixes)
+    b = geom.get("b_mm") or geom.get("b", 300)
+    D = geom.get("D_mm") or geom.get("D", 500)
+    d = geom.get("d_mm") or geom.get("d", 450)
+    span = geom.get("span_mm") or geom.get("span", 4000)
+    cover = geom.get("cover_mm") or geom.get("cover", 40)
+
+    fck = mat.get("fck_nmm2") or mat.get("fck", 25)
+    fy = mat.get("fy_nmm2") or mat.get("fy", 500)
+
+    # Flexure: handle both old (ast_req) and new (ast_required_mm2) keys
+    ast = flex.get("ast_required_mm2") or flex.get("ast_req", 0)
+    asc = flex.get("asc_required_mm2") or flex.get("asc_req", 0)
+
+    # Detailing: check for both ld_tension_mm and ld_tension
+    ld_tension = None
+    lap_length = None
+    if det:
+        ld_tension = det.get("ld_tension_mm") or det.get("ld_tension")
+        lap_length = det.get("lap_length_mm") or det.get("lap_length")
+
+    return {
+        "beam_id": beam.get("beam_id", "BEAM"),
+        "story": beam.get("story", "STORY"),
+        "b": float(b),
+        "D": float(D),
+        "d": float(d),
+        "span": float(span),
+        "cover": float(cover),
+        "fck": float(fck),
+        "fy": float(fy),
+        "ast": float(ast),
+        "asc": float(asc),
+        "detailing": det,
+        "ld_tension": ld_tension,
+        "lap_length": lap_length,
+    }
+
+
+def cmd_bbs(args: argparse.Namespace) -> int:
+    """
+    Generate bar bending schedule from design results JSON.
+
+    Reads design results and generates a detailed bar bending schedule
+    with cut lengths, weights, and bar marks.
+    """
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}", file=sys.stderr)
+        return 1
+
+    try:
+        # Load design results
+        print(f"Loading design results from {input_path}...", file=sys.stderr)
+
+        with input_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        beams = data.get("beams", [])
+        if not beams:
+            print("Error: No beams found in input file", file=sys.stderr)
+            return 1
+
+        print(f"Loaded {len(beams)} beam(s)", file=sys.stderr)
+
+        # Generate detailing results for BBS
+        detailing_list = []
+        for beam in beams:
+            print(f"  Processing {beam['story']}/{beam['beam_id']}...", file=sys.stderr)
+
+            # Extract parameters using schema-agnostic helper
+            params = _extract_beam_params_from_schema(beam)
+            det = params["detailing"]
+
+            # Create simplified detailing result for BBS
+            detailing_result = detailing.create_beam_detailing(
+                beam_id=params["beam_id"],
+                story=params["story"],
+                b=params["b"],
+                D=params["D"],
+                span=params["span"],
+                cover=params["cover"],
+                fck=params["fck"],
+                fy=params["fy"],
+                ast_start=params["ast"],
+                ast_mid=params["ast"],
+                ast_end=params["ast"],
+                asc_start=params["asc"],
+                asc_mid=params["asc"],
+                asc_end=params["asc"],
+                stirrup_dia=(
+                    det["stirrups"][0]["diameter"] if det.get("stirrups") else 8
+                ),
+                stirrup_spacing_start=(
+                    det["stirrups"][0]["spacing"] if det.get("stirrups") else 150
+                ),
+                stirrup_spacing_mid=(
+                    det["stirrups"][1]["spacing"]
+                    if det.get("stirrups") and len(det["stirrups"]) > 1
+                    else 200
+                ),
+                stirrup_spacing_end=(
+                    det["stirrups"][2]["spacing"]
+                    if det.get("stirrups") and len(det["stirrups"]) > 2
+                    else 150
+                ),
+            )
+
+            detailing_list.append(detailing_result)
+
+        # Generate BBS document
+        print("Generating bar bending schedule...", file=sys.stderr)
+        bbs_doc = bbs.generate_bbs_document(
+            detailing_list, project_name=data.get("project_name", "Beam Design BBS")
+        )
+
+        # Write output
+        if args.output:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if output_path.suffix.lower() == ".json":
+                bbs.export_bbs_to_json(bbs_doc, str(output_path))
+            else:
+                # Default to CSV
+                bbs.export_bbs_to_csv(bbs_doc.items, str(output_path))
+
+            print(f"Bar bending schedule written to {output_path}", file=sys.stderr)
+        else:
+            # Print CSV to stdout
+            import csv
+            import io
+
+            output = io.StringIO()
+            fieldnames = [
+                "bar_mark",
+                "member_id",
+                "location",
+                "zone",
+                "shape_code",
+                "diameter_mm",
+                "no_of_bars",
+                "cut_length_mm",
+                "total_length_mm",
+                "unit_weight_kg",
+                "total_weight_kg",
+                "remarks",
+            ]
+
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for item in bbs_doc.items:
+                writer.writerow(
+                    {
+                        "bar_mark": item.bar_mark,
+                        "member_id": item.member_id,
+                        "location": item.location,
+                        "zone": item.zone,
+                        "shape_code": item.shape_code,
+                        "diameter_mm": item.diameter_mm,
+                        "no_of_bars": item.no_of_bars,
+                        "cut_length_mm": item.cut_length_mm,
+                        "total_length_mm": item.total_length_mm,
+                        "unit_weight_kg": item.unit_weight_kg,
+                        "total_weight_kg": item.total_weight_kg,
+                        "remarks": item.remarks,
+                    }
+                )
+
+            print(output.getvalue())
+
+        print(
+            f"BBS complete: {bbs_doc.summary.total_bars} bars, "
+            f"{bbs_doc.summary.total_weight_kg:.2f} kg",
+            file=sys.stderr,
+        )
+        return 0
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+
+def cmd_dxf(args: argparse.Namespace) -> int:
+    """
+    Generate DXF drawings from design results JSON.
+
+    Creates detailed reinforcement drawings in DXF format suitable
+    for CAD software and fabrication.
+    """
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}", file=sys.stderr)
+        return 1
+
+    # Check if dxf_export module is available
+    if dxf_export is None:
+        print("Error: dxf_export module not available", file=sys.stderr)
+        print("Install with: pip install ezdxf", file=sys.stderr)
+        return 1
+
+    # Check if ezdxf is available
+    if not dxf_export.EZDXF_AVAILABLE:
+        print("Error: ezdxf library not installed", file=sys.stderr)
+        print("Install with: pip install ezdxf", file=sys.stderr)
+        return 1
+
+    try:
+        # Load design results
+        print(f"Loading design results from {input_path}...", file=sys.stderr)
+
+        with input_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        beams = data.get("beams", [])
+        if not beams:
+            print("Error: No beams found in input file", file=sys.stderr)
+            return 1
+
+        print(f"Loaded {len(beams)} beam(s)", file=sys.stderr)
+
+        # Generate detailing results for DXF
+        detailing_list = []
+        for beam in beams:
+            print(f"  Processing {beam['story']}/{beam['beam_id']}...", file=sys.stderr)
+
+            # Extract parameters using schema-agnostic helper
+            params = _extract_beam_params_from_schema(beam)
+            det = params["detailing"]
+
+            detailing_result = detailing.create_beam_detailing(
+                beam_id=params["beam_id"],
+                story=params["story"],
+                b=params["b"],
+                D=params["D"],
+                span=params["span"],
+                cover=params["cover"],
+                fck=params["fck"],
+                fy=params["fy"],
+                ast_start=params["ast"],
+                ast_mid=params["ast"],
+                ast_end=params["ast"],
+                asc_start=params["asc"],
+                asc_mid=params["asc"],
+                asc_end=params["asc"],
+                stirrup_dia=(
+                    det["stirrups"][0]["diameter"] if det.get("stirrups") else 8
+                ),
+                stirrup_spacing_start=(
+                    det["stirrups"][0]["spacing"] if det.get("stirrups") else 150
+                ),
+                stirrup_spacing_mid=(
+                    det["stirrups"][1]["spacing"]
+                    if det.get("stirrups") and len(det["stirrups"]) > 1
+                    else 200
+                ),
+                stirrup_spacing_end=(
+                    det["stirrups"][2]["spacing"]
+                    if det.get("stirrups") and len(det["stirrups"]) > 2
+                    else 150
+                ),
+            )
+
+            detailing_list.append(detailing_result)
+
+        # Generate DXF
+        if not args.output:
+            print(
+                "Error: Output file path is required for DXF generation",
+                file=sys.stderr,
+            )
+            return 1
+
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        print("Generating DXF drawings...", file=sys.stderr)
+
+        title_block = {"title": args.title} if args.title else None
+
+        if len(detailing_list) == 1:
+            # Single beam - use standard function
+            dxf_export.generate_beam_dxf(
+                detailing_list[0],
+                str(output_path),
+                include_title_block=args.title_block or args.title is not None,
+                title_block=title_block,
+                sheet_margin_mm=args.sheet_margin,
+                title_block_width_mm=args.title_block_width,
+                title_block_height_mm=args.title_block_height,
+            )
+        else:
+            # Multiple beams - use multi-beam layout
+            dxf_export.generate_multi_beam_dxf(
+                detailing_list,
+                str(output_path),
+                include_title_block=args.title_block or args.title is not None,
+                title_block=title_block,
+                sheet_margin_mm=args.sheet_margin,
+                title_block_width_mm=args.title_block_width,
+                title_block_height_mm=args.title_block_height,
+            )
+
+        print(f"DXF drawings written to {output_path}", file=sys.stderr)
+        print(f"DXF complete: {len(detailing_list)} beam(s) drawn", file=sys.stderr)
+        return 0
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+
+def cmd_job(args: argparse.Namespace) -> int:
+    """
+    Run complete job from JSON specification.
+
+    Executes a full job including design calculations, BBS generation,
+    and optional DXF drawing generation.
+    """
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}", file=sys.stderr)
+        return 1
+
+    if not args.output:
+        print("Error: Output directory is required for job processing", file=sys.stderr)
+        return 1
+
+    try:
+        print(f"Running job from {input_path}...", file=sys.stderr)
+
+        # Use existing job_runner
+        job_runner.run_job(job_path=str(input_path), out_dir=args.output)
+
+        print(f"Job complete: outputs written to {args.output}", file=sys.stderr)
+        return 0
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the main argument parser with subcommands."""
+
+    parser = argparse.ArgumentParser(
+        prog="structural_lib",
+        description="IS 456 RC Beam Design Library - Unified CLI",
+        epilog='Use "python -m structural_lib <command> --help" for command-specific help',
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="command", required=True, help="Available commands"
+    )
+
+    # Design subcommand
+    design_parser = subparsers.add_parser(
+        "design",
+        help="Run beam design from CSV/JSON input",
+        description="""
+        Run IS456 beam design from CSV or JSON input and emit results JSON
+        (schema_version=1, units=IS456).
+        
+        Examples:
+          python -m structural_lib design input.csv -o results.json
+          python -m structural_lib design beams.json -o design_output.json
+          python -m structural_lib design input.csv  # prints JSON to stdout
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    design_parser.add_argument(
+        "input", help="Input CSV or JSON file with beam parameters"
+    )
+    design_parser.add_argument(
+        "-o", "--output", help="Output JSON file (if omitted, prints to stdout)"
+    )
+    design_parser.add_argument(
+        "--summary",
+        nargs="?",
+        const="",
+        help=(
+            "Write a compact CSV summary. "
+            "If no path is supplied, writes design_summary.csv next to output."
+        ),
+    )
+    design_parser.add_argument(
+        "--deflection",
+        action="store_true",
+        help="Run Level A deflection check (span/depth).",
+    )
+    design_parser.add_argument(
+        "--support-condition",
+        default="simply_supported",
+        help="Support condition for deflection check (simply_supported, continuous, cantilever).",
+    )
+    design_parser.add_argument(
+        "--crack-width-params",
+        help="JSON file with crack width parameters (applies to all beams).",
+    )
+    design_parser.set_defaults(func=cmd_design)
+
+    # BBS subcommand
+    bbs_parser = subparsers.add_parser(
+        "bbs",
+        help="Generate bar bending schedule from design results",
+        description="""
+        Generate bar bending schedule (BBS) from design results JSON
+        produced by the design pipeline.
+        
+        Examples:
+          python -m structural_lib bbs results.json -o bbs.csv
+          python -m structural_lib bbs results.json -o bbs.json
+          python -m structural_lib bbs results.json  # prints CSV to stdout
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    bbs_parser.add_argument("input", help="Input JSON file with design results")
+    bbs_parser.add_argument(
+        "-o",
+        "--output",
+        help="Output CSV or JSON file (if omitted, prints CSV to stdout)",
+    )
+    bbs_parser.set_defaults(func=cmd_bbs)
+
+    # DXF subcommand
+    dxf_parser = subparsers.add_parser(
+        "dxf",
+        help="Generate DXF drawings from design results",
+        description="""
+        Generate DXF reinforcement drawings from design results JSON.
+        Requires ezdxf library: pip install ezdxf
+        
+        Examples:
+          python -m structural_lib dxf results.json -o drawings.dxf
+          python -m structural_lib dxf design_output.json -o beam_details.dxf
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    dxf_parser.add_argument("input", help="Input JSON file with design results")
+    dxf_parser.add_argument(
+        "-o", "--output", required=True, help="Output DXF file path"
+    )
+    dxf_parser.add_argument(
+        "--title-block",
+        action="store_true",
+        help="Draw a deliverable border and title block.",
+    )
+    dxf_parser.add_argument(
+        "--title",
+        help="Optional title text for the title block.",
+    )
+    dxf_parser.add_argument(
+        "--sheet-margin",
+        type=float,
+        default=200.0,
+        help="Sheet margin in mm (default: 200).",
+    )
+    dxf_parser.add_argument(
+        "--title-block-width",
+        type=float,
+        default=900.0,
+        help="Title block width in mm (default: 900).",
+    )
+    dxf_parser.add_argument(
+        "--title-block-height",
+        type=float,
+        default=250.0,
+        help="Title block height in mm (default: 250).",
+    )
+    dxf_parser.set_defaults(func=cmd_dxf)
+
+    # Job subcommand
+    job_parser = subparsers.add_parser(
+        "job",
+        help="Run complete job from JSON specification",
+        description="""
+        Run a complete job from JSON specification and write outputs to a folder.
+        
+        Examples:
+          python -m structural_lib job job.json -o output/
+          python -m structural_lib job project_spec.json -o results/
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    job_parser.add_argument("input", help="Input JSON job specification file")
+    job_parser.add_argument(
+        "-o", "--output", required=True, help="Output directory for job results"
+    )
+    job_parser.set_defaults(func=cmd_job)
+
+    return parser
+
+
+def main(argv: List[str] | None = None) -> int:
+    """Main entry point for the CLI."""
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    # Call the appropriate command function
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
