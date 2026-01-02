@@ -1,0 +1,83 @@
+---
+
+- name: Install MySQL
+  apt: name=mysql-server state=present
+
+- name: Install Python package pymysql
+  pip:
+    name: pymysql
+    # TODO: Necessary for Ubuntu versions 23 or newer, but there
+    # might be more elegant ways to deal with this.
+    extra_args: "{{ '--break-system-packages' if ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_major_version'] | int >= 23 else '' }}"
+
+- name: Configure MySQL to listen on all interfaces
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    backup: yes
+  loop:
+    - { regexp: '^bind-address', line: 'bind-address = 0.0.0.0' }
+    - { regexp: '^mysqlx-bind-address', line: 'mysqlx-bind-address = 0.0.0.0' }
+  when: open_database
+
+# - name: Open MySQL port in firewall
+#   ansible.posix.firewalld:
+#     # TODO: variable database_port
+#     port: 3306/tcp
+#     permanent: yes
+#     state: enabled
+#     immediate: yes
+#   when: open_database
+
+- name: Set root database password
+  community.mysql.mysql_user:
+    name:     root
+    # TODO
+    #encrypted: true
+    password: "{{ database_root_password }}"
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+    host: localhost
+  when: database_root_password != None and database_root_password | length > 0
+
+- name: Save root db password in .my.cnf
+  template:
+    src: .my.cnf.j2
+    dest: /root/.my.cnf
+    owner: root
+    mode: '0600'
+  when: database_root_password != None and database_root_password | length > 0
+
+- name: Remove all anonymous user accounts
+  community.mysql.mysql_user:
+    name: ''
+    host_all: true
+    state: absent
+    login_unix_socket: /run/mysqld/mysqld.sock
+
+- name: Restart MySQL
+  service:
+    name: mysql
+    state: restarted
+  when: open_database
+
+- name: Create database user
+  community.mysql.mysql_user:
+    name:     "{{ database_username }}"
+    password: "{{ database_password }}"
+    host: "{{ '%' if open_database else 'localhost' }}"
+    # TODO
+    #encrypted: true
+    priv: '*.*:ALL'
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+  when: database_username != None and database_username | length > 0
+
+- name: Create database
+  community.mysql.mysql_db:
+    name: "{{ database_name }}"
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+  when: database_name != None and database_name | length > 0
