@@ -1,0 +1,100 @@
+// A script is a sequence of directives and assignments in any order.
+start: (directive | assignment | function_def)*
+
+// A directive can be a setting with a value or a valueless flag.
+directive: directive_setting | valueless_directive | import_directive
+
+directive_setting: "@" CNAME "=" expression
+valueless_directive: "@" CNAME
+import_directive: IMPORT_KEYWORD STRING
+
+assignment: LET (CNAME | multi_assignment_vars) "=" expression
+
+multi_assignment_vars: CNAME ("," CNAME)+
+
+// --- FUNCTION DEFINITION ---
+function_def: "func" CNAME "(" [param ("," param)*] ")" "->" return_type "{" [DOCSTRING] function_body "}"
+?return_type: CNAME | tuple_type
+tuple_type: "(" CNAME ("," CNAME)* ")"
+
+function_body: (assignment | return_statement)+
+param: CNAME ":" CNAME
+return_statement: "return" (expression | tuple_expression)
+tuple_expression: "(" expression ("," expression)* ")"
+
+// --- HIERARCHY FOR ALL EXPRESSIONS (LOGICAL, COMPARISON, MATH) ---
+// The hierarchy defines operator precedence, from lowest (if/else) to highest (atoms).
+?expression: conditional_expression
+
+conditional_expression: or_expression | IF or_expression THEN or_expression ELSE conditional_expression
+
+?or_expression: and_expression (OR and_expression)*   -> logical_or_expression
+?and_expression: not_expression (AND not_expression)* -> logical_and_expression
+?not_expression: NOT not_expression                  -> not_expression
+               | comparison_expression
+
+?comparison_expression: add_expression ((EQ|NEQ|GT|LT|GTE|LTE) add_expression)? -> comparison_expression
+
+?add_expression: mul_expression ((ADD|SUB) mul_expression)* -> math_expression
+?mul_expression: power ((MUL|DIV) power)*                 -> math_expression
+?power:      atom (POW atom)*                           -> math_expression
+?atom: boolean
+     | SIGNED_NUMBER
+     | CNAME
+     | STRING
+     | function_call
+     | element_access
+     | delete_element_vector
+     | vector
+     | tuple_expression
+     | "(" expression ")"
+
+// --- Reusable Rule Definitions ---
+boolean: TRUE | FALSE
+vector: "[" [arg ("," arg)*] "]"
+function_call: CNAME "(" [arg ("," arg)*] ")"
+element_access: CNAME "[" expression "]"
+delete_element_vector: CNAME "[" ":" expression "]"
+?arg: expression
+
+// --- Terminal Definitions ---
+IMPORT_KEYWORD: "@import"
+LET: "let" /\b/
+
+// Keywords
+IF: "if" /\b/
+THEN: "then" /\b/
+ELSE: "else" /\b/
+TRUE: "true" /\b/
+FALSE: "false" /\b/
+AND: "and" /\b/
+OR: "or" /\b/
+NOT: "not" /\b/
+
+// Operators
+ADD: "+"
+SUB: "-"
+MUL: "*"
+DIV: "/"
+POW: "^"
+EQ: "=="
+NEQ: "!="
+GTE: ">="
+LTE: "<="
+GT: ">"
+LT: "<"
+
+STRING: /"[^"]*"/
+DOCSTRING: /"{3}(.|\n)*?"{3}/
+
+// --- Custom Number Terminal to support separators ---
+SIGNED_NUMBER: ["+"|"-"]? (FLOAT | INT)
+FLOAT: INT "." INT
+INT: DIGIT+ ("_" DIGIT+)*
+
+%import common.CNAME
+%import common.DIGIT
+%ignore COMMENT
+COMMENT: /#.*/
+%import common.WS
+%ignore WS
