@@ -1,0 +1,322 @@
+Got it. Here is a clean, minimal, properly-scoped requirements doc for artificer-agents — only what it is responsible for, nothing about workflow semantics, users, pauses, or UX.
+
+This is the version you can actually ship without regret.
+
+artificer-agents — Requirements
+1. Purpose
+
+artificer-agents is a lightweight Python library that provides a simple, deterministic agent runtime.
+
+Its sole responsibility is to:
+
+run a small agent loop
+
+call a configured language model
+
+invoke MCP tools
+
+optionally invoke subagents
+
+return structured results
+
+It does not define workflows, user interaction, or orchestration semantics.
+
+2. Design Principles
+
+Minimal surface area
+
+Model-agnostic
+
+MCP-first
+
+Stateless agents
+
+Typed input / output
+
+No chat assumptions
+
+Runtime over framework
+
+If it feels “extensible,” it’s probably out of scope.
+
+3. Agent Abstraction
+3.1 Agent Definition
+
+Agents are declared as Python classes that describe configuration, not behavior.
+
+class ExampleAgent(Agent):
+    mode = "example"
+    tools = ["workflow", "objects"]
+
+    Input = ExampleInput
+    Output = ExampleOutput
+
+    system_prompt = """
+    You are a focused agent executing a bounded task.
+    """
+
+
+Agents define:
+
+identity (mode)
+
+allowed tool namespaces
+
+input/output schemas
+
+system prompt
+
+Agents do not own execution logic.
+
+4. Typed Input / Output
+
+Agent input MUST be a Pydantic model
+
+Agent output MUST be a Pydantic model
+
+Runtime validates input on entry
+
+Runtime validates output on completion
+
+Invalid output → retry or fail
+
+This is a hard contract.
+
+5. Agent Runtime Loop
+5.1 Responsibilities
+
+The runtime loop is purely mechanical:
+
+Build a prompt (system + context + tools)
+
+Call the configured model
+
+Parse the structured response
+
+Execute exactly one action
+
+Update context
+
+Repeat until termination
+
+The runtime does not:
+
+plan
+
+interpret tool semantics
+
+understand workflows
+
+manage users
+
+manage persistence
+
+5.2 Allowed Actions
+
+The model must return exactly one action per iteration.
+
+CALL_TOOL
+
+Invokes an MCP tool
+
+Runtime waits for result
+
+Result appended to context
+
+SPAWN_SUBAGENT
+
+Instantiates another Agent subclass
+
+Executes the same runtime loop
+
+Subagent result appended to parent context
+
+Subagents:
+
+have restricted tools
+
+may not spawn further subagents
+
+DONE
+
+Returns validated output
+
+Terminates execution
+
+6. Subagents
+6.1 Semantics
+
+Subagents are:
+
+narrow
+
+disposable
+
+execution-focused
+
+They:
+
+run the same loop
+
+use a different system prompt
+
+operate with fewer tools
+
+return structured data only
+
+Subagents do not share control or state.
+
+7. MCP Integration
+7.1 MCP Client
+
+Use an MCP client library (e.g. FastMCP)
+
+Runtime must:
+
+connect to MCP servers
+
+discover available tools
+
+filter tools by agent allowlist
+
+inject tool descriptions into the prompt
+
+invoke tools and await results
+
+7.2 MCP Transparency
+
+MCP tools are treated as black boxes
+
+Runtime does not interpret tool meaning
+
+Runtime reacts only to returned data
+
+call → wait → result
+
+8. Context Management
+8.1 Context Definition
+
+Context represents working memory, not chat history.
+
+Context may include:
+
+tool results
+
+subagent outputs
+
+summaries
+
+model-proposed notes
+
+The model may propose context updates.
+The runtime decides what is retained.
+
+Context size must be bounded.
+
+9. Model Abstraction
+9.1 Model Interface
+
+Models must implement:
+
+call(prompt, tools) -> structured_action
+
+
+Provider-specific details are isolated
+
+Runtime remains model-agnostic
+
+9.2 Configuration
+
+Models configurable per agent or per run
+
+Swappable without code changes
+
+10. CLI Integration
+10.1 Entry Point
+
+Library must support invocation via an external CLI:
+
+artificer agents <AgentName> "<input>"
+
+
+The agent runtime must:
+
+be callable as a library
+
+return structured results
+
+expose execution metadata
+
+CLI concerns (UX, logging, retries) live outside this package.
+
+11. Observability
+
+The runtime must expose:
+
+iteration count
+
+tool calls
+
+subagent calls
+
+termination reason
+
+final output (if any)
+
+No raw chat transcripts.
+
+12. Explicit Non-Goals
+
+artificer-agents will NOT:
+
+define workflows
+
+manage orchestration
+
+prompt users
+
+manage pauses or resumes
+
+provide UI
+
+provide filesystem or shell access
+
+provide extension hooks for custom loops
+
+act as a general-purpose agent framework
+
+13. MVP Completion Criteria
+
+v1 is complete when:
+
+An agent can call MCP tools
+
+Subagents work correctly
+
+Typed I/O is enforced
+
+Model integration is clean
+
+CLI can invoke an agent
+
+Runtime fits on one readable screen of code
+
+Final Summary
+
+artificer-agents is:
+
+A small, boring, MCP-driven agent runtime.
+
+It:
+
+executes a loop
+
+calls models
+
+calls tools
+
+returns results
+
+Everything else lives elsewhere — by design.
+
+This version respects your abstraction boundaries and won’t fight you later.
