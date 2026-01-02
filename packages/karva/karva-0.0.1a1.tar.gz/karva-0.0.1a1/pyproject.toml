@@ -1,0 +1,137 @@
+[build-system]
+build-backend = "maturin"
+requires = ["maturin>=1.7,<2.0"]
+
+[project]
+name = "karva"
+version = "0.0.1-alpha.1"
+description = "A Python test framework, written in Rust."
+authors = [{ name = "Matthew McKee", email = "matthewmckee4@yahoo.co.uk" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+]
+
+[project.scripts]
+karva = "karva._karva:karva_run"
+
+[dependency-groups]
+dev = ["pre-commit", "ruff"]
+docs = ["zensical==0.0.10"]
+release = ["tbump"]
+
+[project.urls]
+Documentation = "https://matthewmckee4.github.io/karva/"
+Homepage = "https://matthewmckee4.github.io/karva/"
+Issues = "https://github.com/MatthewMckee4/karva/issues"
+Repository = "https://github.com/MatthewMckee4/karva"
+
+[tool.maturin]
+manifest-path = "crates/karva/Cargo.toml"
+module-name = "karva._karva"
+python-source = "python"
+features = ["pyo3/extension-module"]
+
+[tool.ruff]
+fix = true
+target-version = "py311"
+
+[tool.ruff.lint]
+exclude = [
+    "python/karva/__main__.py",
+    "crates/karva_benchmark/resources/test_*.py",
+]
+select = [
+    "ARG",
+    "B",
+    "B9",
+    "D",
+    "E",
+    "EXE",
+    "F",
+    "I",
+    "ISC",
+    "PGH",
+    "PYI",
+    "PT",
+    "RUF",
+    "SIM",
+    "UP",
+    "PLW0127",
+    "FURB101",
+    "FURB103",
+    "PLW1510",
+]
+ignore = [
+    # Unnecessarily strict/pedantic
+    "D",
+    # These are all enforced by, or incompatible with, the ruff formatter:
+    "E203",
+    "E501",
+    "W291",
+    "W293",
+    # It's often necessary to compare types instead of using isinstance()
+    "E721",
+    "RUF005",
+    # Let mypy/pyright complain about blanket type ignores or implicit optional
+    "PGH004",
+    "RUF013",
+    # Makes code slower and more verbose
+    # https://github.com/astral-sh/ruff/issues/7871
+    "UP038",
+
+    "S", "ANN401", "PYI021"
+]
+unfixable = [
+    "F841",    # unused variable. ruff keeps the call, but mostly we want to get rid of it all
+    "F601",    # automatic fix might obscure issue
+    "F602",    # automatic fix might obscure issue
+    "B018",    # automatic fix might obscure issue
+    "PLW1510", # automatic fix might obscure issue
+    "RUF017",  # Ruff's fix is faster, but I prefer using itertools.chain_from_iterable
+]
+
+[tool.tbump]
+
+[[tool.tbump.before_commit]]
+cmd = "cargo update -p karva"
+name = "Update Cargo.lock"
+
+[[tool.tbump.file]]
+src = "pyproject.toml"
+
+[[tool.tbump.file]]
+src = "README.md"
+
+[[tool.tbump.file]]
+src = "crates/karva/Cargo.toml"
+
+[[tool.tbump.file]]
+src = "crates/karva_cli/Cargo.toml"
+
+[[tool.tbump.file]]
+src = "python/karva/__init__.py"
+
+[tool.tbump.git]
+message_template = "Bump to v{new_version}"
+tag_template = "v{new_version}"
+
+[tool.tbump.version]
+current = "0.0.1-alpha.1"
+regex = '''
+  (?P<major>\d+)
+  \.
+  (?P<minor>\d+)
+  \.
+  (?P<patch>\d+)
+  '''
