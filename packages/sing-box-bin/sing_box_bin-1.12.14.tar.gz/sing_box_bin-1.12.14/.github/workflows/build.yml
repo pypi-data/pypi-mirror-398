@@ -1,0 +1,93 @@
+name: Build sing-box
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check_version.outputs.should_build }}
+      version: ${{ steps.check_version.outputs.version }}
+      clean_version: ${{ steps.check_version.outputs.clean_version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check latest version
+        id: check_version
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name)
+          CLEAN_VERSION="${LATEST_TAG#v}"
+
+          echo "Upstream Tag: $LATEST_TAG"
+          echo "version=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "clean_version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+          BIN_PATH="src/sing_box_bin/bin/sing-box"
+
+          # whether to build
+          if [ -f "$BIN_PATH" ]; then
+            chmod +x "$BIN_PATH"
+            CURRENT_TAG="v$($BIN_PATH version | head -n 1 | awk '{print $3}')"
+
+            echo "Current Binary Tag: $CURRENT_TAG"
+
+            if [ "$CURRENT_TAG" == "$LATEST_TAG" ]; then
+              echo "✅ Binary is up to date."
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "🔄 Update needed: $CURRENT_TAG -> $LATEST_TAG"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Binary does not exist, building fresh."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets. ATTICUS_PAT }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 'stable'
+      - run: go version
+
+      - name: Build sing-box binaries
+        run: |
+          chmod +x scripts/build.sh
+          ./scripts/build.sh ${{ needs.check.outputs.version }}
+
+      - name: Commit New bin Files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/sing_box_bin/bin/
+          git diff --staged --quiet || git commit -m "feat: update sing-box binary to version ${{ needs.check.outputs.version }}"
+
+      - name: Bump version
+        run: |
+          uv tool install bump-my-version
+          uv run bump-my-version bump --new-version "${{ needs.check.outputs.clean_version }}" --commit --tag
+
+      - name: Push Changes
+        run: git push origin main --tags
