@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "type-bridge"
+version = "1.2.3"
+description = "A modern, Pythonic ORM for TypeDB with an Attribute-based API"
+readme = "README.md"
+requires-python = ">=3.13"
+license = {text = "MIT"}
+authors = [
+    {name = "ds1sqe", email = "ds1sqe@mensakorea.org"}
+]
+keywords = ["typedb", "orm", "database", "typeql", "graph-database"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "typedb-driver>=3.7.0",
+    "pydantic>=2.12.4",
+    "isodate==0.7.2",
+    "lark>=1.1.9",
+    "jinja2>=3.1.0",
+    "typer>=0.15.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ds1sqe/type-bridge"
+Repository = "https://github.com/ds1sqe/type-bridge"
+Documentation = "https://github.com/ds1sqe/type-bridge/blob/master/README.md"
+Issues = "https://github.com/ds1sqe/type-bridge/issues"
+
+[project.scripts]
+type-bridge = "type_bridge.migration.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-order>=1.2.0",
+    "ruff>=0.14.5",
+    "pyright>=1.1.407",
+]
+
+[tool.ty.environment]
+# Point ty to the project virtualenv for accurate import resolution
+python = ".venv"
+extra-paths = ["."]
+
+# Tests and examples use metaclass patterns that ty can't fully understand
+[[tool.ty.overrides]]
+include = ["tests/**", "examples/**"]
+
+[tool.ty.overrides.rules]
+# Metaclass-generated __init__ kwargs
+unknown-argument = "ignore"
+# Dynamic attributes from hasattr checks
+unresolved-attribute = "ignore"
+# Dynamic method calls after hasattr
+call-non-callable = "ignore"
+# Type coercion in tests
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+unsupported-operator = "ignore"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = false
+strict = false
+mypy_path = ["typings"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+    "N802",  # Function name should be lowercase (intentional for field functions like String, Long)
+    "E501",  # Line too long (some docstrings and complex expressions)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*.py" = ["F841", "E402"]
+  # Allow unused variables, Function level import in examples for demonstration
+"tests/*.py" = ["F841"]  # Allow unused variables in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (require running TypeDB)",
+    "unit: marks tests as unit tests (fast, no external dependencies)",
+]
+# By default, run only unit tests (exclude integration tests)
+addopts = "-m 'not integration'"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.0",
+]
