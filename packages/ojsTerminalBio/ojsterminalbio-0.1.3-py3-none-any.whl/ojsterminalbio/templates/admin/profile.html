@@ -1,0 +1,913 @@
+{% extends "admin/base.html" %}
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <!-- Floating Save Button -->
+    <div class="fixed bottom-8 right-8 z-[100]">
+        <button type="submit" form="profile-form"
+            class="bg-cyan text-black px-8 py-4 font-bold hover:bg-white transition-all uppercase tracking-wider text-sm shadow-lg shadow-cyan/20 flex items-center gap-3">
+            <span>Save All Changes</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clip-rule="evenodd" />
+            </svg>
+        </button>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">Profile</h1>
+    <p class="text-white/50 text-sm">Edit basic information, education, experience, and awards</p>
+</div>
+
+<!-- Profile Form -->
+<form id="profile-form" method="POST" action="/admin/profile/update" class="space-y-8" enctype="multipart/form-data">
+    <div class="terminal-box p-6">
+        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+            <div class="flex items-center gap-2">
+                <span class="text-cyan font-bold">01</span>
+                <input type="text" name="label_basic_info"
+                    value="{{ profile.label_basic_info if profile and profile.label_basic_info else 'Basic Information' }}"
+                    class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-cyan w-64 border-none"
+                    placeholder="Section Title">
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_basic_info" class="accent-cyan h-4 w-4" {% if not profile or
+                    profile.show_basic_info %}checked{% endif %}>
+            </label>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Full Name</label>
+                <input type="text" name="name" value="{{ profile.name if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Native Name</label>
+                <input type="text" name="native_name"
+                    value="{{ profile.native_name if profile and profile.native_name else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                    placeholder="e.g. ꯗꯔ. ꯁꯥꯅꯁꯝ ꯔꯟꯕꯤꯔ ꯁꯤꯡ">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Title</label>
+                <input type="text" name="title" value="{{ profile.title if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                    placeholder="e.g., Professor">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Department</label>
+                <input type="text" name="department" value="{{ profile.department if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Institution</label>
+                <input type="text" name="institution" value="{{ profile.institution if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+
+            <div class="md:col-span-2 border-t border-white/10 pt-4 mt-2 mb-2">
+                <h3 class="text-white font-bold mb-4 text-xs uppercase tracking-wider">Site Customization</h3>
+            </div>
+
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Site Title (Browser Tab)</label>
+                <input type="text" name="site_title" value="{{ profile.site_title if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Hero Title (Typing Line 1)</label>
+                <input type="text" name="hero_title" value="{{ profile.hero_title if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Hero Subtitle (Typing Line 2)</label>
+                <input type="text" name="hero_subtitle" value="{{ profile.hero_subtitle if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Footer Text</label>
+                <input type="text" name="footer_text" value="{{ profile.footer_text if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Primary Color</label>
+                <select name="theme_primary_color"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                    <option value="cyan" {% if profile and profile.theme_primary_color=='cyan' %}selected{% endif %}>
+                        Cyan</option>
+                    <option value="pink" {% if profile and profile.theme_primary_color=='pink' %}selected{% endif %}>
+                        Pink</option>
+                    <option value="amber" {% if profile and profile.theme_primary_color=='amber' %}selected{% endif %}>
+                        Amber</option>
+                    <option value="green" {% if profile and profile.theme_primary_color=='green' %}selected{% endif %}>
+                        Green</option>
+                </select>
+            </div>
+            <div class="flex items-center pt-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="show_matrix_effect" class="accent-cyan h-4 w-4" {% if not profile or
+                        profile.show_matrix_effect %}checked{% endif %}>
+                    <span class="text-white text-xs uppercase">Show Matrix Rain Effect</span>
+                </label>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Matrix Characters</label>
+                <input type="text" name="matrix_characters"
+                    value="{{ profile.matrix_characters if profile and profile.matrix_characters else 'ꯀꯁꯂꯃꯄꯅꯆꯇꯈꯉ01' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-xs focus:border-cyan focus:outline-none"
+                    placeholder="e.g. ABCDEFGHIJKLMNOPQRSTUVWXYZアイウエオカキクケコ01234">
+                <p class="text-[10px] text-white/40 mt-1">Characters used in the Matrix rain animation</p>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-white/60 text-xs mb-2 uppercase">Profile Image</label>
+                {% if profile and profile.image_url %}
+                <div class="mb-2">
+                    <img src="{{ profile.image_url }}" alt="Current Profile"
+                        class="h-16 w-16 object-cover rounded border border-white/20">
+                    <p class="text-xs text-white/40 mt-1">Current: {{ profile.image_url }}</p>
+                    <button type="submit" formaction="/admin/profile/delete-photo"
+                        class="text-[10px] text-red-400 hover:text-red-300 mt-1 uppercase tracking-wider font-bold"
+                        onclick="return confirm('Are you sure you want to remove the profile photo?')">
+                        Remove Photo
+                    </button>
+                </div>
+                {% endif %}
+                <input type="file" name="image_file" accept="image/*"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                <p class="text-[10px] text-white/40 mt-1">Upload a new image to replace the current one.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="terminal-box p-6">
+        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+            <div class="flex items-center gap-2">
+                <span class="text-pink font-bold">02</span>
+                <input type="text" name="label_contact_info"
+                    value="{{ profile.label_contact_info if profile and profile.label_contact_info else 'Contact Information' }}"
+                    class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-pink w-64 border-none"
+                    placeholder="Section Title">
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_contact_info" class="accent-pink h-4 w-4" {% if not profile or
+                    profile.show_contact_info %}checked{% endif %}>
+            </label>
+        </div>
+        <div class="grid md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Email</label>
+                <input type="email" name="email" value="{{ profile.email|default('', true) if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Phone</label>
+                <input type="text" name="phone" value="{{ profile.phone|default('', true) if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Fax</label>
+                <input type="text" name="fax" value="{{ profile.fax|default('', true) if profile else '' }}"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+        </div>
+        <div class="mt-4">
+            <label class="block text-white/60 text-xs mb-2 uppercase">Address</label>
+            <textarea name="address" rows="2"
+                class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">{{ profile.address|default('', true) if profile else '' }}</textarea>
+        </div>
+    </div>
+
+    <div class="terminal-box p-6">
+        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+            <div class="flex items-center gap-2">
+                <span class="text-amber font-bold">03</span>
+                <input type="text" name="label_bio"
+                    value="{{ profile.label_bio if profile and profile.label_bio else 'Biography' }}"
+                    class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-amber w-64 border-none"
+                    placeholder="Section Title">
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_bio" class="accent-amber h-4 w-4" {% if not profile or
+                    profile.show_bio %}checked{% endif %}>
+            </label>
+        </div>
+        <textarea name="bio" rows="5"
+            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">{{ profile.bio if profile else '' }}</textarea>
+    </div>
+
+    <div class="terminal-box p-6">
+        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+            <div class="flex items-center gap-2">
+                <span class="text-white/50 font-bold">04</span>
+                <input type="text" name="label_links"
+                    value="{{ profile.label_links if profile and profile.label_links else 'External Links' }}"
+                    class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-white/50 w-64 border-none"
+                    placeholder="Section Title">
+            </div>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <span class="text-white/60 text-xs uppercase">Visible</span>
+                    <input type="checkbox" name="show_links" class="accent-white h-4 w-4" {% if not profile or
+                        profile.show_links %}checked{% endif %}>
+                </label>
+                <button type="button" onclick="document.getElementById('link-modal').classList.remove('hidden')"
+                    class="text-xs text-white hover:underline">+ Add</button>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            {% for link in profile_links %}
+            <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded text-sm">
+                <div class="flex items-center gap-3">
+                    {% if link.icon %}
+                    <i class="{{ link.icon }} text-white/60"></i>
+                    {% endif %}
+                    <span class="text-white">{{ link.label }}</span>
+                    <a href="{{ link.url }}" target="_blank"
+                        class="text-xs text-white/40 hover:text-cyan truncate max-w-[200px]">{{ link.url }}</a>
+                </div>
+                <form method="POST" action="/admin/profile/links/delete/{{ link.id }}" class="inline">
+                    <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                        onclick="return confirm('Delete link?')">×</button>
+                </form>
+            </div>
+            {% else %}
+            <p class="text-white/40 text-sm">No external links yet</p>
+            {% endfor %}
+        </div>
+    </div>
+
+
+</form>
+
+<!-- Education Section -->
+<div class="terminal-box p-6 mt-8">
+    <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+        <div class="flex items-center gap-2">
+            <input type="text" name="label_education" form="profile-form"
+                value="{{ profile.label_education if profile and profile.label_education else 'Education' }}"
+                class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-cyan w-64 border-none"
+                placeholder="Section Title">
+        </div>
+        <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_education" form="profile-form" class="accent-cyan h-4 w-4" {% if not
+                    profile or profile.show_education %}checked{% endif %}>
+            </label>
+            <button type="button" onclick="document.getElementById('edu-modal').classList.remove('hidden')"
+                class="text-xs text-cyan hover:underline">+ Add</button>
+        </div>
+    </div>
+    <div class="space-y-2">
+        {% for edu in education %}
+        <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded text-sm">
+            <div>
+                <span class="text-white">{{ edu.degree }}</span>
+                <span class="text-white/40">-</span>
+                <span class="text-white/60">{{ edu.institution }}</span>
+                <span class="text-cyan text-xs ml-2">{{ edu.year }}</span>
+            </div>
+            <form method="POST" action="/admin/education/delete/{{ edu.id }}" class="inline">
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                    onclick="return confirm('Delete?')">×</button>
+            </form>
+        </div>
+        {% else %}
+        <p class="text-white/40 text-sm">No education entries yet</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Experience Section -->
+<div class="terminal-box p-6 mt-4">
+    <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+        <div class="flex items-center gap-2">
+            <input type="text" name="label_experience" form="profile-form"
+                value="{{ profile.label_experience if profile and profile.label_experience else 'Experience' }}"
+                class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-cyan w-64 border-none"
+                placeholder="Section Title">
+        </div>
+        <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_experience" form="profile-form" class="accent-cyan h-4 w-4" {% if not
+                    profile or profile.show_experience %}checked{% endif %}>
+            </label>
+            <button type="button" onclick="document.getElementById('exp-modal').classList.remove('hidden')"
+                class="text-xs text-cyan hover:underline">+ Add</button>
+        </div>
+    </div>
+    <div class="space-y-2">
+        {% for exp in experiences %}
+        <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded text-sm">
+            <div>
+                <span class="text-white">{{ exp.position }}</span>
+                <span class="text-white/40">@</span>
+                <span class="text-white/60">{{ exp.organization }}</span>
+                <span class="text-cyan text-xs ml-2">{{ exp.start_date }} - {{ exp.end_date or 'Present' }}</span>
+            </div>
+            <form method="POST" action="/admin/experience/delete/{{ exp.id }}" class="inline">
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                    onclick="return confirm('Delete?')">×</button>
+            </form>
+        </div>
+        {% else %}
+        <p class="text-white/40 text-sm">No experience entries yet</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Awards Section -->
+<div class="terminal-box p-6 mt-4">
+    <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+        <div class="flex items-center gap-2">
+            <input type="text" name="label_awards" form="profile-form"
+                value="{{ profile.label_awards if profile and profile.label_awards else 'Awards' }}"
+                class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-cyan w-64 border-none"
+                placeholder="Section Title">
+        </div>
+        <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_awards" form="profile-form" class="accent-cyan h-4 w-4" {% if not
+                    profile or profile.show_awards %}checked{% endif %}>
+            </label>
+            <button type="button" onclick="document.getElementById('award-modal').classList.remove('hidden')"
+                class="text-xs text-cyan hover:underline">+ Add</button>
+        </div>
+    </div>
+    <div class="space-y-2">
+        {% for award in awards %}
+        <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded text-sm">
+            <div>
+                <span class="text-amber">★</span>
+                <span class="text-white ml-2">{{ award.title }}</span>
+                <span class="text-white/40 text-xs ml-2">{{ award.year }}</span>
+            </div>
+            <form method="POST" action="/admin/awards/delete/{{ award.id }}" class="inline">
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                    onclick="return confirm('Delete?')">×</button>
+            </form>
+        </div>
+        {% else %}
+        <p class="text-white/40 text-sm">No awards yet</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Research Areas Section -->
+<div class="terminal-box p-6 mt-4">
+    <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+        <div class="flex items-center gap-2">
+            <input type="text" name="label_research_areas" form="profile-form"
+                value="{{ profile.label_research_areas if profile and profile.label_research_areas else 'Research Areas' }}"
+                class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-cyan w-64 border-none"
+                placeholder="Section Title">
+        </div>
+        <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="show_research_areas" form="profile-form" class="accent-cyan h-4 w-4" {% if
+                    not profile or profile.show_research_areas %}checked{% endif %}>
+            </label>
+            <button type="button" onclick="document.getElementById('area-modal').classList.remove('hidden')"
+                class="text-xs text-cyan hover:underline">+ Add</button>
+        </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        {% for area in research_areas %}
+        <div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded text-sm">
+            <span class="text-{{ area.color }}">{{ area.name }}</span>
+            <form method="POST" action="/admin/research-areas/delete/{{ area.id }}" class="inline">
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                    onclick="return confirm('Delete?')">×</button>
+            </form>
+        </div>
+        {% else %}
+        <p class="text-white/40 text-sm">No research areas yet</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Custom Sections -->
+<div class="terminal-box p-6 mt-4">
+    <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+        <div class="flex items-center gap-2">
+            <span class="text-purple-400">05</span>
+            <input type="text" name="label_custom_sections" form="profile-form"
+                value="{{ profile.label_custom_sections if profile and profile.label_custom_sections else 'Custom Sections' }}"
+                class="bg-black text-lg font-bold text-white focus:outline-none focus:border-b focus:border-purple-400 w-64 border-none"
+                placeholder="Section Title">
+        </div>
+        <button type="button" onclick="document.getElementById('custom-modal').classList.remove('hidden')"
+            class="text-xs text-purple-400 hover:underline">+ Add New Section</button>
+    </div>
+    <div class="space-y-4">
+        {% for section in custom_sections %}
+        <div class="terminal-box p-4 border border-white/10">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h3 class="text-white font-bold">{{ section.title }}</h3>
+                    {% if section.subtitle %}
+                    <p class="text-white/60 text-xs">{{ section.subtitle }}</p>
+                    {% endif %}
+                    {% if section.year %}
+                    <p class="text-cyan text-xs font-mono mb-1">{{ section.year }}</p>
+                    {% endif %}
+                    {% if section.tags %}
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        {% for tag in section.tags.split(',') %}
+                        <span class="text-[10px] text-purple-300 bg-purple-500/10 px-1 rounded">{{ tag.strip() }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <span
+                        class="text-xs {{ 'text-green-400' if section.is_visible else 'text-red-400' }} uppercase tracking-wider">
+                        {{ 'Visible' if section.is_visible else 'Hidden' }}
+                    </span>
+                    <span class="text-xs text-white/40 ml-2">Order: {{ section.order }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="/admin/custom-sections/editor/{{ section.id }}"
+                        class="text-cyan text-xs hover:underline">Edit Editor</a>
+                    <button onclick="document.getElementById('edit-custom-{{ section.id }}').classList.remove('hidden')"
+                        class="text-white/40 text-xs hover:underline hidden">Quick</button>
+                    <form method="POST" action="/admin/custom-sections/delete/{{ section.id }}" class="inline">
+                        <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                            onclick="return confirm('Delete this section?')">Delete</button>
+                    </form>
+                </div>
+            </div>
+            <div class="text-white/60 text-sm line-clamp-2">{{ section.content | striptags }}</div>
+
+            <!-- Items List -->
+            <div class="mt-4 border-t border-white/10 pt-4">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-white/40 text-xs uppercase tracking-wider">Sub-Items</span>
+                    <button type="button"
+                        onclick="document.getElementById('add-item-{{ section.id }}').classList.remove('hidden')"
+                        class="text-xs text-purple-400 hover:underline">+ Add Item</button>
+                </div>
+                {% if section.items %}
+                <div class="space-y-2">
+                    {% for item in section.items|sort(attribute='order') %}
+                    <div class="flex justify-between items-center bg-white/5 px-3 py-2 rounded text-sm group">
+                        <div>
+                            <span class="text-white">{{ item.title }}</span>
+                            {% if item.subtitle %}
+                            <span class="text-white/60 text-xs ml-2">{{ item.subtitle }}</span>
+                            {% endif %}
+                            {% if item.year %}
+                            <span class="text-cyan text-xs ml-2">{{ item.year }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onclick="document.getElementById('edit-item-{{ item.id }}').classList.remove('hidden')"
+                                class="text-cyan text-xs hover:underline">Edit</button>
+                            <form method="POST" action="/admin/custom-sections/items/delete/{{ item.id }}"
+                                class="inline">
+                                <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                                    onclick="return confirm('Delete item?')">×</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Edit Item Modal -->
+                    <div id="edit-item-{{ item.id }}"
+                        class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
+                        <div class="terminal-box p-6 w-full max-w-lg bg-black">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-lg font-bold text-white">Edit Item</h2>
+                                <button type="button"
+                                    onclick="document.getElementById('edit-item-{{ item.id }}').classList.add('hidden')"
+                                    class="text-white/40 hover:text-white">✕</button>
+                            </div>
+                            <form method="POST" action="/admin/custom-sections/items/update/{{ item.id }}"
+                                class="space-y-4">
+                                <div><label class="block text-white/60 text-xs mb-2 uppercase">Title</label><input
+                                        type="text" name="title" value="{{ item.title }}"
+                                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div><label
+                                            class="block text-white/60 text-xs mb-2 uppercase">Subtitle</label><input
+                                            type="text" name="subtitle" value="{{ item.subtitle or '' }}"
+                                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                    </div>
+                                    <div><label class="block text-white/60 text-xs mb-2 uppercase">Year</label><input
+                                            type="text" name="year" value="{{ item.year or '' }}"
+                                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div><label class="block text-white/60 text-xs mb-2 uppercase">Link</label><input
+                                            type="text" name="link" value="{{ item.link or '' }}"
+                                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                    </div>
+                                    <div><label class="block text-white/60 text-xs mb-2 uppercase">Order</label><input
+                                            type="number" name="order" value="{{ item.order }}"
+                                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                    </div>
+                                </div>
+                                <div><label class="block text-white/60 text-xs mb-2 uppercase">Content</label><textarea
+                                        name="content" rows="3"
+                                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">{{ item.content or '' }}</textarea>
+                                </div>
+                                <div class="flex justify-end gap-4 pt-4">
+                                    <button type="button"
+                                        onclick="document.getElementById('edit-item-{{ item.id }}').classList.add('hidden')"
+                                        class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                                    <button type="submit"
+                                        class="bg-purple-500 text-white px-6 py-2 text-sm font-bold hover:bg-purple-400 transition-colors">Update</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-white/40 text-xs italic">No items yet</p>
+                {% endif %}
+
+                <!-- Add Item Modal -->
+                <div id="add-item-{{ section.id }}"
+                    class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
+                    <div class="terminal-box p-6 w-full max-w-lg bg-black">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-bold text-white">Add Item</h2>
+                            <button type="button"
+                                onclick="document.getElementById('add-item-{{ section.id }}').classList.add('hidden')"
+                                class="text-white/40 hover:text-white">✕</button>
+                        </div>
+                        <form method="POST" action="/admin/custom-sections/{{ section.id }}/items/add"
+                            class="space-y-4">
+                            <div><label class="block text-white/60 text-xs mb-2 uppercase">Title</label><input
+                                    type="text" name="title"
+                                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-white/60 text-xs mb-2 uppercase">Subtitle</label><input
+                                        type="text" name="subtitle"
+                                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                </div>
+                                <div><label class="block text-white/60 text-xs mb-2 uppercase">Year</label><input
+                                        type="text" name="year"
+                                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-white/60 text-xs mb-2 uppercase">Link</label><input
+                                        type="text" name="link"
+                                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                </div>
+                                <div><label class="block text-white/60 text-xs mb-2 uppercase">Order</label><input
+                                        type="number" name="order" value="0"
+                                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                                </div>
+                            </div>
+                            <div><label class="block text-white/60 text-xs mb-2 uppercase">Content</label><textarea
+                                    name="content" rows="3"
+                                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"></textarea>
+                            </div>
+                            <div class="flex justify-end gap-4 pt-4">
+                                <button type="button"
+                                    onclick="document.getElementById('add-item-{{ section.id }}').classList.add('hidden')"
+                                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                                <button type="submit"
+                                    class="bg-purple-500 text-white px-6 py-2 text-sm font-bold hover:bg-purple-400 transition-colors">Add</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Modal for this section -->
+            <div id="edit-custom-{{ section.id }}"
+                class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                <div class="terminal-box p-6 w-full max-w-2xl bg-black">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-white">Edit Section</h2>
+                        <button type="button"
+                            onclick="document.getElementById('edit-custom-{{ section.id }}').classList.add('hidden')"
+                            class="text-white/40 hover:text-white">✕</button>
+                    </div>
+                    <form method="POST" action="/admin/custom-sections/update/{{ section.id }}" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-white/60 text-xs mb-2 uppercase">Title</label>
+                                <input type="text" name="title" value="{{ section.title }}"
+                                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-white/60 text-xs mb-2 uppercase">Order</label>
+                                <input type="number" name="order" value="{{ section.order }}"
+                                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-white/60 text-xs mb-2 uppercase">Subtitle</label>
+                                <input type="text" name="subtitle" value="{{ section.subtitle or '' }}"
+                                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-white/60 text-xs mb-2 uppercase">Year/Date</label>
+                                <input type="text" name="year" value="{{ section.year or '' }}"
+                                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-white/60 text-xs mb-2 uppercase">Tags (comma separated)</label>
+                            <input type="text" name="tags" value="{{ section.tags or '' }}"
+                                placeholder="e.g. Design, UI/UX"
+                                class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-white/60 text-xs mb-2 uppercase">Content (HTML allowed)</label>
+                            <textarea name="content" rows="6"
+                                class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none font-mono">{{ section.content }}</textarea>
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <span class="text-white/60 text-xs uppercase">Visible</span>
+                            <input type="checkbox" name="is_visible" class="accent-purple-400 h-4 w-4" {% if
+                                section.is_visible %}checked{% endif %}>
+                        </label>
+                        <div class="flex justify-end gap-4 pt-4">
+                            <button type="button"
+                                onclick="document.getElementById('edit-custom-{{ section.id }}').classList.add('hidden')"
+                                class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                            <button type="submit"
+                                class="bg-purple-500 text-white px-6 py-2 text-sm font-bold hover:bg-purple-400 transition-colors">Update</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-white/40 text-sm">No custom sections yet</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Custom Section Modal -->
+<div id="custom-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl bg-black">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Custom Section</h2>
+            <button type="button" onclick="document.getElementById('custom-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/custom-sections/add" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Title</label>
+                    <input type="text" name="title"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Order</label>
+                    <input type="number" name="order" value="0"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Subtitle</label>
+                    <input type="text" name="subtitle"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                </div>
+                <div>
+                    <input type="text" name="year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Tags (comma separated)</label>
+                <input type="text" name="tags" placeholder="e.g. Design, UI/UX"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Color</label>
+                    <select name="color"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                        <option value="cyan" selected>Cyan</option>
+                        <option value="pink">Pink</option>
+                        <option value="amber">Amber</option>
+                        <option value="purple">Purple</option>
+                        <option value="green">Green</option>
+                        <option value="red">Red</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Title Alignment</label>
+                    <select name="alignment"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none">
+                        <option value="left" selected>Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Content (HTML allowed)</label>
+                <textarea name="content" rows="6"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none font-mono"></textarea>
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <span class="text-white/60 text-xs uppercase">Visible</span>
+                <input type="checkbox" name="is_visible" class="accent-purple-400 h-4 w-4" checked>
+            </label>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('custom-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-purple-500 text-white px-6 py-2 text-sm font-bold hover:bg-purple-400 transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Education Modal -->
+<div id="edu-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Education</h2>
+            <button onclick="document.getElementById('edu-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/education/add" class="space-y-4">
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Degree</label><input type="text"
+                    name="degree"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Field</label><input type="text" name="field"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Institution</label><input type="text"
+                    name="institution"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-white/60 text-xs mb-2 uppercase">Location</label><input type="text"
+                        name="location"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div><label class="block text-white/60 text-xs mb-2 uppercase">Year</label><input type="text"
+                        name="year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('edu-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Experience Modal -->
+<div id="exp-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Experience</h2>
+            <button onclick="document.getElementById('exp-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/experience/add" class="space-y-4">
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Position</label><input type="text"
+                    name="position"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Organization</label><input type="text"
+                    name="organization"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Department</label><input type="text"
+                    name="department"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-white/60 text-xs mb-2 uppercase">Start Date</label><input type="text"
+                        name="start_date"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div><label class="block text-white/60 text-xs mb-2 uppercase">End Date</label><input type="text"
+                        name="end_date"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="or 'Present'"></div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('exp-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Award Modal -->
+<div id="award-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Award</h2>
+            <button onclick="document.getElementById('award-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/awards/add" class="space-y-4">
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Title *</label><input type="text"
+                    name="title" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-white/60 text-xs mb-2 uppercase">Year</label><input type="text"
+                        name="year"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div><label class="block text-white/60 text-xs mb-2 uppercase">Organization</label><input type="text"
+                        name="organization"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('award-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Research Area Modal -->
+<div id="area-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-sm">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Research Area</h2>
+            <button onclick="document.getElementById('area-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/research-areas/add" class="space-y-4">
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Name *</label><input type="text" name="name"
+                    required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('area-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<!-- Link Modal -->
+<div id="link-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add External Link</h2>
+            <button onclick="document.getElementById('link-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/profile/links/add" class="space-y-4">
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Label *</label><input type="text"
+                    name="label" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                    placeholder="e.g. Google Scholar">
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">URL *</label><input type="url" name="url"
+                    required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                    placeholder="https://...">
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Icon Class (Optional)</label><input
+                    type="text" name="icon"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                    placeholder="e.g. fab fa-google">
+                <p class="text-[10px] text-white/40 mt-1">FontAwesome icon class</p>
+            </div>
+            <div><label class="block text-white/60 text-xs mb-2 uppercase">Order</label><input type="number"
+                    name="order" value="0"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('link-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Add
+                    Link</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,271 @@
+{% extends "admin/base.html" %}
+{% block title %}Projects{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-8">
+    <div>
+        <h1 class="text-2xl font-bold text-white mb-2">Projects</h1>
+        <p class="text-white/50 text-sm">Manage sponsored and consultancy projects</p>
+    </div>
+    <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+        class="bg-cyan text-black px-4 py-2 text-sm font-bold hover:bg-white transition-colors">
+        + Add Project
+    </button>
+</div>
+
+<!-- Projects List -->
+<div class="terminal-box">
+    <table class="w-full">
+        <thead class="border-b border-white/10">
+            <tr class="text-left text-xs text-white/40 uppercase tracking-wider">
+                <th class="p-4">Title</th>
+                <th class="p-4">Sponsor</th>
+                <th class="p-4">Amount</th>
+                <th class="p-4">Duration</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for project in projects %}
+            <tr class="border-b border-white/5 hover:bg-white/5">
+                <td class="p-4 text-white text-sm">{{ project.title[:60] }}{% if project.title|length > 60 %}...{% endif
+                    %}</td>
+                <td class="p-4 text-cyan text-sm">{{ project.sponsor or '-' }}</td>
+                <td class="p-4 text-amber text-sm">{{ project.amount or '-' }}</td>
+                <td class="p-4 text-white/60 text-xs">{{ project.start_date or '?' }} - {{ project.end_date or '?' }}
+                </td>
+                <td class="p-4">
+                    <span
+                        class="text-xs px-2 py-1 rounded {% if project.is_ongoing %}bg-cyan/20 text-cyan{% else %}bg-green-500/20 text-green-400{% endif %}">
+                        {% if project.is_ongoing %}Ongoing{% else %}Completed{% endif %}
+                    </span>
+                </td>
+                <td class="p-4 flex gap-2">
+                    <button onclick="openEditModal(this)" data-id="{{ project.id }}" data-title="{{ project.title }}"
+                        data-sponsor="{{ project.sponsor or '' }}" data-amount="{{ project.amount or '' }}"
+                        data-start-date="{{ project.start_date or '' }}" data-end-date="{{ project.end_date or '' }}"
+                        data-is-ongoing="{{ 'true' if project.is_ongoing else 'false' }}"
+                        data-role="{{ project.role or '' }}" data-pi-name="{{ project.pi_name or '' }}"
+                        data-co-pi-names="{{ project.co_pi_names or '' }}"
+                        data-description="{{ project.description or '' }}"
+                        class="text-cyan hover:text-white text-xs">Edit</button>
+                    <form method="POST" action="/admin/projects/delete/{{ project.id }}" class="inline">
+                        <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                            onclick="return confirm('Delete this project?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="p-8 text-center text-white/40">No projects yet</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Modal -->
+<div id="add-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Add Project</h2>
+            <button onclick="document.getElementById('add-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form method="POST" action="/admin/projects/add" class="space-y-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Title *</label>
+                <input type="text" name="title" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Sponsor</label>
+                    <div class="relative">
+                        <input type="text" name="sponsor" list="sponsors-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="e.g., MeitY, DST">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Amount</label>
+                    <input type="text" name="amount"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="e.g., ₹351.5 Lakh">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Start Date</label>
+                    <input type="text" name="start_date"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="e.g., Oct 2024">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">End Date</label>
+                    <input type="text" name="end_date"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                        placeholder="e.g., Oct 2026">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Role</label>
+                    <div class="relative">
+                        <input type="text" name="role" list="roles-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Select or type new">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+                <div class="flex items-center pt-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_ongoing" checked class="w-4 h-4">
+                        <span class="text-white/60 text-sm">Ongoing</span>
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">PI Name</label>
+                <input type="text" name="pi_name"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Co-PIs (comma-separated)</label>
+                <input type="text" name="co_pi_names"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Description</label>
+                <textarea name="description" rows="3"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"></textarea>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-cyan text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="terminal-box p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-white">Edit Project</h2>
+            <button onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                class="text-white/40 hover:text-white">✕</button>
+        </div>
+        <form id="edit-form" method="POST" action="" class="space-y-4">
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Title *</label>
+                <input type="text" name="title" id="edit-title" required
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Sponsor</label>
+                    <div class="relative">
+                        <input type="text" name="sponsor" id="edit-sponsor" list="sponsors-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Amount</label>
+                    <input type="text" name="amount" id="edit-amount"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Start Date</label>
+                    <input type="text" name="start_date" id="edit-start_date"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">End Date</label>
+                    <input type="text" name="end_date" id="edit-end_date"
+                        class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-white/60 text-xs mb-2 uppercase">Role</label>
+                    <div class="relative">
+                        <input type="text" name="role" id="edit-role" list="roles-list"
+                            class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"
+                            placeholder="Select or type new">
+                        <span class="absolute right-3 top-2.5 text-white/20 pointer-events-none">+</span>
+                    </div>
+                </div>
+                <div class="flex items-center pt-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_ongoing" id="edit-is_ongoing" class="w-4 h-4">
+                        <span class="text-white/60 text-sm">Ongoing</span>
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">PI Name</label>
+                <input type="text" name="pi_name" id="edit-pi_name"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Co-PIs (comma-separated)</label>
+                <input type="text" name="co_pi_names" id="edit-co_pi_names"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-white/60 text-xs mb-2 uppercase">Description</label>
+                <textarea name="description" id="edit-description" rows="3"
+                    class="w-full bg-black border border-white/20 text-white px-3 py-2 text-sm focus:border-cyan focus:outline-none"></textarea>
+            </div>
+            <div class="flex justify-end gap-4 pt-4">
+                <button type="button" onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+                <button type="submit"
+                    class="bg-pink text-black px-6 py-2 text-sm font-bold hover:bg-white transition-colors">Update</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditModal(btn) {
+        const id = btn.dataset.id;
+        document.getElementById('edit-form').action = '/admin/projects/update/' + id;
+        document.getElementById('edit-title').value = btn.dataset.title;
+        document.getElementById('edit-sponsor').value = btn.dataset.sponsor;
+        document.getElementById('edit-amount').value = btn.dataset.amount;
+        document.getElementById('edit-start_date').value = btn.dataset.startDate;
+        document.getElementById('edit-end_date').value = btn.dataset.endDate;
+        document.getElementById('edit-is_ongoing').checked = btn.dataset.isOngoing === 'true';
+        document.getElementById('edit-role').value = btn.dataset.role || 'PI';
+        document.getElementById('edit-pi_name').value = btn.dataset.piName;
+        document.getElementById('edit-co_pi_names').value = btn.dataset.coPiNames;
+        document.getElementById('edit-description').value = btn.dataset.description;
+        document.getElementById('edit-modal').classList.remove('hidden');
+    }
+</script>
+
+<!-- Datalists -->
+<datalist id="sponsors-list">
+    {% for s in sponsors %}
+    <option value="{{ s }}">
+        {% endfor %}
+</datalist>
+<datalist id="roles-list">
+    {% for r in roles %}
+    <option value="{{ r }}">
+        {% endfor %}
+        {% if not roles %}
+    <option value="PI">
+    <option value="Co-PI">
+        {% endif %}
+</datalist>
+{% endblock %}
