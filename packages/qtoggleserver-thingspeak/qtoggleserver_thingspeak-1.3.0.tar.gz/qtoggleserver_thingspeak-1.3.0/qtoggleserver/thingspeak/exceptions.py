@@ -1,0 +1,2 @@
+class ThingSpeakException(Exception):
+    pass
