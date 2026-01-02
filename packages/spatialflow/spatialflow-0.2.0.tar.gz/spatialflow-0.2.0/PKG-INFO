@@ -1,0 +1,144 @@
+Metadata-Version: 2.4
+Name: spatialflow
+Version: 0.2.0
+Summary: Python SDK for SpatialFlow - Real-time geospatial automation platform
+Project-URL: Homepage, https://spatialflow.io
+Project-URL: Documentation, https://docs.spatialflow.io/sdk/python
+Project-URL: Repository, https://github.com/spatialflow-io/spatialflow-python
+Project-URL: Issues, https://github.com/spatialflow-io/spatialflow-python/issues
+Project-URL: Changelog, https://github.com/spatialflow-io/spatialflow-python/blob/main/CHANGELOG.md
+Author-email: SpatialFlow <support@spatialflow.io>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: automation,geofencing,geospatial,location,sdk,spatialflow
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: aiohttp-retry>=2.8.3
+Requires-Dist: aiohttp>=3.8.4
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-dateutil>=2.8.2
+Requires-Dist: typing-extensions>=4.7.1
+Requires-Dist: urllib3<3.0.0,>=1.25.3
+Provides-Extra: dev
+Requires-Dist: aioresponses>=0.7.4; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: mkdocs-material>=9.0.0; extra == 'docs'
+Requires-Dist: mkdocs>=1.5.0; extra == 'docs'
+Requires-Dist: mkdocstrings[python]>=0.24.0; extra == 'docs'
+Description-Content-Type: text/markdown
+
+# SpatialFlow Python SDK
+
+The official Python SDK for [SpatialFlow](https://spatialflow.io) - a real-time geospatial automation platform.
+
+## Installation
+
+```bash
+pip install spatialflow
+```
+
+### Development Installation
+
+```bash
+cd sdks/python
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+```python
+import asyncio
+from spatialflow import SpatialFlow
+
+async def main():
+    async with SpatialFlow(api_key="sf_xxx") as client:
+        # List geofences
+        response = await client.geofences.list()
+        for geofence in response.geofences:
+            print(f"{geofence.name}: {geofence.id}")
+
+        # Get workspace usage
+        usage = await client.workspaces.get_usage()
+        print(f"Event units: {usage.event_units}")
+
+asyncio.run(main())
+```
+
+## Supported Resources
+
+| Resource | Methods | Description |
+|----------|---------|-------------|
+| **Geofences** | CRUD, upload, bulk | Manage geofence boundaries |
+| **Workflows** | CRUD, execute, monitor, versioning | Automation workflows |
+| **Webhooks** | CRUD, deliveries, DLQ, metrics | Webhook endpoints and delivery tracking |
+| **Devices** | CRUD, location updates | Device management |
+| **Account** | profile, API keys, metrics, onboarding | User account management |
+| **Workspaces** | get, update, usage | Workspace settings and usage metrics |
+| **Locations** | ingest, batch, stats | Public location ingestion API |
+| **Integrations** | CRUD, test | Third-party service connections |
+| **Storage** | presigned URLs, files | File upload and management |
+
+## Features
+
+- Fully async with `aiohttp`
+- Automatic retry with exponential backoff
+- Pagination helpers
+- Webhook signature verification
+- Workflow builders for common patterns
+- File upload with streaming (memory efficient)
+
+## Error Handling
+
+```python
+from spatialflow import SpatialFlow, NotFoundError, ValidationError
+
+async with SpatialFlow(api_key="sf_xxx") as client:
+    try:
+        geofence = await client.geofences.get("invalid-id")
+    except NotFoundError as e:
+        print(f"Geofence not found: {e}")
+    except ValidationError as e:
+        print(f"Invalid request: {e.errors}")
+```
+
+## Raw API Access
+
+For advanced use cases, access the generated API clients directly:
+
+```python
+async with SpatialFlow(api_key="sf_xxx") as client:
+    # Use raw generated API
+    response = await client.raw.geofences.apps_geofences_api_list_geofences()
+```
+
+Available via `client.raw`:
+- `geofences`, `workflows`, `webhooks`, `devices`, `storage`, `locations`, `integrations`, `workspaces`, `account` (also wrapped)
+- `authentication`, `admin`, `billing`, `subscriptions`, `tiles` (raw only)
+
+> **Alpha Notice:** This SDK is in alpha (v0.1.0). Some generated APIs (email, system, gpx_simulator,
+> public, default, e2e_test) are not yet exposed. Use the generated client directly for those.
+
+## Documentation
+
+Full documentation: [docs.spatialflow.io/sdks/python](https://docs.spatialflow.io/sdks/python)
+
+## License
+
+MIT
