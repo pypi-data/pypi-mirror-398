@@ -1,0 +1,1 @@
+# Ping module for handling remote service status checks 
