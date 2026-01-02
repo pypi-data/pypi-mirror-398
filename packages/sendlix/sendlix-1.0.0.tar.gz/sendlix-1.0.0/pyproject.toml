@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sendlix"
+version = "1.0.0"
+description = "Python SDK for the Sendlix gRPC API"
+readme = "README.md"
+authors = [
+    { name = "Sendlix" }
+]
+license = "Apache-2.0"
+requires-python = ">=3.9"
+keywords = ["grpc", "email", "sdk", "sendlix"]
+dependencies = [
+    "grpcio>=1.71.0",
+    "protobuf>=5.29.0",
+    "typing-extensions>=4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "grpcio-tools>=1.71.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sendlix*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.semantic_release]
+version_toml = [
+    "pyproject.toml:project.version",
+]
+version_variables = [
+    "src/sendlix/__init__.py:__version__",
+]
+build_command = "pip install build grpcio-tools && mkdir -p src/sendlix/proto && python -m grpc_tools.protoc -I./proto --python_out=./src/sendlix/proto --grpc_python_out=./src/sendlix/proto ./proto/*.proto && python fix_imports.py && python -m build"
