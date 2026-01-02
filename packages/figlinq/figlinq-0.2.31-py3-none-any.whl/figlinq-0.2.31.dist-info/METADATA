@@ -1,0 +1,83 @@
+Metadata-Version: 2.2
+Name: figlinq
+Version: 0.2.31
+Summary: Utilities for interfacing with Plotly's Chart Studio and figlinq.com
+Home-page: https://github.com/figlinq/figlinq
+Author: figlinq.com
+Author-email: info@figlinq.com
+Maintainer: figlinq.com
+Maintainer-email: info@figlinq.com
+License: MIT
+Project-URL: Github, https://github.com/figlinq/figlinq
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Description-Content-Type: text/markdown
+Requires-Dist: plotly>=5.24.1
+Requires-Dist: requests>=2.30.0
+Requires-Dist: six
+Requires-Dist: cairosvg
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: maintainer
+Dynamic: maintainer-email
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: summary
+
+# Figlinq Python Library
+
+This package contains utilities for interfacing with Plotly's Chart Studio and Figlinq services. The project has been cloned from [chart-studio 1.1.0](https://pypi.org/project/chart-studio/). The original package has been modified so that credentials and configuration can be set from environment variables (see `figlinq.tools.get_credentials()` and `figlinq.tools.get_config()`). Additional functions have been added to support the Figlinq service. The original package is licensed under the MIT license, and this package is also licensed under the MIT license.
+
+## Installation
+
+```bash
+pip install figlinq
+```
+
+## Usage
+
+### Basic Grid and Plot Upload
+
+```python
+import figlinq
+import plotly.graph_objects as go
+
+# Create a grid with columns
+col1 = figlinq.Column([1, 2, 3], "time")
+col2 = figlinq.Column([4, 2, 5], "voltage")
+grid = figlinq.Grid([col1, col2])
+
+# Upload the grid
+grid_url = figlinq.upload(grid, filetype="grid", filename="time vs voltage")
+
+# Download the grid
+downloaded_grid = figlinq.download(grid_url)
+
+# Create a plot that references the grid columns
+trace = go.Scatter(xsrc=downloaded_grid[0], ysrc=downloaded_grid[1], mode="lines+markers")
+fig = go.Figure(data=[trace])
+
+# Upload the plot
+plot_url = figlinq.upload(fig, filetype="plot", filename="My Plot")
+```
+
+### Important Notes
+
+- The `figlinq` package registers itself as `chart_studio` in Python's module system for compatibility with Plotly's validators.
+- You can use `figlinq.Column` objects directly in Plotly's `xsrc`/`ysrc` parameters when creating plots that reference grid data.
+- Both `import figlinq` and `import chart_studio` will work and refer to the same package.
