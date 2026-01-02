@@ -1,0 +1,143 @@
+# BHH - A Library for You
+
+## Version: 0.5.0
+
+### Changes in this version:
+
+Commands were modularized.
+
+File handling capabilities have been added.
+
+The ability to reverse text has been removed.
+
+## Developer: Aria
+[PyPI Page](https://pypi.org/user/ariakm1394/)
+
+---
+
+## License
+
+This project is licensed under the BHAP License - see the [LICENSE](LICENSE.txt) file for details.
+
+### License:
+
+```txt
+
+BHAP License (c) 2025 Aria
+
+This license allows you to:
+- Modify the code
+- Redistribute it
+- Publish it
+- Use the hashing formula or other formulas from this project in your own projects
+
+Conditions for redistribution and release:
+1. Your name must be included in the redistributed version.
+2. The BHAP License must be included with the project.
+3. The project must remain open-source.
+
+This software is provided "as is", without any warranty of any kind. The author shall not be held
+liable for any damages arising from the use of this software.
+
+
+```
+
+---
+
+## Features:
+
+🔒 Hash your passwords with both random and chosen salts
+
+🌐 Add a search engine to your app
+
+🌐 Bind ports to serve static files with a simple HTTP server
+
+💻 Install libraries from PyPI
+
+📄 Work with files
+
+---
+
+## Usage:
+
+BHH is a Python toolbox for you. Instead of writing 25 lines of code, you can do it with 1 line. You can use this package as a web server, make your simple games easier, and ......
+Other features are mentioned in the Features section ☝️
+
+---
+
+## Installation:
+
+```batch
+
+pip install bhh 
+
+
+
+```
+
+---
+
+### Requirements
+
+- requests >= 2.0.0  
+
+- Pillow >= 10.0.0  
+
+---
+
+# How it works
+
+1. Open your Windows Powershell or Command Prompt
+
+2. type 
+```batch
+
+pip install bhh
+
+``` 
+
+3. Open your Python IDE or Python Terminal
+
+4. type
+```python
+
+import afile
+import ahash
+import anet
+
+```
+
+5. Now you can use any of the following commands as you wish:
+
+```python
+#hash password
+hash1 = print(ahash.hash_password("your password"))
+print(hash1)
+
+hash2 = print(ahash.hash_password_with_salt("your password", b"your salt"))
+print(hash2)
+
+#verify password
+print(ahash.verify_password("your password", hash2)) # True or False
+
+#install package
+print(anet.install_from_pypi("package name"))
+
+#search web
+number_of_outputs = 15
+print(anet.search_web("your search", "YOUR_BING_API_KEY", number_of_outputs))
+
+#bind port
+port = 1234
+print(anet.apos("service path", port, "ip", "homepage"))
+
+#working with files
+afile.open_file("path")
+afile.delete_file("path")
+afile.rename_file("old path", "new path")
+afile.write_text("path", "text")
+afile.read_text("path")
+afile.write_json("path", "data")
+afile.read_json("path")
+
+```
