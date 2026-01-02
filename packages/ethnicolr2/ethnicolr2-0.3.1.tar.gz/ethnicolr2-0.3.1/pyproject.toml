@@ -1,0 +1,189 @@
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "ethnicolr2"
+version = "0.3.1"
+description = "Predict Race/Ethnicity Based on Sequence of Characters in the Name"
+readme = "README.md"
+authors = [
+  { name = "Rajshekar", email = "rajshekar.ch@gmail.com" },
+  { name = "Suriyan", email = "suriyant@gmail.com" },
+  { name = "Gaurav Sood", email = "gsood07@gmail.com" }
+]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+    "Operating System :: OS Independent",
+]
+keywords = ["race", "ethnicity", "names", "demographics", "machine-learning", "census", "pytorch", "lstm"]
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "click>=8.0.0",
+    "pandas>=1.3.0",
+    "torch==2.8.0",
+    "joblib==1.3.1",
+    "tqdm==4.66.3",
+    "scikit-learn==1.5.1",   # Use exact version that trained the models
+]
+
+[project.urls]
+"Homepage" = "https://appeler.github.io/ethnicolr2/"
+"Documentation" = "https://appeler.github.io/ethnicolr2/"
+"Repository" = "https://github.com/appeler/ethnicolr2"
+"Bug Tracker" = "https://github.com/appeler/ethnicolr2/issues"
+"Changelog" = "https://github.com/appeler/ethnicolr2/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = ["check-manifest", "ruff>=0.7.0", "pre-commit>=3.0.0", "pydoclint", "pyright", "pandas-stubs", "types-tqdm"]
+test = ["coverage", "pytest", "numpy>=1.25.2"]
+docs = [
+    "sphinx",
+    "furo",
+    "sphinx-autodoc-typehints",
+    "myst-parser",
+    "linkify-it-py",
+    "sphinx-design",
+    "nbsphinx",
+    "jupyter",
+    "ipykernel",
+]
+all = [
+    "check-manifest",
+    "ruff>=0.7.0",
+    "pre-commit>=3.0.0",
+    "pydoclint",
+    "pyright",
+    "pandas-stubs",
+    "types-tqdm",
+    "coverage",
+    "pytest",
+    "numpy>=1.25.2",
+    "sphinx",
+    "furo",
+    "sphinx-autodoc-typehints",
+    "myst-parser",
+    "linkify-it-py",
+    "sphinx-design",
+    "nbsphinx",
+    "jupyter",
+    "ipykernel",
+]
+
+[project.scripts]
+census_ln = "ethnicolr2.census_ln:main"
+pred_fl_full_name = "ethnicolr2.pred_fl_fn_lstm:main"
+pred_fl_last_name = "ethnicolr2.pred_fl_ln_lstm:main"
+pred_census_last_name = "ethnicolr2.pred_cen_ln_lstm:main"
+ethnicolr2_download_models = "ethnicolr2._setup_hooks:download_cli"
+
+
+[tool.setuptools]
+packages = ["ethnicolr2"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+ethnicolr2 = [
+    "data/census/census_2000.csv",
+    "data/census/census_2010.csv",
+    "data/census/readme.md",
+    "data/census/*.pdf",
+    "data/census/*.R",
+    "models/*.joblib",
+    "models/*.pt",
+    "models/census/lstm/*.csv",
+    "data/input*.csv",
+]
+
+# Testing configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--verbose"
+
+# Code quality and formatting tools
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "docs/source/examples"
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["S101"]
+
+[tool.uv.build-backend]
+module-name = "ethnicolr2"
+module-root = ""
+
+# Type checking configuration
+[tool.pyright]
+include = ["ethnicolr2"]
+exclude = ["**/node_modules", "**/__pycache__", ".venv", "venv", "build", "dist"]
+strict = ["ethnicolr2"]
+reportMissingTypeStubs = false
+reportUnknownMemberType = false  # For external libraries without stubs
+reportUnknownVariableType = false  # For pandas/torch operations
+reportUnknownParameterType = false  # For external library parameters
+reportUnknownArgumentType = false  # For external library arguments
+pythonVersion = "3.11"
+pythonPlatform = "All"
+
+# Docstring linting configuration
+[tool.pydoclint]
+style = "google"
+exclude = ["tests/", ".venv/", "venv/", "docs/source/examples/"]
+arg-type-hints-in-signature = true
+arg-type-hints-in-docstring = false
+skip-checking-short-docstrings = false
+
+# Dependency analysis configuration
+[tool.deptry]
+# Exclude documentation examples, virtual environment, and test files that use numpy
+exclude = ["docs/source/examples/", ".venv/", "venv/", "tests/test_input_edge_cases.py", "tests/test_validation.py"]
+
+# Package name mappings for packages with different import vs install names
+[tool.deptry.package_module_name_map]
+"check-manifest" = ["check_manifest"]
+"linkify-it-py" = ["linkify_it_py"]
+
+# Known external dependencies for documentation examples (not part of the main package)
+[tool.deptry.per_rule_ignores]
+DEP001 = ["docs/source/examples/"]  # Allow missing dependencies in documentation examples
+DEP002 = ["scikit-learn"]  # scikit-learn is needed for model compatibility (joblib files)
+DEP003 = ["docs/source/examples/"]  # Allow transitive dependencies in documentation examples
+DEP004 = ["tests/test_input_edge_cases.py", "tests/test_validation.py"]  # Allow test dependencies in test files
