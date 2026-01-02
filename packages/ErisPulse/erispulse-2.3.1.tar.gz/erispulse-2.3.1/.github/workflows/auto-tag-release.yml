@@ -1,0 +1,95 @@
+name: 🎀 艾莉丝的版本标签魔法 ~
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main, Pre-Release/v2]
+
+jobs:
+  update-latest-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 施展版本魔法
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # 读取当前版本
+          version=$(grep '^version' pyproject.toml | head -1 | sed 's/version = "//;s/"//')
+          tag_name="v$version"
+          
+          echo "当前版本: $version"
+          echo "标签名称: $tag_name"
+          
+          # 从 CHANGELOG.md 提取更新日志
+          if [ -f "CHANGELOG.md" ]; then
+            # 修复版本号格式：将 -de. 替换为 -dev.
+            fixed_version=$(echo "$version" | sed 's/-de\./-dev./g')
+            
+            echo "尝试匹配版本: $version 或 $fixed_version"
+            
+            # 使用 sed 提取版本更新日志
+            # 先尝试匹配原始版本号
+            changelog_section=$(sed -n "/^## \[$version\] -/,/^## \[.*\] -/p" CHANGELOG.md | sed '$d')
+            
+            # 如果没找到，尝试匹配修复后的版本号
+            if [ -z "$changelog_section" ]; then
+              changelog_section=$(sed -n "/^## \[$fixed_version\] -/,/^## \[.*\] -/p" CHANGELOG.md | sed '$d')
+            fi
+            
+            # 移除第一行（标题行）
+            if [ -n "$changelog_section" ]; then
+              changelog=$(echo "$changelog_section" | tail -n +2)
+              
+              # 判断是否为开发版本
+              if [[ $version =~ dev|alpha|beta|pre|a|b ]]; then
+                is_dev="true"
+                latest_flag=""
+              else
+                is_dev="false"
+                latest_flag="--latest"
+              fi
+              
+              # 检查标签是否已存在
+              if ! git rev-parse "$tag_name" >/dev/null 2>&1; then
+                echo "🎀🎀 创建新标签 $tag_name..."
+                git tag "$tag_name"
+                git push origin "$tag_name"
+              else
+                echo "标签 $tag_name 已存在"
+              fi
+              
+              # 检查发行是否存在
+              if gh release view "$tag_name" &>/dev/null; then
+                # 更新发行
+                echo "🔄 更新发行 $tag_name..."
+                gh release edit "$tag_name" \
+                  --notes "$changelog" \
+                  --prerelease=$is_dev
+                echo "✅ 已更新发行 $tag_name"
+              else
+                # 创建发行
+                echo "✨ 创建发行 $tag_name..."
+                gh release create "$tag_name" \
+                  --notes "$changelog" \
+                  --title "✨ 艾莉丝的魔法更新 $tag_name" \
+                  --prerelease=$is_dev \
+                  $latest_flag
+                echo "✅ 已创建发行 $tag_name"
+              fi
+              
+              echo "📦 发行页面: https://github.com/${{ github.repository }}/releases/tag/$tag_name"
+            else
+              echo "⚠️ 未找到版本 $version 的更新日志"
+            fi
+          else
+            echo "⚠️ CHANGELOG.md 文件不存在"
+          fi
