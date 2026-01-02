@@ -1,0 +1,113 @@
+[project]
+name = "shrinkray"
+version = "25.12.28.0"
+description = "Shrink Ray"
+authors = [
+    {name = "David R. MacIver", email = "david@drmaciver.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.0.1",
+    "chardet>=5.2.0",
+    "trio>=0.28.0",
+    "textual>=0.47.0",
+    "humanize>=4.9.0",
+    "libcst>=1.1.0",
+    "exceptiongroup>=1.2.0",
+    "binaryornot>=0.4.4",
+    "black>=24.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/DRMacIver/shrinkray"
+Repository = "https://github.com/DRMacIver/shrinkray"
+Documentation = "https://shrinkray.readthedocs.io"
+Changelog = "https://github.com/DRMacIver/shrinkray/releases"
+
+[project.scripts]
+shrinkray = "shrinkray.__main__:main"
+shrinkray-worker = "shrinkray.__main__:worker_main"
+
+[project.optional-dependencies]
+dev = [
+    "coverage>=7.4.0",
+    "hypothesis>=6.92.1",
+    "hypothesmith>=0.3.1",
+    "pytest>=8.0.0",
+    "pytest-trio>=0.8.0",
+    "pytest-asyncio>=0.21.0",
+    # pytest-textual-snapshot is vendored in tests/pytest_textual_snapshot.py
+    # to fix syrupy 5.0 compatibility. These are its dependencies:
+    "syrupy>=5.0.0",
+    "jinja2>=3.0.0",
+    "coverage[toml]>=7.4.0",
+    "pygments>=2.17.0",
+    "basedpyright>=1.1.0",
+    "ruff>=0.1.0",
+    "pexpect>=4.9.0",
+    "pyte>=0.8.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+
+[tool.coverage.run]
+branch = true
+source = ["shrinkray"]
+# Use ctrace core instead of sysmon to avoid Python 3.14 async for branch bug
+core = "ctrace"
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP"]
+ignore = [
+    "E501",  # line too long - handled by formatter
+    "B007",  # unused loop variable
+    "B023",  # function definition in loop
+    "B904",  # raise without from - intentional in some exception handling
+    "UP031", # use format specifiers - % format is fine
+    "B018",  # useless expression - sometimes intentional for side effects
+    "UP022", # prefer capture_output - explicit is fine
+]
+
+[tool.ruff.lint.isort]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.basedpyright]
+include = ["src", "tests"]
+exclude = ["build", "bugs", ".venv", ".venv2"]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+# These are too noisy with third-party libraries that lack type stubs
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportMissingParameterType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+# These are often false positives or stylistic
+reportUnusedFunction = false
+reportMissingTypeArgument = false
+reportPrivateUsage = false  # Tests need to access private attributes
+reportIncompatibleMethodOverride = false  # Often false positives with textual
+reportUnnecessaryIsInstance = false  # Needed for runtime type checking of untrusted input
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
