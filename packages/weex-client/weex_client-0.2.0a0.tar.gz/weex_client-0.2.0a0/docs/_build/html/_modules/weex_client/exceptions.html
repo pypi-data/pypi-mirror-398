@@ -1,0 +1,703 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>weex_client.exceptions &mdash; weex-client 0.2.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            weex-client
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">weex-client</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">weex_client.exceptions</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for weex_client.exceptions</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Enhanced exception handling for Weex client with Python 3.14 features.</span>
+
+<span class="sd">This module provides comprehensive error handling with modern Python features:</span>
+
+<span class="sd">1. **Pattern matching ready** - Exception classes designed for match statements</span>
+<span class="sd">2. **Strict typing** - Full type coverage with Python 3.14 improvements</span>
+<span class="sd">3. **Structured data** - Rich exception metadata for debugging</span>
+<span class="sd">4. **Async aware** - Contextual information for async operations</span>
+<span class="sd">5. **Self-documenting** - Detailed docstrings and examples</span>
+
+<span class="sd">Key Python 3.14 improvements used:</span>
+<span class="sd">- Better union type handling in type hints</span>
+<span class="sd">- Enhanced pattern matching compatibility</span>
+<span class="sd">- Improved error messages and debugging</span>
+<span class="sd">- More efficient exception handling</span>
+
+<span class="sd">Example usage:</span>
+<span class="sd">    &gt;&gt;&gt; try:</span>
+<span class="sd">    ...     await client.place_order(...)</span>
+<span class="sd">    ... except WEEXRateLimitError as e:</span>
+<span class="sd">    ...     print(f&quot;Rate limited: {e.retry_after}&quot;)</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # With pattern matching (Python 3.14)</span>
+<span class="sd">    &gt;&gt;&gt; match error:</span>
+<span class="sd">    &gt;&gt;&gt;     case WEEXAuthenticationError():</span>
+<span class="sd">    &gt;&gt;&gt;         handle_auth()</span>
+<span class="sd">    &gt;&gt;&gt;     case WEEXRateLimitError(retry_after=delay):</span>
+<span class="sd">    &gt;&gt;&gt;         await asyncio.sleep(delay)</span>
+<span class="sd">    &gt;&gt;&gt;     case WEEXError(code=code, message=msg):</span>
+<span class="sd">    &gt;&gt;&gt;         log_error(code, msg)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Never</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># Type aliases for better type safety and readability</span>
+<span class="nb">type</span> <span class="n">ErrorCode</span> <span class="o">=</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span>
+<span class="nb">type</span> <span class="n">ErrorMessage</span> <span class="o">=</span> <span class="nb">str</span>
+<span class="nb">type</span> <span class="n">ContextInfo</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="nb">type</span> <span class="n">RequestId</span> <span class="o">=</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+
+<span class="c1"># Weex API error code classifications</span>
+<span class="c1"># These are based on Weex API documentation and real-world testing</span>
+<span class="n">AUTHENTICATION_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">40001</span><span class="p">,</span>  <span class="c1"># Invalid API key</span>
+        <span class="mi">40002</span><span class="p">,</span>  <span class="c1"># Invalid signature</span>
+        <span class="mi">40003</span><span class="p">,</span>  <span class="c1"># Invalid timestamp</span>
+        <span class="mi">40005</span><span class="p">,</span>  <span class="c1"># Invalid passphrase</span>
+        <span class="mi">40006</span><span class="p">,</span>  <span class="c1"># Invalid IP address</span>
+        <span class="mi">40008</span><span class="p">,</span>  <span class="c1"># Invalid timestamp format</span>
+        <span class="mi">40009</span><span class="p">,</span>  <span class="c1"># Invalid API version</span>
+        <span class="mi">40011</span><span class="p">,</span>  <span class="c1"># API key expired</span>
+        <span class="mi">40012</span><span class="p">,</span>  <span class="c1"># Invalid content type</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">PERMISSION_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">40014</span><span class="p">,</span>  <span class="c1"># Insufficient permissions</span>
+        <span class="mi">40753</span><span class="p">,</span>  <span class="c1"># Trading not allowed</span>
+        <span class="mi">40022</span><span class="p">,</span>  <span class="c1"># Account frozen</span>
+        <span class="mi">50003</span><span class="p">,</span>  <span class="c1"># Service unavailable for this user</span>
+        <span class="mi">50004</span><span class="p">,</span>  <span class="c1"># Operation not permitted</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">RATE_LIMIT_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">429</span><span class="p">,</span>  <span class="c1"># Rate limit exceeded</span>
+        <span class="mi">40030</span><span class="p">,</span>  <span class="c1"># Too many requests</span>
+        <span class="mi">40031</span><span class="p">,</span>  <span class="c1"># Requests too frequent</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">PARAMETER_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">40017</span><span class="p">,</span>  <span class="c1"># Invalid parameter</span>
+        <span class="mi">40019</span><span class="p">,</span>  <span class="c1"># Parameter missing</span>
+        <span class="mi">40020</span><span class="p">,</span>  <span class="c1"># Parameter value out of range</span>
+        <span class="mi">50007</span><span class="p">,</span>  <span class="c1"># Invalid parameter format</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">SYSTEM_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">40015</span><span class="p">,</span>  <span class="c1"># System maintenance</span>
+        <span class="mi">50001</span><span class="p">,</span>  <span class="c1"># Internal server error</span>
+        <span class="mi">50002</span><span class="p">,</span>  <span class="c1"># Database error</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">REQUEST_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">40007</span><span class="p">,</span>  <span class="c1"># Invalid request method</span>
+        <span class="mi">40018</span><span class="p">,</span>  <span class="c1"># Request timeout</span>
+        <span class="mi">40013</span><span class="p">,</span>  <span class="c1"># Invalid request format</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="n">NOT_FOUND_CODES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="mi">50005</span><span class="p">,</span>  <span class="c1"># Resource not found</span>
+        <span class="mi">40016</span><span class="p">,</span>  <span class="c1"># Invalid symbol</span>
+        <span class="mi">40021</span><span class="p">,</span>  <span class="c1"># Order not found</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="WEEXError">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base exception class for all Weex API errors.</span>
+
+<span class="sd">    This exception is designed to work seamlessly with Python 3.14&#39;s</span>
+<span class="sd">    pattern matching and provides rich contextual information for debugging.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        code: Error code from Weex API (int or str)</span>
+<span class="sd">        message: Human-readable error message</span>
+<span class="sd">        data: Raw response data for debugging</span>
+<span class="sd">        request_id: Unique request identifier for tracing</span>
+<span class="sd">        timestamp: UTC timestamp when error occurred</span>
+<span class="sd">        context: Additional context about the operation</span>
+<span class="sd">        retry_after: Optional retry delay in seconds (for rate limits)</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; try:</span>
+<span class="sd">        ...     await client.place_order(...)</span>
+<span class="sd">        ... except WEEXError as e:</span>
+<span class="sd">        ...     print(f&quot;Error {e.code}: {e.message}&quot;)</span>
+<span class="sd">        ...     print(f&quot;Request ID: {e.request_id}&quot;)</span>
+<span class="sd">        ...     print(f&quot;Time: {e.timestamp}&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="WEEXError.__init__">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXError.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">:</span> <span class="n">ErrorMessage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">code</span><span class="p">:</span> <span class="n">ErrorCode</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">request_id</span><span class="p">:</span> <span class="n">RequestId</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">ContextInfo</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">retry_after</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize WeexError with comprehensive error information.</span>
+
+<span class="sd">        Python 3.14 improvements:</span>
+<span class="sd">        - Better type inference with union types</span>
+<span class="sd">        - Enhanced error context preservation</span>
+<span class="sd">        - Improved debugging capabilities</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            message: Human-readable error message</span>
+<span class="sd">            code: Weex API error code</span>
+<span class="sd">            data: Raw response data for debugging</span>
+<span class="sd">            request_id: Unique request identifier for tracing</span>
+<span class="sd">            context: Additional context about the operation</span>
+<span class="sd">            retry_after: Retry delay in seconds (for rate limits)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">code</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span> <span class="ow">or</span> <span class="s2">&quot;WEEX API error&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">request_id</span> <span class="o">=</span> <span class="n">request_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">UTC</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">retry_after</span> <span class="o">=</span> <span class="n">retry_after</span>
+
+        <span class="c1"># Add structured logging for better debugging</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">&quot;Weex API error occurred: code=</span><span class="si">%s</span><span class="s2"> message=</span><span class="si">%s</span><span class="s2"> request_id=</span><span class="si">%s</span><span class="s2"> context=</span><span class="si">%s</span><span class="s2"> timestamp=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">code</span><span class="p">,</span>
+            <span class="n">message</span><span class="p">,</span>
+            <span class="n">request_id</span><span class="p">,</span>
+            <span class="n">context</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(),</span>
+        <span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="WEEXError.__repr__">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXError.__repr__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Provide detailed representation for debugging.</span>
+
+<span class="sd">        Python 3.14 improves exception representation with</span>
+<span class="sd">        better string formatting and type safety.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;code=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="si">!r}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;message=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">message</span><span class="si">!r}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;request_id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">request_id</span><span class="si">!r}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;timestamp=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="si">!r}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;)&quot;</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="WEEXError.to_dict">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXError.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert exception to dictionary for serialization.</span>
+
+<span class="sd">        Useful for logging, monitoring, and API responses.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with all exception data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;error_type&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+            <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="p">,</span>
+            <span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">message</span><span class="p">,</span>
+            <span class="s2">&quot;request_id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">request_id</span><span class="p">,</span>
+            <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(),</span>
+            <span class="s2">&quot;context&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">,</span>
+            <span class="s2">&quot;retry_after&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">retry_after</span><span class="p">,</span>
+            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+        <span class="p">}</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="WEEXAuthenticationError">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXAuthenticationError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXAuthenticationError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Authentication failed - invalid credentials, expired keys, etc.&quot;&quot;&quot;</span></div>
+
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXPermissionError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Insufficient permissions for the requested operation.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="WEEXRateLimitError">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXRateLimitError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXRateLimitError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Rate limit exceeded.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        retry_after: Time to wait before retrying (seconds)</span>
+<span class="sd">        limit_type: Type of limit (requests/minute, requests/second, etc.)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="WEEXRateLimitError.__init__">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXRateLimitError.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">:</span> <span class="n">ErrorMessage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">retry_after</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">limit_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">message</span><span class="o">=</span><span class="n">message</span> <span class="ow">or</span> <span class="s2">&quot;Rate limit exceeded&quot;</span><span class="p">,</span> <span class="n">retry_after</span><span class="o">=</span><span class="n">retry_after</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">limit_type</span> <span class="o">=</span> <span class="n">limit_type</span></div>
+</div>
+
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXParameterError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Invalid parameters in the request.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="WEEXSystemError">
+<a class="viewcode-back" href="../../api/exceptions.html#weex_client.exceptions.WEEXSystemError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXSystemError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;System-level errors (maintenance, internal errors, etc.).&quot;&quot;&quot;</span></div>
+
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXRequestError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Request format or method errors.&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXNotFoundError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Requested resource not found.&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXNetworkError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Network-related errors.</span>
+
+<span class="sd">    Python 3.14 enhances network error handling with better</span>
+<span class="sd">    async context preservation and timeout management.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">WEEXParseError</span><span class="p">(</span><span class="n">WEEXError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Failed to parse API response.&quot;&quot;&quot;</span>
+
+
+<span class="c1"># Error code mapping for automatic exception classification</span>
+<span class="c1"># Python 3.14&#39;s frozenset and dict comprehension improvements</span>
+<span class="n">ERROR_CODE_MAP</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">type</span><span class="p">[</span><span class="n">WEEXError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">AUTHENTICATION_CODES</span><span class="p">,</span> <span class="n">WEEXAuthenticationError</span><span class="p">),</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">PERMISSION_CODES</span><span class="p">,</span> <span class="n">WEEXPermissionError</span><span class="p">),</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">RATE_LIMIT_CODES</span><span class="p">,</span> <span class="n">WEEXRateLimitError</span><span class="p">),</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">PARAMETER_CODES</span><span class="p">,</span> <span class="n">WEEXParameterError</span><span class="p">),</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">SYSTEM_CODES</span><span class="p">,</span> <span class="n">WEEXSystemError</span><span class="p">),</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">REQUEST_CODES</span><span class="p">,</span> <span class="n">WEEXRequestError</span><span class="p">),</span>
+    <span class="o">**</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">NOT_FOUND_CODES</span><span class="p">,</span> <span class="n">WEEXNotFoundError</span><span class="p">),</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_code</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="n">ErrorCode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ErrorCode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Normalize error code to consistent format.</span>
+
+<span class="sd">    Python 3.14 improves type checking with better union type handling.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">code</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">stripped</span> <span class="o">=</span> <span class="n">code</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">stripped</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">stripped</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">code</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_message</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">ErrorMessage</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract error message from various response formats.</span>
+
+<span class="sd">    Weex API may return error messages in different fields.</span>
+<span class="sd">    This function handles all known variations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;message&quot;</span><span class="p">,</span> <span class="s2">&quot;msg&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="s2">&quot;error_message&quot;</span><span class="p">,</span> <span class="s2">&quot;detail&quot;</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">return</span> <span class="s2">&quot;WEEX API error&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_request_id</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">RequestId</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract request ID from response for tracing.</span>
+
+<span class="sd">    Useful for debugging with Weex support.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;request_id&quot;</span><span class="p">,</span> <span class="s2">&quot;requestId&quot;</span><span class="p">,</span> <span class="s2">&quot;req_id&quot;</span><span class="p">,</span> <span class="s2">&quot;reqId&quot;</span><span class="p">,</span> <span class="s2">&quot;request-id&quot;</span><span class="p">,</span> <span class="s2">&quot;id&quot;</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_retry_after</span><span class="p">(</span>
+    <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">http_status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract retry-after information from rate limit responses.</span>
+
+<span class="sd">    Supports both seconds and ISO datetime formats.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">http_status</span> <span class="o">==</span> <span class="mi">429</span><span class="p">:</span>
+        <span class="c1"># Check various retry-after fields</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;retry_after&quot;</span><span class="p">,</span> <span class="s2">&quot;retryAfter&quot;</span><span class="p">,</span> <span class="s2">&quot;retry-after&quot;</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+                <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Default retry delay for rate limits</span>
+        <span class="k">return</span> <span class="mf">60.0</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_classify_error</span><span class="p">(</span>
+    <span class="n">code</span><span class="p">:</span> <span class="n">ErrorCode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">http_status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">WEEXError</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Classify error based on code and HTTP status.</span>
+
+<span class="sd">    Uses Python 3.14&#39;s improved pattern matching capabilities</span>
+<span class="sd">    for better error classification logic.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">_normalize_code</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+
+    <span class="c1"># Enhanced pattern matching for error classification</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">normalized</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">normalized</span> <span class="ow">in</span> <span class="n">RATE_LIMIT_CODES</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">WEEXRateLimitError</span>
+        <span class="k">if</span> <span class="n">normalized</span> <span class="ow">in</span> <span class="n">ERROR_CODE_MAP</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ERROR_CODE_MAP</span><span class="p">[</span><span class="n">normalized</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">http_status</span> <span class="o">==</span> <span class="mi">429</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">WEEXRateLimitError</span>
+    <span class="k">if</span> <span class="n">http_status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">http_status</span> <span class="o">&gt;=</span> <span class="mi">500</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">WEEXSystemError</span>
+
+    <span class="k">return</span> <span class="n">WEEXError</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">handle_api_error</span><span class="p">(</span>
+    <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">http_status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">ContextInfo</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">operation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handle Weex API response and raise appropriate exceptions.</span>
+
+<span class="sd">    This function demonstrates Python 3.14&#39;s enhanced pattern matching</span>
+<span class="sd">    and provides comprehensive error handling for all API responses.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        payload: API response data (dict or other type)</span>
+<span class="sd">        http_status: HTTP status code from response</span>
+<span class="sd">        context: Additional context about the operation</span>
+<span class="sd">        operation: Description of operation being performed</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The original payload if it represents a successful response</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        Various WEEXError subclasses based on error classification</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; try:</span>
+<span class="sd">        ...     response = await client.request(...)</span>
+<span class="sd">        ...     data = handle_api_error(</span>
+<span class="sd">        ...         response,</span>
+<span class="sd">        ...         http_status=400,</span>
+<span class="sd">        ...         context={&quot;operation&quot;: &quot;place_order&quot;}</span>
+<span class="sd">        ...     )</span>
+<span class="sd">        ... except WEEXRateLimitError as e:</span>
+<span class="sd">        ...     await asyncio.sleep(e.retry_after)</span>
+<span class="sd">        ...     # Retry the request</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Validate response type</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">http_status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">http_status</span> <span class="o">&lt;</span> <span class="mi">400</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">payload</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">&quot;Invalid response type received: payload_type=</span><span class="si">%s</span><span class="s2"> http_status=</span><span class="si">%s</span><span class="s2"> operation=</span><span class="si">%s</span><span class="s2"> context=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+            <span class="n">http_status</span><span class="p">,</span>
+            <span class="n">operation</span><span class="p">,</span>
+            <span class="n">context</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">raise</span> <span class="n">WEEXParseError</span><span class="p">(</span>
+            <span class="s2">&quot;Invalid response type: expected dict&quot;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;payload&quot;</span><span class="p">:</span> <span class="n">payload</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">},</span>
+            <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Extract error information</span>
+    <span class="n">code</span><span class="p">:</span> <span class="n">ErrorCode</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+    <span class="n">success</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;success&quot;</span><span class="p">)</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">_extract_message</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">request_id</span> <span class="o">=</span> <span class="n">_extract_request_id</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">retry_after</span> <span class="o">=</span> <span class="n">_extract_retry_after</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">http_status</span><span class="p">)</span>
+
+    <span class="c1"># Check for successful response</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">code</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="n">success</span> <span class="ow">is</span> <span class="kc">True</span>
+        <span class="ow">or</span> <span class="p">(</span><span class="n">code</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">http_status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">http_status</span> <span class="o">&lt;</span> <span class="mi">400</span><span class="p">)</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">payload</span>
+
+    <span class="c1"># Classify and raise appropriate exception</span>
+    <span class="n">exc_class</span> <span class="o">=</span> <span class="n">_classify_error</span><span class="p">(</span>
+        <span class="n">code</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">http_status</span><span class="p">,</span> <span class="n">payload</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Enhanced error context</span>
+    <span class="n">error_context</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="o">**</span><span class="p">(</span><span class="n">context</span> <span class="ow">or</span> <span class="p">{}),</span>
+        <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="n">operation</span><span class="p">,</span>
+        <span class="s2">&quot;http_status&quot;</span><span class="p">:</span> <span class="n">http_status</span><span class="p">,</span>
+        <span class="s2">&quot;response_code&quot;</span><span class="p">:</span> <span class="n">code</span><span class="p">,</span>
+        <span class="s2">&quot;response_message&quot;</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+        <span class="s2">&quot;Weex API error detected: code=</span><span class="si">%s</span><span class="s2"> message=</span><span class="si">%s</span><span class="s2"> class=</span><span class="si">%s</span><span class="s2"> http_status=</span><span class="si">%s</span><span class="s2"> request_id=</span><span class="si">%s</span><span class="s2"> operation=</span><span class="si">%s</span><span class="s2"> context=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">code</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">,</span>
+        <span class="n">exc_class</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+        <span class="n">http_status</span><span class="p">,</span>
+        <span class="n">request_id</span><span class="p">,</span>
+        <span class="n">operation</span><span class="p">,</span>
+        <span class="n">error_context</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">raise</span> <span class="n">exc_class</span><span class="p">(</span>
+        <span class="n">message</span><span class="p">,</span>
+        <span class="n">code</span><span class="o">=</span><span class="n">code</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span>
+        <span class="n">request_id</span><span class="o">=</span><span class="n">request_id</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">error_context</span><span class="p">,</span>
+        <span class="n">retry_after</span><span class="o">=</span><span class="n">retry_after</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_error_handler</span><span class="p">(</span>
+    <span class="n">operation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">logger_instance</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="ne">Exception</span><span class="p">],</span> <span class="n">Never</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a configured error handler for specific operations.</span>
+
+<span class="sd">    Python 3.14&#39;s improved Callable type hints make this more</span>
+<span class="sd">    type-safe and easier to use in async contexts.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        operation: Description of the operation</span>
+<span class="sd">        logger_instance: Custom logger instance (optional)</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Error handler function that never returns (Never type)</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; handle_place_order_error = create_error_handler(&quot;place_order&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; try:</span>
+<span class="sd">        ...     await client.place_order(...)</span>
+<span class="sd">        ... except Exception as e:</span>
+<span class="sd">        ...     handle_place_order_error(e)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">logger_instance</span> <span class="ow">or</span> <span class="n">logger</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">handler</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Never</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handle error and raise appropriate WEEX exception.</span>
+
+<span class="sd">        This function demonstrates Python 3.14&#39;s Never type</span>
+<span class="sd">        for functions that never return normally.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">&quot;Operation failed: </span><span class="si">%s</span><span class="s2">: type=</span><span class="si">%s</span><span class="s2"> message=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">operation</span><span class="p">,</span>
+            <span class="nb">type</span><span class="p">(</span><span class="n">error</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">WEEXError</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">error</span>
+
+        <span class="c1"># Convert non-WEEX exceptions</span>
+        <span class="k">raise</span> <span class="n">WEEXError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Unexpected error in </span><span class="si">{</span><span class="n">operation</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;original_error&quot;</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">error</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                <span class="s2">&quot;original_message&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">),</span>
+            <span class="p">},</span>
+            <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="n">operation</span><span class="p">},</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">handler</span>
+
+
+<span class="c1"># Example pattern matching error handler for Python 3.14</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">handle_with_pattern_matching</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Demonstrate Python 3.14 pattern matching for error handling.</span>
+
+<span class="sd">    This function shows how to use enhanced pattern matching</span>
+<span class="sd">    with custom exception hierarchy.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        error: Exception to handle</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Description of the handling action taken</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">match</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">case</span> <span class="n">WEEXAuthenticationError</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="n">code</span><span class="p">,</span> <span class="n">request_id</span><span class="o">=</span><span class="n">req_id</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Authentication failed with code </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2">, request ID: </span><span class="si">{</span><span class="n">req_id</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="k">case</span> <span class="n">WEEXRateLimitError</span><span class="p">(</span><span class="n">retry_after</span><span class="o">=</span><span class="n">delay</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Rate limited, retry after </span><span class="si">{</span><span class="n">delay</span><span class="si">}</span><span class="s2"> seconds&quot;</span>
+
+        <span class="k">case</span> <span class="n">WEEXNetworkError</span><span class="p">(</span><span class="n">context</span><span class="o">=</span><span class="n">ctx</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Network error, context: </span><span class="si">{</span><span class="n">ctx</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="k">case</span> <span class="n">WEEXError</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="n">code</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">msg</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Generic Weex error </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Unknown error: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Weex Client Contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
