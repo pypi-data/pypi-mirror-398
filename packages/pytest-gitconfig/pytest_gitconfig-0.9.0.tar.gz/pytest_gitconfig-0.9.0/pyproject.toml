@@ -1,0 +1,208 @@
+[project]
+name = "pytest-gitconfig"
+description = "Provide a Git config sandbox for testing"
+authors = [
+    { name = "Axel Haustant", email = "noirbizarre@gmail.com" },
+]
+readme = "README.md"
+license = "MIT"
+license-files = [
+    "LICENSE",
+]
+requires-python = ">=3.10"
+keywords = []
+dynamic = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pytest>=7.1.2",
+]
+version = "0.9.0"
+
+[project.urls]
+Homepage = "https://github.com/noirbizarre/pytest-gitconfig"
+Documentation = "https://github.com/noirbizarre/pytest-gitconfig#readme"
+Repository = "https://github.com/noirbizarre/pytest-gitconfig"
+Issues = "https://github.com/noirbizarre/pytest-gitconfig/issues"
+
+[project.entry-points.pytest11]
+gitconfig = "pytest_gitconfig.plugin"
+
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[dependency-groups]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+    "tox>=4.22",
+]
+test = [
+    "pytest>=9.0.0",
+    "coverage[toml]>=4",
+    "pytest-sugar>=0.9.5",
+]
+lint = [
+    "codespell>=2.3.0",
+    "mypy>=1.11.0",
+    "ruff>=0.5.5",
+    "prek",
+]
+docs = [
+    "emotional>=0.6.0",
+]
+
+[tool.pdm]
+distribution = true
+plugins = [
+    "sync-pre-commit-lock>=0.7.0",
+]
+
+[tool.pdm.version]
+source = "scm"
+write_to = "pytest_gitconfig/VERSION"
+
+[tool.pdm.scripts]
+pre_cover = "coverage erase"
+
+[tool.pdm.scripts.test]
+help = "Run the test suite"
+cmd = "pytest"
+
+[tool.pdm.scripts."test:all"]
+help = "Run the test suite against all supported versions"
+cmd = "tox --parallel"
+
+[tool.pdm.scripts.lint]
+help = "Lint all tracked files using pre-commit"
+cmd = "prek run --all-files"
+
+[tool.pdm.scripts.format]
+help = "Format the code according to known rules"
+composite = [
+    "codespell --write-changes --interactive 2",
+    "ruff check --select I --fix-only --show-fixes src tests",
+    "ruff format src tests",
+]
+
+[tool.pdm.scripts.typing]
+help = "Full typing linting (includes imported packages and uncommmited files)"
+cmd = "mypy src tests --warn-unused-ignores"
+
+[tool.pdm.scripts.cover]
+help = "Run the test suite with coverage"
+composite = [
+    "coverage run --append -m pytest {args} --junitxml=reports/tests.xml",
+    "coverage report",
+    "coverage html -d reports/coverage",
+    "coverage xml -o reports/coverage.xml",
+]
+
+[tool.pdm.scripts.cover.env]
+COV_CORE_SOURCE = "src"
+
+[tool.pdm.scripts."cover:all"]
+help = "Run the test suite against all supported Python version"
+cmd = "tox --parallel"
+
+[tool.pdm.scripts.changelog]
+help = "Update the changelog"
+cmd = "cz changelog"
+
+[tool.commitizen]
+name = "emotional"
+github = "noirbizarre/pytest-gitconfig"
+order_by_scope = true
+version_provider = "scm"
+major_version_zero = true
+
+[tool.pytest]
+addopts = [
+    "-ra",
+]
+norecursedirs = [
+    ".git",
+    "build",
+    "dist",
+]
+testpaths = [
+    "src/",
+    "tests/",
+]
+
+[tool.coverage.run]
+source = [
+    "src/",
+]
+branch = true
+omit = [
+    "tests/*",
+]
+relative_files = true
+
+[tool.coverage.paths]
+source = [
+    "src/",
+    ".tox/*/lib/*/site-packages/",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "if TYPE_CHECKING:",
+]
+ignore_errors = true
+
+[tool.ruff]
+line-length = 110
+respect-gitignore = true
+src = [
+    "src",
+    "tests",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "C",
+    "UP",
+    "I001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "pytest_gitconfig",
+]
+known-third-party = [
+    "pytest",
+]
+lines-between-types = 1
+
+[tool.mypy]
+exclude = [
+    "docs",
+    "build",
+    "dist",
+]
