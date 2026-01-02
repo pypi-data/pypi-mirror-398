@@ -1,0 +1,160 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aipartnerupflow"
+version = "0.9.0"
+description = "Agent workflow orchestration and execution platform"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "aipartnerup", email = "tercel.yi@gmail.com"}
+]
+license = {text = "Apache-2.0"}
+keywords = ["ai", "agent", "orchestration", "workflow", "task", "crewai", "a2a"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Core dependencies (pure orchestration framework - NO CrewAI)
+dependencies = [
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    # Default storage support (embedded DuckDB)
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "duckdb-engine>=0.10.0",
+    "pytz>=2024.1",  # Required for DuckDB timezone support
+]
+
+# Optional dependencies
+[project.optional-dependencies]
+# A2A Protocol Server (Agent-to-Agent communication protocol)
+a2a = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.2",
+    "a2a-sdk[http-server]>=0.3.0",
+    "httpx[socks]>=0.27.0",  # Include socks support for proxy environments
+    "aiohttp[speedups]>=3.9.0",
+    "starlette>=0.27.0",
+    "websockets>=12.0",
+    "python-jose[cryptography]>=3.3.0",  # JWT token generation and verification
+]
+
+# CLI tools
+cli = [
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "typer>=0.9.0",
+    "python-dotenv>=1.0.0",  # For .env file support
+    "nest_asyncio>=1.5.0",  # For handling nested event loops in async CLI commands
+]
+
+# PostgreSQL storage (enterprise/distributed scenarios)
+postgres = [
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+]
+
+# CrewAI LLM task support (includes BatchCrewaiExecutor)
+crewai = [
+    "crewai[tools]>=1.4.1",
+    # Fix compatibility issue: aiodns 3.6.0 is incompatible with pycares 5.0.0
+    # aiodns 3.6.1+ works with pycares 4.x, and pip will automatically resolve pycares version
+    "aiodns>=3.6.1",
+]
+
+# Templates feature removed - not planned for implementation
+# templates = []
+
+# Examples feature removed - demo tasks moved to aipartnerupflow-demo project
+# examples = []  # Removed: use aipartnerupflow-demo for demo task initialization
+
+# LLM Key Configuration Management (multi-user support)
+llm-key-config = []
+
+# SSH remote execution
+ssh = [
+    "asyncssh>=2.14.0",
+]
+
+# Docker container execution
+docker = [
+    "docker>=7.0.0",
+]
+
+# gRPC execution
+grpc = [
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+]
+
+# MCP (Model Context Protocol) execution
+# Note: MCP executor uses stdio (standard library) and HTTP (httpx from a2a extra)
+# No additional dependencies required for stdio mode
+# For HTTP mode, install with [a2a] extra which includes httpx
+mcp = [
+    # MCP executor uses standard library for stdio mode
+    # httpx is available via [a2a] extra for HTTP mode
+    # No additional dependencies needed
+]
+
+# LLM execution via LiteLLM
+llm = [
+    "litellm>=1.0.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "twine>=4.0.0",
+    "pre-commit>=3.0.0",
+]
+
+# Full installation (all features)
+all = [
+    "aipartnerupflow[crewai,a2a,cli,postgres,llm-key-config,ssh,docker,grpc,mcp,llm]",
+]
+
+[project.scripts]
+# CLI tools (requires [cli] extra)
+aipartnerupflow = "aipartnerupflow.cli.main:app"
+apflow = "aipartnerupflow.cli.main:app"
+
+# A2A Protocol Server entry point (requires [a2a] extra)
+# Usage: python -m aipartnerupflow.api.main
+# Or: aipartnerupflow-server (if installed with [a2a] extra)
+aipartnerupflow-server = "aipartnerupflow.api.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"aipartnerupflow" = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
