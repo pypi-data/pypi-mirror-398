@@ -1,0 +1,205 @@
+# AuroraView Gallery - Pack Configuration
+# ============================================================================
+#
+# Configuration Hierarchy:
+#   [package]              - Package metadata & identity
+#   [frontend]             - Frontend configuration (path or url)
+#   [backend]              - Backend abstraction layer (optional)
+#   [backend.python]       - Python-specific settings
+#   [backend.go]           - Go-specific settings
+#   [backend.rust]         - Rust-specific settings
+#   [backend.node]         - Node.js-specific settings
+#   [backend.process]      - Common process settings
+#   [window]               - Runtime window behavior
+#   [bundle]               - General bundling settings
+#   [bundle.windows]       - Windows-specific
+#   [bundle.macos]         - macOS-specific
+#   [bundle.linux]         - Linux-specific
+#   [build]                - Build hooks
+#   [hooks]                - File collection
+#   [runtime]              - Runtime environment
+#   [debug]                - Debug settings
+#   [license]              - License validation
+#   [inject]               - JS/CSS injection
+#
+# Backend Types:
+#   - "python": Python backend (standalone, pyoxidizer, embedded, portable, system)
+#   - "go": Go backend (compiled binary)
+#   - "rust": Rust backend (compiled binary)
+#   - "node": Node.js backend (pkg, nexe, sea, portable)
+#   - "none": Frontend-only mode (default if [backend] omitted)
+
+# ============================================================================
+# Package Metadata & Identity
+# ============================================================================
+[package]
+name = "auroraview-gallery"
+version = "0.1.0"
+title = "AuroraView Gallery"
+identifier = "com.auroraview.gallery"
+description = "Interactive showcase of all AuroraView features and components"
+authors = ["AuroraView Team"]
+license = "MIT"
+homepage = "https://github.com/AuroraView/auroraview"
+repository = "https://github.com/AuroraView/auroraview"
+allow_new_window = true
+
+# ============================================================================
+# Frontend Configuration
+# ============================================================================
+[frontend]
+path = "./dist"
+# url = "https://example.com"                   # OR remote URL (mutually exclusive)
+
+# ============================================================================
+# Backend Configuration (Multi-language abstraction)
+# ============================================================================
+[backend]
+type = "python"                                 # "python" | "go" | "rust" | "node" | "none"
+
+# Python-specific configuration
+[backend.python]
+version = "3.11"
+entry_point = "main:run_gallery"
+packages = ["pyyaml"]
+include_paths = [".", "../python"]
+exclude = ["*.pyc", "__pycache__", "*.egg-info", "tests", "node_modules", "dist", "pack-output"]
+optimize = 1
+strategy = "standalone"                         # "standalone" | "pyoxidizer" | "embedded" | "portable" | "system"
+
+# Python environment isolation
+[backend.python.isolation]
+pythonpath = true
+path = true
+extra_path = []
+extra_pythonpath = []
+
+# Python code protection (bytecode encryption with ECC + AES-256-GCM)
+# This is FAST because it only compiles to .pyc and encrypts, no C compiler needed.
+[backend.python.protection]
+enabled = false
+method = "bytecode"                              # "bytecode" (fast) | "py2pyd" (slow, needs C compiler)
+optimization = 2
+keep_temp = false
+
+# Encryption settings for bytecode protection
+[backend.python.protection.encryption]
+enabled = true
+algorithm = "x25519"                             # "x25519" (fast) | "p256" (FIPS compliant)
+
+# Common process settings (applies to all backend types)
+[backend.process]
+console = false
+args = []
+env = { GALLERY_MODE = "production" }
+restart_on_crash = false
+max_restarts = 3
+
+# Health check (optional)
+# [backend.process.health_check]
+# url = "http://localhost:8080/health"
+# timeout = 30
+# interval = 5
+# retries = 3
+
+# ============================================================================
+# Window Configuration (runtime behavior)
+# ============================================================================
+[window]
+width = 1200
+height = 800
+min_width = 800
+min_height = 600
+resizable = true
+frameless = false
+transparent = false
+always_on_top = false
+start_position = "center"
+
+# ============================================================================
+# Bundle Configuration
+# ============================================================================
+[bundle]
+icon = "../assets/icons/auroraview-256.png"
+copyright = "Copyright 2025 AuroraView Team"
+category = "Developer Tools"
+short_description = "AuroraView Feature Gallery"
+resources = ["../examples"]
+
+# Windows-specific
+[bundle.windows]
+icon = "../assets/icons/auroraview.ico"
+console = false
+
+# [bundle.macos]
+# icon = "../assets/icons/auroraview.icns"
+
+# [bundle.linux]
+# icon = "../assets/icons/auroraview-256.png"
+# categories = ["Development", "Utility"]
+
+# ============================================================================
+# Build Configuration
+# ============================================================================
+[build]
+before = ["npm run build"]
+after = []
+resources = ["./public"]
+exclude = ["*.map", "*.ts", "node_modules"]
+out_dir = "./pack-output"
+release = true
+
+# ============================================================================
+# Hooks Configuration (file collection)
+# ============================================================================
+[hooks]
+before_collect = []
+after_pack = []
+
+[[hooks.collect]]
+source = "../examples/*.py"
+dest = "resources/examples"
+preserve_structure = false
+description = "Python example files for the gallery"
+
+[[hooks.collect]]
+source = "../examples/*.html"
+dest = "resources/examples"
+preserve_structure = false
+description = "HTML example files"
+
+# ============================================================================
+# Runtime Environment
+# ============================================================================
+[runtime]
+[runtime.env]
+AURORAVIEW_APP = "gallery"
+LOG_LEVEL = "info"
+
+# ============================================================================
+# Debug Configuration
+# ============================================================================
+[debug]
+enabled = true
+devtools = true
+verbose = false
+remote_debugging_port = 9222
+
+# ============================================================================
+# License Configuration (optional)
+# ============================================================================
+# [license]
+# enabled = true
+# expires_at = "2025-12-31"
+# require_token = false
+# grace_period_days = 7
+# expiration_message = "Your AuroraView Gallery license has expired."
+
+# ============================================================================
+# Inject Configuration (optional)
+# ============================================================================
+[inject]
+# js = "./inject.js"
+# css = "./inject.css"
+# js_code = "console.log('AuroraView Gallery loaded');"
+# css_code = "body { font-family: system-ui; }"
