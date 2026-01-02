@@ -1,0 +1,189 @@
+start: ((element _CPP_COMMENT_NL?) | _CPP_COMMENT_NL)*
+
+element: "targetScope" "=" QUOTED_INTERPOLATION                                         -> scope
+       | "import" _import_statement                                                     -> custom_import
+       | "extension" STRING ["with" object] ["as" STRING]                               -> extension
+       | "metadata" STRING "=" metadata_value                                           -> metadata
+       | [decorators] "param" STRING data_type "?"? ["=" value_brackets]                -> param
+       | [decorators] "var" STRING [data_type "?"?] "=" var_value                       -> var
+       | [decorators] "output" STRING data_type "?"? "=" output_value                   -> output
+       | [decorators] "resource" STRING type_api_pair [EXISTING] "=" resource_value     -> resource
+       | [decorators] "module" STRING module_path "=" module_value                      -> module
+       | [decorators] "type" STRING "=" type_value                                      -> custom_type
+
+?value: _NEWLINE? "null"                      -> null
+      | _NEWLINE? "true"                      -> true
+      | _NEWLINE? "false"                     -> false
+      | _NEWLINE? INT                         -> int_type
+      | _NEWLINE? STRING                      -> string
+      | _NEWLINE? QUOTED_INTERPOLATION        -> string
+      | MULTI_LINE_STRING                     -> multi_line_string
+      | array
+      | object
+      | _NEWLINE? function
+      | operator
+      | lambda_expression
+
+?value_brackets: (value | "(" value ")") "!"?
+
+// aliases
+
+_import_statement: (("{" import_alias ("," import_alias)* "}" | import_alias) "from" QUOTED_INTERPOLATION | QUOTED_INTERPOLATION)
+
+// element values
+
+?var_value: value_brackets | loop
+
+?metadata_value: QUOTED_INTERPOLATION -> string
+
+?output_value: value_brackets | loop
+
+?resource_value: object | loop | deploy_condition
+
+?module_value: object | loop | deploy_condition
+
+child_resource: "resource" STRING QUOTED_INTERPOLATION [EXISTING] "=" (object | loop | deploy_condition) _CPP_COMMENT_NL+
+
+?type_value: value_brackets ("|" value_brackets)*
+
+// element type extras
+
+data_type: STRING
+
+type_api_pair: QUOTED_INTERPOLATION
+
+module_path: QUOTED_INTERPOLATION
+
+import_alias: (STRING | /\*/) ["as" STRING]
+
+// loops
+
+loop: "[" _CPP_COMMENT_NL? "for" (loop_array | loop_array_index | loop_object) ":" [value_brackets] value_brackets _CPP_COMMENT_NL? "]"
+
+loop_array: STRING "in" value_brackets
+
+loop_array_index: "(" STRING "," STRING ")" "in" value_brackets
+
+loop_object: STRING "in" "items" "(" value_brackets ")"
+
+// deploy condition
+
+deploy_condition: _CPP_COMMENT_NL? "if" "(" value_brackets ")" value_brackets
+
+// data types
+
+?quoted_string: STRING | QUOTED_STRING | QUOTED_INTERPOLATION
+
+array: "[" _CPP_COMMENT_NL~0..10 (value_brackets ("," value_brackets)* _CPP_COMMENT_NL~0..5)* "]"
+
+object: "{" _CPP_COMMENT_NL~0..10 ((pair ("," pair)* | child_resource) _CPP_COMMENT_NL~0..5)* "}"
+
+pair: key ":" (value_brackets | loop) "?"?
+
+!key: "resource" | quoted_string
+
+lambda_expression: (value_brackets | "(" value_brackets "," value_brackets ("," value_brackets)+ ")") "=>" value_brackets
+
+// decorators
+
+decorator: ("@" /(sys\.)?[a-zA-Z0-9]+/ "(" _CPP_COMMENT_NL? value_brackets? _CPP_COMMENT_NL? ")" _CPP_COMMENT_NL~0..5)
+decorators: decorator+
+
+// functions
+
+FUNCTION.1: /((sys|az)\.)?[a-zA-Z0-9]+/ "("
+function: FUNCTION _CPP_COMMENT_NL? value_brackets? ("," _CPP_COMMENT_NL? value_brackets)* _CPP_COMMENT_NL? ")"
+
+// operators
+
+operator: operator_comparison | operator_logical | operator_numeric | operator_accessor
+
+// operators - comparison
+
+?operator_comparison: greater_than_or_equals | greater_than | less_than_or_equals | less_than
+                    | equals | not_equals | equals_case_insens | not_equals_case_insens
+
+greater_than_or_equals: value_brackets ">=" value_brackets
+
+greater_than: value_brackets ">" value_brackets
+
+less_than_or_equals: value_brackets "<=" value_brackets
+
+less_than: value_brackets "<" value_brackets
+
+equals: value_brackets "==" value_brackets
+
+not_equals: value_brackets "!=" value_brackets
+
+equals_case_insens: value_brackets "=~" value_brackets
+
+not_equals_case_insens: value_brackets "!~" value_brackets
+
+// operators - logical
+
+?operator_logical: and_op | or_op | not_op | coalesce | conditional
+
+and_op: value_brackets "&&" value_brackets
+
+or_op: value_brackets "||" value_brackets
+
+not_op: "!" value_brackets
+
+coalesce: value_brackets "??" value_brackets
+
+conditional: value_brackets "?" value_brackets ":" value_brackets
+
+// operators - numeric
+
+?operator_numeric: add | divide | minus | modulo | multiply | substract
+
+add: value_brackets "+" value_brackets
+
+divide: value_brackets "/" value_brackets
+
+minus: "-" value_brackets
+
+modulo: value_brackets "%" value_brackets
+
+multiply: value_brackets "*" value_brackets
+
+substract.1: value_brackets "-" value_brackets
+
+// operators - accessor
+
+?operator_accessor: index_accessor | function_accessor | nested_resource_accessor | property_accessor
+
+index_accessor: value_brackets "[" "?"? value_brackets "]"
+
+function_accessor: value_brackets "." LIST_FUNC_NAME "(" value_brackets? ["," value_brackets]+ ")"
+
+nested_resource_accessor: value_brackets "::" value_brackets
+
+// 'sys.' and 'az.' have to be eliminated in 1st operand (see STRING definition regexp):
+property_accessor: value_brackets "." "?"? value_brackets
+
+// Terms
+
+EXISTING: "existing"
+
+STRING: /(?!(sys|az)\.)[a-zA-Z_]([\w_])*/
+QUOTED_STRING: "'" /[a-zA-Z_]([\w_.])*/ "'"
+INDEXED: /(?=[\w][\w_.]+(.(get|list)[a-zA-Z]*\(('[\w-]+'|[\w.]+)?\)|[\[\]])+)(.(get|list)[a-zA-Z]*\(('[\w-]+'|[\w.]+)?\)|\[[\w\[\]_().']+\]|[\w_\-\/.,'= ])+/
+QUOTED_INTERPOLATION: /(?!.*''')'(\${(?:[^}'{]+|(?R))*+}|\\'|[^'])*'/
+LIST_FUNC_NAME.2: /(?=([Ll]ist[A-za-z]*|getSecret)\()([A-Za-z]+)/
+
+MULTI_LINE_STRING: "'''" (/.*?/ | NEWLINE)+ "'''"
+
+_NEWLINE: NEWLINE
+_CPP_COMMENT_NL: [CPP_COMMENT] NEWLINE
+
+%import common.C_COMMENT
+%import common.CPP_COMMENT
+%import common.SH_COMMENT
+%import common.INT
+%import common.NEWLINE
+%import common.WS_INLINE
+
+%ignore C_COMMENT
+%ignore SH_COMMENT
+%ignore WS_INLINE

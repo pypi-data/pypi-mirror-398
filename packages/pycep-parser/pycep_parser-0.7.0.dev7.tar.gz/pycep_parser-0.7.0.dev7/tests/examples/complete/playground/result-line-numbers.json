@@ -1,0 +1,589 @@
+{
+  "globals": {
+    "scope": {
+      "value": "resourceGroup",
+      "__start_line__": 3,
+      "__end_line__": 3
+    }
+  },
+  "metadata": {
+    "description": {
+      "value": "Official playground example https://aka.ms/bicepdemo",
+      "__start_line__": 1,
+      "__end_line__": 1
+    }
+  },
+  "extensions": {
+    "microsoftGraphV1": {
+      "__start_line__": 5,
+      "__end_line__": 5
+    }
+  },
+  "parameters": {
+    "virtualMachineSize": {
+      "decorators": [
+        {
+          "type": "description",
+          "argument": "Virtual machine size (has to be at least the size of Standard_A3 to support 2 NICs)"
+        }
+      ],
+      "type": "string",
+      "default": "Standard_DS1_v2",
+      "__start_line__": 7,
+      "__end_line__": 8
+    },
+    "adminUsername": {
+      "decorators": [
+        {
+          "type": "description",
+          "argument": "Default Admin username"
+        }
+      ],
+      "type": "string",
+      "default": null,
+      "__start_line__": 10,
+      "__end_line__": 11
+    },
+    "adminPassword": {
+      "decorators": [
+        {
+          "type": "description",
+          "argument": "Default Admin password"
+        },
+        {
+          "type": "secure"
+        }
+      ],
+      "type": "string",
+      "default": null,
+      "__start_line__": 13,
+      "__end_line__": 15
+    },
+    "storageAccountType": {
+      "decorators": [
+        {
+          "type": "description",
+          "argument": "Storage Account type for the VM and VM diagnostic storage"
+        },
+        {
+          "type": "allowed",
+          "argument": [
+            "Standard_LRS",
+            "Premium_LRS"
+          ]
+        }
+      ],
+      "type": "string",
+      "default": "Standard_LRS",
+      "__start_line__": 17,
+      "__end_line__": 22
+    },
+    "location": {
+      "decorators": [
+        {
+          "type": "description",
+          "argument": "Location for all resources."
+        }
+      ],
+      "type": "string",
+      "default": {
+        "operator": {
+          "type": "property_accessor",
+          "operands": {
+            "operand_1": {
+              "function": {
+                "type": "resource_group",
+                "parameters": {
+                  "resource_group_name": null,
+                  "subscription_id": null
+                }
+              }
+            },
+            "operand_2": "location"
+          }
+        }
+      },
+      "__start_line__": 24,
+      "__end_line__": 25
+    }
+  },
+  "variables": {
+    "virtualMachineName": {
+      "decorators": [],
+      "value": "VM-MultiNic",
+      "__start_line__": 27,
+      "__end_line__": 27
+    },
+    "nic1Name": {
+      "decorators": [],
+      "value": "nic-1",
+      "__start_line__": 28,
+      "__end_line__": 28
+    },
+    "nic2Name": {
+      "decorators": [],
+      "value": "nic-2",
+      "__start_line__": 29,
+      "__end_line__": 29
+    },
+    "virtualNetworkName": {
+      "decorators": [],
+      "value": "virtualNetwork",
+      "__start_line__": 30,
+      "__end_line__": 30
+    },
+    "subnet1Name": {
+      "decorators": [],
+      "value": "subnet-1",
+      "__start_line__": 31,
+      "__end_line__": 31
+    },
+    "subnet2Name": {
+      "decorators": [],
+      "value": "subnet-2",
+      "__start_line__": 32,
+      "__end_line__": 32
+    },
+    "publicIPAddressName": {
+      "decorators": [],
+      "value": "publicIp",
+      "__start_line__": 33,
+      "__end_line__": 33
+    },
+    "diagStorageAccountName": {
+      "decorators": [],
+      "value": "diags${uniqueString(resourceGroup().id)}",
+      "__start_line__": 34,
+      "__end_line__": 34
+    },
+    "networkSecurityGroupName": {
+      "decorators": [],
+      "value": "NSG",
+      "__start_line__": 35,
+      "__end_line__": 35
+    },
+    "networkSecurityGroupName2": {
+      "decorators": [],
+      "value": "${subnet2Name}-nsg",
+      "__start_line__": 36,
+      "__end_line__": 36
+    }
+  },
+  "resources": {
+    "vm": {
+      "decorators": [],
+      "type": "Microsoft.Compute/virtualMachines",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "virtualMachineName",
+        "location": "location",
+        "properties": {
+          "osProfile": {
+            "computerName": "virtualMachineName",
+            "adminUsername": "adminUsername",
+            "adminPassword": "adminPassword",
+            "windowsConfiguration": {
+              "provisionVMAgent": true
+            }
+          },
+          "hardwareProfile": {
+            "vmSize": "virtualMachineSize"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "MicrosoftWindowsServer",
+              "offer": "WindowsServer",
+              "sku": "2019-Datacenter",
+              "version": "latest"
+            },
+            "osDisk": {
+              "createOption": "FromImage"
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "properties": {
+                  "primary": true
+                },
+                "id": {
+                  "operator": {
+                    "type": "property_accessor",
+                    "operands": {
+                      "operand_1": "nic1",
+                      "operand_2": "id"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "primary": false
+                },
+                "id": {
+                  "operator": {
+                    "type": "property_accessor",
+                    "operands": {
+                      "operand_1": "nic2",
+                      "operand_2": "id"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "diagnosticsProfile": {
+            "bootDiagnostics": {
+              "enabled": true,
+              "storageUri": {
+                "operator": {
+                  "type": "property_accessor",
+                  "operands": {
+                    "operand_1": "diagsAccount",
+                    "operand_2": {
+                      "operator": {
+                        "type": "property_accessor",
+                        "operands": {
+                          "operand_1": "properties",
+                          "operand_2": {
+                            "operator": {
+                              "type": "property_accessor",
+                              "operands": {
+                                "operand_1": "primaryEndpoints",
+                                "operand_2": "blob"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "__start_line__": 39,
+      "__end_line__": 88
+    },
+    "storage": {
+      "decorators": [],
+      "type": "Microsoft.Storage/storageAccounts",
+      "api_version": "2021-02-01",
+      "existing": false,
+      "config": {
+        "name": "diagStorageAccountName",
+        "location": "location",
+        "kind": "StorageV2",
+        "sku": {
+          "name": "storageAccountType"
+        }
+      },
+      "__start_line__": 90,
+      "__end_line__": 105
+    },
+    "nsg2": {
+      "decorators": [],
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "networkSecurityGroupName2",
+        "location": "location"
+      },
+      "__start_line__": 108,
+      "__end_line__": 111
+    },
+    "vnet": {
+      "decorators": [],
+      "type": "Microsoft.Network/virtualNetworks",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "virtualNetworkName",
+        "location": "location",
+        "properties": {
+          "addressSpace": {
+            "addressPrefixes": [
+              "10.0.0.0/16"
+            ]
+          },
+          "subnets": [
+            {
+              "name": "subnet1Name",
+              "properties": {
+                "addressPrefix": "10.0.0.0/24"
+              }
+            },
+            {
+              "name": "subnet2Name",
+              "properties": {
+                "addressPrefix": "10.0.1.0/24",
+                "networkSecurityGroup": {
+                  "id": {
+                    "operator": {
+                      "type": "property_accessor",
+                      "operands": {
+                        "operand_1": "nsg2",
+                        "operand_2": "id"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "__start_line__": 114,
+      "__end_line__": 141
+    },
+    "nic1": {
+      "decorators": [],
+      "type": "Microsoft.Network/networkInterfaces",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "nic1Name",
+        "location": "location",
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "subnet": {
+                  "id": {
+                    "function": {
+                      "type": "resource_id",
+                      "parameters": {
+                        "resource_type": "Microsoft.Network/virtualNetworks/subnets",
+                        "resource_name_1": {
+                          "operator": {
+                            "type": "property_accessor",
+                            "operands": {
+                              "operand_1": "vnet",
+                              "operand_2": "name"
+                            }
+                          }
+                        },
+                        "resource_name_2": "subnet1Name",
+                        "resource_group_name": null,
+                        "subscription_id": null
+                      }
+                    }
+                  }
+                },
+                "privateIPAllocationMethod": "Dynamic",
+                "publicIPAddress": {
+                  "id": {
+                    "operator": {
+                      "type": "property_accessor",
+                      "operands": {
+                        "operand_1": "pip",
+                        "operand_2": "id"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "networkSecurityGroup": {
+            "id": {
+              "operator": {
+                "type": "property_accessor",
+                "operands": {
+                  "operand_1": "nsg",
+                  "operand_2": "id"
+                }
+              }
+            }
+          }
+        }
+      },
+      "__start_line__": 144,
+      "__end_line__": 166
+    },
+    "nic2": {
+      "decorators": [],
+      "type": "Microsoft.Network/networkInterfaces",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "nic2Name",
+        "location": "location",
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "subnet": {
+                  "id": {
+                    "function": {
+                      "type": "resource_id",
+                      "parameters": {
+                        "resource_type": "Microsoft.Network/virtualNetworks/subnets",
+                        "resource_name_1": {
+                          "operator": {
+                            "type": "property_accessor",
+                            "operands": {
+                              "operand_1": "vnet",
+                              "operand_2": "name"
+                            }
+                          }
+                        },
+                        "resource_name_2": "subnet2Name",
+                        "resource_group_name": null,
+                        "subscription_id": null
+                      }
+                    }
+                  }
+                },
+                "privateIPAllocationMethod": "Dynamic"
+              }
+            }
+          ]
+        }
+      },
+      "__start_line__": 169,
+      "__end_line__": 185
+    },
+    "pip": {
+      "decorators": [],
+      "type": "Microsoft.Network/publicIPAddresses",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "publicIPAddressName",
+        "location": "location",
+        "properties": {
+          "publicIPAllocationMethod": "Dynamic"
+        }
+      },
+      "__start_line__": 188,
+      "__end_line__": 194
+    },
+    "nsg": {
+      "decorators": [],
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "api_version": "2020-06-01",
+      "existing": false,
+      "config": {
+        "name": "networkSecurityGroupName",
+        "location": "location",
+        "properties": {
+          "securityRules": [
+            {
+              "name": "default-allow-rdp",
+              "properties": {
+                "priority": 1000,
+                "sourceAddressPrefix": "*",
+                "protocol": "Tcp",
+                "destinationPortRange": "3389",
+                "access": "Allow",
+                "direction": "Inbound",
+                "sourcePortRange": "*",
+                "destinationAddressPrefix": "*"
+              }
+            }
+          ]
+        }
+      },
+      "__start_line__": 197,
+      "__end_line__": 217
+    },
+    "appRegistration": {
+      "decorators": [],
+      "type": "Microsoft.Graph/applications",
+      "api_version": "v1.0",
+      "existing": false,
+      "config": {
+        "uniqueName": "${virtualMachineName}-app",
+        "displayName": "${virtualMachineName} Application",
+        "signInAudience": "AzureADMyOrg"
+      },
+      "__start_line__": 226,
+      "__end_line__": 230
+    },
+    "storage__service": {
+      "decorators": [],
+      "type": "Microsoft.Storage/storageAccounts/fileServices",
+      "api_version": "2021-02-01",
+      "existing": false,
+      "config": {
+        "name": "default",
+        "depends_on": [
+          "storage"
+        ]
+      },
+      "__start_line__": 98,
+      "__end_line__": 104
+    },
+    "storage__service__share": {
+      "decorators": [],
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "api_version": "2021-02-01",
+      "existing": false,
+      "config": {
+        "name": "diagShare",
+        "depends_on": [
+          "storage__service"
+        ]
+      },
+      "__start_line__": 101,
+      "__end_line__": 103
+    }
+  },
+  "modules": {
+    "network": {
+      "decorators": [],
+      "type": "local",
+      "detail": {
+        "full": "./network.bicep",
+        "path": "./network.bicep"
+      },
+      "config": {
+        "name": "network",
+        "params": {
+          "myIp": "123.123.123.123"
+        }
+      },
+      "__start_line__": 219,
+      "__end_line__": 224
+    }
+  },
+  "outputs": {
+    "nsgId": {
+      "decorators": [],
+      "type": "string",
+      "value": {
+        "operator": {
+          "type": "property_accessor",
+          "operands": {
+            "operand_1": "nsg",
+            "operand_2": "id"
+          }
+        }
+      },
+      "__start_line__": 232,
+      "__end_line__": 232
+    },
+    "appRegistrationId": {
+      "decorators": [],
+      "type": "string",
+      "value": {
+        "operator": {
+          "type": "property_accessor",
+          "operands": {
+            "operand_1": "appRegistration",
+            "operand_2": "appId"
+          }
+        }
+      },
+      "__start_line__": 233,
+      "__end_line__": 233
+    }
+  }
+}

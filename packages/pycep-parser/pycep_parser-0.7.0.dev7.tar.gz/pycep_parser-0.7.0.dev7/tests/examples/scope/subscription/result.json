@@ -1,0 +1,112 @@
+{
+  "globals": {
+    "scope": {
+      "value": "subscription"
+    }
+  },
+  "parameters": {
+    "principalId": {
+      "decorators": [],
+      "type": "string",
+      "default": null
+    }
+  },
+  "variables": {
+    "roleName": {
+      "decorators": [],
+      "value": "Bicep Custom Role demo"
+    }
+  },
+  "resources": {
+    "definition": {
+      "decorators": [],
+      "type": "Microsoft.Authorization/roleDefinitions",
+      "api_version": "2018-01-01-preview",
+      "existing": false,
+      "config": {
+        "name": {
+          "function": {
+            "type": "guid",
+            "parameters": {
+              "base_string": "roleName"
+            }
+          }
+        },
+        "properties": {
+          "roleName": "roleName",
+          "description": "Custom role create with bicep",
+          "permissions": [
+            {
+              "actions": [
+                "*/read"
+              ]
+            }
+          ],
+          "assignableScopes": [
+            {
+              "operator": {
+                "type": "property_accessor",
+                "operands": {
+                  "operand_1": {
+                    "function": {
+                      "type": "subscription",
+                      "parameters": {
+                        "subscription_id": null
+                      }
+                    }
+                  },
+                  "operand_2": "id"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "assignment": {
+      "decorators": [],
+      "type": "Microsoft.Authorization/roleAssignments",
+      "api_version": "2020-04-01-preview",
+      "existing": false,
+      "config": {
+        "name": {
+          "function": {
+            "type": "guid",
+            "parameters": {
+              "base_string": "roleName",
+              "extra_string_1": "principalId",
+              "extra_string_2": {
+                "operator": {
+                  "type": "property_accessor",
+                  "operands": {
+                    "operand_1": {
+                      "function": {
+                        "type": "subscription",
+                        "parameters": {
+                          "subscription_id": null
+                        }
+                      }
+                    },
+                    "operand_2": "subscriptionId"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "properties": {
+          "roleDefinitionId": {
+            "operator": {
+              "type": "property_accessor",
+              "operands": {
+                "operand_1": "definition",
+                "operand_2": "id"
+              }
+            }
+          },
+          "principalId": "principalId"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "globals": {
+    "scope": {
+      "value": "resourceGroup"
+    }
+  },
+  "resources": {
+    "storageAcct": {
+      "decorators": [
+        {
+          "type": "batchSize",
+          "argument": 2
+        }
+      ],
+      "type": "Microsoft.Storage/storageAccounts",
+      "api_version": "2021-06-01",
+      "existing": false,
+      "config": {
+        "loop_type": {
+          "type": "array",
+          "detail": {
+            "item_name": "i",
+            "array_name": {
+              "function": {
+                "type": "range",
+                "parameters": {
+                  "start_index": 0,
+                  "count": 4
+                }
+              }
+            }
+          }
+        },
+        "condition": null,
+        "config": {
+          "name": "${i}storage${uniqueString(resourceGroup().id)}",
+          "location": "location",
+          "sku": {
+            "name": "Standard_LRS"
+          },
+          "kind": "Storage"
+        }
+      }
+    }
+  },
+  "modules": {
+    "sqlLogicalServer": {
+      "decorators": [
+        {
+          "type": "batchSize",
+          "argument": 1
+        }
+      ],
+      "type": "local",
+      "detail": {
+        "full": "sql-logical-server.bicep",
+        "path": "sql-logical-server.bicep"
+      },
+      "config": {
+        "loop_type": {
+          "type": "array_index",
+          "detail": {
+            "item_name": "sqlLogicalServer",
+            "index_name": "index",
+            "array_name": "sqlLogicalServers"
+          }
+        },
+        "condition": null,
+        "config": {
+          "name": "sqlLogicalServer-${index}",
+          "params": {
+            "sqlLogicalServer": {
+              "function": {
+                "type": "union",
+                "parameters": {
+                  "arg_1": "defaultSqlLogicalServerProperties",
+                  "arg_2": "sqlLogicalServer"
+                }
+              }
+            },
+            "password": {
+              "operator": {
+                "type": "property_accessor",
+                "operands": {
+                  "operand_1": "sqlLogicalServer",
+                  "operand_2": {
+                    "operator": {
+                      "type": "property_accessor",
+                      "operands": {
+                        "operand_1": "passwordFromKeyVault",
+                        "operand_2": "secretName"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "tags": {
+              "function": {
+                "type": "union",
+                "parameters": {
+                  "arg_1": "tags",
+                  "arg_2": {
+                    "operator": {
+                      "type": "property_accessor",
+                      "operands": {
+                        "operand_1": {
+                          "function": {
+                            "type": "union",
+                            "parameters": {
+                              "arg_1": "defaultSqlLogicalServerProperties",
+                              "arg_2": "sqlLogicalServer"
+                            }
+                          }
+                        },
+                        "operand_2": "tags"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

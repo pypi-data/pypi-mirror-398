@@ -1,0 +1,186 @@
+{
+  "globals": {
+    "scope": {
+      "value": "resourceGroup"
+    }
+  },
+  "variables": {
+    "stringArray": {
+      "decorators": [],
+      "value": {
+        "loop_type": {
+          "type": "array",
+          "detail": {
+            "item_name": "i",
+            "array_name": {
+              "function": {
+                "type": "range",
+                "parameters": {
+                  "start_index": 0,
+                  "count": "itemCount"
+                }
+              }
+            }
+          }
+        },
+        "condition": null,
+        "config": "item${(i + 1)}"
+      }
+    }
+  },
+  "outputs": {
+    "out1": {
+      "decorators": [],
+      "type": "array",
+      "value": {
+        "loop_type": {
+          "type": "array",
+          "detail": {
+            "item_name": "i",
+            "array_name": "bicepVarArray"
+          }
+        },
+        "condition": null,
+        "config": {
+          "element": "i"
+        }
+      }
+    }
+  },
+  "resources": {
+    "storageArray": {
+      "decorators": [],
+      "type": "Microsoft.Storage/storageAccounts",
+      "api_version": "2021-06-01",
+      "existing": false,
+      "config": {
+        "loop_type": {
+          "type": "array",
+          "detail": {
+            "item_name": "name",
+            "array_name": "storageNames"
+          }
+        },
+        "condition": null,
+        "config": {
+          "name": "${name}${uniqueString(resourceGroup().id)}",
+          "location": "location",
+          "sku": {
+            "name": "Standard_LRS"
+          },
+          "kind": "Storage"
+        }
+      }
+    },
+    "parentResources": {
+      "decorators": [],
+      "type": "Microsoft.Example/examples",
+      "api_version": "2020-06-06",
+      "existing": false,
+      "config": {
+        "loop_type": {
+          "type": "array",
+          "detail": {
+            "item_name": "parent",
+            "array_name": "parents"
+          }
+        },
+        "condition": null,
+        "config": {
+          "name": {
+            "operator": {
+              "type": "property_accessor",
+              "operands": {
+                "operand_1": "parent",
+                "operand_2": "name"
+              }
+            }
+          },
+          "properties": {
+            "children": {
+              "loop_type": {
+                "type": "array",
+                "detail": {
+                  "item_name": "child",
+                  "array_name": {
+                    "operator": {
+                      "type": "property_accessor",
+                      "operands": {
+                        "operand_1": "parent",
+                        "operand_2": "children"
+                      }
+                    }
+                  }
+                }
+              },
+              "condition": null,
+              "config": {
+                "name": {
+                  "operator": {
+                    "type": "property_accessor",
+                    "operands": {
+                      "operand_1": "child",
+                      "operand_2": "name"
+                    }
+                  }
+                },
+                "setting": {
+                  "operator": {
+                    "type": "property_accessor",
+                    "operands": {
+                      "operand_1": "child",
+                      "operand_2": "settingValue"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "modules": {
+    "sqlFirewallRules": {
+      "decorators": [],
+      "type": "local",
+      "detail": {
+        "full": "sql-firewall-rule.bicep",
+        "path": "sql-firewall-rule.bicep"
+      },
+      "config": {
+        "loop_type": {
+          "type": "array",
+          "detail": {
+            "item_name": "firewallRules",
+            "array_name": {
+              "operator": {
+                "type": "property_accessor",
+                "operands": {
+                  "operand_1": "sqlLogicalServer",
+                  "operand_2": "firewallRules"
+                }
+              }
+            }
+          }
+        },
+        "condition": null,
+        "config": {
+          "name": "sqlFirewallRule-${uniqueString(sqlLogicalServer.name)}",
+          "params": {
+            "sqlFirewallRule": "firewallRules",
+            "sqlServerName": {
+              "operator": {
+                "type": "property_accessor",
+                "operands": {
+                  "operand_1": "sqlLogicalServer",
+                  "operand_2": "name"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
