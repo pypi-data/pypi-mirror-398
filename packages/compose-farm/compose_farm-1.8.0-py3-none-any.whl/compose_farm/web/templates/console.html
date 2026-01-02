@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import page_header, collapse %}
+{% from "partials/icons.html" import terminal, file_code, save %}
+{% block title %}Console - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    {{ page_header("Console", "Terminal and editor access") }}
+
+    <!-- Host Selector -->
+    <div class="flex items-center gap-4 mb-4">
+        <label class="font-semibold">Host:</label>
+        <select id="console-host-select" class="select select-sm select-bordered">
+            {% for name in hosts %}
+            <option value="{{ name }}">{{ name }}{% if name == local_host %} (local){% endif %}</option>
+            {% endfor %}
+        </select>
+        <div class="tooltip" data-tip="Connect to host via SSH"><button id="console-connect-btn" class="btn btn-sm btn-primary" onclick="connectConsole()">Connect</button></div>
+        <span id="console-status" class="text-sm opacity-60"></span>
+    </div>
+
+    <!-- Terminal -->
+    {% call collapse("Terminal", checked=True, icon=terminal(), subtitle="Full shell access to selected host") %}
+        <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
+    {% endcall %}
+
+    <!-- Editor -->
+    {% call collapse("Editor", checked=True, icon=file_code()) %}
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-4">
+                <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
+                <div class="tooltip" data-tip="Load file from host"><button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="editor-status" class="text-sm opacity-60"></span>
+                <div class="tooltip" data-tip="Save file to host (⌘/Ctrl+S)"><button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button></div>
+            </div>
+        </div>
+        <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
+    {% endcall %}
+</div>
+
+<script>
+// Use var to allow re-declaration on HTMX navigation
+var consoleTerminalWrapper = null;  // {term, dispose}
+var consoleWs = null;
+var consoleEditor = null;
+var currentFilePath = null;
+var currentHost = null;
+
+// Helper to show status with monospace path
+function setEditorStatus(prefix, path) {
+    const statusEl = document.getElementById('editor-status');
+    const escaped = path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    statusEl.innerHTML = `${prefix} <code class="font-mono">${escaped}</code>`;
+}
+
+function connectConsole() {
+    const hostSelect = document.getElementById('console-host-select');
+    const host = hostSelect.value;
+    const statusEl = document.getElementById('console-status');
+    const terminalEl = document.getElementById('console-terminal');
+
+    if (!host) {
+        statusEl.textContent = 'Please select a host';
+        return;
+    }
+
+    currentHost = host;
+
+    // Clean up existing connection (use wrapper's dispose to clean up ResizeObserver)
+    if (consoleWs) {
+        consoleWs.close();
+        consoleWs = null;
+    }
+    if (consoleTerminalWrapper) {
+        consoleTerminalWrapper.dispose();
+        consoleTerminalWrapper = null;
+    }
+
+    statusEl.textContent = 'Connecting...';
+
+    // Create WebSocket
+    consoleWs = createWebSocket(`/ws/shell/${host}`);
+
+    // Resize callback - createTerminal's ResizeObserver calls this on container resize
+    const sendSize = (cols, rows) => {
+        if (consoleWs && consoleWs.readyState === WebSocket.OPEN) {
+            consoleWs.send(JSON.stringify({ type: 'resize', cols, rows }));
+        }
+    };
+
+    // Create terminal with resize callback
+    consoleTerminalWrapper = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    const term = consoleTerminalWrapper.term;
+
+    consoleWs.onopen = () => {
+        statusEl.textContent = `Connected to ${host}`;
+        sendSize(term.cols, term.rows);
+        // Focus terminal unless #editor hash is present (command palette Edit Config)
+        if (window.location.hash !== '#editor') {
+            term.focus();
+        }
+        // Auto-load the default file once editor is ready
+        const pathInput = document.getElementById('console-file-path');
+        if (pathInput && pathInput.value) {
+            const tryLoad = () => consoleEditor ? loadFile() : setTimeout(tryLoad, 100);
+            tryLoad();
+        }
+    };
+
+    consoleWs.onmessage = (event) => term.write(event.data);
+
+    consoleWs.onclose = () => {
+        statusEl.textContent = 'Disconnected';
+        term.write(`${ANSI.CRLF}${ANSI.DIM}[Connection closed]${ANSI.RESET}${ANSI.CRLF}`);
+    };
+
+    consoleWs.onerror = (error) => {
+        statusEl.textContent = 'Connection error';
+        term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
+        console.error('Console WebSocket error:', error);
+    };
+
+    // Send input to WebSocket
+    term.onData((data) => {
+        if (consoleWs && consoleWs.readyState === WebSocket.OPEN) {
+            consoleWs.send(data);
+        }
+    });
+}
+
+function initConsoleEditor() {
+    const editorEl = document.getElementById('console-editor');
+    if (!editorEl || consoleEditor) return;
+
+    loadMonaco(() => {
+        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
+        // Focus editor if #editor hash is present (command palette Edit Config)
+        if (window.location.hash === '#editor') {
+            // Small delay for Monaco to fully initialize before focusing
+            setTimeout(() => {
+                consoleEditor.focus();
+                editorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+    });
+}
+
+async function loadFile() {
+    const pathInput = document.getElementById('console-file-path');
+    const path = pathInput.value.trim();
+    const statusEl = document.getElementById('editor-status');
+
+    if (!path) {
+        statusEl.textContent = 'Enter a file path';
+        return;
+    }
+
+    if (!currentHost) {
+        statusEl.textContent = 'Connect to a host first';
+        return;
+    }
+
+    setEditorStatus('Loading', path + '...');
+
+    try {
+        const response = await fetch(`/api/console/file?host=${encodeURIComponent(currentHost)}&path=${encodeURIComponent(path)}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            statusEl.textContent = data.detail || 'Failed to load file';
+            return;
+        }
+
+        const language = getLanguageFromPath(path);
+
+        if (consoleEditor) {
+            consoleEditor.setValue(data.content);
+            monaco.editor.setModelLanguage(consoleEditor.getModel(), language);
+            currentFilePath = path;  // Only set after content is loaded
+            setEditorStatus('Loaded:', path);
+        } else {
+            statusEl.textContent = 'Editor not ready';
+        }
+    } catch (e) {
+        statusEl.textContent = `Error: ${e.message}`;
+    }
+}
+
+async function saveFile() {
+    const statusEl = document.getElementById('editor-status');
+
+    if (!currentFilePath) {
+        statusEl.textContent = 'No file loaded';
+        return;
+    }
+
+    if (!currentHost) {
+        statusEl.textContent = 'Not connected to a host';
+        return;
+    }
+
+    if (!consoleEditor) {
+        statusEl.textContent = 'Editor not ready';
+        return;
+    }
+
+    setEditorStatus('Saving', currentFilePath + '...');
+
+    try {
+        const content = consoleEditor.getValue();
+        const response = await fetch(`/api/console/file?host=${encodeURIComponent(currentHost)}&path=${encodeURIComponent(currentFilePath)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'text/plain' },
+            body: content
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            statusEl.textContent = data.detail || 'Failed to save file';
+            return;
+        }
+
+        setEditorStatus('Saved:', currentFilePath);
+    } catch (e) {
+        statusEl.textContent = `Error: ${e.message}`;
+    }
+}
+
+// Initialize editor and auto-connect to first host
+function init() {
+    initConsoleEditor();
+    const hostSelect = document.getElementById('console-host-select');
+    if (hostSelect && hostSelect.options.length > 0) {
+        connectConsole();
+    }
+}
+
+// On HTMX navigation, dependencies (app.js) are already loaded.
+// On hard refresh, this script runs before app.js, so wait for DOMContentLoaded.
+if (typeof createTerminal === 'function') {
+    init();
+} else {
+    document.addEventListener('DOMContentLoaded', init);
+}
+</script>
+{% endblock content %}
