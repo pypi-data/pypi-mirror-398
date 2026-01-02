@@ -1,0 +1,1262 @@
+areas:
+  type: list
+  required: False
+  meta:
+    label: "Define areas/rooms for organizing entities in Home Assistant. Each area creates a sub-device linked to the main BoneIO device."
+  schema:
+    type: dict
+    schema:
+      id:
+        type: string
+        required: True
+        coerce: str
+        meta:
+          label: Area ID
+          description: |
+            Unique identifier for the area (used in output/input configurations).
+            Example: "living_room", "kitchen", "garage"
+      name:
+        type: string
+        required: True
+        meta:
+          label: Area Name
+          description: |
+            Display name for the area shown in Home Assistant.
+            Example: "Living Room", "Kitchen", "Garaż"
+
+# Remote devices - control outputs/covers on other devices via MQTT, CAN, etc.
+remote_devices: !include remote_devices.yaml
+
+mqtt:
+  type: dict
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/mqtt \n Mqtt section of boneIO Black configuration file. It handled connecting to mqtt broker, which then is connected to Home Assistant or other smart home system."
+  schema:
+    host:
+      required: True
+      type: string
+      meta:
+        label: Mqtt broker hostname or IP address
+    username:
+      required: False
+      type: string
+      meta:
+        label: Username to connect ot mqtt broker
+    password:
+      required: False
+      type: string
+      meta:
+        label: Password to mqtt
+    port:
+      required: True
+      type: integer
+      default: 1883
+      meta:
+        label: Port to connect to mqtt broker
+    ha_discovery:
+      type: dict
+      meta:
+        label: Ha discovery sub section
+      default: {}
+      schema:
+        enabled:
+          type: boolean
+          default: True
+          meta:
+            label: Enable HA discovery.
+        topic_prefix:
+          type: string
+          default: homeassistant
+          meta:
+            label: Prefix topic of HA discovery.
+    send_boneio_autodiscovery:
+      type: boolean
+      default: True
+      meta:
+        label: Enable sending BoneIO autodiscovery messages
+        description: |
+          When enabled, this device publishes its outputs, covers, inputs, and sensors
+          to MQTT discovery topics (boneio/{device_id}/discovery/*) so other BoneIO
+          devices can discover and control it.
+    receive_boneio_autodiscovery:
+      type: boolean
+      default: True
+      meta:
+        label: Enable receiving BoneIO autodiscovery messages
+        description: |
+          When enabled, this device subscribes to BoneIO autodiscovery topics
+          (boneio/+/discovery/#) and automatically discovers neighboring BoneIO devices.
+
+web:
+  type: dict
+  required: False
+  nullable: True
+  meta:
+    label: "https://boneio.eu/docs/black/0.9.x-dev/configuration/web \n Web section of boneIO Black. It enables web interface. Default on port 8090."
+  schema:
+    port:
+      required: False
+      type: integer
+      default: 8090
+      meta:
+        label: Port to run web server
+    proxy_port:
+      required: False
+      type: integer
+      nullable: True
+      meta:
+        label: Reverse proxy port (used in HA discovery URL). If not set, uses 'port' value.
+    auth:
+      required: False
+      type: dict
+      nullable: True
+      default: {}
+      meta:
+        label: Auth if defined
+      schema:
+        username:
+          type: string
+          required: False
+          meta:
+            label: Username to connect to web interface
+        password:
+          type: string
+          required: False
+          meta:
+            label: Password to web interface
+
+logger:
+  type: dict
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/logger \n Logger section of boneIO Black. It enables logging level. If run as systemd service, then it will log to journal. If not, then it will log to /tmp/boneio.log"
+  schema:
+    default:
+      type: string
+      required: False
+      coerce: lower  # Convert to lowercase
+      allowed: ['critical', 'error', 'warning', 'info', 'debug']
+      meta:
+        label: Module which you want logger to set. Default for app logger.
+    logs:
+      type: dict
+      valueschema:
+        type: string
+        coerce: lower  # Convert to lowercase for all values
+        allowed: ['critical', 'error', 'warning', 'info', 'debug']
+      meta:
+        label: "Each line suppose to have one python module name and logging level eg pymodbus.client: INFO."
+
+oled:
+  type: dict
+  default: {}
+  required: True
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/oled \n Oled section of boneIO Black. It enables oled screen. You'd need enabled: true to make it work."
+  schema:
+    enabled:
+      type: boolean
+      default: False
+      meta:
+        label: Disable builtin screen.
+    screens:
+      type: list
+      required: True
+      allowed:
+        [
+          'uptime',
+          'network',
+          'ina219',
+          'cpu',
+          'disk',
+          'memory',
+          'swap',
+          'outputs',
+          'inputs',
+          'extra_sensors',
+          'web'
+        ]
+      default:
+        - uptime
+        - network
+        - ina219
+        - cpu
+        - disk
+        - memory
+        - swap
+        - outputs
+    extra_screen_sensors:
+      type: list
+      required: False
+      meta:
+        label: Extra sensors
+      schema:
+        type: dict
+        schema:
+          sensor_type:
+            type: string
+            required: True
+            allowed: ['modbus', 'dallas']
+          modbus_id:
+            type: string
+            required: False
+            coerce:
+              - lower
+              - remove_space
+            meta:
+              label: Only needed if sensor type is modbus.
+          sensor_id:
+            type: string
+            required: True
+            coerce:
+              - lower
+              - remove_space
+    screensaver_timeout:
+      type:
+        - string
+        - timeperiod
+      coerce:
+        - str
+        - positive_time_period
+      default: 60s
+      meta:
+        label: How many seconds to wait to enable screensaver. 0 means disable screensaver.
+
+modbus:
+  type: dict
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/modbus \n Modbus section of boneIO Black. It enables modbus support. You define on which uart it modbus defined. For new boneIO it is uart4. For old boneIO it is uart1."
+  schema:
+    uart:
+      type: string
+      required: True
+      allowed: ['uart1', 'uart2', 'uart3', 'uart4', 'uart5']
+      meta:
+        label: Uart ID to use
+    baudrate:
+      type: integer
+      default: 9600
+    stopbits:
+      type: integer
+      default: 1
+      allowed: [1, 2]
+    bytesize:
+      type: integer
+      default: 8
+    parity:
+      type: string
+      allowed: ['N', 'E', 'O']
+      default: 'N'
+
+modbus_devices:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/modbus-sensors \n List of modbus sensors. You can use predefined modbus sensors. It would fetch data from them and publish to mqtt."
+  schema:
+    type: dict
+    schema:
+      name:
+        type: string
+        required: False
+        meta:
+          label: Display Name
+          description: Optional friendly name shown in Home Assistant. If not set, uses id.
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area
+          description: Area/room where the device is located. Used for grouping in Home Assistant.
+      id:
+        type: string
+        required: False
+        regex: '^[a-z0-9_]+$'
+        coerce: str
+        meta:
+          label: Device ID
+          description: |
+            Technical identifier used in MQTT topics.
+            Must contain only lowercase letters, numbers and underscores (no spaces).
+            If not set, auto-generated from address and model (e.g., 1_sdm120).
+      address:
+        type:
+          - string
+          - integer
+        required: True
+        meta:
+          label: Address of Modbus sensor to use.
+      model:
+        type: string
+        required: True
+        coerce:
+          - str
+          - lower
+        allowed:
+          [
+            'cwt',
+            'dts1964_3f',
+            'liquid-sensor',
+            'orno-or-we-517',
+            'pt100',
+            'fujitsu-ac',
+            'r4dcb08',
+            'sdm120',
+            'sdm630',
+            'sht20',
+            'sht30',
+            'socomec_e03',
+            'socomec_e23',
+            'sofar',
+            'ventclear',
+          ]
+        meta:
+          label: Model to load from database.
+      update_interval:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        default: 30s
+        min: 1s
+        meta:
+          label: Update interval (minimum 1 second).
+      sensors_filters:
+        type: dict
+        required: False
+        dependencies:
+          model: ['cwt']
+        meta:
+          label: List of sub sensors to use to filter. Available values are temperature or humidity. Only for CWT model.
+        schema:
+          temperature: !include filters.yaml
+          humidity: !include filters.yaml
+      data:
+        type: dict
+        required: False
+        dependencies:
+          model: ['liquid-sensor']
+        meta:
+          label: Data to pass to additional entities. Only for liquid-sensor model.
+        schema:
+          width:
+            type:
+              - string
+              - float
+              - integer
+            coerce:
+              - length_to_meters
+            required: False
+            meta:
+              label: Width of sensor in meters, cm etc. Without unit is meters
+          length:
+            type:
+              - string
+              - float
+              - integer
+            coerce:
+              - length_to_meters
+            required: False
+            meta:
+              label: Length of sensor in meters, cm etc. Without unit is meters
+lm75:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/lm75 \n LM75 Sensor list. All boneIO Black has one LM75 on board."
+  schema:
+    type: dict
+    required: False
+    schema:
+      id: !include id.yaml
+      address:
+        type: integer
+        required: True
+        default: 0x48
+        meta:
+          label: Address of I2C
+      update_interval: !include update_interval.yaml
+      filters: !include filters.yaml
+      unit_of_measurement: !include temp_unit.yaml
+
+ina219:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/ina219 \n INA219 Sensor list. All boneIO Black has one INA219 on board, which measures current, voltage and power of boneIO board."
+  schema:
+    type: dict
+    required: False
+    schema:
+      id: !include id.yaml
+      address:
+        type:
+          - string
+          - integer
+        required: True
+        default: 0x40
+        meta:
+          label: Address of I2C
+      sensors:
+        type: list
+        required: True
+        schema:
+          type: dict
+          required: False
+          schema:
+            id: !include id.yaml
+            device_class:
+              type: string
+              allowed: ['current', 'power', 'voltage']
+            filters: !include filters.yaml
+        default:
+          - id: INA219 Current
+            device_class: current
+          - id: INA219 Power
+            device_class: power
+          - id: INA219 Voltage
+            device_class: voltage
+      update_interval: !include update_interval.yaml
+
+virtual_energy_sensor:
+  type: list
+  required: False
+  meta:
+    label: "Virtual energy/water sensors linked to outputs. Creates power/energy or flow/volume sensors in Home Assistant."
+  schema:
+    type: dict
+    required: False
+    schema:
+      id:
+        type: string
+        required: False
+        coerce: str
+        meta:
+          label: Sensor ID
+          description: |
+            Unique identifier for the sensor. If not provided, will be generated from name.
+      name:
+        type: string
+        required: True
+        meta:
+          label: Sensor Name
+          description: |
+            Display name for the sensor in Home Assistant Energy panel.
+            Example: "Gabinet - Główne", "Kuchnia - Oświetlenie"
+      output_id:
+        type: string
+        required: True
+        meta:
+          label: Output ID
+          description: |
+            ID of the output to track. The sensor will measure energy/water consumption when this output is ON.
+      sensor_type:
+        type: string
+        required: True
+        allowed:
+          - power
+          - water
+        meta:
+          label: Sensor Type
+          description: |
+            Type of virtual sensor: 'power' for energy meter (W/Wh) or 'water' for flow meter (L/h, L).
+      power_usage:
+        type:
+          - string
+          - number
+        coerce:
+          - power_value_to_watts
+        required: False
+        dependencies:
+          sensor_type:
+            - power
+        meta:
+          label: Power Usage
+          description: |
+            Power consumption in Watts when output is ON. Accepts values like: 10, '10W', '1kW'.
+      flow_rate:
+        type:
+          - string
+          - number
+        coerce:
+          - volume_flow_rate_to_lph
+        required: False
+        dependencies:
+          sensor_type:
+            - water
+        meta:
+          label: Flow Rate
+          description: |
+            Water flow rate when output is ON. Accepts values like: 10, '10L/h', '5L/min'.
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area
+          description: |
+            Area ID to assign this sensor to a sub-device in Home Assistant.
+
+mcp9808:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/mcp9808 \n MCP9808 Sensor list. Older boneIO Black had one MCP9808 instead of LM75on board, which measures temperature."
+  schema:
+    type: dict
+    required: False
+    schema:
+      id: !include id.yaml
+      address:
+        type:
+          - string
+          - integer
+        required: True
+        default: 0x18
+        meta:
+          label: Address of I2C device
+      update_interval: !include update_interval.yaml
+      filters: !include filters.yaml
+      unit_of_measurement: !include temp_unit.yaml
+
+mcp23017:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/mcp23017 \n MCP23017 Pin config. All boneIO Black 32X10/Cover/Cover Mix/24x16 has two MCP23017 on board. If you use new boneio: section, then you don't need to define this."
+  schema:
+    type: dict
+    schema:
+      id: !include id.yaml
+      address:
+        type: integer
+        required: True
+        meta:
+          label: GPIO of I2C SDA
+      init_sleep:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        default: 0s
+        meta:
+          label: How long to sleep for MCP to initialize.
+
+pcf8575:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/pcf8575 \n PCF8575 Pin config. UNSTABLE."
+  schema:
+    type: dict
+    schema:
+      id: !include id.yaml
+      address:
+        type: integer
+        required: True
+        meta:
+          label: GPIO of I2C SDA
+      init_sleep:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        default: 0s
+        meta:
+          label: How long to sleep for PCF to initialize.
+
+pca9685:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/pca9685 \n PCA9685 Pin config."
+  schema:
+    type: dict
+    schema:
+      id: !include id.yaml
+      address:
+        type: integer
+        required: True
+        meta:
+          label: GPIO of I2C SDA
+      init_sleep:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        default: 0s
+        meta:
+          label: How long to sleep for PCA to initialize.
+
+output:
+  type: list
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/output \n List of outputs to define."
+  check_with: output_id_uniqueness
+  schema:
+    type: dict
+    schema:
+      name:
+        type: string
+        required: False
+        coerce: str
+        meta:
+          label: Display Name
+          description: Optional friendly name shown in Home Assistant. If not set, uses effective_id.
+      id:
+        type: string
+        required: False
+        coerce: str
+        meta:
+          label: Output ID
+          description: |
+            Technical identifier used in MQTT topics, output groups, and actions.
+            - If boneio_output is set: id is optional (defaults to boneio_output)
+            - If boneio_output is NOT set: id is REQUIRED
+            - If both are set: id overrides boneio_output as identifier
+      boneio_output:
+        type: string
+        required: False
+        meta:
+          label: BoneIO Output
+          description: |
+            Reference to predefined output configuration (e.g., OUT_01, OUT_02).
+            Available only when 'boneio' section is configured.
+            Used as default ID if 'id' field is not specified.
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area/Room
+          description: |
+            Reference to area ID defined in 'areas' section.
+            Creates a sub-device linked to the main BoneIO device.
+      kind:
+        type: string
+        required: False
+        allowed: ['gpio', 'mcp', 'pca', 'pcf']
+        meta:
+          label: Output kind (mcp, gpio, etc)
+      mcp_id:
+        type: string
+        required: False
+        meta:
+          label: MCP ID reference
+      pca_id:
+        type: string
+        required: False
+        meta:
+          label: PCA ID to connect
+      pcf_id:
+        type: string
+        required: False
+        meta:
+          label: PCF ID to connect
+      pin:
+        type: integer
+        required: False
+        meta:
+          label: Pin number
+      momentary_turn_on:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        meta:
+          label: How long can this relay be off. Can"t be used if output_type is "none".
+      momentary_turn_off:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        meta:
+          label: How long can this relay be on. Can"t be used if output_type is "none".
+      restore_state:
+        type: boolean
+        required: True
+        default: True
+      interlock_group:
+        type:
+          - string
+          - list
+        required: False
+        meta:
+          label: Interlock group name or list
+          description: |
+            Assigns this output to a software interlock group (or groups). Outputs with the same group name cannot be active at the same time.
+            You can provide a single group name (string) or a list of names (if the output should belong to multiple groups).
+        meta:
+          label: Restore saved state of boneio. Not used for "none" and output_type!
+      percentage_default_brightness:
+        type: integer
+        required: False
+        meta:
+          label: When the brightness is not set in ha, and we switch led to turn this value will be used
+      output_type:
+        type: string
+        required: True
+        allowed: ['switch', 'light', 'cover', 'valve', 'none']
+        coerce: lower
+        meta:
+          label: If HA discovery is used device if relay is light or switch. Cover if this output will be used for cover. If None is declared then any state is not published to MQTT (used for cover).
+
+output_group:
+  type: list
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/output_group \n List of grouped outputs to define. Output has to be defined first in output section!"
+  check_with: output_id_uniqueness
+  schema:
+    type: dict
+    schema:
+      id:
+        type: string
+        required: True
+        coerce: str
+        meta:
+          label: Group ID
+          description: Technical identifier for this group, used in MQTT topics and actions.
+      name:
+        type: string
+        required: False
+        coerce: str
+        meta:
+          label: Display Name
+          description: Optional friendly name shown in Home Assistant. If not set, uses id.
+      outputs:
+        type: list
+        required: True
+        meta:
+          label: Output IDs
+          description: |
+            List of output identifiers to include in this group.
+            Use the effective_id of each output (boneio_output or custom id).
+      all_on_behaviour:
+        type: boolean
+        required: True
+        default: False
+        meta:
+          label: Behaviour if set true toggle when all outputs are on, otherwise if any is on then group is on.
+      output_type:
+        type: string
+        required: True
+        allowed: ['switch', 'light']
+        default: 'switch'
+        coerce: lower
+        meta:
+          label: If HA discovery is used device if relay is light or switch.
+
+binary_sensor:
+  type: list
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/binary \n GPIO binary section of boneIO Black. It enables binary sensors in HA. It detects press and release states. It can run action based on states. It always send message to MQTT broker of invoked state."
+  schema:
+    type: dict
+    schema:
+      id:
+        type: string
+        required: False
+        meta:
+          label: Id to use in HA if needed. Default to pin number.
+      pin:
+        type: string
+        required: False
+        meta:
+          label: PIN to use.
+      gpio_mode:
+        type: string
+        required: True
+        default: 'gpio'
+        allowed: ['gpio', 'gpio_pu', 'gpio_pd', 'gpio_input']
+        meta:
+          label: What mode to use in config PIN.
+      clear_message:
+        type: boolean
+        default: False
+        meta:
+          label: Decide if after press/release callback send empty message to mqtt. Same as Zigbee2Mqtt is doing in button actions.
+      bounce_time:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        default: '120ms'
+        meta:
+          label: Bounce time for GPIO in miliseconds. Only for advanced usage.
+      boneio_input:
+        type: string
+        required: False
+        allowed: ["in_01", "in_02", "in_03", "in_04", "in_05", "in_06", "in_07", "in_08", "in_09", "in_10", "in_11", "in_12", "in_13", "in_14", "in_15", "in_16", "in_17", "in_18", "in_19", "in_20", "in_21", "in_22", "in_23", "in_24", "in_25", "in_26", "in_27", "in_28", "in_29", "in_30", "in_31", "in_32", "in_33", "in_34", "in_35", "in_36", "in_37", "in_38", "in_39", "in_40", "in_41", "in_42", "in_43", "in_44", "in_45", "in_46", "in_47", "in_48", "in_49"]
+        coerce:
+          - str
+          - lower
+        meta:
+          label: Reference to predefined input configuration
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area/Room
+          description: |
+            Reference to area ID defined in 'areas' section.
+            Creates a sub-device linked to the main BoneIO device.
+      show_in_ha:
+        type: boolean
+        required: True
+        default: True
+        meta:
+          label: If you want you can disable discovering this input in HA.
+      inverted:
+        type: boolean
+        default: False
+        required: True
+        meta:
+          label: Check if sensor type is inverted. Only aplicable for sensor kind.
+      initial_send:
+        type: boolean
+        default: False
+        required: True
+        meta:
+          label: If set to true, then on startup of application initial status of the binary sensor will be send to MQTT.
+      device_class:
+        type: string
+        required: False
+        allowed:
+          [
+            'battery',
+            'battery_charging',
+            'carbon_monoxide',
+            'cold',
+            'connectivity',
+            'door',
+            'garage_door',
+            'gas',
+            'heat',
+            'light',
+            'lock',
+            'moisture',
+            'motion',
+            'moving',
+            'occupancy',
+            'opening',
+            'plug',
+            'power',
+            'presence',
+            'problem',
+            'running',
+            'safety',
+            'smoke',
+            'sound',
+            'tamper',
+            'vibration',
+            'window',
+          ]
+        meta:
+          label: Device class to use in HA
+      actions:
+        required: False
+        type: dict
+        schema:
+          pressed: !include actions_sensor.yaml
+          released: !include actions_sensor.yaml
+
+event:
+  type: list
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/event \n GPIO event entity section of boneIO Black. It enables event entities in HA. It detects single, double and long click. It can run action based on states. It always send message to MQTT broker of invoked state."
+  check_with: input_id_exists
+  schema:
+    type: dict
+    schema:
+      name:
+        type: string
+        required: False
+        meta:
+          label: Name to use in HA.
+      id:
+        type: string
+        required: False
+        meta:
+          label: Id to use for MQTT topic. Default to boneio_input or pin number.
+      pin:
+        type: string
+        required: False
+        meta:
+          label: PIN to use.
+      gpio_mode:
+        type: string
+        required: True
+        default: 'gpio'
+        allowed: ['gpio', 'gpio_pu', 'gpio_pd', 'gpio_input']
+        meta:
+          label: What mode to use in config PIN.
+      clear_message:
+        type: boolean
+        default: False
+        meta:
+          label: Decide if after press/release callback send empty message to mqtt. Same as Zigbee2Mqtt is doing in button actions.
+      bounce_time:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        default: '30ms'
+        meta:
+          label: Bounce time for GPIO in miliseconds. Only for advanced usage.
+      boneio_input:
+        type: string
+        required: False
+        allowed: ["in_01", "in_02", "in_03", "in_04", "in_05", "in_06", "in_07", "in_08", "in_09", "in_10", "in_11", "in_12", "in_13", "in_14", "in_15", "in_16", "in_17", "in_18", "in_19", "in_20", "in_21", "in_22", "in_23", "in_24", "in_25", "in_26", "in_27", "in_28", "in_29", "in_30", "in_31", "in_32", "in_33", "in_34", "in_35", "in_36", "in_37", "in_38", "in_39", "in_40", "in_41", "in_42", "in_43", "in_44", "in_45", "in_46", "in_47", "in_48", "in_49"]
+        coerce:
+          - str
+          - lower
+        meta:
+          label: Reference to predefined input configuration
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area/Room
+          description: |
+            Reference to area ID defined in 'areas' section.
+            Creates a sub-device linked to the main BoneIO device.
+      show_in_ha:
+        type: boolean
+        required: True
+        default: True
+        meta:
+          label: If you want you can disable discovering this input in HA.
+      inverted:
+        type: boolean
+        default: False
+        required: True
+        meta:
+          label: Check if sensor type is inverted. Only aplicable for sensor kind.
+      device_class:
+        type: string
+        required: False
+        default: 'button'
+        allowed: ['button', 'doorbell', 'motion']
+        meta:
+          label: Device class to use in HA
+      double_click_duration:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        default: '220ms'
+        meta:
+          label: Double Click Duration
+          description: |
+            Time window in milliseconds to detect double click.
+            If second click happens within this time, it's detected as double click.
+      long_press_duration:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        default: '400ms'
+        meta:
+          label: Long Press Duration
+          description: |
+            Time in milliseconds to detect long press.
+            If button is held longer than this, it's detected as long press.
+      sequence_window_duration:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        default: '500ms'
+        meta:
+          label: Sequence Window Duration
+          description: |
+            Time window in milliseconds to detect click sequences.
+            If next click happens within this time after previous, it's detected as sequence (e.g., double_then_long).
+      actions:
+        required: False
+        type: dict
+        schema:
+          single: !include actions_switch.yaml
+          double: !include actions_switch.yaml
+          triple: !include actions_switch.yaml
+          long: !include actions_switch.yaml
+          double_then_long: !include actions_switch.yaml
+          single_then_long: !include actions_switch.yaml
+          double_then_single: !include actions_switch.yaml
+adc:
+  type: list
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/adc \n GPIO ADC section of boneIO Black. It enables ADC sensors in HA. Don't let them hang without use."
+  schema:
+    type: dict
+    schema:
+      id:
+        type: string
+        required: False
+        meta:
+          label: Id to use in HA if needed. Default to pin number.
+      pin:
+        type: string
+        required: True
+        allowed: ['P9_33', 'P9_35', 'P9_36', 'P9_37', 'P9_38', 'P9_39', 'P9_40']
+        meta:
+          label: PIN to use.
+      update_interval: !include update_interval.yaml
+      show_in_ha:
+        type: boolean
+        required: True
+        default: True
+        meta:
+          label: If you want you can disable discovering this input in HA.
+      filters: !include filters_adc.yaml
+cover:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/cover \n Cover section of boneIO Black. It enables cover entities in HA. You'd need output config to use it first."
+  schema:
+    type: dict
+    schema:
+      name:
+        type: string
+        required: False
+        meta:
+          label: Display Name
+          description: Optional friendly name shown in Home Assistant. If not set, uses id.
+      id:
+        type: string
+        required: False
+        regex: '^[a-z0-9_]+$'
+        coerce: str
+        meta:
+          label: Cover ID
+          description: |
+            Technical identifier used in MQTT topics and actions.
+            Must contain only lowercase letters, numbers and underscores (no spaces).
+            If not set, auto-generated from open_relay and close_relay (e.g., cover_out_31_out_32).
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area/Room
+          description: |
+            Reference to area ID defined in 'areas' section.
+            Creates a sub-device linked to the main BoneIO device.
+      restore_state:
+        type: boolean
+        required: True
+        default: False
+        meta:
+          label: Restore saved state of boneio.
+      open_relay:
+        type: string
+        required: True
+        meta:
+          label: ID of open relay of output.
+      close_relay:
+        type: string
+        required: True
+        meta:
+          label: ID of close relay of output.
+      platform:
+        type: string
+        required: True
+        default: time_based
+        allowed: ['time_based', 'venetian', 'previous']
+        meta:
+          label: Platform to use for cover.
+      open_time:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        meta:
+          label: Time to open cover. Example 30s. Minimum is 1s.
+      close_time:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: True
+        meta:
+          label: Time to close cover. Example 30s. Minimum is 1s.
+      tilt_duration:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        meta:
+          label: Time to tilt cover. Example 2s. Minimum is 10ms.
+      actuator_activation_duration:
+        type:
+          - string
+          - timeperiod
+        coerce:
+          - str
+          - positive_time_period
+        required: False
+        meta:
+          label: Time to activate actuator cover. Example 30s. Minimum is 0ms.
+      device_class:
+        type: string
+        required: False
+        allowed:
+          [
+            'awning',
+            'blind',
+            'curtain',
+            'damper',
+            'door',
+            'garage',
+            'gate',
+            'shade',
+            'shutter',
+            'window',
+          ]
+        meta:
+          label: Device class to use in HA
+      show_in_ha:
+        type: boolean
+        required: True
+        default: True
+        meta:
+          label: If you want you can disable discovering this input in HA.
+
+ds2482:
+  type: list
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/configuration/ds2482 \n DS2482 section of boneIO Black. It enables DS2482 1 wire extenders, which you can use in sensor: config."
+  schema:
+    type: dict
+    required: False
+    schema:
+      id: !include id.yaml
+      address:
+        type: string
+        required: True
+        default: 0x18
+        meta:
+          label: GPIO of I2C SDA
+
+sensor:
+  type: list
+  required: False
+  meta:
+    label: Sensor list. Currently only Dallas DS18B20 and DS2482 support. Check DS18B20 or DS2482 section for more info.
+  schema:
+    type: dict
+    schema:
+      id:
+        type: string
+        required: False
+        meta:
+          label: Id to use in HA if needed. Default to address.
+      name:
+        type: string
+        required: False
+        meta:
+          label: Display name for the sensor in Home Assistant.
+      area:
+        type: string
+        required: False
+        meta:
+          label: Area/room where the sensor is located. Used for HA device grouping.
+      platform:
+        type: string
+        required: False
+        default: gpio_onewire
+        allowed: ['gpio_onewire', 'ds2482']
+        meta:
+          label: Platform - gpio_onewire for kernel 1-Wire, ds2482 for I2C bridge.
+      address:
+        type: string
+        required: True
+        meta:
+          label: Address of Dallas device (e.g. 28-0000098c7df0)
+      bus_id:
+        type: string
+        required: False
+        meta:
+          label: DS2482 bus ID (only for ds2482 platform). References ds2482 section id.
+      show_in_ha:
+        type: boolean
+        required: False
+        default: True
+        meta:
+          label: If you want you can disable discovering this input in HA.
+      filters: !include filters.yaml
+      update_interval: !include update_interval.yaml
+      unit_of_measurement: !include temp_unit.yaml
+
+boneio:
+  type: dict
+  required: False
+  meta:
+    label: "https://boneio.eu/docs/black/0.9.x-dev/configuration/boneio \n BoneIO configuration section. It's new section for boneIO Black. It enables you to use predefined device types. For now only 0.7 and 0.8 devices are supported."
+  schema:
+    name:
+      type: string
+      required: True
+      meta:
+        label: Name of boneio. Default is Black.
+    version:
+      type:
+        - float
+        - string
+      coerce:
+        - version_to_str
+      required: False
+      allowed: ["0.4", "0.7", "0.8", 0.4, 0.7, 0.8]
+      meta:
+        label: BoneIO Black Hardware version
+    device_type:
+      type: string
+      required: False
+      allowed: ['32x10A', '32x10', '32', '32x5A', '32x5', '24x16A', '24x16', '24', 'cover', 'cover mix', 'cm', '32x10a', '32x5a', '24x16a']
+      coerce:
+        - str
+        - lower
+      meta:
+        label: Predefined device type configuration
