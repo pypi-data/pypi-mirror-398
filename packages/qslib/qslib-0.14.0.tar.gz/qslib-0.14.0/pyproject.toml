@@ -1,0 +1,151 @@
+# SPDX-FileCopyrightText: 2021 - 2023 Constantine Evans <qslib@mb.costi.net>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+version_file = "src/qslib/version.py"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.maturin]
+python-source = "python"
+module-name = "qslib._qslib"
+bindings = "pyo3"
+features = ["python"]
+
+[tool.isort]
+profile = "black"
+
+[project]
+name = "qslib"
+requires-python = ">=3.10"
+description = "Library for communicating with and using the QuantStudio qPCR machine, intended for non-qPCR uses."
+license = { text = "EUPL-1.2" }
+readme = "README.md"
+authors = [{ name = "Constantine Evans", email = "const@costi.net" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
+    "Natural Language :: English",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Framework :: Matplotlib",
+    "Framework :: Jupyter",
+]
+
+dynamic = ["version"]
+
+dependencies = [
+    "pandas >= 2",
+    "numpy >= 1",
+    "tabulate >= 0.9",
+    "pyparsing >= 3",
+    "typeguard >= 2",
+    "nest_asyncio >= 1.5",
+    "click >=8.0,<9.0",
+    "click-aliases",
+    "typing-extensions >= 4",
+    "toml",
+    "pint",
+    "attrs",
+    "matplotlib",
+    "markdown",
+    "dacite",
+    "polars ~= 1.20",
+    "pyarrow"
+]
+
+[project.optional-dependencies]
+monitor = [
+    "aiohttp~=3.9.0b0; python_version >= '3.12'",
+    "matrix-nio",
+    "influxdb_client",
+    "lxml"]
+altair = [
+    "vegafusion",
+    "altair",
+    "vl-convert-python",
+]
+
+[project.urls]
+homepage = "https://github.com/cgevans/qslib/"
+documentation = "https://qslib.readthedocs.org/"
+source = "https://github.com/cgevans/qslib/"
+changelog = "https://github.com/cgevans/qslib/blob/main/CHANGELOG.md"
+tracker = "https://github.com/cgevans/qslib/issues"
+download = "https://github.com/cgevans/qslib/releases"
+
+[project.scripts]
+qs-monitor = "qslib.monitor_cli:run"
+qslib = "qslib.cli:cli"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=6.2.1",
+    "setuptools",
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "hypothesis",
+    "qslib[monitor]",
+]
+docs = [
+    "myst_parser",
+    "influxdb_client",
+    "lxml",
+    "sphinx-click",
+    "sphinx-autodoc-typehints",
+    "sphinx >= 2.4",
+    "qslib[monitor]"
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov qslib --cov-report term-missing --verbose"
+norecursedirs = ["dist", "build", ".tox"]
+testpaths = ["tests"]
+
+
+[tool.mypy]
+python_version = "3.10"
+# warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 120
+
+[tool.hatch.envs.hatch-test]
+skip-install = false
+dependencies = [
+    "pytest>=8.4.2",
+    "pytest-cov>=6.2.1",
+    "setuptools",
+    "pytest-asyncio",
+    "hypothesis",
+]
+pre-install-commands=["maturin develop --uv"]
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.12", "3.13"]
+
+
+#[tool.hatch.envs.default.scripts]
+#test = "pytest {args:tests}"
+#test-cov = "pytest --cov qslib --cov-report term-missing {args:tests}"
+#test-cov-html = "pytest --cov qslib --cov-report html {args:tests}"
